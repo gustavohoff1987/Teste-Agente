@@ -653,7 +653,8 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
   const definicaoDasCondicoes = lista(condicoes?.definicao).map(t => texto(objeto(t)?.texto) ?? "");
   for (const item of itens) item.condicoes?.porCondicao.forEach((c, i) => { if (!c.texto) c.texto = definicaoDasCondicoes[i] ?? ""; });
   const ordenacao = objeto(o.ordenacao);
-  const contexto = objeto(objeto(o.contexto)?.brasil);
+  // A linha do todo: o Brasil (a fonte nacional) ou, numa planilha (07/11/2026, item 2.3 do comando), o todo pelas unidades.
+  const contexto = objeto(objeto(o.contexto)?.brasil) ?? objeto(objeto(o.contexto)?.todo);
   const contextoTopo = objeto(o.contexto);
   const abrangenciaCompleta: AbrangenciaCompleta | null = contextoTopo && (typeof contextoTopo.brasil_completo === "boolean" ||
     Array.isArray(contextoTopo.estados)) ? { brasil: contextoTopo.brasil_completo === true,
@@ -758,13 +759,18 @@ export function normalizarMapa(bruto: unknown): DadosDoMapa {
 // ------------------------------------------------------------------------------------------------ lugar em uso (06/11/2026)
 /** Pedido de /api/painel/lugar: a competência e a categoria da análise, o grupo do lugar (o prefixo do estado), a competência
  * inicial da variação da faixa e, para as linhas de referência da Tendência, as competências da série. */
-export type LugarOpcoes = { competencia: string; categoria: string; grupo?: string; desde?: string; serie?: { competencias: string[] } };
+export type LugarOpcoes = { competencia: string; categoria: string; grupo?: string; desde?: string; serie?: { competencias: string[] };
+  /** Numa planilha (07/11/2026, item 1.4 do comando): as escolhas do painel Colunas, como no pedido do gráfico. */
+  premissas?: Premissas; rotulos?: RotulosTerritoriais };
 export type ValoresDaSerie = { competencia: string; quantidade: number | null; populacao: number | null; densidade: number | null };
 /** Um nível do lugar em uso (o todo ou o grupo), com os números do motor: prontos na fonte (nacional ou estadual), nunca somados. */
 export type NivelDoLugar = { id: string; nivel: "todo" | "grupo"; rotulo: string; nome: string | null; sigla: string | null; fonte: string;
   regra: string | null; competencia: string; quantidade: number | null; populacao: number | null; densidade: number | null;
   avaliabilidade: string; motivo: string | null; desde: string | null; inicial: PainelValores | null; variacaoPercentual: PainelValores | null;
-  motivosVariacao: string[]; serie: ValoresDaSerie[] | null };
+  motivosVariacao: string[]; serie: ValoresDaSerie[] | null;
+  /** Numa planilha (07/11/2026, item 1.4 do comando): de onde vem o total, "pessoas_unicas" (o identificador individual) ou
+   * "soma" (a soma das unidades, com a limitação SOMA_COM_POSSIVEL_DUPLA_CONTAGEM); na base do Brasil, null (a fonte pronta). */
+  origem: "pessoas_unicas" | "soma" | null; limitacoes: string[] };
 export type RespostaLugar = { competencia: string; categoria: string; desde: string | null; todo: NivelDoLugar | null;
   grupo: NivelDoLugar | null; notas: string[] };
 function nivelDoLugarDe(bruto: unknown): NivelDoLugar | null {
@@ -778,7 +784,9 @@ function nivelDoLugarDe(bruto: unknown): NivelDoLugar | null {
     populacao: num(o.populacao), densidade: num(o.densidade), avaliabilidade: texto(o.avaliabilidade) ?? "NAO_AVALIAVEL", motivo: texto(o.motivo),
     desde: texto(o.desde), inicial: objeto(o.inicial) ? valores3(o.inicial) : null,
     variacaoPercentual: objeto(o.variacao_percentual) ? valores3(o.variacao_percentual) : null,
-    motivosVariacao: lista(o.motivos_variacao).filter((m): m is string => typeof m === "string"), serie };
+    motivosVariacao: lista(o.motivos_variacao).filter((m): m is string => typeof m === "string"), serie,
+    origem: o.origem === "pessoas_unicas" || o.origem === "soma" ? o.origem : null,
+    limitacoes: lista(o.limitacoes).filter((m): m is string => typeof m === "string") };
 }
 /** Resposta de /api/painel/lugar nos tipos da tela; nada é calculado aqui. */
 export function normalizarLugar(bruto: unknown): RespostaLugar {

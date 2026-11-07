@@ -2785,9 +2785,23 @@ def _context_line(ctx) -> dict:
     """Linha de contexto do Brasil (decisão D5 de 19/10/2026): a taxa nacional na competência, sem classificar nada;
     reaproveitada entre pedidos da mesma competência e categoria (_reaproveitar). No nível Brasil, o próprio item é o
     total nacional: sem a linha."""
-    if not ctx.brazil or ctx.nivel == "brasil":
+    if not ctx.brazil:
+        # Numa planilha (07/11/2026, item 2.3 do comando, a linha do todo em qualquer base): o todo pelas unidades, como na
+        # faixa (pessoas únicas ou a soma, com a origem).
+        return {"brasil": None, "todo": _reaproveitar(ctx, "contexto", {}, lambda: _linha_do_todo_da_planilha(ctx))}
+    if ctx.nivel == "brasil":
         return {"brasil": None}
     return _reaproveitar(ctx, "contexto", {}, lambda: _national_line(ctx))
+
+
+def _linha_do_todo_da_planilha(ctx) -> dict:
+    record, origem, motivo = _total_da_planilha(ctx, ctx.period)
+    values = (record or {"valores": {}})["valores"]
+    return {"rotulo": ctx.labels.todo.nome if ctx.labels.todo else "Toda a base", "competencia": ctx.period,
+            "densidade": _num(values.get("densidade")), "quantidade": _num(values.get("quantidade")),
+            "populacao": _num(values.get("populacao")), "origem": origem, "contagem": CONTAGEM_DA_ORIGEM[origem],
+            "avaliabilidade": "NAO_AVALIAVEL" if record is None else "AVALIAVEL" if values.get("densidade") is not None
+            else "AVALIAVEL_COM_LIMITACOES", "motivo": motivo, "nota": NOTE_LUGAR_PLANILHA}
 
 
 def _national_line(ctx) -> dict:
@@ -3515,6 +3529,117 @@ def _lugar_estado(ctx, prefix, desde, serie):
     return entry
 
 
+# Os números do lugar numa planilha (07/11/2026, item 1.4 do comando de 06/11/2026, os nomes da base): o todo e cada grupo da
+# coluna-mãe vêm das unidades. Com o identificador individual em todas as linhas (sem coluna de quantidade), as pessoas únicas
+# da união (CAP-AGR-01, UNIDADES_DISTINTAS por deduplicação); senão, a soma das unidades (SOMA_DOS_COMPONENTES, com a ressalva
+# da soma: a decisão "Soma automática" do responsável, de 06/11/2026, divergência aprovada de CAP-AGR-01).
+CONTAGEM_DA_ORIGEM = {"pessoas_unicas": "UNIDADES_DISTINTAS", "soma": "SOMA_DOS_COMPONENTES"}
+NOTE_LUGAR_PLANILHA = ("Numa planilha, o todo e cada grupo vêm das unidades: com o identificador individual em todas as linhas, "
+                       "as pessoas únicas da união (quem atua em mais de uma unidade conta uma vez); sem ele, a soma das "
+                       "unidades, com possível dupla contagem (quem atua em mais de uma unidade conta em cada uma). A população "
+                       "é a soma das unidades com registro, cada uma uma vez.")
+
+
+def _total_da_planilha(ctx, period, keys=None):
+    """O todo (keys None) ou um grupo de uma planilha numa competência: (registro, origem, motivo). A quantidade é a de pessoas
+    únicas (o identificador individual em todas as linhas da união, sem coluna de quantidade) ou a soma das unidades; a
+    população, a soma das unidades com registro, cada uma uma vez; sem a população de alguma delas, a densidade não é
+    avaliável (nunca estimada). Nada vai ao provedor de IA, e nenhum identificador sai do motor."""
+    measures = _measures(ctx, period)
+    chosen = [key for key in measures.records if keys is None or key in keys]
+    values = [measures.records[key]["valores"] for key in chosen]
+    with_count = [(key, value) for key, value in zip(chosen, values) if _present(value["quantidade"])]
+    if not with_count:
+        return None, "soma", None
+    quantidade = sum(_num(value["quantidade"]) for _key, value in with_count)
+    origem, motivos = "soma", []
+    identity = ctx.mapping.get("identity")
+    if identity and not ctx.mapping.get("count"):
+        rows = measures.rows
+        mask = row_ids(rows, ctx.mapping).isin({key for key, _value in with_count}).to_numpy()
+        people = text_values(rows[identity])[mask]
+        if len(people) and not people.isna().any():
+            quantidade, origem = int(people.nunique()), "pessoas_unicas"
+        else:
+            motivos.append("Há linhas sem o identificador individual: as pessoas únicas não podem ser estabelecidas, e o total "
+                           "é a soma das unidades.")
+    populations = [_num(value["populacao"]) for _key, value in with_count]
+    populacao = densidade = None
+    if ctx.density:
+        if all(population is not None and population > 0 for population in populations):
+            populacao = sum(populations)
+            densidade = quantidade / populacao * 1000
+        else:
+            faltam = sum(1 for population in populations if population is None or population <= 0)
+            motivos.append("Sem a população de " + ctx.labels.unidade.n(faltam) + " com registro: a densidade não é "
+                           "avaliável (nunca estimada).")
+    return ({"valores": {"quantidade": quantidade, "populacao": populacao, "densidade": densidade}}, origem,
+            " ".join(motivos) or None)
+
+
+def _lugar_da_planilha(ctx, nivel, ident, rotulo, keys, desde, serie):
+    """Um nível do lugar numa planilha (o todo ou um grupo), com a origem do total e, na soma, a limitação da soma."""
+    final, origem, motivo = _total_da_planilha(ctx, ctx.period, keys)
+    base = {"id": ident, "nivel": nivel, "rotulo": rotulo, "fonte": "planilha", "origem": origem,
+            "contagem": CONTAGEM_DA_ORIGEM[origem],
+            "limitacoes": ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"] if origem == "soma" else []}
+    initial, origem_inicial = None, origem
+    if desde:
+        initial, origem_inicial, _motivo = _total_da_planilha(ctx, desde, keys)
+    entry = _lugar_entrada(ctx, base, final, initial, desde)
+    if desde and final is not None and initial is not None and origem_inicial != origem:
+        entry.update(variacao_percentual=None, motivos_variacao=[
+            "Variação não avaliável: o total é de pessoas únicas numa competência e a soma das unidades na outra "
+            "(INCOMPARABILIDADE)."])
+    entry["motivo"] = motivo if final is not None else (
+        "Sem registro em " + human_period(ctx.period) + ": não avaliável, nunca zero (SEM_REGISTRO_OBSERVADO).")
+    entry["serie"] = None if serie is None else [
+        {"competencia": period, **{field: _num(((_total_da_planilha(ctx, period, keys)[0]) or {"valores": {}})["valores"]
+                                                 .get(field)) for field in FIELDS3}} for period in serie]
+    return entry
+
+
+def _lugar_grupo_da_planilha(ctx, raw):
+    """O grupo do lugar numa planilha: um valor da coluna-mãe (o id "uf:<valor>" ou o valor)."""
+    if raw is None or raw == "":
+        return None
+    value = raw[3:] if isinstance(raw, str) and raw.startswith("uf:") else raw
+    if not ctx.group_column:
+        raise ValueError("A planilha não tem a coluna d" + ctx.labels.grupo.g("o", "a") + " " + ctx.labels.grupo.singular +
+                         " (papel grupo_territorial): o lugar é só o todo.")
+    if not isinstance(value, str) or value not in set(ctx.groups.values()):
+        raise ValueError(ctx.labels.grupo.Singular + " do lugar inexistente na planilha: " + str(value)[:60] + ".")
+    return value
+
+
+def _lugar_planilha(ctx, options):
+    """POST /api/painel/lugar numa planilha: o todo e, pedido em `grupo`, um grupo da coluna-mãe. A variação e a série seguem
+    as premissas temporais da planilha; sem elas, a faixa vem sem a variação, com o motivo, em vez de recusar o pedido."""
+    grupo = _lugar_grupo_da_planilha(ctx, options.get("grupo"))
+    notas_extra = []
+    try:
+        desde = _lugar_desde(ctx, options.get("desde"))
+    except ChoiceRequired as exc:
+        desde = None
+        notas_extra.append("Sem a variação: " + str(exc))
+    try:
+        serie = _series_window(ctx, options.get("serie"))
+    except ChoiceRequired as exc:
+        serie = None
+        notas_extra.append("Sem a série: " + str(exc))
+    nome = ctx.labels.todo.nome if ctx.labels.todo else "Toda a base"
+    membros = {key for key, value in ctx.groups.items() if value == grupo} if grupo else None
+
+    def calcular():
+        notes = [NOTE_LUGAR_PLANILHA] + ([NOTE_LUGAR_VARIACAO] if desde else []) + notas_extra
+        return {"competencia": ctx.period, "categoria": ctx.category, "desde": desde, "serie": serie,
+                "todo": _lugar_da_planilha(ctx, "todo", "todo", nome, None, desde, serie),
+                "grupo": _lugar_da_planilha(ctx, "grupo", "uf:" + grupo, grupo, membros, desde, serie) if grupo else None,
+                "notas": notes}
+
+    return _reaproveitar(ctx, "lugar", {"grupo": grupo, "desde": desde, "serie": serie, "todo": nome}, calcular)
+
+
 def lugar(sources, mapping, options, frame=None) -> dict:
     """POST /api/painel/lugar (06/11/2026): os números do lugar em uso na trilha, do motor. `todo`: na base do Brasil, a
     contagem da fonte nacional, a população BR-POP-JUNHO-1 e a densidade (os valores da linha de contexto e do nível Brasil);
@@ -3523,7 +3648,7 @@ def lugar(sources, mapping, options, frame=None) -> dict:
     Tendência). Nada é somado nem estimado; nada é registrado na sessão e nada vai ao provedor de IA."""
     ctx = context(sources, mapping, options, LUGAR_KEYS, frame=frame, page=True)
     if not ctx.brazil:
-        raise ValueError(LUGAR_SO_BRASIL)
+        return _lugar_planilha(ctx, options)  # desde 07/11/2026 (item 1.4 do comando); antes, LUGAR_SO_BRASIL
     prefix = _lugar_grupo(ctx, options.get("grupo"))
     desde = _lugar_desde(ctx, options.get("desde"))
     serie = _series_window(ctx, options.get("serie"))

@@ -280,8 +280,18 @@ inicial, variacao_percentual, motivos_variacao, serie}`, e o grupo também `sigl
   `motivos_variacao`. A tela pede desde o primeiro dos últimos 4 períodos anuais até a competência da análise.
 - **`serie`** (com o pedido): `[{competencia, quantidade, populacao, densidade}]` em cada competência, `null` onde não há valor.
 - Sem a fonte (a nacional, ou o estado sem registro na estadual), os valores ficam `null`, com o motivo; nunca zero.
-- Só na base do Brasil nesta versão (numa planilha → 422 "Nesta versão, os números do lugar em uso (a faixa e a linha do todo)
-  vêm das fontes nacional e estadual da base do Brasil.").
+- **Numa planilha** (desde 07/11/2026, item 1.4 do comando de 06/11/2026; antes, 422 "Nesta versão, os números do lugar em uso
+  … vêm das fontes nacional e estadual da base do Brasil."): com `premissas` e `rotulos`, como na rota 1, o todo (`id: "todo"`,
+  `rotulo`: o nome do todo ou "Toda a base") e, com `grupo` (um valor da coluna-mãe, ou "uf:" e ele; outro → 422 "… do lugar
+  inexistente na planilha"), o grupo (`id: "uf:<valor>"`) vêm das unidades: com o identificador individual em todas as linhas
+  da união (sem coluna de quantidade), as pessoas únicas (`origem: "pessoas_unicas"`, `contagem: "UNIDADES_DISTINTAS"`,
+  deduplicação sobre a união, CAP-AGR-01); senão, a soma das unidades (`origem: "soma"`, `contagem: "SOMA_DOS_COMPONENTES"`,
+  `limitacoes: ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"]`; a decisão "Soma automática" do responsável). A população é a soma das
+  unidades com registro, cada uma uma vez; sem a população de alguma, a densidade é `null`, com o motivo. Com a origem diferente
+  entre as competências, a variação não é avaliável (INCOMPARABILIDADE). Sem as premissas temporais da planilha, a variação e a
+  série saem, com o motivo nas notas, em vez da recusa. Nenhum identificador sai do motor.
+- **A linha do todo numa planilha** (rota 1, desde 07/11/2026): `contexto.todo`, `{rotulo, competencia, densidade, quantidade,
+  populacao, origem, contagem, avaliabilidade, motivo, nota}`, o mesmo todo da faixa; `contexto.brasil` continua `null`.
 - **Só leitura:** nada é registrado na sessão, nada vai ao provedor de IA; o resultado é reaproveitado por versão verificada da
   base (`_reaproveitar`).
 

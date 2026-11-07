@@ -191,6 +191,19 @@ def main():
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("Densidade de médicos nas comunas da Solária")
         expect(area.get_by_test_id("analise-subtitulo")).to_contain_text("Cada bolha é uma comuna.")
+        # A faixa e a linha do todo numa planilha (07/11/2026, itens 1.4 e 2.3 do comando): a Solária pelas comunas, a soma
+        # (sem o identificador individual), com a origem e a ressalva da soma; os números são os do motor.
+        linha = resposta["contexto"]["todo"]
+        assert resposta["contexto"]["brasil"] is None and linha["rotulo"] == "Solária" and linha["origem"] == "soma", linha
+        faixa = area.get_by_test_id("analise-faixa")
+        expect(faixa).to_have_attribute("data-lugar", "todo", timeout=60000)
+        origem = faixa.get_by_test_id("analise-faixa-origem")
+        expect(origem).to_have_attribute("data-origem", "soma", timeout=60000)
+        expect(origem).to_contain_text("Total: a soma das comunas.")
+        expect(origem).to_contain_text("podem ser contabilizados mais de uma vez")
+        expect(faixa.locator('[data-testid="analise-faixa-numero"][data-chave="profissionais"]')).to_have_attribute(
+            "data-valor", str(int(linha["quantidade"])), timeout=60000)
+        expect(area.get_by_test_id("analise-contexto-brasil")).to_have_attribute("data-rotulo", re.compile(r"^Solária \d"))
         aperta(area.get_by_test_id("analise-funcao-condicoes"))
         expect(area.get_by_test_id("analise-condicoes")).to_contain_text(
             "Separa as comunas que atendem a todas as condições escolhidas, as que não atendem e as que não têm dado para avaliar.")

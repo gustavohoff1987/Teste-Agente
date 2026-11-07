@@ -538,14 +538,18 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
 
   // Os números do lugar em uso (06/11/2026): a faixa e as linhas do todo e do grupo, do motor (POST /api/painel/lugar), à parte
   // do gráfico: trocar o "Ver por" não os pede de novo. Na competência da análise; a variação, desde o primeiro dos últimos 4
-  // períodos anuais; na Série temporal, também os valores das competências dela. Só na base do Brasil nesta etapa.
+  // períodos anuais; na Série temporal, também os valores das competências dela. Desde 07/11/2026 (item 1.4 do comando), também
+  // numa planilha: o todo e o grupo pelas unidades, com as escolhas do painel Colunas.
   const competenciaDaFaixa = opcoes?.competencia ?? def.competencia;
   const pedidoDoLugar: LugarOpcoes | null = useMemo(() => {
-    if (!fonte || !pronto || tipo !== "brasil" || lugar.tipo === "nenhum" || !competenciaDaFaixa) return null;
+    if (!fonte || !pronto || !tipo || lugar.tipo === "nenhum" || !competenciaDaFaixa) return null;
+    if (tipo === "arquivo" && !opcoes) return null;
     const desde = desdeDaFaixa(periodos, competenciaDaFaixa);
     return { competencia: competenciaDaFaixa, categoria: def.categoria, ...(lugar.grupo ? { grupo: lugar.grupo } : {}),
-      ...(desde ? { desde } : {}), ...(opcoes?.serie ? { serie: opcoes.serie } : {}) };
-  }, [fonte, pronto, tipo, lugar.tipo, lugar.grupo, competenciaDaFaixa, def.categoria, periodos, opcoes?.serie]);
+      ...(desde ? { desde } : {}), ...(opcoes?.serie ? { serie: opcoes.serie } : {}),
+      ...(tipo === "arquivo" && opcoes ? { ...(opcoes.premissas ? { premissas: opcoes.premissas } : {}),
+        ...(opcoes.rotulos ? { rotulos: opcoes.rotulos } : {}) } : {}) };
+  }, [fonte, pronto, tipo, lugar.tipo, lugar.grupo, competenciaDaFaixa, def.categoria, periodos, opcoes?.serie, opcoes?.premissas, opcoes?.rotulos]);
   const chaveDoLugar = pedidoDoLugar ? chaveFonte + "::" + JSON.stringify(pedidoDoLugar) : "";
   // Sem a série, a mesma faixa: trocar de aba (a Série temporal pede a série) mantém os números à vista enquanto chega o pedido novo.
   const baseDoLugar = pedidoDoLugar ? chaveFonte + "::" + JSON.stringify({ ...pedidoDoLugar, serie: undefined }) : "";
@@ -1920,7 +1924,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             onVerAnalise={() => escolherAba(def.familia)}/>
         </> : <>
           {/* A faixa fixa do lugar em uso (06/11/2026, item 2.2): no alto de todas as abas de análise; no nível da unidade, o cartão. */}
-          {tipo === "brasil" && <FaixaDoLugar lugar={lugar} numeros={numerosNaFaixa} carregando={carregandoLugar} erro={erroNaFaixa}
+          {!!tipo && <FaixaDoLugar lugar={lugar} numeros={numerosNaFaixa} carregando={carregandoLugar} erro={erroNaFaixa}
             categoria={def.categoria} rotulos={rotulos} resumo={resumoDaSelecao} verPor={verPor} nivel={def.nivel} onVerPor={escolherNivel}
             unidade={unidadeDoLugar} distancia={distanciaDaUnidade}/>}
           <EntendaEstaAnalise key={aba} aba={aba} pedida={explicacaoPedida}

@@ -3,8 +3,8 @@ import { ChevronRight } from "lucide-react";
 import type { NivelDoLugar, PainelItem, PainelNivel, RespostaLugar } from "./painelApi";
 import { competenciaCurta } from "./paginaUnica";
 import {
-  formatarIndicador, formatarNumero, formatarVariacao, maiuscula, nomeCurtoDoNivel, populacaoResumida, profissionaisDe,
-  textoDaReferencia, type LugarDaTrilha, type OpcaoVerPor, type ParteDaTrilha, type RotulosTerritoriais,
+  RESSALVA_DA_SOMA, formatarIndicador, formatarNumero, formatarVariacao, generoDe, maiuscula, nomeCurtoDoNivel, populacaoResumida,
+  profissionaisDe, textoDaReferencia, type LugarDaTrilha, type OpcaoVerPor, type ParteDaTrilha, type RotulosTerritoriais,
 } from "./painelModel";
 
 // Navegação por níveis (comando do responsável de 06/11/2026, itens 2 e 3). A trilha, no alto da área de análise e igual em todas
@@ -158,10 +158,18 @@ export default function FaixaDoLugar(p: FaixaProps) {
   } else {
     corpo = <Referencias niveis={[todo]}/>;
   }
+  // Numa planilha (07/11/2026, item 1.4 do comando), a faixa diz de onde vem o total: pessoas únicas pelo identificador ou a soma
+  // das unidades, com a ressalva da soma (G3). Na base do Brasil, os números vêm prontos nas fontes, sem a linha.
+  const origem = (p.lugar.tipo === "grupo" ? grupo?.origem : null) ?? todo?.origem ?? null;
+  const unidade = p.rotulos.unidade;
+  const daOrigem = origem === "soma" ? "Total: a soma d" + (generoDe(unidade) === "f" ? "as " : "os ") + unidade.plural + ". " + RESSALVA_DA_SOMA
+    : origem === "pessoas_unicas" ? "Total: pessoas únicas, pelo identificador individual (quem atua em mais de " +
+      (generoDe(unidade) === "f" ? "uma " : "um ") + unidade.singular + " conta uma vez)." : "";
   return <section data-testid="analise-faixa" data-lugar={p.lugar.tipo} data-grupo={p.lugar.grupo ?? ""} data-carregando={p.carregando ? "true" : "false"}
     aria-label={"Números do lugar em uso: " + titulo} className={"analise-faixa" + (p.lugar.tipo === "unidade" ? " analise-faixa-unidade" : "")}>
     {cabecalho}
     {corpo}
+    {daOrigem && <p data-testid="analise-faixa-origem" data-origem={origem ?? ""} className="analise-faixa-apoio">{daOrigem}</p>}
     {estado}
   </section>;
 }

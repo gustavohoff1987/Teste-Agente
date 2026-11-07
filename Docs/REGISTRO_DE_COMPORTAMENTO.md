@@ -35,6 +35,35 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Nomes da base, parte B1 (etapa 8B do comando, item 1.4): o total do todo e do grupo de uma planilha na faixa, com a origem, e a linha do todo
+- **Classificação (regra 1), pela leitura, antes de codar:** item 1.4 do comando de 06/11/2026, classificado de uma vez com os
+  demais (entrada da navegação por níveis, abaixo), com a decisão aprovada na consulta da mesma data: **"Soma automática"**, com
+  a ressalva sempre à vista — divergência aprovada de CAP-AGR-01. Mudança prevista: *escopo:* decorre do comando (1.4, e 2.2 e
+  2.3 em qualquer base); *compatibilidade:* com o identificador individual, as pessoas únicas por deduplicação sobre a união são
+  previstas em CAP-AGR-01 (UNIDADES_DISTINTAS, "sem pergunta"; AT-54, variante com identificador); a soma é rotulada como soma,
+  com a limitação SOMA_COM_POSSIVEL_DUPLA_CONTAGEM (V-14, RQ-REP-14); todo número vem do motor (INV-02). O total informado pela
+  pessoa (1.4c) e os níveis de grupo no "Ver por" ficam para as partes seguintes.
+- **Antes:** numa planilha, `POST /api/painel/lugar` recusava ("… vêm das fontes nacional e estadual da base do Brasil."); a
+  faixa do lugar e a linha do todo no gráfico só existiam na base do Brasil (`contexto` era `{"brasil": null}`).
+- **Agora:** numa planilha, o lugar traz o todo (o nome do todo ou "Toda a base") e o grupo da coluna-mãe, pelas unidades: com
+  o identificador individual em todas as linhas, as pessoas únicas da união; sem ele, a soma das unidades, com a limitação da
+  soma; a população é a soma das unidades, cada uma uma vez (sem a de alguma, a densidade não é avaliável). A resposta do
+  gráfico traz `contexto.todo`, e a tela mostra a faixa no alto das análises, com a linha `analise-faixa-origem` que diz a origem
+  ("Total: a soma das comunas." com a ressalva da soma, ou "Total: pessoas únicas, pelo identificador individual…"), e a linha
+  tracejada do todo no gráfico ("Solária 1,52"). Sem as premissas temporais, a variação e a série saem, com o motivo.
+- **Permanece:** a base do Brasil (as fontes nacional e estadual, nunca a soma dos municípios); os itens do gráfico; o "Ver por" e
+  as bolhas de grupo, que numa planilha ainda não existem; nenhum identificador sai do motor, e nada vai ao provedor de IA.
+- **Motivo:** comando do responsável de 06/11/2026, itens 1.4, 2.2 e 2.3, com a decisão "Soma automática".
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO.md` (rota 5 numa planilha e `contexto.todo`) e `Docs/PAINEL_INTEGRADO_INTERFACE.md`
+    (a faixa numa planilha).
+  - **Testes novos:** `test_lugar_da_planilha_com_o_identificador_conta_pessoas_unicas` (7 pessoas únicas, onde a soma daria 8;
+    o grupo; nenhum identificador na resposta) e, em `ui_planilha_ficticia.py`, a faixa da Solária (a origem, a ressalva, o número
+    do motor) e a linha do todo.
+  - **Testes que mudam de propósito:** em `test_painel_pagina.py`, a planilha no lugar (antes recusada; agora a soma da Solária,
+    45 e 3.900, e a Província Norte, 21 e 1.500, e a recusa de um grupo inexistente) e o `contexto` da planilha (antes só
+    `{"brasil": null}`; agora com `todo`).
+
 ### 2026-11-07 · Nomes da base, parte A (etapa 8A do comando, item 1): o nome do todo, "Toda a base", o gênero no painel Colunas e os textos que seguem o nível
 - **Classificação (regra 1), pela leitura, antes de codar:** item 1 do comando de 06/11/2026, classificado de uma vez com os demais
   (entrada da navegação por níveis, abaixo). Esta parte cobre os itens 1.1 (os três papéis dos nomes, com o gênero onde couber),

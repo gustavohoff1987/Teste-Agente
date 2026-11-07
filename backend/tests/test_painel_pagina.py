@@ -1033,7 +1033,13 @@ def test_uploaded_districts_follow_the_received_labels_and_the_province_column(r
     assert all(item["tipo"] == "municipio" and item["uf"] is None for item in items.values())
     assert {key: item["grupo_territorial"] for key, item in items.items()} == {ALTO: "Província Norte",
                                                                                BAIXO: "Província Norte"}
-    assert body["contexto"] == {"brasil": None} and body["versao_base"] == hashlib.sha256(districts_csv()).hexdigest()
+    # A linha do todo numa planilha (07/11/2026, item 2.3 do comando; muda de propósito esta conferência, que esperava só
+    # {"brasil": None}): o todo pelas unidades, a soma (sem identificador individual), com a origem.
+    assert body["contexto"]["brasil"] is None and body["versao_base"] == hashlib.sha256(districts_csv()).hexdigest()
+    linha = body["contexto"]["todo"]
+    assert (linha["rotulo"], linha["origem"], linha["contagem"], linha["quantidade"], linha["populacao"]) == (
+        "Toda a base", "soma", "SOMA_DOS_COMPONENTES", 45, 3900)
+    assert linha["densidade"] == 45 / 3900 * 1000
     assert any(note.startswith("Distritos base (2024): 2 de 2 com registro") for note in body["notas"])
     assert not any("município" in note or "Município" in note for note in body["notas"])
     available = body["disponibilidade"]
@@ -1228,6 +1234,27 @@ def test_uploaded_consulta_uses_the_spreadsheet_levels(repo):
                                             "planilha inteira ou da seleção prévia.")
 
 
+def test_lugar_da_planilha_com_o_identificador_conta_pessoas_unicas(repo):
+    """07/11/2026 (item 1.4 do comando de 06/11/2026): com o identificador individual em todas as linhas, o todo e o grupo
+    contam as pessoas únicas da união (quem atua em dois distritos conta uma vez), sem a limitação da soma; a população é a
+    soma dos distritos, cada um uma vez. Nenhum identificador sai do motor."""
+    people = {"Alto Rio": ["p1", "p2", "p9"], "Campina": ["p5", "p6", "p7", "p1"], "Serra": ["p8"]}
+    lines = ["distrito;provincia;ano;categoria;id_pessoa;populacao"]
+    for name, ids in people.items():
+        lines += [";".join([name, DISTRICTS[name][0], "2024", "Enfermeiros", person, "1000"]) for person in ids]
+    contents = ("\n".join(lines) + "\n").encode()
+    mapping = {"territory": "distrito", "period": "ano", "category": "categoria", "identity": "id_pessoa",
+               "population": "populacao", "grupo_territorial": "provincia"}
+    body = ok(upload({"competencia": "2024", "rotulos": LABELS, "grupo": "Província Sul"}, mapping=mapping, contents=contents,
+                     name="pessoas.csv", path="/api/painel/lugar"))
+    todo, grupo = body["todo"], body["grupo"]
+    assert (todo["origem"], todo["contagem"], todo["quantidade"], todo["populacao"], todo["limitacoes"]) == (
+        "pessoas_unicas", "UNIDADES_DISTINTAS", 7, 3000, [])  # a soma dos distritos daria 8
+    assert todo["densidade"] == 7 / 3000 * 1000
+    assert (grupo["quantidade"], grupo["populacao"], grupo["origem"]) == (5, 2000, "pessoas_unicas")
+    assert "p1" not in json.dumps(body)
+
+
 def test_uploaded_rotation_with_the_individual_identifier_is_cap_rot_01(repo):
     people = {"2023": {"Alto Rio": ["p1", "p2", "p3", "p4"], "Campina": ["p5", "p6"]},
               "2024": {"Alto Rio": ["p1", "p2", "p9"], "Campina": ["p5", "p6", "p7"], "Serra": ["p8"]}}
@@ -1373,8 +1400,19 @@ def test_place_numbers_come_ready_from_the_national_and_state_sources_with_the_c
     refused(lugar(info, competencia="202406", desde="202406"), "precisa ser anterior à competência da análise")
     refused(lugar(info, competencia="202406", desde="209912"), "Competência inicial do lugar inexistente")
     refused(lugar(info, competencia="202406", nivel="municipios"), "Parâmetro não reconhecido no painel: nivel")
-    refused(upload({"competencia": "2024", "rotulos": LABELS, "premissas": {"count_unit": "pessoas"}}, path="/api/painel/lugar"),
-            "vêm das fontes nacional e estadual da base do Brasil")
+    # Desde 07/11/2026 (item 1.4 do comando de 06/11/2026; muda de propósito esta conferência, que recusava a planilha): o todo
+    # e o grupo da coluna-mãe vêm das unidades. Sem o identificador individual, a soma das unidades, com a limitação da soma.
+    planilha = ok(upload({"competencia": "2024", "rotulos": {**LABELS, "todo": {"nome": "Solária", "artigo": "a"}},
+                          "premissas": {"count_unit": "pessoas"}, "grupo": "Província Norte"}, path="/api/painel/lugar"))
+    todo, grupo = planilha["todo"], planilha["grupo"]
+    assert (todo["rotulo"], todo["origem"], todo["contagem"], todo["quantidade"], todo["populacao"]) == (
+        "Solária", "soma", "SOMA_DOS_COMPONENTES", 45, 3900)
+    assert todo["densidade"] == 45 / 3900 * 1000 and todo["limitacoes"] == ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"]
+    assert (grupo["id"], grupo["rotulo"], grupo["quantidade"], grupo["populacao"], grupo["densidade"]) == (
+        "uf:Província Norte", "Província Norte", 21, 1500, 14)
+    assert painel.NOTE_LUGAR_PLANILHA in planilha["notas"]
+    refused(upload({"competencia": "2024", "rotulos": LABELS, "premissas": {"count_unit": "pessoas"}, "grupo": "Província Leste"},
+                   path="/api/painel/lugar"), "inexistente na planilha")
 
 
 @pytest.fixture(scope="module")

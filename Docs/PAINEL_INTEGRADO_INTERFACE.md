@@ -302,8 +302,11 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   todo, sem nenhuma soma. Os números vêm prontos do motor (`POST /api/painel/lugar`, [Painel integrado](PAINEL_INTEGRADO.md)):
   o Brasil pela fonte nacional (BR-POP-JUNHO-1) e o estado pela contagem estadual de médicos únicos (UF-CONTAGEM-ESTADUAL-1),
   nunca a soma dos municípios; a variação é a do motor (CAP-TMP-01). Trocar o Ver por não os pede de novo. Cada número
-  (`analise-faixa-numero`) leva `data-chave` e `data-valor` (o valor do motor, em precisão integral). Nesta etapa, só na base do
-  Brasil.
+  (`analise-faixa-numero`) leva `data-chave` e `data-valor` (o valor do motor, em precisão integral). Desde 07/11/2026 (item 1.4
+  do comando), também numa planilha: o todo pelo nome (ou "Toda a base") e o grupo da coluna-mãe, com os números do motor pelas
+  unidades e a linha `analise-faixa-origem` (`data-origem`) que diz de onde vem o total: "Total: pessoas únicas, pelo
+  identificador individual (quem atua em mais de uma comuna conta uma vez)." ou "Total: a soma das comunas.", com a ressalva da
+  soma; no gráfico, a linha tracejada do todo ("Solária 1,52").
 - **O cartão do território** (`analise-cartao`, no lugar dos números da faixa, no nível da unidade): a quantidade e a população
   da unidade e as barras da densidade dela, do estado e do Brasil (`analise-cartao-barra`, com `data-chave` unidade, grupo e
   todo; o comprimento acompanha o valor do motor, sem classe nem posição); na Análise Espacial, também a distância até a
