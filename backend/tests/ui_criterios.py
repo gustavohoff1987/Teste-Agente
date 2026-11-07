@@ -8,6 +8,8 @@ Confere o aceite do comando na Seleção de Territórios, contra as respostas de
 - "Como seleção (89)": a trilha "Brasil › Seleção: densidade abaixo de 0,5 em jun/2024 (89)", a regra na Seleção e nos Detalhes,
   e a Distribuição com os 89;
 - "Cada grupo como território agregado": 6 grupos e 8 municípios na análise;
+- pela conversa (item 6.9), o pedido do comando abre o mesmo painel preenchido, com a prévia, e nada muda na análise até a
+  confirmação no painel;
 - nenhum texto à vista com "cluster".
 
 Base Brasil versionada (suíte base-versionada, ADT_BLOCK1_REAL=1); servidor serve_ui_offline.py, sem o provedor de IA.
@@ -17,7 +19,7 @@ import re
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline, options_of
+from ui_support import URL, offline, options_of, send
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 
@@ -148,7 +150,29 @@ def main():
         expect(territorios.get_by_test_id("analise-selecionado-conjunto").first).to_contain_text("Grupo 1 · grupo · 46 municípios")
         expect(partes.nth(1)).to_have_text(re.compile(r"^Seleção: densidade abaixo de 0,5, agrupados a até 200 km uns dos outros"))
 
-        # 6. Nenhum "cluster" à vista.
+        # 6. Pela conversa (item 6.9): o pedido do comando abre o mesmo painel preenchido, com a prévia do motor; nada muda na
+        # análise até a confirmação no painel.
+        chat = page.get_by_test_id("painel-chat")
+        antes = area.get_by_test_id("analise-aba-territorios-resumo").inner_text()
+        corpo, pedido = previa(lambda: send(page, "municípios com menos de 0,5 médico por mil habitantes a até 200 km uns dos outros"))
+        assert pedido["criterios"] == {"partir_de": {"tipo": "pais"},
+                                       "filtros": [{"indicador": "densidade", "operador": "<", "valor": 0.5}]}, pedido
+        assert pedido["agrupar"] == {"km": 200} and corpo["atendem"] == 89 and len(corpo["grupos"]) == 6, pedido
+        expect(chat.get_by_test_id("latest-reply")).to_contain_text(
+            "Abri Selecionar por critérios, na Seleção, com densidade abaixo de 0,5 em todo o país, agrupando os que ficam a até "
+            "200 km uns dos outros.", timeout=60000)
+        expect(area.get_by_test_id("analise-aba-territorios")).to_have_attribute("aria-selected", "true")
+        painel = territorios.get_by_test_id("analise-criterios")
+        expect(painel.get_by_test_id("analise-criterio-valor")).to_have_value("0,5")
+        expect(painel.get_by_test_id("analise-criterios-agrupar")).to_be_checked()
+        expect(painel.get_by_test_id("analise-criterios-agrupar-km")).to_have_value("200")
+        expect(painel.get_by_test_id("analise-criterios-resumo")).to_have_text("6 grupos e 8 isolados.")
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(antes)
+        expect(chat.locator('[data-papel="agente"]').last).to_have_attribute("data-execucao", "concluido", timeout=60000)
+        aperta(painel.get_by_test_id("analise-criterios-como-selecao"))
+        expect(partes).to_have_text(["Brasil", "Seleção: densidade abaixo de 0,5 em jun/2024 (89)"])
+
+        # 7. Nenhum "cluster" à vista.
         assert "cluster" not in page.evaluate("() => document.body.innerText").lower()
         page.screenshot(path=str(OUTPUT / "criterios-grupos-real.png"), full_page=True)
         assert not falhas, falhas
@@ -156,8 +180,8 @@ def main():
         browser.close()
     print("CRITÉRIOS PASS: Selecionar por critérios na Seleção (sem valores sugeridos), densidade abaixo de 0,5 em jun/2024 (89), "
           "6 grupos e 8 isolados a até 200 km (46 municípios e 1.235 km; 24 do PA e 907 km), o mapa pequeno, \"Como seleção (89)\" com "
-          "a trilha, a regra e os Detalhes, e \"Cada grupo como território agregado\" (6 grupos e 8 municípios); nenhum \"cluster\" "
-          "(base versionada).")
+          "a trilha, a regra e os Detalhes, e \"Cada grupo como território agregado\" (6 grupos e 8 municípios), o pedido pela conversa com o painel "
+          "preenchido e a prévia, sem mudar a análise até a confirmação; nenhum \"cluster\" (base versionada).")
 
 
 if __name__ == "__main__":

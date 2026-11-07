@@ -68,7 +68,16 @@ export type PedidoDoChat = {
   nomeDoGrupo?: string | null;
   /** A Escolha dos territórios completa pedida na conversa (28/10/2026), que a área confere campo a campo. */
   consulta?: object | null;
+  /** Selecionar por critérios pedido na conversa (07/11/2026, item 6.9 do comando): o painel da Seleção, preenchido, com a
+   * prévia do motor; nada muda na análise até a pessoa escolher no painel. */
+  criterios?: PedidoDeCriteriosDoChat | null;
 };
+/** Os critérios pedidos na conversa (07/11/2026), conferidos campo a campo (conversaGrafico.pedidoDoPainel). */
+export type PedidoDeCriteriosDoChat = {
+  criterios: { partir_de: { tipo: "pais" | "ufs" | "selecao"; ufs?: string[] };
+    filtros: { indicador: "densidade" | "quantidade" | "populacao"; operador: "<" | "<=" | ">" | ">="; valor: number }[];
+    distancia?: { de: string; km: number } };
+  agrupar: { km: number } | null };
 /** O que está no gráfico, informado pela área a cada mudança: é o contexto da conversa. */
 export type ContextoDoGrafico = {
   familia: Familia; indicador: Indicador; nivel: Nivel; municipios: MunicipiosDoGrafico; idsNaTela: string[];

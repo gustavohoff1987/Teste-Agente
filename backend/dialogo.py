@@ -556,9 +556,30 @@ def _cita_territorio(texto: str, nomes: list[str]) -> bool:
     return False
 
 
+# Agrupamento por regra (07/11/2026, item 6.5 do comando de 06/11/2026): um pedido com o critério e a distância ditos pela pessoa
+# ("… com densidade abaixo de 0,5 a até 200 km uns dos outros") é Selecionar por critérios; um sinal de EXC-05 nele ("clusters
+# espaciais") é descartado pelo contexto. Sem o critério ou sem a distância, o sinal vale (detecção autônoma, EXC-05).
+CRITERIO_DA_PESSOA = re.compile(r"\b(?:densidade|populacao|quantidade|medic[oa]s?|profissiona(?:l|is)|habitantes)\b")
+DISTANCIA_DA_PESSOA = re.compile(r"\d+(?:[.,]\d+)?\s*(?:km|quilometros?)\b")
+COMPARACAO_DA_PESSOA = re.compile(r"\b(?:abaixo|acima|menos|mais|menor|maior|inferior|superior|ate|partir|minimo|maximo)\b|[<>]")
+
+
+OUTRO_SINAL_DE_EXC05 = re.compile(r"\b(?:correlac\w*|correlacion\w*|regressao|associacao estatistica|moran|autocorrelac\w*)\b")
+
+
+def agrupamento_por_regra(texto: str) -> bool:
+    """O pedido traz o critério (indicador e comparação com valor) e a distância em km, ditos pela pessoa, e o único sinal de
+    EXC-05 nele é o de agrupar ("cluster", "padrão espacial"): é o agrupamento por regra. Correlação, regressão e Moran
+    continuam fora (EXC-05), com ou sem critério."""
+    return bool(CRITERIO_DA_PESSOA.search(texto) and COMPARACAO_DA_PESSOA.search(texto) and DISTANCIA_DA_PESSOA.search(texto)
+                and not OUTRO_SINAL_DE_EXC05.search(texto))
+
+
 def _governanca(texto: str) -> str | None:
     for tipo, padrao in GOV:
         if padrao.search(texto):
+            if tipo == "correlacao" and agrupamento_por_regra(texto):
+                continue
             if tipo == "ignorar_parametro" and not re.search(r"\b(?:calcul\w*|mostr\w*|faz|faca|assim mesmo|mesmo assim|"
                                                              r"ignor\w*|desconsider\w*)\b", texto):
                 continue
@@ -1645,13 +1666,14 @@ SUGESTOES = {
     "outro_metodo": "Os métodos são os do motor: na Tendência, as classes dos 4 períodos; na Série temporal, os valores de "
                     "cada competência, sem classificação.",
     "politica": "O que posso fazer é mostrar os números e as análises disponíveis para apoiar a sua decisão.",
-    "correlacao": "Posso pôr os territórios lado a lado, ordenar por um atributo ou aplicar condições.",
+    "correlacao": "Posso pôr os territórios lado a lado, ordenar por um atributo, aplicar condições ou, com os critérios e a "
+                  "distância ditos por você, formar grupos por proximidade (Selecionar por critérios, na Seleção).",
     "projecao": "Posso mostrar o que já aconteceu: a tendência dos últimos 4 períodos ou a série temporal completa.",
     "pessoas": "As análises usam só contagens agregadas por território.",
     "fontes_externas": "As análises usam só os dados em uso nesta sessão.",
 }
 DESCRICAO_EXC = {"politica": ("DOC:EXC-02", "recomendação de políticas ou intervenções"),
-                 "correlacao": ("DOC:EXC-05", "associação, correlação ou padrão espacial"),
+                 "correlacao": ("DOC:EXC-05", "associação, correlação ou agrupamento automático dos territórios"),
                  "projecao": (None, "projeção"),
                  "pessoas": ("DOC:EXC-09", "registros individualizados"),
                  "fontes_externas": ("DOC:EXC-07", "fontes externas")}
@@ -1809,6 +1831,10 @@ def do_interprete(ato: dict, mensagem: str, conversa: dict) -> dict | None:
     if tipo == "screen_state" and assunto in ASSUNTOS_DE_ESTADO:
         return {"ato": "estado", "assunto": assunto}
     if tipo == "out_of_scope" and assunto in GOVERNANCA_DO_INTERPRETE:
+        # O agrupamento por regra (07/11/2026, item 6.5): com o critério e a distância da pessoa, o sinal de EXC-05 que o
+        # intérprete viu ("cluster") é descartado, e o pedido segue para a gramática (Selecionar por critérios).
+        if GOVERNANCA_DO_INTERPRETE[assunto] == "correlacao" and agrupamento_por_regra(dobra(mensagem)):
+            return None
         return {"ato": "governanca", "tipo": GOVERNANCA_DO_INTERPRETE[assunto]}
     if tipo == "include":
         return {"ato": "inclui_sem_nome"}

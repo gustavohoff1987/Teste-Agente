@@ -403,8 +403,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const verPor = useMemo(() => opcoesVerPor(lugar, def, { arvore, comNiveis: comBolhasDeGrupo, rotulos, comRegioes }),
     [lugar, def.base, arvore, comBolhasDeGrupo, rotulos, comRegioes]);
   const [numerosDoLugar, setNumerosDoLugar] = useState<{ chave: string; base: string; dados: RespostaLugar } | null>(null);
-  // O painel "Selecionar por critérios" (07/11/2026): fechado (null), aberto vazio ou com a regra a reaplicar.
-  const [criterios, setCriterios] = useState<{ inicial: RegraDaSelecao["pedido"] | null } | null>(null);
+  // O painel "Selecionar por critérios" (07/11/2026): fechado (null), aberto vazio, com a regra a reaplicar ou com o pedido da
+  // conversa (com a prévia ao abrir; `n` conta os pedidos, para o mesmo pedido repetido abrir de novo).
+  const [criterios, setCriterios] = useState<{ inicial: RegraDaSelecao["pedido"] | null; previa?: boolean; n?: number } | null>(null);
   // Onde a regra a reaplicar procurou, pelo nome (um grupo ou mais), mesmo que o lugar em uso já seja outro (a seleção que ela
   // produziu, por exemplo).
   const lugarDaRegra = useMemo(() => {
@@ -691,8 +692,16 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!pedido || pedido.id === ultimoPedido.current) return;
     if (!pronto || iniciado.current !== chaveFonte) { pedidoPendente.current = pedido; return; }
     ultimoPedido.current = pedido.id;
-    const { explicar, destacar, ...resto } = pedido.pedido;
+    const { explicar, destacar, criterios: criteriosDoChat, ...resto } = pedido.pedido;
     setRealce(null);
+    // Selecionar por critérios pela conversa (07/11/2026, item 6.9 do comando): o painel da Seleção abre preenchido, com a prévia do
+    // motor; nada muda na análise até a pessoa escolher no painel ("Como seleção" ou "Cada grupo como território agregado").
+    if (criteriosDoChat) {
+      setAba("territorios");
+      setCriterios(atual => ({ inicial: criteriosDoChat, previa: true, n: (atual?.n ?? 0) + 1 }));
+      iniciarExecucao(pedido.id, [], { mudou: true, mapa: false, semCalculo: true });
+      return;
+    }
     // O destaque da resposta de valor (06/11/2026, item 4.2): os lugares citados que estão no gráfico em uso ficam em destaque, sem
     // mudar a análise; sem nenhum deles no gráfico, nada é destacado, e a resposta diz isso.
     if (destacar && !explicar && !Object.values(resto).some(valor => valor !== undefined && valor !== null)) {
@@ -2020,7 +2029,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             onAbrir={abrirLista} onDesfazerConjunto={desfazerConjunto} onCriarGrupo={criarGrupo} onSalvarGrupo={salvarGrupo}
             valoresDosConjuntos={valoresDosConjuntos} profissionais={profissionaisDe(def.categoria)}
             criterios={fonteMotor ? { aberto: !!criterios, onAlternar: () => setCriterios(atual => atual ? null : { inicial: null }),
-              painel: <SelecionarPorCriterios key={JSON.stringify(criterios?.inicial ?? null)} fonte={fonteMotor} rotulos={rotulos}
+              painel: <SelecionarPorCriterios key={JSON.stringify(criterios?.inicial ?? null) + ":" + (criterios?.n ?? 0)}
+                previaAoAbrir={!!criterios?.previa} fonte={fonteMotor} rotulos={rotulos}
                 nomeDoTodo={nomeDoTodo(tipo !== "arquivo", rotulos)} unidades={municipios} competencia={def.competencia} periodos={periodos}
                 categoria={def.categoria} premissas={tipo === "arquivo" ? def.premissas : undefined}
                 base={def.nivel === "municipios" && !semSelecao(def) ? normalizarBase(def.base, grupoDe) : null}

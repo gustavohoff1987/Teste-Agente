@@ -457,3 +457,23 @@ test('Agregar territórios pela conversa (06/11/2026, item 5): o nome do grupo c
   assert.equal(C.pedidoDoPainel({funcao: 'comparar', selecao: ['code:1', 'code:2'], nome_do_grupo: 'X'}).nomeDoGrupo, undefined);
 });
 
+
+test('Selecionar por critérios pela conversa (07/11/2026, item 6.9): o painel abre só com o que a pessoa disse, conferido', () => {
+  const pedido = {criterios: {partir_de: {tipo: 'pais'}, filtros: [{indicador: 'densidade', operador: '<', valor: 0.5}]}, agrupar: {km: 200}};
+  // O pedido da conversa vem com os outros campos nulos (o painel completo): só os critérios contam.
+  assert.deepEqual(C.pedidoDoPainel({familia: null, nivel: null, municipios: null, criterios: pedido}), {criterios: pedido});
+  assert.deepEqual(C.criteriosDoPainel({criterios: {partir_de: {tipo: 'ufs', ufs: ['13']}, filtros: [],
+    distancia: {de: 'code:130260', km: 300}}, agrupar: null}),
+    {criterios: {partir_de: {tipo: 'ufs', ufs: ['13']}, filtros: [], distancia: {de: 'code:130260', km: 300}}, agrupar: null});
+  // Qualquer campo fora do contrato anula o pedido: o painel não abre com algo que a pessoa não disse.
+  const com = (mudanca) => C.criteriosDoPainel({...pedido, ...mudanca});
+  assert.equal(com({criterios: {...pedido.criterios, filtros: [{indicador: 'idade', operador: '<', valor: 1}]}}), null);
+  assert.equal(com({criterios: {...pedido.criterios, filtros: [{indicador: 'densidade', operador: '=', valor: 1}]}}), null);
+  assert.equal(com({criterios: {...pedido.criterios, filtros: [{indicador: 'densidade', operador: '<', valor: '0,5'}]}}), null);
+  assert.equal(com({criterios: {...pedido.criterios, filtros: []}}), null);  // sem critério nem distância
+  assert.equal(com({criterios: {...pedido.criterios, partir_de: {tipo: 'ufs', ufs: []}}}), null);
+  assert.equal(com({agrupar: {km: 0}}), null);
+  assert.equal(com({agrupar: {km: '200'}}), null);
+  assert.equal(C.criteriosDoPainel(null), null);
+  assert.equal(C.pedidoDoPainel({criterios: {criterios: {partir_de: {tipo: 'pais'}}}}), null);
+});

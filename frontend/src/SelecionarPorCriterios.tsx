@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, Trash2, X } from "lucide-react";
 import {
   pedirCriterios, type CriteriosOpcoes, type FiltroDoCriterio, type FonteDoMotor, type PainelMunicipios, type Premissas, type RespostaCriterios,
@@ -36,8 +36,10 @@ type Props = {
   lugar: { rotulo: string; partirDe: CriteriosOpcoes["criterios"]["partir_de"] } | null;
   /** Onde a regra a reaplicar procurou (um grupo ou mais, pelo nome), quando não é o lugar em uso: no lugar dele. */
   lugarDoPedido?: { rotulo: string; partirDe: CriteriosOpcoes["criterios"]["partir_de"] } | null;
-  /** A regra a reaplicar (outra competência), já preenchida. */
+  /** A regra a reaplicar (outra competência) ou o pedido da conversa, já preenchidos. */
   inicial?: PedidoDosCriterios | null;
+  /** Aberto pela conversa (07/11/2026, item 6.9): a prévia sai sozinha, uma vez, com o que a pessoa disse. */
+  previaAoAbrir?: boolean;
   onComoSelecao: (previa: RespostaCriterios, pedido: PedidoDosCriterios) => void;
   onComoGrupos: (previa: RespostaCriterios, pedido: PedidoDosCriterios) => void;
   onCancelar: () => void;
@@ -117,6 +119,9 @@ export default function SelecionarPorCriterios(p: Props) {
       if (controle.current === meu) setCarregando(false);
     }
   }
+
+  // Aberto pela conversa: a prévia do pedido, uma vez, ao abrir (o painel abre de novo a cada pedido).
+  useEffect(() => { if (p.previaAoAbrir && pronto) void verPrevia(); }, []);
 
   // O mapa pequeno: os pontos do motor numa projeção simples (só para desenhar), coloridos pelo grupo; os isolados, vazados.
   const mapa = useMemo(() => {

@@ -390,6 +390,69 @@ def test_referencia_pelo_nome_na_escolha_em_exibicao_e_os_pedidos_de_antes():
         "no gráfico."}
 
 
+def test_selecionar_por_criterios_pela_conversa_abre_o_painel_preenchido():
+    """Selecionar por critérios pela conversa (07/11/2026, itens 6.5 e 6.9 do comando de 06/11/2026; decisão 4 do responsável): o
+    pedido com os critérios e a distância da pessoa abre o painel da Seleção preenchido (a prévia é do motor, no painel, e nada
+    muda na análise até a pessoa escolher); faltando o critério ou a distância, a conversa pergunta, sem sugerir valor; "cluster"
+    é descartado pelo contexto e nunca aparece na resposta."""
+    import dialogo
+
+    def criterios(filtros, partir_de=None, agrupar=None, distancia=None):
+        regra = {"partir_de": partir_de or {"tipo": "pais"}, "filtros": filtros, **({"distancia": distancia} if distancia else {})}
+        return {**painel(), "criterios": {"criterios": regra, "agrupar": agrupar}}
+
+    densidade = [{"indicador": "densidade", "operador": "<", "valor": 0.5}]
+    # O pedido do comando: sem verbo, com o agrupamento "a até 200 km uns dos outros".
+    comando = pedir("municípios com menos de 0,5 médico por mil habitantes a até 200 km uns dos outros")
+    assert comando["painel"] == criterios(densidade, agrupar={"km": 200}), comando
+    assert comando["reply"] == ("Abri Selecionar por critérios, na Seleção, com densidade abaixo de 0,5 em todo o país, agrupando "
+                                "os que ficam a até 200 km uns dos outros. A prévia, no painel, mostra quantos atendem e os grupos "
+                                "por proximidade; nada muda na análise até você escolher “Como seleção” ou “Cada grupo como "
+                                "território agregado”.")
+    # "cluster" com o critério e a distância da pessoa: o mesmo agrupamento por regra, sem a palavra na resposta.
+    cluster = pedir("clusters de municípios com densidade abaixo de 0,5 a até 200 km uns dos outros")
+    assert cluster["painel"] == comando["painel"] and cluster["reply"] == comando["reply"]
+    # Selecionar sem agrupar, num estado citado: onde procurar é o estado.
+    amazonas = pedir("selecione os municípios do Amazonas com densidade abaixo de 0,5")
+    assert amazonas["painel"] == criterios(densidade, partir_de={"tipo": "ufs", "ufs": ["13"]}), amazonas
+    assert amazonas["reply"] == ("Abri Selecionar por critérios, na Seleção, com densidade abaixo de 0,5 (onde procurar: "
+                                 "Amazonas). A prévia, no painel, mostra quantos atendem; nada muda na análise até você escolher "
+                                 "“Como seleção”.")
+    # A distância até um município (TPL-11), com outro critério.
+    manaus = pedir("selecione os municípios com densidade abaixo de 1 a até 300 km de Manaus")
+    assert manaus["painel"] == criterios([{"indicador": "densidade", "operador": "<", "valor": 1}],
+                                         distancia={"de": "code:130260", "km": 300}), manaus
+    assert manaus["reply"].startswith("Abri Selecionar por critérios, na Seleção, com densidade abaixo de 1 e a até 300 km de "
+                                      "MANAUS (AM) em todo o país.")
+    # Faltando a distância ou o critério, a pergunta, sem sugerir valor; nada muda.
+    assert pedir("faça clusters dos municípios com densidade abaixo de 0,5") == {
+        "handled": True, "executed": False, "clarification": "Para selecionar por critérios e formar os grupos por proximidade, "
+        "diga a distância uns dos outros, em km. Os valores são seus: nada é sugerido. Nada mudou no gráfico."}
+    assert pedir("encontre clusters de municípios")["clarification"] == (
+        "Para selecionar por critérios e formar os grupos por proximidade, diga os critérios (o indicador, a comparação e o valor) "
+        "e a distância uns dos outros, em km. Os valores são seus: nada é sugerido. Nada mudou no gráfico.")
+    assert pedir("agrupe os municípios com densidade abaixo de 0,5 a mais de 200 km uns dos outros")["clarification"] == (
+        "Os grupos por proximidade juntam os que ficam a até uma distância uns dos outros: diga “a até … km uns dos outros”, com o "
+        "valor em km. Nada mudou no gráfico.")
+    for resposta in (comando, cluster, amazonas, manaus):
+        assert "cluster" not in resposta["reply"].lower() and "padrão espacial" not in resposta["reply"]
+    # As Condições continuam como antes: sem o verbo de selecionar e sem o agrupamento, o pedido é do gráfico.
+    condicao = pedir("mostre os municípios com densidade abaixo de 0,5")
+    assert condicao["painel"]["funcao"] == "condicoes" and "criterios" not in condicao["painel"], condicao
+    # No gestor de diálogo, o sinal de EXC-05 do agrupamento é descartado com o critério e a distância da pessoa; sem eles, e
+    # para correlação, a recusa governada continua (EXC-05), e o texto dela não fala em "padrão espacial".
+    regra = dialogo.dobra("clusters espaciais de municípios com densidade abaixo de 0,5 a até 200 km uns dos outros")
+    assert dialogo.agrupamento_por_regra(regra) and dialogo._governanca(regra) is None
+    assert dialogo._governanca(dialogo.dobra("encontre clusters espaciais")) == "correlacao"
+    assert dialogo._governanca(dialogo.dobra("a correlação da densidade com os vizinhos a até 200 km")) == "correlacao"
+    assert "padrão espacial" not in dialogo.DESCRICAO_EXC["correlacao"][1]
+    assert "grupos por proximidade" in dialogo.SUGESTOES["correlacao"]
+    # O mesmo vale para o sinal que o intérprete com o provedor devolve.
+    fora = {"dialogue": "out_of_scope", "subject": "correlacao"}
+    assert dialogo.do_interprete(fora, "clusters de municípios com densidade abaixo de 0,5 a até 200 km uns dos outros", {}) is None
+    assert dialogo.do_interprete(fora, "encontre clusters espaciais", {}) == {"ato": "governanca", "tipo": "correlacao"}
+
+
 def test_comparar_e_juntar_municipios_nomeados():
     body = pedir("compare Manaus e Tefé")
     assert body["painel"] == painel(funcao="comparar", selecao=["code:130260", "code:130420"])

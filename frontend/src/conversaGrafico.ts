@@ -4,7 +4,7 @@
 // opções que vão ao intérprete local. Nada daqui vai ao provedor de IA: o backend só lhe entrega o pedido sanitizado e
 // estados enumerados. Só importações de tipos: os testes unitários (frontend/tests/conversaGrafico.test.mjs) transpilam
 // este arquivo sozinho.
-import type { ContextoDoGrafico, DesfechoDoPedido, Familia, Indicador, PedidoDoChat, Rotulos } from "./paginaUnica";
+import type { ContextoDoGrafico, DesfechoDoPedido, Familia, Indicador, PedidoDeCriteriosDoChat, PedidoDoChat, Rotulos } from "./paginaUnica";
 
 export function normalizeCommand(message: string): string {
   return message.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
@@ -180,7 +180,40 @@ export function pedidoDoPainel(painel: unknown): PedidoDoChat | null {
   // O nome do grupo de Agregar territórios (06/11/2026, item 5), com o pedido de agregar.
   if (pedido.funcao === "juntar" && typeof p.nome_do_grupo === "string" && p.nome_do_grupo.trim())
     pedido.nomeDoGrupo = p.nome_do_grupo.trim().slice(0, 60);
+  // Selecionar por critérios (07/11/2026, item 6.9): o painel abre preenchido só com o que a pessoa disse, conferido aqui.
+  const criterios = criteriosDoPainel(p.criterios);
+  if (criterios) pedido.criterios = criterios;
   return Object.keys(pedido).length ? pedido : null;
+}
+
+const INDICADORES_DO_CRITERIO = ["densidade", "quantidade", "populacao"] as const;
+const OPERADORES_DO_CRITERIO = ["<", "<=", ">", ">="] as const;
+const positivo = (valor: unknown): valor is number => typeof valor === "number" && Number.isFinite(valor) && valor > 0;
+/** Os critérios da conversa ({criterios: {partir_de, filtros, distancia?}, agrupar}): cada campo conferido; qualquer campo fora
+ * do contrato anula o pedido (o painel não abre com algo que a pessoa não disse). */
+export function criteriosDoPainel(valor: unknown): PedidoDeCriteriosDoChat | null {
+  const bruto = objeto(valor), regra = bruto ? objeto(bruto.criterios) : null, partir = regra ? objeto(regra.partir_de) : null;
+  if (!bruto || !regra || !partir || !Array.isArray(regra.filtros)) return null;
+  const tipo = partir.tipo === "pais" || partir.tipo === "ufs" || partir.tipo === "selecao" ? partir.tipo : null;
+  const ufs = textos(partir.ufs);
+  if (!tipo || (tipo === "ufs" && !ufs.length)) return null;
+  const filtros: PedidoDeCriteriosDoChat["criterios"]["filtros"] = [];
+  for (const item of regra.filtros) {
+    const filtro = objeto(item);
+    if (!filtro || !INDICADORES_DO_CRITERIO.includes(filtro.indicador as typeof INDICADORES_DO_CRITERIO[number]) ||
+      !OPERADORES_DO_CRITERIO.includes(filtro.operador as typeof OPERADORES_DO_CRITERIO[number]) ||
+      typeof filtro.valor !== "number" || !Number.isFinite(filtro.valor)) return null;
+    filtros.push({ indicador: filtro.indicador as typeof INDICADORES_DO_CRITERIO[number],
+      operador: filtro.operador as typeof OPERADORES_DO_CRITERIO[number], valor: filtro.valor });
+  }
+  const distancia = objeto(regra.distancia);
+  if (regra.distancia != null && (!distancia || typeof distancia.de !== "string" || !distancia.de || !positivo(distancia.km))) return null;
+  if (!filtros.length && !distancia) return null;
+  const agrupar = objeto(bruto.agrupar);
+  if (bruto.agrupar != null && (!agrupar || !positivo(agrupar.km))) return null;
+  return { criterios: { partir_de: tipo === "ufs" ? { tipo, ufs } : { tipo }, filtros,
+    ...(distancia ? { distancia: { de: distancia.de as string, km: distancia.km as number } } : {}) },
+    agrupar: agrupar ? { km: agrupar.km as number } : null };
 }
 
 /** Só para a escolha explícita entre alternativas (um botão de esclarecimento) quando o intérprete não devolve o campo

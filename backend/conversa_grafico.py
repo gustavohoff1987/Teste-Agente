@@ -1506,6 +1506,125 @@ def _voltar(conv, dica, dica_indicador):
     return None
 
 
+# --------------------------------------------------------------------------------------------- selecionar por critérios
+# Selecionar por critérios pela conversa (07/11/2026, itens 6.5 e 6.9 do comando de 06/11/2026; decisão 4 do responsável): o
+# pedido com os critérios da pessoa e, se ela quiser, a distância dos grupos por proximidade abre o painel da Seleção
+# preenchido, com a prévia do motor; nada muda na análise até a pessoa escolher no painel. A pessoa diz tudo: faltando o
+# critério ou a distância, a conversa pergunta, sem sugerir valor. Um sinal de EXC-05 ("cluster") num pedido com critério e
+# distância da pessoa é o agrupamento por regra: a leitura o descarta, e a resposta não usa a palavra.
+UNS_DOS_OUTROS = re.compile(r"\s*(?:uns\s+dos\s+outros|umas\s+das\s+outras|um\s+do\s+outro|uma\s+da\s+outra|entre\s+si)\b")
+KM_UNS_DOS_OUTROS = re.compile(r"\b(?:km|quilometros?)\s+(?:uns\s+dos\s+outros|umas\s+das\s+outras|um\s+do\s+outro|"
+                               r"uma\s+da\s+outra|entre\s+si)\b")
+# "Separe" e "marque" continuam nas Condições (que separam quem atende, quem não atende e quem não tem dado).
+SELECIONAR_POR_CRITERIO = re.compile(r"\b(?:selecione|selecionar|seleciona|selecao\s+d[oa]s)\b")
+GRUPOS_POR_PROXIMIDADE = re.compile(r"\bclusters?\b|\b(?:grupos?|agrup\w*)\s+por\s+proximidade\b")
+NA_SELECAO_ATUAL = re.compile(r"\b(?:n[ao]|d[ao]|dentro\s+d[ao])\s+(?:minha\s+)?selecao(?:\s+(?:atual|em\s+uso))?\b|"
+                              r"\bentre\s+(?:os|as)\s+selecionad[oa]s\b")
+FRASE_DO_OPERADOR = {"<": "abaixo de", "<=": "até", ">": "acima de", ">=": "a partir de"}
+NOME_DO_INDICADOR = {"densidade": "densidade", "quantidade": "quantidade", "populacao": "população"}
+
+
+def _valor_escrito(valor):
+    """O valor do critério como a pessoa o leria: "0,5", "20.000"."""
+    if isinstance(valor, int) or float(valor).is_integer():
+        return _milhar(int(valor))
+    return str(valor).replace(".", ",")
+
+
+def _criterios(conv, dica, dica_indicador):
+    """O pedido de "Selecionar por critérios" (a Seleção): {"criterios": {"criterios": {partir_de, filtros, distancia?},
+    "agrupar": {km} | None}} no painel, com o texto do que foi aberto; a pergunta quando falta o critério ou a distância."""
+    pedido = conv.pedido
+    texto = pedido.texto
+    agrupamento = bool(KM_UNS_DOS_OUTROS.search(texto) or GRUPOS_POR_PROXIMIDADE.search(texto))
+    if not agrupamento and not (SELECIONAR_POR_CRITERIO.search(texto) and CLAUSE.search(texto)):
+        return None
+    rot = conv.rot
+    os_ = "as" if rot.feminino else "os"
+    achadas, inicio_local = [], 0
+    for encontrado in list(CLAUSE.finditer(pedido.resto)):
+        clausula = _clausula(conv, encontrado, inicio_local)
+        if clausula is None:
+            continue
+        if "pergunta" in clausula:
+            return clausula["pergunta"]
+        achadas.append((encontrado, clausula))
+        inicio_local = clausula["fim"]
+    if achadas and _ou_entre_condicoes(pedido.resto, achadas):
+        return _pergunta("Os critérios valem juntos, com “e”: cada " + rot.singular + " precisa atender a todos. Peça só com "
+                         "“e”." + NADA_MUDOU)
+    filtros, distancia, km, alvos = [], None, None, []
+    for indice, (encontrado, clausula) in enumerate(achadas):
+        item = clausula["item"]
+        if item["atributo"] != "distancia_km":
+            filtros.append({"indicador": item["atributo"], "operador": item["operador"], "valor": item["valor"]})
+            continue
+        if UNS_DOS_OUTROS.match(pedido.resto, clausula["fim"]):
+            if item["operador"] not in ("<", "<="):
+                return _pergunta("Os grupos por proximidade juntam " + os_ + " que ficam a até uma distância " +
+                                 ("umas das outras" if rot.feminino else "uns dos outros") + ": diga “a até … km " +
+                                 ("umas das outras" if rot.feminino else "uns dos outros") + "”, com o valor em km." + NADA_MUDOU)
+            km = item["valor"]
+            pedido.consome(encontrado.start(), UNS_DOS_OUTROS.match(pedido.resto, clausula["fim"]).end())
+            continue
+        if clausula["alvo"] is None or item["operador"] not in ("<", "<="):
+            return _pergunta("Nos critérios, a distância é “a até … km de” " + ("uma " if rot.feminino else "um ") +
+                             rot.singular + " (em linha reta) ou, para os grupos por proximidade, “a até … km " +
+                             ("umas das outras" if rot.feminino else "uns dos outros") + "”." + NADA_MUDOU)
+        fim = achadas[indice + 1][0].start() if indice + 1 < len(achadas) else len(pedido.texto)
+        alvos.append((clausula["alvo"], fim, item["valor"]))
+        pedido.consome(encontrado.start(), clausula["fim"])
+    for encontrado, clausula in achadas:
+        if clausula["item"]["atributo"] != "distancia_km":
+            pedido.consome(encontrado.start(), clausula["fim"])
+    for inicio, fim, valor in alvos:
+        achado = _resolve(conv, inicio, fim)
+        if "pergunta" in achado:
+            return achado["pergunta"]
+        ids, objeto = _membros(conv, achado)
+        if objeto or len(ids) != 1:
+            return _pergunta("A distância dos critérios é até " + ("uma " if rot.feminino else "um ") + rot.singular +
+                             " só: diga o nome dele" + ("a" if rot.feminino else "") + "." + NADA_MUDOU)
+        distancia = {"de": ids[0], "km": valor}
+    faltam = []
+    if not filtros and distancia is None:
+        faltam.append("os critérios (o indicador, a comparação e o valor)")
+    if GRUPOS_POR_PROXIMIDADE.search(texto) and km is None:
+        faltam.append("a distância " + ("umas das outras" if rot.feminino else "uns dos outros") + ", em km")
+    if faltam:
+        return _pergunta("Para selecionar por critérios" + (" e formar os grupos por proximidade" if GRUPOS_POR_PROXIMIDADE.search(texto)
+                         else "") + ", diga " + _e(faltam) + ". Os valores são seus: nada é sugerido." + NADA_MUDOU)
+    # Onde procurar: um grupo (estado) citado; a seleção em uso; senão, o todo.
+    if NA_SELECAO_ATUAL.search(pedido.resto):
+        if conv.base_atual() is None:
+            return _pergunta("Não há uma seleção em uso para procurar nela. Escolha os territórios na Seleção ou peça os "
+                             "critérios em " + conv.em_todo + "." + NADA_MUDOU)
+        partir_de, onde = {"tipo": "selecao"}, " na seleção em uso"
+    else:
+        achado = _resolve(conv)
+        if "pergunta" in achado:
+            return achado["pergunta"]
+        grupos = list(dict.fromkeys(chave for chave, _ in achado["grupos"]))
+        if grupos:
+            partir_de = {"tipo": "ufs", "ufs": grupos}
+            onde = " (onde procurar: " + _e(str(conv.cat.grupos.get(chave, {}).get("nome") or chave) for chave in grupos) + ")"
+        else:
+            partir_de, onde = {"tipo": "pais"}, " " + conv.em_todo
+    frases = [NOME_DO_INDICADOR[item["indicador"]] + " " + FRASE_DO_OPERADOR[item["operador"]] + " " + _valor_escrito(item["valor"])
+              for item in filtros]
+    if distancia:
+        frases.append("a até " + _valor_escrito(distancia["km"]) + " km de " + conv.cat.rotulo(distancia["de"]))
+    criterios = {"partir_de": partir_de, "filtros": filtros, **({"distancia": distancia} if distancia else {})}
+    painel = _painel()
+    painel["criterios"] = {"criterios": criterios, "agrupar": {"km": km} if km is not None else None}
+    agrupando = (", agrupando " + os_ + " que ficam a até " + _valor_escrito(km) + " km " +
+                 ("umas das outras" if rot.feminino else "uns dos outros")) if km is not None else ""
+    return _resposta(painel, "Abri Selecionar por critérios, na Seleção, com " + _e(frases) + onde + agrupando + ". A prévia, no "
+                     "painel, mostra quant" + os_ + " atendem" + (" e os grupos por proximidade" if km is not None else "") +
+                     "; nada muda na análise até você escolher “Como seleção”" +
+                     (" ou “Cada grupo como território agregado”" if km is not None else "") + ".")
+
+
 def _clausula(conv, encontrado, inicio_local):
     """Uma condição do pedido: {"item", "texto", "fim", "alvo"}, {"pergunta"} ou None (sem indicador: pode ser período,
     como em "de 2014 até 2024")."""
@@ -2637,7 +2756,9 @@ def interpretar(mensagem, frame, fields, settings, ctx, *, brasil, opcoes=None, 
     dica = dica if isinstance(dica, str) and dica in OPERACOES else None
     vista = _pedido_de_vista(conv)
     # A proximidade vem antes das Condições: em "o mais próximo com densidade ≥ 1,5", a condição é da referência.
-    for comando in (_voltar, _proximidade, _recorte_da_referencia, _condicoes, _ordenar, _referencia,
+    # Selecionar por critérios (07/11/2026) vem antes da proximidade e das Condições: "a até 200 km uns dos outros" é o
+    # agrupamento da pessoa, não a distância até a referência.
+    for comando in (_voltar, _criterios, _proximidade, _recorte_da_referencia, _condicoes, _ordenar, _referencia,
                     _comparar_ou_juntar, _exportar, _vista):
         resto = conv.pedido.resto
         resposta = comando(conv, dica, dica_indicador)

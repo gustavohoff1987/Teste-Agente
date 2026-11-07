@@ -223,7 +223,9 @@ da tela).
   em outra competência" (`analise-criterios-reaplicar`, que reabre o painel com a mesma regra e onde ela procurou: o estado,
   pelo nome, ou "A seleção em que a regra procurou", mesmo que a seleção em uso já seja a do resultado), na trilha, no método e
   nos Detalhes; mudar a seleção à mão (também tirar ou pôr membros de um grupo; renomeá-lo, não) tira a regra de vista. A palavra
-  "cluster" não aparece.
+  "cluster" não aparece. Pela conversa (desde 07/11/2026, parte C), "municípios com menos de 0,5 médico por mil habitantes a
+  até 200 km uns dos outros" abre este painel na Seleção, preenchido e com a prévia já pedida ao motor, sem mudar a análise: só
+  "Como seleção" ou "Cada grupo como território agregado", no painel, aplicam ([Conversa no gráfico](CONVERSACAO_INCREMENTO_FN.md)).
 - **Na análise** (`analise-selecionados`, a área da direita): o resumo do que está marcado (`analise-selecionados-resumo`:
   "Todos os estados (27)", "Bahia e Santa Catarina", "Amazonas (62 municípios)", "63 municípios de 2
   estados", "PORTO ALEGRE (RS)", "Nenhum município marcado"), o botão da análise em uso ("Ver a Análise de Distribuição",
@@ -1109,8 +1111,8 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   todo, até dois níveis de grupo e a unidade) ficam para a etapa seguinte do comando de 06/11/2026, como as demais etapas dele
   (a seleção única com a conversa que confere, a lista ordenada em tela estreita, Agregar territórios e Selecionar por
   critérios).
-- Selecionar por critérios (07/11/2026, item 6) está na Seleção; o pedido pela conversa (o painel preenchido, aplicado só com a
-  confirmação) e "Usar como seleção" nas Condições são as partes seguintes do item.
+- Selecionar por critérios (07/11/2026, item 6) está na Seleção e na conversa; "Usar como seleção" nas Condições é a parte
+  seguinte do item.
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
 
@@ -1121,7 +1123,11 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   89, 6 grupos e 8 isolados, 46 e 1.235 km, 24 do PA e 907 km); Node, `areaDeAnalise.test.mjs` (a regra na trilha, no método e
   nos Detalhes enquanto a seleção for a dela); navegador, `ui_criterios.py` (base versionada: a ferramenta na Seleção sem valores
   sugeridos, a prévia com os números do motor, o mapa pequeno, "Como seleção (89)" com a trilha, a regra e a análise com os 89, e
-  "Cada grupo como território agregado" com 6 grupos e 8 municípios; nenhum "cluster").
+  "Cada grupo como território agregado" com 6 grupos e 8 municípios; pela conversa, o pedido do comando abre o painel
+  preenchido, com a prévia, e a análise só muda com a confirmação no painel; nenhum "cluster"); a conversa, em pytest,
+  `test_conversa_grafico.py` (o pedido do comando, "selecione … do Amazonas …", "a até 300 km de Manaus", as perguntas sem
+  sugestão, "cluster" descartado com o critério e a distância e a recusa EXC-05 sem eles) e, em Node, `conversaGrafico.test.mjs`
+  (o campo `criterios` conferido campo a campo).
 - **Agregar territórios (06/11/2026, item 5 do comando):** Node, `painel.test.mjs` (`baseSemUnidades`, `baseComUnidades` e
   `membrosNaSelecao`: os membros saem da seleção pela exclusão da árvore, e só os que estavam nela voltam; o grupo da conversa com
   o nome pedido, no lugar dos membros, e o que vai ao motor sem as marcas da tela) e `conversaGrafico.test.mjs` (o nome do grupo

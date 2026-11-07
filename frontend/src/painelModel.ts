@@ -51,10 +51,19 @@ export type PedidoDoChat = {
   destacar?: { ids: string[] } | null;
   /** O nome do grupo pedido na conversa (06/11/2026, item 5: "agregue Marabá e Parauapebas como Carajás"). */
   nomeDoGrupo?: string | null;
+  /** Selecionar por critérios pedido na conversa (07/11/2026, item 6.9 do comando): o painel da Seleção abre preenchido, com a
+   * prévia do motor; nada muda na análise até a pessoa escolher no painel. */
+  criterios?: PedidoDeCriteriosDoChat | null;
   /** A Escolha dos territórios completa pedida na conversa (28/10/2026: "o de menor densidade e o mais próximo dele com
    * densidade de no mínimo 1,5"): a base, a referência e de onde cada uma parte, conferidas por lerConsulta. */
   consulta?: object | null;
 };
+/** Os critérios pedidos na conversa (07/11/2026), já conferidos campo a campo (conversaGrafico.pedidoDoPainel). */
+export type PedidoDeCriteriosDoChat = {
+  criterios: { partir_de: { tipo: "pais" | "ufs" | "selecao"; ufs?: string[] };
+    filtros: { indicador: "densidade" | "quantidade" | "populacao"; operador: "<" | "<=" | ">" | ">="; valor: number }[];
+    distancia?: { de: string; km: number } };
+  agrupar: { km: number } | null };
 /** O que está na tela, para a estrutura da página e a conversa. */
 export type ContextoDoGrafico = {
   familia: Familia; indicador: PainelIndicador; nivel: PainelNivel; municipios: PainelMunicipios; idsNaTela: string[];

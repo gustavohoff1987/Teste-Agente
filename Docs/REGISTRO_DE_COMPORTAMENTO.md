@@ -35,6 +35,37 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Selecionar por critérios, parte C (etapa 9C do comando, item 6): o pedido pela conversa
+- **Classificação (regra 1), pela leitura, antes de codar:** a mesma do item 6 (partes A e B, abaixo), com a decisão 4 do
+  responsável. Mudança prevista: *escopo:* itens 6.5 ("No chat, um pedido com critérios e distância dados pela pessoa é
+  agrupamento por regra: se aparecer um sinal de EXC-05 (ex.: a palavra "cluster"), a leitura o descarta pelo contexto;
+  faltando critério ou distância, a conversa pergunta, sem sugerir"; "nunca "cluster" nem "padrão espacial"") e 6.9 ("abre o
+  mesmo painel preenchido, com a prévia, e só aplica com a confirmação da pessoa"); *compatibilidade:* a conversa não calcula nem
+  aplica nada (o painel e o motor fazem a prévia; a pessoa escolhe); correlação, regressão e Moran continuam fora (EXC-05).
+- **Antes:** "municípios com menos de 0,5 médico por mil habitantes a até 200 km uns dos outros" virava as Condições, com a
+  pergunta pela referência da distância; "clusters espaciais" era recusado (EXC-05), com a recusa falando em "padrão
+  espacial".
+- **Agora:** com o agrupamento ("a até X km uns dos outros", "grupos por proximidade", "cluster") ou com "selecione" e os
+  critérios, a conversa abre o painel "Selecionar por critérios" da Seleção preenchido, com a prévia do motor, e diz o que abriu
+  ("Abri Selecionar por critérios, na Seleção, com densidade abaixo de 0,5 em todo o país, agrupando os que ficam a até 200 km
+  uns dos outros. … nada muda na análise até você escolher “Como seleção” ou “Cada grupo como território agregado”."); a análise
+  só muda com a escolha no painel. Faltando o critério ou a distância dos grupos, a pergunta, sem sugerir valor; "a mais de X km
+  uns dos outros" também vira pergunta. Com o critério e a distância da pessoa, o sinal de EXC-05 do agrupamento é descartado
+  (também quando vem do intérprete com o provedor), e a resposta não usa "cluster". A recusa EXC-05 fala em "agrupamento
+  automático dos territórios" e oferece os grupos por proximidade com os critérios e a distância da pessoa. Na tela, o painel
+  aberto pela conversa (ou reaberto pelo "Reaplicar") procura onde o pedido disse, pelo nome do estado, mesmo que o lugar em
+  uso seja outro.
+- **Permanece:** as Condições ("mostre … com densidade abaixo de …", "separe", "marque"), Agregar territórios ("agregue Marabá e
+  Parauapebas como Carajás"), a recusa de correlação, regressão e Moran e o painel da parte B.
+- **Motivo:** comando do responsável de 06/11/2026, item 6, com a decisão 4.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/CONVERSACAO_INCREMENTO_FN.md` ("Selecionar por critérios") e `Docs/PAINEL_INTEGRADO_INTERFACE.md`
+    (o painel pela conversa, as limitações e os testes).
+  - **Testes novos:** `test_conversa_grafico.py` (o pedido do comando e com "cluster", o estado citado, a distância até Manaus,
+    as perguntas sem sugestão, as Condições de sempre, o descarte do sinal no gestor e no intérprete e a recusa EXC-05 sem
+    "padrão espacial"); `conversaGrafico.test.mjs` (o campo `criterios` conferido campo a campo); `ui_criterios.py` (o pedido
+    pela conversa abre o painel preenchido, com a prévia de 6 grupos e 8 isolados, sem mudar a análise, e "Como seleção" aplica).
+
 ### 2026-11-07 · Selecionar por critérios, parte B (etapa 9B do comando, item 6): a ferramenta na Seleção, a prévia e a regra
 - **Classificação (regra 1), pela leitura, antes de codar:** a mesma do item 6 (parte A, abaixo), com a decisão 4 do responsável.
   Mudança prevista: *escopo:* itens 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7 e 6.8 do comando (a ferramenta na Seleção; onde procurar;
