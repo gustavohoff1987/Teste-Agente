@@ -4159,3 +4159,241 @@ def session_context(frame, mapping, options, body) -> dict:
             "painel": {"nivel": body.get("nivel"), "indicador": body.get("indicador"), "competencia": body["competencia"],
                        "competencia_inicial": body["competencia_inicial"], "categoria": body["categoria"],
                        "itens": len(body["itens"])}}
+
+
+# --------------------------------------------------------------------------------------------- selecionar por critérios
+# Selecionar por critérios (07/11/2026, item 6 do comando de 06/11/2026; decisão 4 do responsável): o subconjunto por critério
+# (CAP-SUB-01: os mesmos filtros das Condições e da Escolha dos territórios, combinados por E), procurado no todo, num grupo
+# (o lugar em uso) ou na seleção em uso, com o critério opcional de distância "a até X km de {território}" (geodésica direta,
+# TPL-11) e, se a pessoa quiser, os grupos por proximidade: um método só, em cadeia (RQ-CAP-13) — dois territórios que atendem
+# ficam no mesmo grupo quando há uma sequência deles, cada um a até X km do seguinte; quem não tem nenhum a até X km fica
+# isolado. A distância é a geodésica entre as sedes, pelo mesmo método da Análise Espacial (nearest_reference, Karney, no
+# elipsoide do referencial). O sistema não sugere critério nem distância (EXC-11) e não detecta padrões espaciais (EXC-05): a
+# regra é toda da pessoa. Só calcula a prévia: nada é registrado na sessão, e nada vai ao provedor de IA.
+CRITERIOS_KEYS = frozenset(("competencia", "categoria", "base", "criterios", "agrupar", "premissas", "rotulos"))
+MAX_AGRUPAR = 2000
+MAX_KM = 5000
+OPERADOR_FRASE = {"<": "abaixo de", "<=": "até", ">": "acima de", ">=": "a partir de"}
+METODO_AGRUPAMENTO = {"capacidade": "RQ-CAP-13", "versao": "1.0",
+                      "metodo": "em cadeia: dois territórios que atendem ficam no mesmo grupo quando há uma sequência deles, "
+                                "cada um a até a distância escolhida do seguinte; quem não tem nenhum a essa distância fica "
+                                "isolado",
+                      "extensao": "a maior distância geodésica entre dois membros do grupo (de ponta a ponta)"}
+
+
+def _km(raw, what) -> Decimal:
+    """Uma distância em km dada pela pessoa (nunca sugerida): número positivo até MAX_KM."""
+    if raw is None or isinstance(raw, bool):
+        raise ValueError("Diga a distância " + what + " em km: o sistema não escolhe a distância.")
+    value = decimal_value(raw, "distância " + what)
+    if not 0 < value <= MAX_KM:
+        raise ValueError("A distância " + what + " precisa ser maior que zero e de até " + str(MAX_KM) + " km.")
+    return value
+
+
+def _criterio_de_distancia(ctx, raw):
+    """O critério "a até X km de {território}": {"de": id do catálogo, "km": X}."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or set(raw) != {"de", "km"}:
+        raise ValueError("Critério de distância inválido: use {\"de\": <id do território>, \"km\": <distância>}.")
+    _ids([raw["de"]], ctx, "o território do critério de distância")
+    return {"de": raw["de"], "km": _km(raw["km"], "do critério")}
+
+
+def _valor_br(texto) -> str:
+    """O valor do critério como a pessoa o leria: vírgula decimal e ponto de milhar ("0,5", "20.000")."""
+    numero = Decimal(texto)
+    inteiro, _, fracao = format(numero, "f").partition(".")
+    sinal = "-" if inteiro.startswith("-") else ""
+    inteiro = inteiro.lstrip("-")
+    agrupado = ".".join(reversed([inteiro[::-1][i:i + 3][::-1] for i in range(0, len(inteiro), 3)]))
+    return sinal + agrupado + ("," + fracao.rstrip("0") if fracao.rstrip("0") else "")
+
+
+def _frase_dos_criterios(ctx, filtros, distancia, agrupar) -> str:
+    """A regra em palavras, para a trilha, o método e os Detalhes: "densidade abaixo de 0,5", "… a até 200 km de MANAUS (AM)",
+    "…, agrupados a até 200 km uns dos outros"."""
+    partes = [VALUE_TEXT.get(item["indicador"], item["indicador"]) + " " + OPERADOR_FRASE[item["operador"]] + " " +
+              _valor_br(item["valor"]) for item in filtros if item["valor"] is not None]
+    if distancia:
+        partes.append("a até " + _valor_br(format(distancia["km"], "f")) + " km de " + _label(ctx.catalog[distancia["de"]]))
+    texto = _join(partes)
+    if agrupar is not None:
+        texto += ", agrupad" + ctx.labels.unidade.g("os", "as") + " a até " + _valor_br(format(agrupar, "f")) + " km " + \
+            ctx.labels.unidade.g("uns dos outros", "umas das outras")
+    return texto
+
+
+def _uniao(n):
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i, j):
+        a, b = find(i), find(j)
+        if a != b:
+            parent[max(a, b)] = min(a, b)
+    return find, union
+
+
+def _grupos_em_cadeia(lat, lon, limite_m, crs):
+    """Os componentes da cadeia (ligação simples com o limiar): os pares a até o limite, pela geodésica de Karney; a corda 3D
+    (nunca maior que a geodésica) só descarta os pares que não podem estar a essa distância. Devolve o componente de cada
+    índice e o número de geodésicas calculadas."""
+    from nearest_reference import GEODS, _ecef  # o mesmo elipsoide e a mesma corda da busca exata da Análise Espacial
+    n = len(lat)
+    find, union = _uniao(n)
+    if n < 2:
+        return [find(i) for i in range(n)], 0
+    xyz = _ecef(np.asarray(lat, float), np.asarray(lon, float), crs)
+    geod, calculadas, margem = GEODS[crs], 0, limite_m * (1 + 1e-12) + 1e-6
+    for inicio in range(0, n, 256):
+        fim = min(n, inicio + 256)
+        diff = xyz[inicio:fim, None, :] - xyz[None, :, :]
+        corda = np.sqrt(np.einsum("ijk,ijk->ij", diff, diff))
+        linhas, colunas = np.nonzero(corda <= margem)
+        manter = colunas > linhas + inicio
+        linhas, colunas = linhas[manter] + inicio, colunas[manter]
+        if not len(linhas):
+            continue
+        _, _, metros = geod.inv(np.asarray(lon, float)[linhas], np.asarray(lat, float)[linhas],
+                                np.asarray(lon, float)[colunas], np.asarray(lat, float)[colunas])
+        calculadas += len(linhas)
+        for i, j in zip(linhas[metros <= limite_m], colunas[metros <= limite_m]):
+            union(int(i), int(j))
+    return [find(i) for i in range(n)], calculadas
+
+
+def _extensao(lat, lon, crs) -> float:
+    """A extensão de ponta a ponta de um grupo: a maior geodésica entre dois membros (km)."""
+    from nearest_reference import GEODS
+    n = len(lat)
+    if n < 2:
+        return 0.0
+    i, j = np.triu_indices(n, 1)
+    lat, lon = np.asarray(lat, float), np.asarray(lon, float)
+    _, _, metros = GEODS[crs].inv(lon[i], lat[i], lon[j], lat[j])
+    return float(metros.max()) / 1000
+
+
+def criterios(sources, mapping, options, frame=None) -> dict:
+    """POST /api/painel/criterios (07/11/2026, item 6 do comando de 06/11/2026): a prévia de "Selecionar por critérios", toda do
+    motor: os que atendem (no todo, num grupo ou na seleção em uso, pelos filtros de CAP-SUB-01 e, com ele, pelo critério de
+    distância), e, com `agrupar`, os grupos por proximidade em cadeia (cada grupo com os membros, os grupos territoriais deles e a
+    extensão de ponta a ponta) e os isolados, com os pontos para o mapa pequeno. Nada é registrado na sessão; nada vai ao
+    provedor de IA."""
+    ctx = context(sources, mapping, options, CRITERIOS_KEYS, frame=frame, page=True)
+    unit = ctx.labels.unidade
+    raw = options.get("criterios")
+    if not isinstance(raw, dict) or set(raw) - {"partir_de", "filtros", "distancia"} or "partir_de" not in raw:
+        raise ValueError("Critérios inválidos: use {\"partir_de\", \"filtros\", \"distancia\"}.")
+    spec = _lado({"partir_de": raw["partir_de"], "filtros": raw.get("filtros")}, ctx, "base")
+    if spec["pendencias"]:
+        raise ValueError(spec["pendencias"][0])
+    distancia = _criterio_de_distancia(ctx, raw.get("distancia"))
+    agrupar = None
+    if options.get("agrupar") is not None:
+        bruto = options["agrupar"]
+        if not isinstance(bruto, dict) or set(bruto) != {"km"}:
+            raise ValueError("Agrupamento inválido: use {\"km\": <distância>}.")
+        agrupar = _km(bruto["km"], "do agrupamento")
+    if not spec["filtros"] and distancia is None:
+        raise ValueError("Escolha ao menos um critério: um indicador com a comparação e o valor, ou a distância até " +
+                         unit.g("um ", "uma ") + unit.singular + ".")
+    previa = _universe(options.get("base"), ctx, "a seleção em uso", allow_empty=True)
+    final = _measures(ctx, ctx.period)
+    sel = _lado_selecao(ctx, spec, previa, final)
+    atendem = list(sel["final"])
+    notas, limitacoes = [], []
+    nao_avaliaveis = sel["contagens"]["nao_avaliaveis"] or 0
+    coords = crs = None
+    if distancia is not None or agrupar is not None:
+        settings = _spatial_settings(ctx)
+        coords = _coordinates(ctx.frame, ctx.mapping, settings, ctx.period)
+        crs = _referencial_suportado(settings.get("crs"))
+        condicao = coords["condicao"].to_dict()
+        notas.append(ellipsoid_note(crs) + TPL_11)
+        limitacoes.append("DISTANCIA_GEODESICA_DIRETA")
+    if distancia is not None:
+        de = distancia["de"]
+        if condicao.get(de) != "VALIDA":
+            raise ValueError("A sede de " + _label(ctx.catalog[de]) + " não tem coordenada válida: o critério de distância não "
+                             "é avaliável (" + CONDITION_TEXT.get(condicao.get(de, "SEM_REGISTRO"), "sem coordenada") + ").")
+        validos = [key for key in atendem if condicao.get(key) == "VALIDA"]
+        nao_avaliaveis += len(atendem) - len(validos)
+        from nearest_reference import GEODS
+        if validos:
+            _, _, metros = GEODS[crs].inv(np.full(len(validos), float(coords.loc[de, "lon"])),
+                                          np.full(len(validos), float(coords.loc[de, "lat"])),
+                                          coords.loc[validos, "lon"].astype(float).to_numpy(),
+                                          coords.loc[validos, "lat"].astype(float).to_numpy())
+            limite = float(distancia["km"]) * 1000
+            atendem = [key for key, valor in zip(validos, metros) if valor <= limite]
+        else:
+            atendem = []
+    grupos = isolados = pontos = None
+    sem_posicao = []
+    if agrupar is not None:
+        if len(atendem) > MAX_AGRUPAR:
+            raise ValueError("Para agrupar, os critérios precisam deixar até " + format(MAX_AGRUPAR, ",").replace(",", ".") + " " +
+                             unit.plural + " (atendem " + format(len(atendem), ",").replace(",", ".") + "): refine os critérios.")
+        validos = [key for key in atendem if condicao.get(key) == "VALIDA"]
+        sem_posicao = [key for key in atendem if condicao.get(key) != "VALIDA"]
+        lat = coords.loc[validos, "lat"].astype(float).to_numpy() if validos else np.array([])
+        lon = coords.loc[validos, "lon"].astype(float).to_numpy() if validos else np.array([])
+        componente, _ = _grupos_em_cadeia(lat, lon, float(agrupar) * 1000, crs)
+        membros_de = {}
+        for indice, raiz in enumerate(componente):
+            membros_de.setdefault(raiz, []).append(indice)
+        codigo = {key: (ctx.catalog[key]["code"], key) for key in validos}
+        componentes = sorted(membros_de.values(), key=lambda indices: (-len(indices), min(codigo[validos[i]] for i in indices)))
+        grupos, isolados, grupo_de = [], [], {}
+        for indices in componentes:
+            membros = sorted((validos[i] for i in indices), key=codigo.get)
+            if len(membros) < 2:
+                isolados.extend(membros)
+                continue
+            gid = "g" + str(len(grupos) + 1)
+            contagem = {}
+            for key in membros:
+                chave = _group_key(ctx, key)
+                contagem[chave] = contagem.get(chave, 0) + 1
+            territoriais = sorted(({"id": chave, "rotulo": (STATES[chave][0] if ctx.brazil and chave in STATES else chave),
+                                    "unidades": n} for chave, n in contagem.items() if chave),
+                                  key=lambda item: (-item["unidades"], item["rotulo"]))
+            grupos.append({"id": gid, "rotulo": "Grupo " + str(len(grupos) + 1), "membros": membros,
+                           "grupos_territoriais": territoriais,
+                           "extensao_km": _extensao(lat[indices], lon[indices], crs)})
+            for key in membros:
+                grupo_de[key] = gid
+        isolados.sort(key=codigo.get)
+        pontos = [{"id": key, "lat": float(coords.loc[key, "lat"]), "lon": float(coords.loc[key, "lon"]),
+                   "grupo": grupo_de.get(key)} for key in validos]
+        notas.append("Grupos por proximidade, em cadeia (RQ-CAP-13): " + METODO_AGRUPAMENTO["metodo"] + "; a extensão é " +
+                     METODO_AGRUPAMENTO["extensao"] + ". A regra e a distância são da pessoa; nada é sugerido.")
+        if sem_posicao:
+            notas.append(str(len(sem_posicao)) + " " + (unit.singular if len(sem_posicao) == 1 else unit.plural) +
+                         " sem coordenada válida não entra" + ("" if len(sem_posicao) == 1 else "m") + " nos grupos.")
+    # O texto dos critérios (a trilha de "Como seleção") e, com o agrupamento, o texto com ele ("Cada grupo como território
+    # agregado").
+    regra = {"texto": _frase_dos_criterios(ctx, spec["filtros"], distancia, None),
+             "texto_agrupado": _frase_dos_criterios(ctx, spec["filtros"], distancia, agrupar) if agrupar is not None else None,
+             "competencia": ctx.period,
+             "partir_de": dict(spec["partir_de"]), "filtros": [{**item, "valor": _numero_publico(item["valor"])} for item in spec["filtros"]],
+             "distancia": None if distancia is None else {"de": distancia["de"], "km": float(distancia["km"])},
+             "agrupar": None if agrupar is None else {"km": float(agrupar)}}
+    if nao_avaliaveis:
+        limitacoes.append("UNIDADES_NAO_AVALIAVEIS")
+        notas.append(str(nao_avaliaveis) + " " + (unit.singular if nao_avaliaveis == 1 else unit.plural) + " sem o dado para avaliar "
+                     "algum critério não entra" + ("" if nao_avaliaveis == 1 else "m") + " (nunca é tratad" + unit.g("o", "a") +
+                     " como fora do critério nem como zero).")
+    return {"competencia": ctx.period, "categoria": ctx.category, "regra": regra, "atendem": len(atendem),
+            "ids": atendem, "nomes": [_label(ctx.catalog[key]) for key in atendem[:NOMES_DA_PREVIA]],
+            "nao_avaliaveis": nao_avaliaveis, "grupos": grupos, "isolados": isolados, "sem_posicao": sem_posicao or None,
+            "pontos": pontos, "notas": notas, "limitacoes": list(dict.fromkeys(limitacoes)),
+            "metodo": {"agrupamento": METODO_AGRUPAMENTO, **({"distancia": DISTANCE_METHOD} if crs else {})}}

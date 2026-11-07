@@ -54,7 +54,7 @@ planilha enviada.
 - **Privacidade:** nenhum nome, valor, campo ou arquivo vai ao provedor de IA. As rotas não chamam o Gemini, e nem a
   frase-resumo nem as coordenadas do mapa entram em contexto enviado a ele.
 
-### Formulário (as cinco rotas)
+### Formulário (as seis rotas; a sexta, `/api/painel/criterios`, desde 07/11/2026)
 
 Multipart, no padrão de `/api/analyze`:
 
@@ -301,6 +301,34 @@ inicial, variacao_percentual, motivos_variacao, serie}`, e o grupo também `sigl
 
 Com a base versionada, em junho de 2024: o Brasil com 502.495 médicos, 212.583.750 habitantes e 2,36 por 1.000, e a densidade
 cerca de 19,2% acima da de junho de 2021; o Pará com 10.307 médicos e 1,19 por 1.000.
+
+### Rota 6: `POST /api/painel/criterios` (07/11/2026)
+
+A prévia de "Selecionar por critérios" (item 6 do comando de 06/11/2026; decisão 4 do responsável), toda do motor, sem iniciar a
+análise; nada é registrado na sessão e nada vai ao provedor de IA. Base do Brasil ou planilha enviada (o mesmo formulário).
+
+- `options`: `competencia`, `categoria`, `base` (a seleção em uso, como no gráfico; só para "a seleção atual"), `premissas` e
+  `rotulos` (planilha) e:
+  - `criterios`: `{"partir_de", "filtros", "distancia"}` — `partir_de` e `filtros` como os da Escolha dos territórios (o todo
+    `pais`, `ufs`/`regioes` para o lugar em uso, `selecao` para a seleção atual; os filtros de CAP-SUB-01, combinados por E, o
+    mesmo construtor das Condições); `distancia`, opcional: `{"de": <id do território>, "km": X}` ("a até X km de …",
+    geodésica direta, TPL-11). Sem critério → 422 "Escolha ao menos um critério: …"; filtro sem valor → 422 com a pendência.
+  - `agrupar`, opcional: `{"km": X}`, os grupos por proximidade em cadeia (RQ-CAP-13): dois territórios que atendem ficam no
+    mesmo grupo quando há uma sequência deles, cada um a até X km do seguinte; quem não tem nenhum a até X km fica isolado. A
+    distância é a geodésica de Karney entre as sedes, no elipsoide do referencial (o mesmo método da Análise Espacial; a corda
+    3D só descarta pares que não podem estar a essa distância). Até 2.000 que atendem (acima → 422 "… refine os critérios").
+    A distância é sempre da pessoa (sem ela → 422 "Diga a distância … o sistema não escolhe a distância."; até 5.000 km).
+- Resposta: `regra` (`texto`, os critérios, como "densidade abaixo de 0,5"; com `agrupar`, `texto_agrupado`, "…, agrupados a
+  até 200 km uns dos outros"; a competência e o pedido normalizado), `atendem` e `ids` (na ordem do código), `nomes` (os primeiros), `nao_avaliaveis` (sem o dado de algum
+  critério: nunca entram nem viram "não atende"), e, com `agrupar`: `grupos` (`id` "g1"…, `rotulo` "Grupo 1"…, `membros`,
+  `grupos_territoriais` com as unidades de cada estado ou grupo da coluna-mãe, `extensao_km`: a maior geodésica entre dois
+  membros), `isolados`, `sem_posicao` (sem coordenada válida, fora dos grupos) e `pontos` (`id`, `lat`, `lon`, `grupo`, para o
+  mapa pequeno); `notas`, `limitacoes` (`DISTANCIA_GEODESICA_DIRETA` com a distância) e `metodo`. Os grupos vêm do maior para o
+  menor; nenhum texto diz "cluster".
+
+Com a base versionada, em junho de 2024 (o aceite do comando): no todo, densidade abaixo de 0,5 → 89 municípios; agrupar a até
+200 km → 6 grupos e 8 isolados (81 agrupados); o maior com 46 municípios (PI 33, TO 11, MA 1, BA 1) e 1.235 km de ponta a ponta;
+o segundo, 24 municípios do PA e 907 km.
 
 ### Erros
 

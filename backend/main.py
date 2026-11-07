@@ -1931,6 +1931,30 @@ def integrated_panel_territories(file: UploadFile | None = File(None), mapping: 
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+@app.post("/api/painel/criterios")
+def integrated_panel_criteria(file: UploadFile | None = File(None), mapping: str = Form("{}"),
+                              options: str = Form("{}"), sheet: str = Form(""), dataset: str = Form(""),
+                              scope: str = Form("municipal"), dataset_version: str = Form(""),
+                              geo_version: str = Form(""), context_revision: int = Form(0)):
+    """Prévia de "Selecionar por critérios" (07/11/2026, item 6 do comando de 06/11/2026; Docs/PAINEL_INTEGRADO.md): os que
+    atendem aos critérios da pessoa (CAP-SUB-01 e a distância "a até X km de …") e, pedido, os grupos por proximidade em cadeia
+    (RQ-CAP-13), com os isolados e os pontos do mapa pequeno. Base Brasil ou planilha enviada. Só calcula a prévia: nada é
+    registrado na sessão e nada vai ao provedor de IA."""
+    try:
+        frame, sources, fields, requested = _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
+                                                           options, lambda requested: True)
+        if sources is not None and geo_version:
+            geo = _geo_identity(frame, "nearest", {})
+            if geo is not None and geo_version != _geo_token(geo):
+                raise ValueError("A camada geográfica complementar mudou depois da preparação. Carregue novamente a base "
+                                 "antes de analisar.")
+        return _PanelJSON(painel.criterios(sources, fields, requested, frame=None if sources is not None else frame))
+    except ChoiceRequired as exc:
+        return _panel_pending(exc)
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.post("/api/painel/lugar")
 def integrated_panel_place(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
                            sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),

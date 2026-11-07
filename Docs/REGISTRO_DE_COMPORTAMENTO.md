@@ -35,6 +35,33 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Selecionar por critérios, parte A (etapa 9A do comando, item 6): a prévia no motor, com os grupos por proximidade em cadeia
+- **Classificação (regra 1), pela leitura, antes de codar:** item 6 do comando de 06/11/2026, classificado de uma vez com os
+  demais (entrada da navegação por níveis, abaixo), com a decisão 4 do responsável ("Selecionar por critérios" é capacidade nova
+  da Seleção: subconjunto por critério, CAP-SUB-01, e, se a pessoa quiser, grupos por proximidade com critérios e distância
+  dela e um método só, em cadeia, RQ-CAP-13; não é detecção autônoma de padrões espaciais, EXC-05, e o sistema não escolhe
+  critério nem distância, EXC-11). Mudança prevista: *escopo:* decorre do comando; *compatibilidade:* os filtros são os de
+  CAP-SUB-01 já usados nas Condições e na Escolha dos territórios; a distância é a geodésica do motor (TPL-11, a mesma da
+  Análise Espacial); nada é sugerido nem estimado; todo número vem do motor (G2).
+- **Antes:** não havia como selecionar por critério: a Seleção escolhia por nome e estado, e os filtros ficavam nas Condições e na
+  Escolha dos territórios, sem virar seleção nem formar grupos.
+- **Agora:** `POST /api/painel/criterios` dá a prévia: os que atendem (no todo, num grupo ou na seleção em uso; os filtros e o
+  critério opcional "a até X km de …"), e, com `agrupar`, os grupos por proximidade em cadeia (os membros, os estados ou grupos
+  deles e a extensão de ponta a ponta), os isolados, os sem coordenada e os pontos do mapa pequeno, com a regra em palavras
+  ("densidade abaixo de 0,5", "…, agrupados a até 200 km uns dos outros"). A tela usa a rota na parte seguinte.
+- **Permanece:** as demais rotas e a tela; as Condições e a Escolha dos territórios. Nota de transparência: o começo da tela
+  desta capacidade entrou por engano, sem efeito, no commit `7cf5204` (correção do CI): o cliente da rota (`pedirCriterios`, em
+  `painelApi.ts`), o tipo da regra e o texto dela na trilha (`RegraDaSelecao`, `textoDaRegra`, `regraConfere`, em
+  `painelModel.ts`, inativos sem uma regra) e o componente `SelecionarPorCriterios.tsx`, que nada usa ainda; a parte B o completa
+  e o liga à Seleção.
+- **Motivo:** comando do responsável de 06/11/2026, item 6, com a decisão 4.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO.md` ("Rota 6").
+  - **Testes novos:** em `test_painel_pagina.py`, a planilha de distritos (os quatro que atendem, o grupo Alto Rio e Baixo Rio com
+    a extensão conferida pelo pyproj, Campina isolada, Serra sem coordenada, a cadeia a 100 km sem grupos, a distância "a até
+    150 km de Alto Rio", a seleção em uso, a província e as recusas) e, com a base versionada (job dados-reais), o aceite do
+    comando (89; 6 grupos e 8 isolados; 46 municípios e 1.235 km; 24 do PA e 907 km; a cadeia conferida à parte com as
+    geodésicas de todos os pares; nenhum "cluster").
 ### 2026-11-07 · Correção do CI da parte C1 (etapa 8 do comando, item 1): as zonas pelos nomes delas no gráfico
 - **Classificação (regra 1):** mudança de comportamento (o que a tela mostra no nível de cima), prevista: é a parte C1 como
   registrada e descrita em `Docs/PAINEL_INTEGRADO_INTERFACE.md`, que o código não cumpria; não contraria a SPEC nem divergência

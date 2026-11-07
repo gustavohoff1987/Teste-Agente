@@ -1555,6 +1555,50 @@ def test_total_do_todo_informado_pela_pessoa_no_lugar_da_soma(repo):
             "Na base do Brasil, o total vem da fonte nacional")
 
 
+def test_selecionar_por_criterios_com_grupos_por_proximidade_em_cadeia(repo):
+    """Selecionar por critérios (07/11/2026, item 6 do comando de 06/11/2026; decisão 4): os que atendem aos filtros de
+    CAP-SUB-01 (densidade ≥ 10 em 2024: os quatro distritos), o critério de distância "a até X km de …" e os grupos por
+    proximidade em cadeia, pela geodésica de Karney entre as sedes (conferida aqui com o pyproj, à parte): Alto Rio e Baixo Rio
+    (~119 km) num grupo, Campina isolada e Serra sem coordenada, fora dos grupos. A regra e a distância são da pessoa."""
+    from pyproj import Geod
+    premissas = {"count_unit": "pessoas", "crs": "SIRGAS2000"}
+    criterios = {"partir_de": {"tipo": "pais"}, "filtros": [{"indicador": "densidade", "operador": ">=", "valor": 10}]}
+    pedido = {"competencia": "2024", "rotulos": LABELS, "premissas": premissas, "criterios": criterios}
+    so = ok(upload(pedido, path="/api/painel/criterios"))
+    assert (so["atendem"], so["ids"], so["grupos"], so["regra"]["texto"]) == (4, [ALTO, BAIXO, CAMPINA, SERRA], None,
+                                                                             "densidade a partir de 10")
+    body = ok(upload({**pedido, "agrupar": {"km": 200}}, path="/api/painel/criterios"))
+    assert len(body["grupos"]) == 1 and body["isolados"] == [CAMPINA] and body["sem_posicao"] == [SERRA]
+    grupo = body["grupos"][0]
+    assert (grupo["id"], grupo["rotulo"], grupo["membros"]) == ("g1", "Grupo 1", [ALTO, BAIXO])
+    assert grupo["grupos_territoriais"] == [{"id": "Província Norte", "rotulo": "Província Norte", "unidades": 2}]
+    _, _, metros = Geod(a=6378137.0, rf=298.257222101).inv(-60.0, -3.1, -61.0, -3.5)
+    assert abs(grupo["extensao_km"] - metros / 1000) < 1e-6 and 100 < grupo["extensao_km"] < 150
+    assert {ponto["id"]: ponto["grupo"] for ponto in body["pontos"]} == {ALTO: "g1", BAIXO: "g1", CAMPINA: None}
+    assert (body["regra"]["texto"], body["regra"]["texto_agrupado"]) == (
+        "densidade a partir de 10", "densidade a partir de 10, agrupados a até 200 km uns dos outros")
+    assert "DISTANCIA_GEODESICA_DIRETA" in body["limitacoes"] and any("RQ-CAP-13" in nota for nota in body["notas"])
+    # A cadeia junta só quem está a até a distância do seguinte: a 100 km, ninguém se junta.
+    assert ok(upload({**pedido, "agrupar": {"km": 100}}, path="/api/painel/criterios"))["grupos"] == []
+    # A distância "a até 150 km de Alto Rio": Alto Rio (0 km) e Baixo Rio; Serra, sem coordenada, não é avaliável.
+    perto = ok(upload({**pedido, "criterios": {**criterios, "distancia": {"de": ALTO, "km": 150}}}, path="/api/painel/criterios"))
+    assert (perto["ids"], perto["nao_avaliaveis"]) == ([ALTO, BAIXO], 1)
+    assert perto["regra"]["texto"] == "densidade a partir de 10 e a até 150 km de Alto Rio"
+    # Na seleção em uso e num grupo.
+    assert ok(upload({**pedido, "criterios": {**criterios, "partir_de": {"tipo": "selecao"}},
+                      "base": {"municipios": {"ids": [ALTO, CAMPINA]}}}, path="/api/painel/criterios"))["ids"] == [ALTO, CAMPINA]
+    assert ok(upload({**pedido, "criterios": {**criterios, "partir_de": {"tipo": "ufs", "ufs": ["Província Sul"]}}},
+                     path="/api/painel/criterios"))["ids"] == [CAMPINA, SERRA]
+    # O sistema não escolhe critério nem distância: sem eles, a recusa diz o que falta.
+    refused(upload({**pedido, "criterios": {"partir_de": {"tipo": "pais"}}}, path="/api/painel/criterios"),
+            "Escolha ao menos um critério")
+    refused(upload({**pedido, "agrupar": {}}, path="/api/painel/criterios"), "Agrupamento inválido")
+    refused(upload({**pedido, "agrupar": {"km": 0}}, path="/api/painel/criterios"), "precisa ser maior que zero")
+    refused(upload({**pedido, "agrupar": {"km": None}}, path="/api/painel/criterios"), "o sistema não escolhe a distância")
+    refused(upload({**pedido, "criterios": {**criterios, "distancia": {"de": SERRA, "km": 100}}}, path="/api/painel/criterios"),
+            "não tem coordenada válida")
+
+
 @pytest.fixture(scope="module")
 def real(tmp_path_factory):
     """Base versionada instalada numa pasta temporária (job dados-reais), somente em leitura."""
@@ -1728,6 +1772,48 @@ def test_real_consulta_matches_every_geodesic_and_the_series_matches_the_trend(r
     assert series["serie"]["competencias"] == len(JUNE) and series["serie"]["itens"] == 62
     for item in series["itens"]:
         assert observed(item["serie"]["observacoes"]) == observed(trend[item["id"]]["tendencia"]["observacoes"])
+
+
+def test_real_selecionar_por_criterios_do_comando(real):
+    """Aceite do item 6 do comando de 06/11/2026 (base versionada, jun/2024; valores do comando, calculados com as sedes da base e
+    a distância geodésica): no todo, densidade abaixo de 0,5 → 89 municípios; agrupar a até 200 km → 6 grupos e 8 isolados (81
+    agrupados); o maior com 46 municípios (PI 33, TO 11, MA 1, BA 1) e 1.235 km de ponta a ponta; o segundo, 24 municípios do PA e
+    907 km; os outros quatro, de 2 a 4 municípios. A cadeia é conferida aqui, à parte, com as geodésicas de Karney (pyproj) de
+    todos os pares dos 89 pontos."""
+    from pyproj import Geod
+    criterios = {"partir_de": {"tipo": "pais"}, "filtros": [{"indicador": "densidade", "operador": "<", "valor": 0.5}]}
+    so = ok(post(real, path="/api/painel/criterios", competencia="202406", criterios=criterios))
+    assert (so["atendem"], len(so["ids"]), so["regra"]["texto"]) == (89, 89, "densidade abaixo de 0,5")
+    body = ok(post(real, path="/api/painel/criterios", competencia="202406", criterios=criterios, agrupar={"km": 200}))
+    grupos = body["grupos"]
+    assert (len(grupos), len(body["isolados"]), sum(len(grupo["membros"]) for grupo in grupos)) == (6, 8, 81)
+    maior, segundo = grupos[0], grupos[1]
+    assert len(maior["membros"]) == 46 and round(maior["extensao_km"]) == 1235
+    assert {item["rotulo"]: item["unidades"] for item in maior["grupos_territoriais"]} == {"PI": 33, "TO": 11, "MA": 1, "BA": 1}
+    assert len(segundo["membros"]) == 24 and round(segundo["extensao_km"]) == 907
+    assert [(item["rotulo"], item["unidades"]) for item in segundo["grupos_territoriais"]] == [("PA", 24)]
+    assert all(2 <= len(grupo["membros"]) <= 4 for grupo in grupos[2:])
+    # A cadeia, à parte: os componentes dos pares a até 200 km, pelas geodésicas de todos os pares.
+    pontos = body["pontos"]
+    assert len(pontos) == 89
+    geod = Geod(a=6378137.0, rf=298.257222101)
+    pai = list(range(len(pontos)))
+
+    def raiz(i):
+        while pai[i] != i:
+            i = pai[i]
+        return i
+    for i in range(len(pontos)):
+        for j in range(i + 1, len(pontos)):
+            _, _, metros = geod.inv(pontos[i]["lon"], pontos[i]["lat"], pontos[j]["lon"], pontos[j]["lat"])
+            if metros <= 200000:
+                pai[max(raiz(i), raiz(j))] = min(raiz(i), raiz(j))
+    componentes = {}
+    for i, ponto in enumerate(pontos):
+        componentes.setdefault(raiz(i), set()).add(ponto["id"])
+    esperados = sorted(sorted(membros) for membros in componentes.values() if len(membros) > 1)
+    assert esperados == sorted(sorted(grupo["membros"]) for grupo in grupos)
+    assert "cluster" not in json.dumps(body).lower()
 
 
 def test_real_consulta_of_the_command_north_far_from_acre(real):
