@@ -210,12 +210,37 @@ def test_sets_and_states_keep_the_caveats_of_the_engine(repo):
     info = inspection()
     sets = ok(page(info, conjuntos=SETS))
     text = check(sets)
-    assert text.startswith("Em junho de 2024, o gráfico tem 5 municípios e 1 conjunto. A densidade vai de ")
+    # Desde 08/11/2026 (decisão do responsável na rodada do comando de 08/11/2026; muda de propósito esta conferência, que esperava
+    # "A densidade vai de "), com conjuntos no gráfico a faixa continua só com as unidades e diz isso, com o nome de cada extremo.
+    assert text.startswith("Em junho de 2024, o gráfico tem 5 municípios e 1 conjunto. Entre os municípios, a densidade vai de "
+                           "8 (MANACAPURU (AM)) a 25 (MANAUS (AM)) por 1.000 habitantes.")
     assert "Conjuntos: soma das contagens dos componentes, com possível dupla contagem." in text
     states = ok(post(info, nivel="estados", indicador="densidade", competencia="202406"))
     text = check(states)
     assert text.startswith("Em junho de 2024, o gráfico tem 2 estados. A densidade vai de ")
     assert NOTE_STATES in text and "Referência de contexto: a taxa do Brasil (total nacional) é de" in text
+
+
+def test_as_respostas_de_maior_e_menor_com_conjuntos_tem_a_marca_e_a_ressalva(repo):
+    """"Qual tem a maior densidade?" e "compare os dois maiores" com conjuntos (08/11/2026, decisão do responsável na rodada do
+    comando de 08/11/2026): o conjunto entra pelo valor dele, com a marca "(conjunto)" e a ressalva da soma; as faixas da frase
+    continuam só com as unidades e dizem isso."""
+    import explicacao
+    info = inspection()
+    # c1 = MANAUS + BELEM: (50 + 56) ÷ (2.000 + 3.000) × 1.000 = 21,2 por 1.000; sem MANAUS na base, é o maior valor do gráfico.
+    base = {"municipios": {"ids": [MANACAPURU, PARINTINS, NOVO, TEFE]}}
+    body = ok(page(info, base=base, conjuntos=[{"id": "c1", "rotulo": "Capital e Belém", "membros": [MANAUS, BELEM]}]))
+    maior = explicacao.comparar_atributo(body, "densidade", True)["texto"]
+    assert maior.startswith("A maior densidade em junho de 2024 é a de Capital e Belém (conjunto), com 21,20"), maior
+    assert maior.endswith(explicacao.RESSALVA_DOS_CONJUNTOS), maior
+    menor = explicacao.comparar_atributo(body, "densidade", False)["texto"]
+    assert "Capital e Belém (conjunto), 21,20" in menor and menor.endswith(explicacao.RESSALVA_DOS_CONJUNTOS), menor
+    ordem = painel.conversation_facts(body)["ordem"]["densidade"]
+    assert [body["itens"][i]["id"] for i in painel.conversation_top(body, "densidade", True, 2)] == ["c1", PARINTINS]
+    assert ordem["com_valor"] == 5 and [body["itens"][i]["id"] for i in ordem["maior"]] == ["c1"]
+    # Sem conjuntos, a resposta é a de antes, sem a marca nem a ressalva.
+    plain = explicacao.comparar_atributo(ok(page(info)), "densidade", True)["texto"]
+    assert "(conjunto)" not in plain and explicacao.RESSALVA_DOS_CONJUNTOS not in plain
 
 
 # --------------------------------------------------------------------------------------------- planilhas
@@ -287,15 +312,20 @@ def test_ordem_dos_primeiros_para_a_conversa_conta_os_empates_no_motor():
         {"id": "a", "tipo": "municipio", "densidade": 5.0}, {"id": "b", "tipo": "municipio", "densidade": 9.0},
         {"id": "c", "tipo": "municipio", "densidade": 9.0}, {"id": "d", "tipo": "municipio", "densidade": None},
         {"id": "e", "tipo": "conjunto", "densidade": 50.0}, {"id": "f", "tipo": "municipio", "densidade": 1.0}]}
-    assert painel.conversation_top(corpo, "densidade", True, 1) == [1, 2]  # empate no primeiro lugar: os dois
-    assert painel.conversation_top(corpo, "densidade", True, 2) == [1, 2]
-    assert painel.conversation_top(corpo, "densidade", True, 3) == [1, 2, 0]
+    # Desde 08/11/2026 (decisão do responsável na rodada do comando de 08/11/2026; muda de propósito: antes, o conjunto "e" ficava
+    # de fora), o conjunto entra pelo valor dele: com 50, é o primeiro.
+    assert painel.conversation_top(corpo, "densidade", True, 1) == [4]
+    assert painel.conversation_top(corpo, "densidade", True, 2) == [4, 1, 2]  # empate no segundo lugar: os dois
+    assert painel.conversation_top(corpo, "densidade", True, 3) == [4, 1, 2]
     assert painel.conversation_top(corpo, "densidade", False, 2) == [5, 0]
     assert painel.conversation_top(corpo, "densidade", False, 0) == [] and painel.conversation_top(corpo, "outro", True, 2) == []
+    unidades = {**corpo, "itens": [item for item in corpo["itens"] if item["tipo"] == "municipio"]}
+    assert painel.conversation_top(unidades, "densidade", True, 1) == [1, 2]  # só as unidades (a proximidade recorta assim)
     # As mesmas posições extremas da ordem já usada nas perguntas sobre o resultado.
     ordem = painel.conversation_facts(corpo)["ordem"]["densidade"]
-    assert ordem["maior"] == painel.conversation_top(corpo, "densidade", True, 1)
-    assert ordem["menor"] == painel.conversation_top(corpo, "densidade", False, 1)
+    assert ordem["maior"] == painel.conversation_top(corpo, "densidade", True, 1) == [4]
+    assert ordem["menor"] == painel.conversation_top(corpo, "densidade", False, 1) == [5]
+    assert (ordem["com_valor"], ordem["sem_valor"]) == (5, 1)
 
 
 def test_a_failing_summary_never_breaks_the_chart(repo, monkeypatch, caplog):

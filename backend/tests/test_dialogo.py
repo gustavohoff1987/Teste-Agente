@@ -627,6 +627,24 @@ def test_comparacao_pelos_extremos_abre_a_comparacao_com_as_ordens_do_motor(tela
     assert dois.aplicado and tela.comparar == ordem[:2] and "os dois maiores em densidade" in dois.texto
 
 
+def test_comparacao_pelos_extremos_com_conjuntos_tem_a_marca_e_a_ressalva(tela, sem_provedor):
+    """Desde 08/11/2026 (decisão do responsável na rodada do comando de 08/11/2026): com conjuntos no gráfico, "compare os dois
+    maiores" põe o conjunto pelo valor dele, com a marca "(conjunto)" e a ressalva da soma; um conjunto e um membro dele não ficam
+    lado a lado (o motor recusa itens relacionados)."""
+    # c1 = BELEM (PA) + PARINTINS: (56 + 12) ÷ (3.000 + 1.000) × 1.000 = 17 por 1.000, abaixo de MANAUS (23,5) e acima de TEFE (10).
+    tela.seleciona(ids=[MANAUS, TEFE, PARINTINS], conjuntos=[{"id": "c1", "rotulo": "Belém e Parintins",
+                                                              "membros": [BELEM_PA, PARINTINS]}])
+    dois = tela.diga("compare os dois maiores")
+    assert dois.aplicado and tela.comparar == [MANAUS, "c1"], (tela.comparar, dois.texto)
+    assert "Belém e Parintins (conjunto), com 17" in dois.texto and explicacao.RESSALVA_DOS_CONJUNTOS in dois.texto, dois.texto
+    # c2 = MANAUS + TEFE: (47 + 6) ÷ (2.000 + 600) × 1.000 = 20,4 por 1.000; os dois maiores são MANAUS e c2, relacionados.
+    tela.seleciona(ids=[MANAUS, TEFE, PARINTINS], conjuntos=[{"id": "c2", "rotulo": "Manaus e Tefé", "membros": [MANAUS, TEFE]}])
+    relacionados = tela.diga("compare os dois maiores")
+    assert not relacionados.aplicado and tela.comparar is None, relacionados.texto
+    assert relacionados.texto.startswith("MANAUS (AM) é membro de Manaus e Tefé (conjunto): um conjunto e os membros dele não "
+                                         "ficam lado a lado na comparação."), relacionados.texto
+
+
 def test_extremos_com_empate_entram_juntos(tela, sem_provedor):
     tela.seleciona(ids=[MANAUS, TEFE, AMAZONAS_PA])
     itens = _unidades(tela)

@@ -168,6 +168,15 @@ def test_os_n_com_maior_ou_menor_viram_ordenar():
     assert body["painel"] == painel(funcao="ordenar", ordenar={"atributo": "densidade", "ordem": "desc", "primeiros": 5})
     assert body["reply"] == ("Ordenei os municípios pela densidade, do maior para o menor, e destaquei os 5 primeiros; "
                              "empates na posição de corte também entram.")
+    # Com conjuntos na análise (08/11/2026, comando de 08/11/2026, item 6), eles entram na ordem e nas condições, cada um pelo
+    # valor dele, e a resposta diz isso, com a ressalva da soma; o pedido ao gráfico é o mesmo.
+    com_conjuntos = pedir("os 5 municípios com maior densidade", painel_conjuntos=2)
+    assert com_conjuntos["painel"] == body["painel"]
+    assert com_conjuntos["reply"] == ("Ordenei os municípios e os conjuntos pela densidade, do maior para o menor, e destaquei os 5 "
+                                      "primeiros; empates na posição de corte também entram. " +
+                                      conversa_grafico.CONJUNTOS_NA_COMPARACAO)
+    assert pedir("os 5 municípios com maior densidade", painel_conjuntos=1)["reply"].startswith(
+        "Ordenei os municípios e o conjunto pela densidade")
     assert pedir("os 3 com menor quantidade")["painel"]["ordenar"] == {"atributo": "quantidade", "ordem": "asc",
                                                                        "primeiros": 3}
     assert pedir("quais os dez mais populosos?")["painel"]["ordenar"] == {"atributo": "populacao", "ordem": "desc",
@@ -719,6 +728,11 @@ def test_no_mapa_e_onde_ficam_acompanham_o_comando_com_a_vista_do_mapa():
                                     vista="mapa")
     assert onde["reply"] == ("Apliquei a condição densidade < 1 por mil habitantes: o gráfico separa quem atende a ela, quem "
                              "não atende e quem não tem dado. Passei para o mapa.")
+    # Com conjuntos na análise (08/11/2026, comando de 08/11/2026, item 6): a mesma condição, e a resposta diz que eles entram.
+    com_conjuntos = pedir("onde ficam os municípios com menos de 1 médico por mil?", painel_conjuntos=1)
+    assert com_conjuntos["painel"] == onde["painel"]
+    assert com_conjuntos["reply"] == onde["reply"].replace(" Passei para o mapa.", " " + conversa_grafico.CONJUNTOS_NA_COMPARACAO +
+                                                           " Passei para o mapa.")
     # Dos estados, "o Pará no mapa" abre os municípios, que têm ponto: a vista muda.
     assert pedir("mostre o Pará no mapa", painel_nivel="estados", painel_mapa_disponivel=False)["painel"]["vista"] == "mapa"
     # Já no mapa, ele continua; "no gráfico" volta ao gráfico.

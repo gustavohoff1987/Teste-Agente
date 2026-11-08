@@ -35,6 +35,83 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-08 · Os conjuntos entram nas comparações (comando de 08/11/2026)
+- **Classificação (regra 1), pela leitura, antes de codar:** os seis itens do comando foram classificados de uma vez. Todos mudam
+  comportamento e passam nos dois testes:
+  - *escopo:* decorrem do comando, e o item 1 vem da decisão do responsável na rodada de 07/11/2026, no fim do item 6.6;
+  - *compatibilidade:* nenhum contraria a SPEC nem uma divergência aprovada:
+    - CAP-SUB-01, CAP-SUB-02/03, CAP-DIS-03 e CAP-ESP-03 não restringem o universo a um nível;
+    - F-05b trata da comparação do mesmo agregado ao longo do tempo (AT-80);
+    - a soma segue rotulada como soma, com a dupla contagem (RQ-REP-14; a divergência aprovada "Soma automática" de
+      CAP-AGR-01);
+    - os quantis (CAP-DIS-02) continuam só com as unidades.
+  - Na mesma rodada, o responsável respondeu às três dúvidas:
+    1. um push no fim, com o CI até PASS;
+    2. os conjuntos entram também em "qual tem a maior (ou a menor) densidade?", "compare os dois maiores" e nas perguntas
+       equivalentes, com a marca e a ressalva; a proximidade pela conversa ("o de menor densidade e o mais próximo dele") fica só
+       com as unidades nesta rodada;
+    3. a faixa de valores da frase-resumo continua só com as unidades e diz isso.
+  - Esclarecimento do responsável: as duas respostas valem só para o que dizem, e nada do que já funciona com conjuntos na tela
+    é retirado ou restringido.
+- **Antes:**
+  - Os conjuntos ficavam fora do universo das análises, nos dois modos de referência: nas condições, na ordenação, nas faixas, nas
+    faixas de distância e nas contagens da tendência, os campos deles vinham `null`, e as contagens eram só das unidades.
+  - A régua deixava os conjuntos sempre à vista.
+  - As ordens da conversa ("qual tem a maior densidade?", "compare os dois maiores") deixavam os conjuntos de fora.
+  - A frase-resumo dizia "A densidade vai de X a Y", mesmo com conjuntos no gráfico.
+- **Agora:**
+  - **No motor:** cada conjunto entra como um território a mais nas condições (CAP-SUB-01), na ordenação (CAP-SUB-02/03), nas
+    faixas da pessoa (CAP-DIS-03), nas faixas de distância (CAP-ESP-03) e nas contagens da tendência, com o valor dele:
+    - no indicador e na variação, o da soma dos membros (CAP-AGR-01, o mesmo do gráfico);
+    - na distância, a menor, a do membro mais próximo da referência, nos dois modos.
+  - **Sem valor avaliável:** o conjunto é não avaliável, nunca zero.
+  - **Os quantis** e os grupos do mapa continuam só com as unidades, e os cortes não mudam com um conjunto a mais.
+  - **As contagens por tipo:** com conjuntos, cada bloco traz `por_tipo`, e as notas dizem como os conjuntos entram e avisam a
+    possível dupla contagem quando os membros também estão na análise (`com_membros_na_analise`).
+  - **Na frase-resumo:** as contagens das condições, das faixas e da tendência dizem quantos são municípios e quantos são
+    conjuntos ("atendem, 3 (2 municípios e 1 conjunto)"). A faixa de valores diz "Entre os municípios, a densidade vai de X (A)
+    a Y (B)". Com membros na análise, a frase avisa a dupla contagem.
+  - **Na tela:**
+    - a régua filtra os conjuntos pelo valor;
+    - as Condições, a lista de Ordenar e a legenda das cores separam municípios e conjuntos ("(2 municípios e 1 conjunto)"),
+      com a ressalva da soma e o aviso da dupla contagem;
+    - a lista de Ordenar marca cada conjunto ("· conjunto") e diz quantos entram ("Na ordem: …");
+    - os Detalhes mostram a posição, as condições e as faixas dos conjuntos.
+  - **Na conversa:**
+    - "ordene por densidade" e as Condições dizem que os conjuntos entram (a tela manda só o número, `painel_conjuntos`, que
+      não vai ao provedor);
+    - "qual tem a maior (ou a menor) densidade?" e "compare os dois maiores" põem os conjuntos pelo valor, com a marca
+      "(conjunto)" e a ressalva;
+    - um conjunto e um membro dele não ficam lado a lado, porque o motor recusa itens relacionados;
+    - a proximidade continua só com as unidades.
+- **Permanece:**
+  - os números do motor para unidades e conjuntos;
+  - a soma (CAP-AGR-01) e a ressalva dela;
+  - os quantis só com as unidades;
+  - sem conjuntos, as respostas de antes (sem `por_tipo`, com a frase de antes);
+  - a distância e a referência dos conjuntos na Escolha dos territórios (item 6 da rodada de 07/11/2026);
+  - nada vai ao provedor de IA além do que já ia.
+- **Motivo:** comando do responsável de 08/11/2026 e as respostas dele na mesma rodada.
+- **Documentação e testes:**
+  - **Documentação:**
+    - `Docs/PAINEL_INTEGRADO.md`: o universo das análises com os conjuntos, `por_tipo` na resposta e a frase-resumo;
+    - `Docs/PAINEL_INTEGRADO_INTERFACE.md`: a régua, as Condições, Ordenar, a Análise Espacial, as limitações e os testes;
+    - `Docs/DIALOGO_GOVERNADO.md`: a comparação pelos extremos com os conjuntos;
+    - `Docs/CONVERSACAO_INCREMENTO_FN.md`: a ordenação e as Condições pela conversa.
+  - **Testes novos:**
+    - `test_painel_pagina.py`: os conjuntos em todas as comparações, com o conjunto não avaliável, a dupla contagem, os quantis
+      e a resposta sem conjuntos;
+    - `test_painel_resumo.py`: as respostas de maior e menor com a marca e a ressalva;
+    - `test_dialogo.py`: "compare os dois maiores" com conjuntos, que usa os conjuntos do simulador `conversa_simulada.py`;
+    - `test_conversa_grafico.py`: as respostas com conjuntos;
+    - `painel.test.mjs` e `conversaGrafico.test.mjs`;
+    - o passo 12 de `ui_criterios.py`.
+  - **Testes que mudam de propósito** (o comportamento mudou, não o teste):
+    - em `test_painel_pagina.py`, a tendência com conjuntos: as contagens das unidades passam a `por_tipo`, e o universo passa de
+      5 para 7;
+    - em `test_painel_resumo.py`, a frase com conjuntos ("Entre os municípios, …") e as ordens da conversa com o conjunto "e";
+    - em `painel.test.mjs`, a régua, em que o conjunto sai pelo valor.
+
 ### 2026-11-07 · Seleção por critérios de ponta a ponta, parte B (comando de 07/11/2026, itens 1 a 3, 4.1 a 4.3, 5, 6.4, 6.6, 7, 8 e 9): a tela
 - **Classificação (regra 1):** a mesma da parte A (abaixo), feita pela leitura no início, para os nove itens: todos mudam
   comportamento, decorrem do comando e não contrariam a SPEC nem uma divergência aprovada.

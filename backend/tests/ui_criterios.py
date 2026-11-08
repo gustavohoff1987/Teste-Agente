@@ -24,6 +24,10 @@ Confere, contra as respostas de /api/painel/criterios e /api/painel, o que o com
 - o exemplo do objetivo, sem passar pela lista: Norte, densidade abaixo de 0,5, a até 100 km entre si, só os conjuntos na análise,
   a Análise Espacial com a aba Base dos conjuntos e a Referência com densidade a partir de 1: cada conjunto com a menor e a maior
   distância e a referência do membro mais próximo, também nos Detalhes;
+- os conjuntos nas comparações (comando de 08/11/2026): os cortes dos quintis não mudam com um conjunto que não fica no
+  lugar dos membros; o Norte junto com dez municípios do Pará: a ordem por densidade e a condição "densidade abaixo de
+  0,4" com os conjuntos pelo valor de cada um e as contagens por tipo; na Análise Espacial, as faixas 0; 100; 300 e a
+  ordem pela distância com os conjuntos entre as unidades;
 - nenhum texto à vista com "cluster".
 
 Base Brasil versionada (suíte base-versionada, ADT_BLOCK1_REAL=1); servidor serve_ui_offline.py, sem o provedor de IA.
@@ -460,7 +464,131 @@ def main():
         expect(linha).to_contain_text(" a ")
         page.screenshot(path=str(OUTPUT / "criterios-norte-espacial-real.png"), full_page=True)
 
-        # 12. Nenhum "cluster" à vista.
+        # 12. Os conjuntos nas comparações (comando de 08/11/2026). Primeiro, os quintis: com dez municípios do Pará marcados, criar um
+        #     conjunto deles que não fica no lugar dos membros não muda os cortes dos quintis do mapa (só as unidades entram). Depois,
+        #     o Norte a até 100 km, "Usar cada conjunto como um território" junto com os dez: ordenar por densidade põe os conjuntos
+        #     entre os municípios, cada um no lugar do seu valor; "densidade abaixo de 0,4" inclui ou deixa fora cada conjunto pelo
+        #     valor, e a contagem separa municípios e conjuntos; na Análise Espacial, com as faixas 0; 100; 300, cada conjunto fica na
+        #     faixa da sua menor distância, e ordenar pela distância o põe entre as unidades.
+        def abre(funcao):
+            botao = area.get_by_test_id("analise-funcao-" + funcao)
+            if botao.get_attribute("aria-expanded") != "true":
+                aperta(botao)
+            painel_da_funcao = area.get_by_test_id("analise-painel")
+            expect(painel_da_funcao).to_have_attribute("data-painel", funcao)
+            return painel_da_funcao
+
+        def entre_as_unidades(resposta, atributo):
+            """A ordem do motor pelo valor de cada item (unidade ou conjunto), sem desempate artificial, e algum conjunto com
+            unidades antes e depois dele."""
+            valor = (lambda item: item["distancia_km"]) if atributo == "distancia_km" else (lambda item: item[atributo])
+            ordem = sorted((item["ordem"]["posicao"], valor(item), item["tipo"]) for item in resposta["itens"]
+                           if item.get("ordem") and item["ordem"]["posicao"] is not None)
+            assert all(a[1] <= b[1] for a, b in zip(ordem, ordem[1:])), ordem[:12]
+            tipos = [tipo for _, _, tipo in ordem]
+            conjuntos = [i for i, tipo in enumerate(tipos) if tipo == "conjunto"]
+            assert conjuntos and any("municipio" in tipos[:i] and "municipio" in tipos[i + 1:] for i in conjuntos), tipos
+            return ordem
+
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+        limpar_filtros = area.get_by_test_id("analise-limpar-filtros")
+        if limpar_filtros.count() and limpar_filtros.is_visible():
+            aperta(limpar_filtros)
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        aperta(area.get_by_test_id("analise-limpar-selecao"))
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
+        if linha_pa.get_attribute("data-aberto") != "true":
+            aperta(linha_pa.get_by_test_id("analise-grupo-ver"))
+        unidades_pa = linha_pa.get_by_test_id("analise-unidade")
+        for indice in range(9):
+            marcado(unidades_pa.nth(indice).locator("input"))
+        antes, _ = analise(lambda: marcado(unidades_pa.nth(9).locator("input")),
+                           condicao=lambda o: len(((o.get("base") or {}).get("municipios") or {}).get("ids") or []) == 10)
+        assert antes["grupos_mapa"] and antes["grupos_mapa"]["universo"] == 10, antes.get("grupos_mapa")
+        aperta(territorios.get_by_test_id("analise-agrupar-marcados"))
+        agregar = territorios.get_by_test_id("analise-agregar")
+        desmarcado(agregar.get_by_test_id("analise-agregar-substitui"))
+        com_conjunto, enviado = analise(lambda: aperta(agregar.get_by_test_id("analise-agregar-criar")),
+                                        condicao=lambda o: bool(o.get("conjuntos")))
+        assert len(enviado["base"]["municipios"]["ids"]) == 10, enviado["base"]  # os membros continuam na análise
+        assert com_conjunto["grupos_mapa"]["cortes"] == antes["grupos_mapa"]["cortes"], (com_conjunto["grupos_mapa"], antes["grupos_mapa"])
+        assert com_conjunto["grupos_mapa"]["universo"] == 10
+        assert all(item["grupo_mapa"] is None for item in com_conjunto["itens"] if item["tipo"] == "conjunto")
+        aperta(territorios.get_by_role("button", name="Desfazer o conjunto Conjunto A", exact=True))
+        expect(territorios.get_by_test_id("analise-selecionado-conjunto")).to_have_count(0)
+        # O Norte a até 100 km, junto com os dez do Pará.
+        aperta(modos.get_by_test_id("analise-modo-criterios"))
+        painel = territorios.get_by_test_id("analise-criterios")
+        marcado(painel.get_by_test_id("analise-criterios-onde-regioes"))
+        marcado(painel.locator('[data-testid="analise-criterios-onde-regiao"][data-id="1"]'))
+        painel.get_by_test_id("analise-criterio-atributo").select_option("densidade")
+        painel.get_by_test_id("analise-criterio-operador").select_option("<")
+        painel.get_by_test_id("analise-criterio-valor").fill("0,5")
+        marcado(painel.get_by_test_id("analise-criterios-agrupar"))
+        corpo, _ = previa(lambda: painel.get_by_test_id("analise-criterios-agrupar-km").fill("100"),
+                          condicao=lambda o: (o.get("agrupar") or {}).get("km") == 100)
+        n_norte = len(corpo["grupos"])
+        marcado(painel.get_by_test_id("analise-criterios-junto"))
+        junto, _ = analise(lambda: aperta(painel.get_by_test_id("analise-criterios-como-grupos")),
+                           condicao=lambda o: len(o.get("conjuntos") or []) == n_norte)
+        assert sum(item["tipo"] == "municipio" for item in junto["itens"]) > 0
+        # Ordenar por densidade, da menor para a maior: os conjuntos entre os municípios, cada um no lugar do seu valor.
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+        ordenar = abre("ordenar")
+        ordenar.get_by_test_id("analise-ordenar-atributo").select_option("densidade")
+        ordenar.get_by_test_id("analise-ordenar-ordem").select_option("asc")
+        ordenada, _ = analise(lambda: aperta(ordenar.get_by_test_id("analise-ordenar-aplicar")),
+                              condicao=lambda o: (o.get("ordenar") or {}).get("atributo") == "densidade")
+        entre_as_unidades(ordenada, "densidade")
+        assert ordenada["ordenacao"]["por_tipo"]["conjuntos"]["ordenados"] == n_norte, ordenada["ordenacao"]["por_tipo"]
+        expect(ordenar.locator('[data-testid="analise-ordenar-lista"] li[data-tipo="conjunto"]').first).to_contain_text("conjunto",
+                                                                                                                    timeout=60000)
+        expect(ordenar.get_by_test_id("analise-ordenar-por-tipo")).to_contain_text(" conjunto")
+        # "Densidade abaixo de 0,4": cada conjunto pelo valor dele; a contagem separa municípios e conjuntos.
+        condicoes = abre("condicoes")
+        condicoes.get_by_test_id("analise-condicao-atributo").first.select_option("densidade")
+        condicoes.get_by_test_id("analise-condicao-operador").first.select_option("<")
+        condicoes.get_by_test_id("analise-condicao-valor").first.fill("0,4")
+        filtrada, _ = analise(lambda: aperta(condicoes.get_by_test_id("analise-condicoes-aplicar")),
+                              condicao=lambda o: any(str(c.get("valor")) in ("0.4", "0,4") for c in o.get("condicoes") or []))
+        for item in filtrada["itens"]:
+            if item["tipo"] == "conjunto":
+                assert item["condicoes"]["situacao"] == ("ATENDE" if item["densidade"] < 0.4 else "NAO_ATENDE"), item
+        por_tipo = filtrada["condicoes"]["por_tipo"]
+        assert por_tipo["conjuntos"]["universo"] == n_norte and sum(por_tipo["conjuntos"]["contagens"].values()) == n_norte
+        atende = condicoes.locator('[data-testid="analise-condicoes-contagem"][data-situacao="ATENDE"]')
+        expect(atende).to_have_attribute("data-conjuntos", str(por_tipo["conjuntos"]["contagens"]["ATENDE"]))
+        if por_tipo["conjuntos"]["contagens"]["ATENDE"]:
+            expect(atende.get_by_test_id("analise-condicoes-por-tipo")).to_contain_text("conjunto")
+        page.screenshot(path=str(OUTPUT / "conjuntos-nas-comparacoes-real.png"), full_page=True)
+        # Na Análise Espacial (a Escolha dos territórios do passo 11), as faixas 0; 100; 300 e a ordem pela distância.
+        aperta(area.get_by_test_id("analise-familia-espacial"))
+        painel_aberto = area.get_by_test_id("analise-painel")
+        if not painel_aberto.count() or painel_aberto.get_attribute("data-painel") != "referencia":
+            aperta(area.get_by_test_id("analise-referencia-escolher"))
+        janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+        expect(janela).to_be_visible(timeout=60000)
+        aperta(janela.get_by_test_id("territorios-aba-referencia"))
+        janela.get_by_test_id("analise-faixas-distancia").fill("0; 100; 300")
+        espacial, _ = analise(lambda: aperta(janela.get_by_test_id("analise-faixas-distancia-aplicar")),
+                              condicao=lambda o: o.get("faixas_distancia") == [0, 100, 300] and bool(o.get("consulta")))
+        conjuntos_espaciais = [item for item in espacial["itens"] if item["tipo"] == "conjunto"]
+        assert len(conjuntos_espaciais) == n_norte, len(conjuntos_espaciais)
+        for item in conjuntos_espaciais:
+            distancia = item["distancia_km"]
+            faixa = item["faixa_distancia"]
+            esperada = None if distancia is None else "0 a <100" if distancia < 100 else "100 a 300" if distancia <= 300 else "fora"
+            assert (faixa if faixa in (None, "fora") else faixa["rotulo"]) == esperada, (item["rotulo"], distancia, faixa)
+        assert espacial["faixas_distancia"]["por_tipo"]["conjuntos"]["universo"] == n_norte
+        ordenar = abre("ordenar")
+        ordenar.get_by_test_id("analise-ordenar-atributo").select_option("distancia_km")
+        ordenar.get_by_test_id("analise-ordenar-ordem").select_option("asc")
+        pela_distancia, _ = analise(lambda: aperta(ordenar.get_by_test_id("analise-ordenar-aplicar")),
+                                    condicao=lambda o: (o.get("ordenar") or {}).get("atributo") == "distancia_km")
+        entre_as_unidades(pela_distancia, "distancia_km")
+        page.screenshot(path=str(OUTPUT / "conjuntos-pela-distancia-real.png"), full_page=True)
+
+        # 13. Nenhum "cluster" à vista.
         assert "cluster" not in page.evaluate("() => document.body.innerText").lower()
         page.screenshot(path=str(OUTPUT / "criterios-conjuntos-real.png"), full_page=True)
         assert not falhas, falhas
@@ -473,7 +601,8 @@ def main():
           "o Pará só pela distância (50 km), o pedido pela conversa sem mudar a análise até a confirmação, as regiões na árvore, o "
           "lugar em uso pré-escolhido, \"Agrupar os marcados\" com o mini mapa que escolhe, os nomes únicos, o contorno no mapa e o "
           "exemplo do objetivo (o Norte a até 100 km até a Análise Espacial, com a distância e a referência de cada conjunto); "
-          "nenhum \"cluster\" (base versionada).")
+          "os conjuntos nas comparações (quintis sem mudança, a ordem, a condição e as faixas de distância com os conjuntos "
+          "pelo valor de cada um); nenhum \"cluster\" (base versionada).")
 
 
 if __name__ == "__main__":

@@ -405,11 +405,20 @@ def test_trend_per_item_is_the_temporal_evolution_of_the_same_window(repo):
         assert trend["velocidades"] == speeds[key]
         assert {point["competencia"]: point["valor"] for point in trend["observacoes"]} == {
             period: value for period, value in details[key].items() if value is not None}
-    # As contagens do motor por classe (trend.summarize) são as da evolução temporal no mesmo universo.
+    # As contagens do motor por classe (trend.summarize) são as da evolução temporal no mesmo universo. Desde 08/11/2026 (comando
+    # de 08/11/2026, item 2; muda de propósito esta conferência, que esperava só as unidades), os conjuntos entram nas contagens,
+    # cada um pela tendência dele, e as das unidades ficam em por_tipo: c1 (membros com registro diferentes na janela) é não
+    # avaliável por INCOMPARABILIDADE, e c2 tem classe.
     summary = analysis["metadata"]["tendencia"]
-    assert body["tendencia"]["contagens"] == summary["contagens"]
-    assert body["tendencia"]["nao_avaliaveis_por_motivo"] == summary["nao_avaliaveis_por_motivo"]
-    assert body["tendencia"]["janela"]["periodos"] == window and body["tendencia"]["universo"] == 5
+    assert body["tendencia"]["por_tipo"]["unidades"]["contagens"] == summary["contagens"]
+    assert sum(body["tendencia"]["contagens"].values()) == sum(summary["contagens"].values()) + 1
+    assert body["tendencia"]["nao_avaliaveis_por_motivo"] == {
+        key: value + (key == "INCOMPARABILIDADE") for key, value in summary["nao_avaliaveis_por_motivo"].items()}
+    assert body["tendencia"]["por_tipo"]["conjuntos"] | {"contagens": None, "familias": None} == {
+        "universo": 2, "avaliaveis": 1, "nao_avaliaveis": 1, "contagens": None, "familias": None,
+        "com_membros_na_analise": ["c1", "c2"]}
+    assert body["tendencia"]["janela"]["periodos"] == window and body["tendencia"]["universo"] == 7
+    assert body["tendencia"]["por_tipo"]["unidades"]["universo"] == 5
     assert items[MANACAPURU]["tendencia"]["classe"] == "SEM_CLASSIFICACAO"
     assert (items[MANACAPURU]["tendencia"]["familia"], items[MANACAPURU]["tendencia"]["motivo"]) == ("NENHUMA",
                                                                                                     "SERIE_ESTAVEL")
@@ -547,6 +556,103 @@ def test_ordering_shares_tied_positions_and_keeps_the_ties_at_the_cut(repo):
     assert change[MANAUS]["ordem"]["posicao"] == 1  # 15 → 25 por 1.000
     refused(page(info, ordenar={"atributo": "variacao", "ordem": "desc"}), "exige a competência inicial")
     refused(page(info, ordenar={"atributo": "densidade", "ordem": "alfabetica"}), "Ordem inválida")
+
+
+# --------------------------------------------------------------------------------------------- os conjuntos nas comparações
+def test_conjuntos_entram_nas_comparacoes_pelo_valor_de_cada_um(repo):
+    """Os conjuntos nas comparações (08/11/2026, comando de 08/11/2026): cada conjunto entra como um território a mais nas
+    condições, na ordenação, nas faixas, nas faixas de distância e nas contagens da tendência, com o valor dele (no indicador, o
+    da soma dos membros, CAP-AGR-01, o mesmo do gráfico; na distância, a menor, a do membro mais próximo da referência). As
+    contagens separam unidades e conjuntos (por_tipo), com o aviso da possível dupla contagem quando os membros também estão na
+    análise; sem valor avaliável, o conjunto é não avaliável, nunca zero. Os grupos por posição (quantis) continuam só com as
+    unidades, e os cortes não mudam com os conjuntos. Sem conjuntos, a resposta é a de antes (sem por_tipo)."""
+    import resumo_painel
+    info = inspection()
+    base = {"municipios": {"ids": [MANACAPURU, MANAUS, TEFE]}}
+    sets = [{"id": "c1", "rotulo": "Capital e Tefé", "membros": [MANAUS, TEFE]},
+            {"id": "c2", "rotulo": "Parintins e Novo Airão", "membros": [PARINTINS, NOVO]}]
+    # Em junho de 2024: MANACAPURU 8, MANAUS 25 e TEFE 10 por 1.000; c1 = 56 ÷ 2.600 e c2 = 16 ÷ 1.500 (a soma dos membros).
+    body = ok(page(info, base=base, conjuntos=sets, ordenar={"atributo": "densidade", "ordem": "desc"},
+                   condicoes=[{"atributo": "densidade", "operador": "<", "valor": "11"}], faixas=[0, 10, 20, 30]))
+    items = by_id(body)
+    # A densidade do conjunto, como no gráfico: soma das quantidades ÷ soma das populações × 1.000 (_compute, agregação).
+    assert (items["c1"]["densidade"], items["c2"]["densidade"]) == (pytest.approx(56 / 2600 * 1000), pytest.approx(16 / 1500 * 1000))
+    # A ordenação põe os conjuntos entre os municípios, cada um no lugar do seu valor.
+    assert {key: items[key]["ordem"]["posicao"] for key in items} == {MANAUS: 1, "c1": 2, "c2": 3, TEFE: 4, MANACAPURU: 5}
+    ordering = body["ordenacao"]
+    assert (ordering["universo"], ordering["ordenados"], ordering["nao_avaliaveis"]) == (5, 5, 0)
+    assert ordering["por_tipo"] == {
+        "unidades": {"universo": 3, "ordenados": 3, "nao_avaliaveis": 0, "selecionados": None},
+        "conjuntos": {"universo": 2, "ordenados": 2, "nao_avaliaveis": 0, "selecionados": None,
+                      "com_membros_na_analise": ["c1"]}}
+    # A condição inclui ou deixa fora cada conjunto pelo valor dele, e a contagem separa municípios e conjuntos.
+    assert {key: items[key]["condicoes"]["situacao"] for key in items} == {
+        MANACAPURU: "ATENDE", MANAUS: "NAO_ATENDE", TEFE: "ATENDE", "c1": "NAO_ATENDE", "c2": "ATENDE"}
+    assert items["c2"]["condicoes"]["por_condicao"][0]["valor"] == items["c2"]["densidade"]
+    conditions = body["condicoes"]
+    assert (conditions["contagens"], conditions["universo"]) == ({"ATENDE": 3, "NAO_ATENDE": 2, "NAO_AVALIAVEL": 0}, 5)
+    assert conditions["por_tipo"] == {
+        "unidades": {"contagens": {"ATENDE": 2, "NAO_ATENDE": 1, "NAO_AVALIAVEL": 0}, "universo": 3},
+        "conjuntos": {"contagens": {"ATENDE": 1, "NAO_ATENDE": 1, "NAO_AVALIAVEL": 0}, "universo": 2,
+                      "com_membros_na_analise": ["c1"]}}
+    # As faixas da pessoa (CAP-DIS-03): cada conjunto na faixa do valor dele.
+    assert (items["c1"]["faixa"], items["c2"]["faixa"]) == ({"indice": 3, "rotulo": "20 a 30"}, {"indice": 2, "rotulo": "10 a <20"})
+    bands = body["faixas"]
+    assert (bands["contagens"], bands["universo"]) == ([1, 2, 2], 5)
+    assert bands["por_tipo"] == {
+        "unidades": {"contagens": [1, 1, 1], "fora": 0, "nao_avaliaveis": 0, "universo": 3},
+        "conjuntos": {"contagens": [0, 1, 1], "fora": 0, "nao_avaliaveis": 0, "universo": 2, "com_membros_na_analise": ["c1"]}}
+    # A ressalva e o aviso da dupla contagem: c1 tem membros na análise (MANAUS e TEFE estão na base); c2, não.
+    assert any(note.startswith("Os conjuntos entram nas condições como territórios a mais") for note in body["notas"])
+    assert "Membros de Capital e Tefé também estão na análise: nas contagens, entram o conjunto e esses membros (possível " \
+           "dupla contagem)." in body["notas"]
+    # A frase-resumo diz quantos são municípios e quantos são conjuntos, com os números copiados de por_tipo.
+    text = body["resumo"]["texto"]
+    assert resumo_painel.verify(body)
+    assert "atendem, 3 (2 municípios e 1 conjunto); não atendem, 2 (1 município e 1 conjunto)." in text
+    assert "10 a <20, 2 (1 município e 1 conjunto); 20 a 30, 2 (1 município e 1 conjunto)." in text
+    assert "Há membros de conjuntos também na análise: nas contagens, entram o conjunto e esses membros." in text
+    # Na distância (referência fixa em BELEM; CAP-ESP-03), o conjunto entra pela menor distância, a do membro mais próximo; c3
+    # tem um membro sem coordenada (MANACAPURU): não avaliável, nunca zero.
+    c3 = {"id": "c3", "rotulo": "Sem coordenada", "membros": [MANACAPURU, NOVO]}
+    spatial = ok(page(info, base=base, conjuntos=sets + [c3], referencia={"membros": [BELEM]}, faixas_distancia=["0", "150", "1000"],
+                      ordenar={"atributo": "distancia_km", "ordem": "asc"},
+                      condicoes=[{"atributo": "distancia_km", "operador": ">", "valor": 150}]))
+    items = by_id(spatial)
+    assert items["c1"]["distancia_km"] == km(MANAUS, BELEM) and items["c2"]["distancia_km"] == min(km(PARINTINS, BELEM),
+                                                                                                   km(NOVO, BELEM))
+    assert items["c3"]["distancia_km"] is None
+    # c1 e MANAUS empatam (a distância de c1 é a de MANAUS): a mesma posição, sem desempate artificial (CAP-SUB-02).
+    assert {key: items[key]["ordem"]["posicao"] for key in [MANAUS, "c1", "c2", TEFE, MANACAPURU, "c3"]} == {
+        MANAUS: 1, "c1": 1, "c2": 3, TEFE: 4, MANACAPURU: None, "c3": None}
+    assert items[BELEM]["ordem"] is None  # a referência fora da base não entra
+    assert {key: (items[key]["faixa_distancia"] or {}).get("rotulo") for key in [MANAUS, "c1", "c2", TEFE, MANACAPURU, "c3"]} == {
+        MANAUS: "0 a <150", "c1": "0 a <150", "c2": "150 a 1000", TEFE: "150 a 1000", MANACAPURU: None, "c3": None}
+    assert spatial["faixas_distancia"]["por_tipo"] == {
+        "unidades": {"contagens": [1, 1], "fora": 0, "nao_avaliaveis": 1, "universo": 3},
+        "conjuntos": {"contagens": [1, 1], "fora": 0, "nao_avaliaveis": 1, "universo": 3, "com_membros_na_analise": ["c1", "c3"]}}
+    assert {key: items[key]["condicoes"]["situacao"] for key in ["c1", "c2", "c3"]} == {
+        "c1": "NAO_ATENDE", "c2": "ATENDE", "c3": "NAO_AVALIAVEL"}
+    assert spatial["condicoes"]["por_tipo"]["conjuntos"]["contagens"] == {"ATENDE": 1, "NAO_ATENDE": 1, "NAO_AVALIAVEL": 1}
+    assert resumo_painel.verify(spatial)
+    # As contagens da tendência, com os conjuntos: c1 compara a janela inteira; c2 não (NOVO AIRAO só tem registro desde 2022).
+    trend = ok(page(info, base=base, conjuntos=sets, tendencia={"competencias": PERIODS}))["tendencia"]
+    assert (trend["universo"], trend["por_tipo"]["unidades"]["universo"], trend["por_tipo"]["conjuntos"]["universo"]) == (5, 3, 2)
+    assert (trend["por_tipo"]["conjuntos"]["avaliaveis"], trend["por_tipo"]["conjuntos"]["nao_avaliaveis"]) == (1, 1)
+    assert trend["avaliaveis"] == trend["por_tipo"]["unidades"]["avaliaveis"] + trend["por_tipo"]["conjuntos"]["avaliaveis"]
+    assert all(trend["familias"][family] == trend["por_tipo"]["unidades"]["familias"][family] +
+               trend["por_tipo"]["conjuntos"]["familias"][family] for family in trend["familias"])
+    # Os quantis: só as unidades, com os mesmos cortes com e sem os conjuntos; o conjunto não ganha classe.
+    with_sets = ok(page(info, conjuntos=sets, grupos={"tipo": "quartis"}))
+    without = ok(page(info, grupos={"tipo": "quartis"}))
+    assert (with_sets["grupos"]["cortes"], with_sets["grupos"]["universo"]) == (without["grupos"]["cortes"], 5)
+    assert by_id(with_sets)["c1"]["grupo"] is None and "por_tipo" not in with_sets["grupos"]
+    # Sem conjuntos, nada muda: sem por_tipo nem as notas dos conjuntos.
+    plain = ok(page(info, base=base, condicoes=[{"atributo": "densidade", "operador": "<", "valor": "11"}],
+                    ordenar={"atributo": "densidade", "ordem": "desc"}, faixas=[0, 10, 20, 30]))
+    assert not any("por_tipo" in plain[key] for key in ("condicoes", "ordenacao", "faixas"))
+    assert (plain["condicoes"]["universo"], plain["ordenacao"]["universo"]) == (3, 3)
+    assert not any(note.startswith("Os conjuntos entram") for note in plain["notas"])
 
 
 # --------------------------------------------------------------------------------------------- comparação e referência

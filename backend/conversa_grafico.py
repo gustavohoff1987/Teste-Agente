@@ -32,8 +32,12 @@ FAMILIAS = ("distribuicao", "espacial", "tendencia", "rotatividade")
 # pré-exame e do provedor. painel_resumo é a frase-resumo do motor, com valores da base: fica só na conversa local.
 CONTEXTO = ("painel_familia", "painel_indicador", "painel_nivel", "painel_municipios", "painel_competencia",
             "painel_janela", "painel_referencia", "painel_condicoes", "painel_vista", "painel_resumo",
-            "painel_mapa_disponivel", "painel_motivo_sem_mapa", "painel_consulta", "rotulos", "conversation_pending_ids")
+            "painel_mapa_disponivel", "painel_motivo_sem_mapa", "painel_consulta", "painel_conjuntos", "rotulos",
+            "conversation_pending_ids")
 VISTAS = ("grafico", "mapa", "lado")
+# Desde 08/11/2026 (comando de 08/11/2026): os conjuntos entram nas comparações pelo valor de cada um.
+CONJUNTOS_NA_COMPARACAO = ("Os conjuntos entram também, cada um pelo valor dele: a soma das contagens dos componentes, com possível "
+                           "dupla contagem.")
 # Operações atuais → família, indicador e função do gráfico (contrato, seção 4).
 OPERACOES = {
     "density": {"familia": "distribuicao", "indicador": "densidade"},
@@ -439,7 +443,11 @@ def contexto(options):
             "consulta": _consulta_da_tela(options.get("painel_consulta")) if familia == "espacial" else None,
             # Unidade já identificada numa comparação pendente ("compare Manaus" → "com qual outro?").
             "pendentes": [item for item in _textos(options.get("conversation_pending_ids"))
-                          if item.startswith(("code:", "name:"))]}
+                          if item.startswith(("code:", "name:"))],
+            # Quantos conjuntos estão na análise (08/11/2026, comando de 08/11/2026): eles entram nas condições e na ordenação, e a
+            # resposta diz isso. Só o número; os nomes e os membros não saem da tela.
+            "conjuntos": options["painel_conjuntos"] if type(options.get("painel_conjuntos")) is int and
+            0 <= options["painel_conjuntos"] <= 50 else 0}
 
 
 def opcoes_do_interprete(options, ctx):
@@ -1781,6 +1789,9 @@ def _condicoes(conv, dica, dica_indicador):
                   ", quem não atende e quem não tem dado.")
     if len(itens) > len(textos):
         frases.append("As condições anteriores continuam.")
+    # Com conjuntos na análise (08/11/2026, comando de 08/11/2026, item 6), eles entram nas condições, cada um pelo valor dele.
+    if conv.ctx.get("conjuntos") and painel.get("nivel") in (None, "municipios") and conv.ctx.get("nivel") == "municipios":
+        frases.append(CONJUNTOS_NA_COMPARACAO)
     return _resposta(painel, " ".join(frases))
 
 
@@ -2250,6 +2261,10 @@ def _ordenar(conv, dica, dica_indicador):
     # Num nível de grupo, os itens desse nível pelos nomes da base (07/11/2026; antes, "os estados" também numa planilha).
     quem = conv.rot.os_do_nivel(conv.ctx["nivel"], conv.brasil) if conv.ctx["nivel"] in NIVEIS_DE_GRUPO and base is None and \
         not membros else conv.rot.os()
+    # Com conjuntos na análise (08/11/2026, comando de 08/11/2026, item 6), eles entram na ordem, cada um pelo valor dele.
+    conjuntos = conv.ctx.get("conjuntos") or 0
+    if conjuntos and quem == conv.rot.os():
+        quem += " e " + ("o conjunto" if conjuntos == 1 else "os conjuntos")
     texto = "Ordenei " + quem + " " + ATRIBUTO_TEXTO[atributo] + ", " + ORDEM_TEXTO[ordem]
     if quantos == 1:
         texto += ", e destaquei o primeiro; empates na 1ª posição também entram"
@@ -2258,6 +2273,8 @@ def _ordenar(conv, dica, dica_indicador):
     else:
         texto += "; empates ficam na mesma posição"
     frases.append(texto + _quando(painel, conv.periodos) + ".")
+    if conjuntos and quem.endswith(("o conjunto", "os conjuntos")):
+        frases.append(CONJUNTOS_NA_COMPARACAO)
     return _resposta(painel, " ".join(frases))
 
 

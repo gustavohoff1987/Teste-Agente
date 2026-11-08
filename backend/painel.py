@@ -2210,10 +2210,13 @@ def _page_requirements(ctx, spec, reference, initial_period):
 
 
 # --------------------------------------------------------------------------------------------- página única: cálculos
-def _names(ctx, keys):
+def _names(ctx, keys, rotulos=None):
+    """Os nomes da ordem dos empates (CAP-SUB-02): do catálogo, dos estados ou, com `rotulos`, os dos conjuntos."""
     out = {}
     for key in keys:
-        if key.startswith("uf:"):
+        if rotulos and key in rotulos:
+            out[key] = {"name": rotulos[key]}
+        elif key.startswith("uf:"):
             out[key] = {"name": STATES[key[3:]][1] if ctx.brazil else key[3:]}
         else:
             out[key] = {"name": ctx.catalog[key]["name"]}
@@ -2239,7 +2242,104 @@ def _record_values(final, attribute, keys):
 def _values(ctx, res, attribute, keys):
     """Valores por item no formato dos critérios combinados ({avaliavel, valor, exato, motivos}), lidos das medidas já
     calculadas pelo motor: densidade, quantidade, população, distância até a referência (com os membros mais próximos)
-    e variação percentual do indicador."""
+    e variação percentual do indicador. Desde 08/11/2026 (comando de 08/11/2026), também dos conjuntos, pelo valor de cada
+    um (_valor_do_conjunto)."""
+    conjuntos = {item["id"]: item for item in _conjuntos_comparaveis(res)}
+    out = _valores_das_unidades(ctx, res, attribute, [key for key in keys if key not in conjuntos])
+    for key in keys:
+        if key in conjuntos:
+            out[key] = _valor_do_conjunto(ctx, res, conjuntos[key], attribute)
+    return out
+
+
+def _conjuntos_comparaveis(res):
+    """Os conjuntos que entram nas comparações (comando de 08/11/2026): os itens do tipo conjunto, na ordem do pedido, salvo o
+    conjunto igual à referência (como os membros da referência, que também ficam fora do universo)."""
+    return [item for item in res.items if item["tipo"] == "conjunto" and not item.get("referencia")]
+
+
+def _comparaveis(res):
+    """O universo das comparações (comando de 08/11/2026; antes, só `res.universe`): as unidades do universo e, depois, os
+    conjuntos, cada um como um território a mais, com o valor dele. Valem nele as condições, a ordenação, as faixas, as faixas
+    de distância e as contagens da tendência; os grupos por posição (quantis) e os do mapa continuam só com as unidades, porque
+    calculam cortes a partir da distribuição delas."""
+    return list(res.universe) + [item["id"] for item in _conjuntos_comparaveis(res)]
+
+
+def _valor_do_conjunto(ctx, res, item, attribute):
+    """O valor de um conjunto nas comparações (comando de 08/11/2026), no formato dos critérios combinados: no indicador, o da
+    soma dos membros (CAP-AGR-01, o mesmo do gráfico), exato pela quantidade e pela população; na distância, a menor, a do
+    membro mais próximo da referência, com as referências desse membro (CAP-ESP-02); na variação, a do conjunto. Sem valor
+    avaliável (sem registro, membro sem distância), não avaliável, com o motivo, nunca zero."""
+    if attribute == "distancia":
+        value = item.get("distancia_km")
+        if res.spatial is None or value is None:
+            return {"avaliavel": False, "motivos": ["DEPENDENCIA_NAO_AVALIAVEL"]}
+        return {"avaliavel": True, "valor": value, "exato": Fraction(value),
+                "referencias": _referencias_do_item(ctx, res.spatial, item, res.final), "alcance": SCOPE_FULL}
+    if attribute == "variacao":
+        field_of = INDICATORS_FIELD.get(ctx.indicador)
+        percent = (res.changes.get(item["id"]) or {}).get(field_of)
+        if percent is None:
+            start = (item.get("inicial") or {}).get(field_of)
+            return {"avaliavel": False, "motivos": ["SEM_REGISTRO_OBSERVADO" if item["id"] not in res.changes else
+                                                     "BASE_ZERO" if start == 0 else "DADO_AUSENTE"]}
+        exact = Fraction(*percent)
+        return {"avaliavel": True, "valor": float(exact), "exato": exact}
+    values = {field: item.get(field) for field in FIELDS3}
+    if values["quantidade"] is None and values["populacao"] is None:
+        return {"avaliavel": False, "motivos": ["SEM_REGISTRO_OBSERVADO"]}
+    if not _present(values[attribute]) or (attribute == "densidade" and not _present(values["quantidade"])):
+        return {"avaliavel": False,
+                "motivos": ["DENOMINADOR_AUSENTE" if attribute in ("densidade", "populacao") else "DADO_AUSENTE"]}
+    return {"avaliavel": True, "valor": values[attribute], "exato": _exact({"valores": values}, attribute)}
+
+
+def _rotulos_dos_conjuntos(res):
+    return {item["id"]: item["rotulo"] for item in _conjuntos_comparaveis(res)}
+
+
+def _chave_dos_conjuntos(res):
+    """Os conjuntos na chave da memória das comparações: o id, o nome (a ordem dos empates) e os membros."""
+    return [[item["id"], item["rotulo"], sorted(item["membros"])] for item in _conjuntos_comparaveis(res)]
+
+
+def _conjuntos_com_membros_na_analise(res):
+    """Os conjuntos com membros que também estão no universo como unidades (o conjunto que não fica no lugar dos membros):
+    nas contagens, entram o conjunto e esses membros, com possível dupla contagem."""
+    unidades = set(res.universe)
+    return [item["id"] for item in _conjuntos_comparaveis(res) if unidades.intersection(item["membros"])]
+
+
+def _notas_dos_conjuntos(res, onde):
+    """As notas de uma comparação com conjuntos (comando de 08/11/2026): como cada conjunto entra e o aviso da possível dupla
+    contagem quando os membros também estão na análise."""
+    conjuntos = _conjuntos_comparaveis(res)
+    if not conjuntos:
+        return []
+    notas = ["Os conjuntos entram " + onde + " como territórios a mais, com o valor de cada um: no indicador, o da soma dos "
+             "membros (CAP-AGR-01, soma das contagens dos componentes, com possível dupla contagem); na distância, a menor, a do "
+             "membro mais próximo da referência. As contagens separam unidades e conjuntos."]
+    repetidos = _conjuntos_com_membros_na_analise(res)
+    if repetidos:
+        nomes = [item["rotulo"] for item in conjuntos if item["id"] in repetidos]
+        notas.append(("Os membros de " + _join(nomes) if len(nomes) > 1 else "Membros de " + nomes[0]) +
+                     " também estão na análise: nas contagens, entram o conjunto e esses membros (possível dupla contagem).")
+    return notas
+
+
+def _por_tipo(res, contar):
+    """As contagens separadas por tipo (comando de 08/11/2026, item 4): `contar(chaves)` conta um grupo de chaves; só com
+    conjuntos na comparação (sem eles, a resposta é a de antes)."""
+    conjuntos = [item["id"] for item in _conjuntos_comparaveis(res)]
+    if not conjuntos:
+        return None
+    return {"unidades": contar(list(res.universe)),
+            "conjuntos": {**contar(conjuntos), "com_membros_na_analise": _conjuntos_com_membros_na_analise(res)}}
+
+
+def _valores_das_unidades(ctx, res, attribute, keys):
+    """_values das unidades (municípios, unidades da planilha ou estados), lidos das medidas do motor."""
     if attribute not in ("distancia", "variacao"):
         return _record_values(res.final, attribute, keys)
     out = {}
@@ -2313,10 +2413,12 @@ def _reference_members(res):
 def _conditions(ctx, res, spec, by_id):
     nodes, leaves, root, definition = spec["nodes"], spec["leaves"], spec["root"], spec["definicao"]
 
+    comparaveis = _comparaveis(res)
+
     def calcular():
         attributes = {nodes[own]["atributo"] for own in leaves}
-        table = {attribute: _values(ctx, res, attribute, res.universe) for attribute in attributes}
-        inputs = {"nodes": nodes, "root": root, "leaves": leaves, "targets": list(res.universe), "catalog": {}}
+        table = {attribute: _values(ctx, res, attribute, comparaveis) for attribute in attributes}
+        inputs = {"nodes": nodes, "root": root, "leaves": leaves, "targets": list(comparaveis), "catalog": {}}
         evaluations = evaluate(None, None, None, inputs, _Evaluator(table))
         counts = dict.fromkeys(("ATENDE", "NAO_ATENDE", "NAO_AVALIAVEL"), 0)
         per_item = {}
@@ -2332,13 +2434,23 @@ def _conditions(ctx, res, spec, by_id):
                  "usuário e não constituem critério legal, sanitário ou científico universal.",
                  "Três estados por item e por condição: NAO_AVALIAVEL nunca é tratado como NAO_ATENDE; o resultado não "
                  "depende da ordem das condições."]
-        top = {"contagens": counts, "universo": len(res.universe), "combinacao": "E", "descricao": text,
+        top = {"contagens": counts, "universo": len(comparaveis), "combinacao": "E", "descricao": text,
                "definicao": [{key: entry[key] for key in ("atributo", "operador", "valor", "texto")}
                              for entry in definition]}
+
+        def contar(keys):
+            parte = dict.fromkeys(("ATENDE", "NAO_ATENDE", "NAO_AVALIAVEL"), 0)
+            for key in keys:
+                parte[per_item[key]["situacao"]] += 1
+            return {"contagens": parte, "universo": len(keys)}
+        por_tipo = _por_tipo(res, contar)
+        if por_tipo is not None:
+            top["por_tipo"] = por_tipo
+        notes += _notas_dos_conjuntos(res, "nas condições")
         return {"topo": top, "itens": per_item, "notas": notes,
                 "limitacoes": ["UNIDADES_NAO_AVALIAVEIS"] if counts["NAO_AVALIAVEL"] else []}
 
-    entradas = {"universo": _ids_key(res.universe), "referencia": _reference_members(res),
+    entradas = {"universo": _ids_key(res.universe), "conjuntos": _chave_dos_conjuntos(res), "referencia": _reference_members(res),
                 "condicoes": [[entry["atributo"], entry["operador"], entry["valor"]] for entry in definition]}
     return _apply(res, by_id, "condicoes", _reaproveitar(ctx, "condicoes", entradas, calcular))
 
@@ -2346,16 +2458,19 @@ def _conditions(ctx, res, spec, by_id):
 def _ordering(ctx, res, spec, by_id):
     attribute = ORDER_ATTRIBUTES[spec["atributo"]]
 
+    comparaveis = _comparaveis(res)
+
     def calcular():
-        values = _values(ctx, res, attribute, res.universe)
-        ordered, positions, not_evaluable = _ranked(values, list(res.universe), _names(ctx, res.universe), spec["ordem"])
+        values = _values(ctx, res, attribute, comparaveis)
+        ordered, positions, not_evaluable = _ranked(values, list(comparaveis),
+                                                    _names(ctx, comparaveis, _rotulos_dos_conjuntos(res)), spec["ordem"])
         top, tied = None, False
         if spec["primeiros"] is not None:
             top, _ = select_top(ordered, positions, spec["primeiros"], False)
             tied = len(top) > spec["primeiros"]
         chosen = set(top or [])
         per_item = {key: {"posicao": positions.get(key), "selecionado": None if top is None else key in chosen}
-                    for key in res.universe}
+                    for key in comparaveis}
         notes = ["Ordenação por " + VALUE_TEXT[attribute] + (" (" + ctx.indicador + ")" if attribute == "variacao"
                                                              else "") +
                  " (" + ORDERS[spec["ordem"]] + "; CAP-SUB-02): valores iguais compartilham posição (1, 2, 2, 4) e não "
@@ -2364,24 +2479,37 @@ def _ordering(ctx, res, spec, by_id):
             notes.append("Seleção dos " + str(spec["primeiros"]) + " primeiros com empate no corte (CAP-SUB-03): " +
                          str(len(top)) + " itens selecionados (EMPATE_NO_CORTE).")
         topo = {"atributo": spec["atributo"], "ordem": spec["ordem"], "primeiros": spec["primeiros"],
-                "universo": len(res.universe), "ordenados": len(ordered), "nao_avaliaveis": len(not_evaluable),
+                "universo": len(comparaveis), "ordenados": len(ordered), "nao_avaliaveis": len(not_evaluable),
                 "selecionados": None if top is None else len(top), "empates_no_corte": tied,
                 "ids_selecionados": None if top is None else list(top)}
+        ordenados = set(ordered)
+
+        def contar(keys):
+            return {"universo": len(keys), "ordenados": sum(key in ordenados for key in keys),
+                    "nao_avaliaveis": sum(key not in ordenados for key in keys),
+                    "selecionados": None if top is None else sum(key in chosen for key in keys)}
+        por_tipo = _por_tipo(res, contar)
+        if por_tipo is not None:
+            topo["por_tipo"] = por_tipo
+        notes += _notas_dos_conjuntos(res, "na ordenação")
         return {"topo": topo, "itens": per_item, "notas": notes, "limitacoes": ["EMPATE_NO_CORTE"] if tied else []}
 
-    entradas = {"universo": _ids_key(res.universe), "ordenar": [spec["atributo"], spec["ordem"], spec["primeiros"]],
+    entradas = {"universo": _ids_key(res.universe), "conjuntos": _chave_dos_conjuntos(res),
+                "ordenar": [spec["atributo"], spec["ordem"], spec["primeiros"]],
                 "indicador": ctx.indicador, "referencia": _reference_members(res),
                 "competencia_inicial": res.initial.period if res.initial is not None else None}
     return _apply(res, by_id, "ordem", _reaproveitar(ctx, "ordenacao", entradas, calcular))
 
 
 def _bands(ctx, res, limits, attribute, key_name, capability, by_id):
+    comparaveis = _comparaveis(res)
+
     def calcular():
-        values = _values(ctx, res, attribute, res.universe)
-        labels, membership, counts, outside, not_evaluable = bands_of(values, list(res.universe), limits)
+        values = _values(ctx, res, attribute, comparaveis)
+        labels, membership, counts, outside, not_evaluable = bands_of(values, list(comparaveis), limits)
         outside, missing = set(outside), set(not_evaluable)
         per_item = {}
-        for key in res.universe:
+        for key in comparaveis:
             if key in membership:  # índice ordinal (1 = primeira faixa), como nos grupos por posição
                 per_item[key] = {"indice": membership[key] + 1, "rotulo": labels[membership[key]]}
             elif key in outside:
@@ -2390,10 +2518,22 @@ def _bands(ctx, res, limits, attribute, key_name, capability, by_id):
                  "intervalos [a, b) e o último fechado; nenhum limite é criado pelo sistema."]
         topo = {"atributo": "distancia_km" if attribute == "distancia" else attribute, "capacidade": capability,
                 "limites": [format(value, "f") for value in limits], "convencao": BAND_CONVENTION, "rotulos": labels,
-                "contagens": counts, "fora": len(outside), "nao_avaliaveis": len(missing), "universo": len(res.universe)}
+                "contagens": counts, "fora": len(outside), "nao_avaliaveis": len(missing), "universo": len(comparaveis)}
+
+        def contar(keys):
+            parte = [0] * len(labels)
+            for key in keys:
+                if key in membership:
+                    parte[membership[key]] += 1
+            return {"contagens": parte, "fora": sum(key in outside for key in keys),
+                    "nao_avaliaveis": sum(key in missing for key in keys), "universo": len(keys)}
+        por_tipo = _por_tipo(res, contar)
+        if por_tipo is not None:
+            topo["por_tipo"] = por_tipo
+        notes += _notas_dos_conjuntos(res, "nas faixas")
         return {"topo": topo, "itens": per_item, "notas": notes, "limitacoes": []}
 
-    entradas = {"universo": _ids_key(res.universe), "atributo": attribute,
+    entradas = {"universo": _ids_key(res.universe), "conjuntos": _chave_dos_conjuntos(res), "atributo": attribute,
                 "limites": [format(value, "f") for value in limits],
                 "referencia": _reference_members(res) if attribute == "distancia" else None}
     return _apply(res, by_id, key_name, _reaproveitar(ctx, key_name, entradas, calcular))
@@ -2694,11 +2834,22 @@ def _trend_block(ctx, res, window):
                                 "velocidades": speeds}
     trends = {key: value[0] for key, value in series.items()}
     block = stage_block(len(window))
-    summary = summarize([trends.get(key, empty) for key in res.universe], block=block)
+    # Desde 08/11/2026 (comando de 08/11/2026, item 2), os conjuntos entram nas contagens, cada um pela tendência dele.
+    comparaveis = _comparaveis(res)
+    summary = summarize([trends.get(key, empty) for key in comparaveis], block=block)
     summary.update({"indicador": ctx.indicador, "unidade_valor": "por 1.000 habitantes" if metric == "density" else
                     count_unit_label(ctx.mapping, ctx.settings), "unidade_tempo": time_unit(convention),
-                    "janela": series_window(list(window), positions, convention), "universo": len(res.universe)})
-    notes = evolution_notes(summary, {"percentual_nao_avaliavel": {"BASE_ZERO": 0}}, convention)
+                    "janela": series_window(list(window), positions, convention), "universo": len(comparaveis)})
+
+    def contar(keys):
+        parte = summarize([trends.get(key, empty) for key in keys], block=block)
+        return {"universo": len(keys), "avaliaveis": parte["avaliaveis"], "nao_avaliaveis": parte["nao_avaliaveis"],
+                "contagens": parte["contagens"], "familias": parte["familias"]}
+    por_tipo = _por_tipo(res, contar)
+    if por_tipo is not None:
+        summary["por_tipo"] = por_tipo
+    notes = evolution_notes(summary, {"percentual_nao_avaliavel": {"BASE_ZERO": 0}}, convention) + \
+        _notas_dos_conjuntos(res, "nas contagens da tendência")
     notes.append("Classes de tendência (CAP-TEN-01) na janela de " + human_period(window[0]) + " a " +
                  human_period(window[-1]) + " (" + str(len(window)) + " competências): a cor da bolha segue a família "
                  "da classe (crescimento, declínio ou sem classificação); não avaliável fica à parte, com o motivo.")
@@ -4136,6 +4287,10 @@ def _extremes(items, indices, value_of):
 
 
 CONVERSATION_ATTRIBUTES = ("densidade", "quantidade", "populacao", "distancia_km", "variacao", "permanencia")
+# Os itens das ordens da conversa. Desde 08/11/2026 (decisão do responsável na rodada do comando de 08/11/2026), também os
+# conjuntos, cada um pelo valor dele (quem responde mostra a marca e a ressalva da soma); antes, só as unidades. A proximidade
+# ("o de menor densidade e o mais próximo dele") continua só com as unidades: dialogo._proximidade recorta os municípios.
+CONVERSATION_TYPES = ("municipio", "estado", "brasil", "conjunto")
 
 
 def conversation_facts(body) -> dict:
@@ -4143,9 +4298,10 @@ def conversation_facts(body) -> dict:
     "e a população?"), contada aqui, no motor, sobre os itens da própria resposta, como summary_facts: o gestor de diálogo
     (dialogo.py) só copia caminhos e nunca compara valores. Por atributo: as posições em `itens` de todas as unidades com o
     maior e com o menor valor (empates preservados, sem desempate artificial, CAP-SUB-02/DA-18), quantas unidades têm valor
-    e quantas não têm. Conjuntos ficam de fora da ordem (somam componentes, com possível dupla contagem)."""
+    e quantas não têm. Desde 08/11/2026, os conjuntos entram na ordem, cada um pelo valor dele (CONVERSATION_TYPES; antes,
+    ficavam de fora), e a resposta mostra a marca e a ressalva da soma."""
     items = body["itens"]
-    units = [index for index, item in enumerate(items) if item["tipo"] in ("municipio", "estado", "brasil")]
+    units = [index for index, item in enumerate(items) if item["tipo"] in CONVERSATION_TYPES]
     order = {}
     for attribute in CONVERSATION_ATTRIBUTES:
         present = _conversation_values(body, attribute, units)
@@ -4177,11 +4333,11 @@ def conversation_top(body, attribute: str, highest: bool, count: int) -> list[in
     """As posições em `itens` das unidades nas `count` primeiras colocações do atributo (do maior para o menor, ou o
     contrário), contadas aqui, no motor, como a ordenação (CAP-SUB-02/DA-18): empates na mesma colocação, sem desempate
     artificial (1, 1, 3), e todos os empatados na colocação de corte entram. Para "compare os dois maiores" (26/10/2026): o
-    gestor de diálogo só copia as posições. Conjuntos ficam de fora, como em conversation_facts."""
+    gestor de diálogo só copia as posições. Desde 08/11/2026, com os conjuntos, como em conversation_facts."""
     import bisect
     if attribute not in CONVERSATION_ATTRIBUTES or count < 1:
         return []
-    units = [index for index, item in enumerate(body["itens"]) if item["tipo"] in ("municipio", "estado", "brasil")]
+    units = [index for index, item in enumerate(body["itens"]) if item["tipo"] in CONVERSATION_TYPES]
     present = _conversation_values(body, attribute, units)
     ordered = sorted(value for value, _ in present)
     def place(value):

@@ -176,6 +176,13 @@ primeiro e o último" ou "os dois (três) maiores (menores)", sem nome de territ
 - quem entra vem das ordens do motor sobre o gráfico em exibição (`conversation_facts` para o maior e o menor;
   `conversation_top` para os N primeiros), com os empates: empatados entram juntos (até 3, o limite da comparação lado a lado;
   com mais, a conversa pede os nomes); os valores da resposta são copiados do motor;
+- desde 08/11/2026 (decisão do responsável na rodada do comando de 08/11/2026; antes, só as unidades), os conjuntos entram nas
+  ordens, cada um pelo valor dele, também em "qual tem a maior (ou a menor) densidade?" e nas perguntas equivalentes
+  (`explicacao.comparar_atributo`): o nome do conjunto vem com a marca "(conjunto)", e a resposta termina com a ressalva "Os
+  conjuntos entram pela soma das contagens dos componentes, com possível dupla contagem."; um conjunto e um membro dele não ficam
+  lado a lado ("MANAUS (AM) é membro de Manaus e Tefé (conjunto): um conjunto e os membros dele não ficam lado a lado na
+  comparação. Diga quais comparar, pelo nome."), como o motor recusa itens relacionados; com um estado citado, só as unidades
+  dele. A proximidade pela conversa ("o de menor densidade e o mais próximo dele") continua só com as unidades nesta rodada;
 - o atributo é o citado ("densidade", "população", "mais distantes") ou o indicador do gráfico;
 - com um estado citado ("… do Pará") que não está no gráfico, a resposta mostra os municípios dele e traz `continuar`
   ("compare o de maior e o de menor densidade"): a tela envia a continuação sozinha quando o motor calcula o gráfico novo;

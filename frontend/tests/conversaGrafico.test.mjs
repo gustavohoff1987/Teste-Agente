@@ -213,6 +213,9 @@ test('contexto do gráfico → opções da conversa: unidades na tela, família,
   assert.equal('territory_ids' in C.opcoesDaConversa({...CONTEXTO, municipios: {todos: true, estados: [], ids: []}}, 'h'), false);
   assert.equal('territory_ids' in C.opcoesDaConversa({...CONTEXTO, nivel: 'estados', idsNaTela: ['uf:13', 'uf:35']}, 'h'), false);
   assert.equal('territory_ids' in C.opcoesDaConversa({...CONTEXTO, idsNaTela: ['c1']}, 'h'), false);
+  // Quantos conjuntos estão na análise (08/11/2026, comando de 08/11/2026): só o número, em painel_conjuntos.
+  assert.equal(C.opcoesDaConversa({...CONTEXTO, conjuntos: 2}, 'h').painel_conjuntos, 2);
+  assert.equal('painel_conjuntos' in C.opcoesDaConversa(CONTEXTO, 'h'), false);
   const tendencia = C.opcoesDaConversa({...CONTEXTO, familia: 'tendencia', janela: ['202106', '202206', '202306', '202406']}, 'h');
   assert.deepEqual([tendencia.exploration_operation, tendencia.period_filter, tendencia.period_filters, tendencia.painel_familia],
     ['temporal', '', ['202106', '202206', '202306', '202406'], 'tendencia']);

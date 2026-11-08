@@ -201,7 +201,10 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
 - **Ordenar:** "os 5 municípios com maior densidade", "os 3 com menor quantidade", "quais os dez mais populosos?",
   "qual município tem a maior densidade?" (o primeiro), "os 10 primeiros", "top 5", "os 5 mais distantes de Manaus".
   Sem o indicador ("os 10 primeiros") ou sem a direção ("ordene pela densidade"), a conversa pergunta. Empates na
-  posição de corte também entram.
+  posição de corte também entram. Desde 08/11/2026 (comando de 08/11/2026, item 6), com conjuntos na análise (a tela manda só
+  quantos são, em `painel_conjuntos`, que não vai ao provedor), eles entram na ordem e nas Condições pelo valor de cada um, e a
+  resposta diz isso: "Ordenei os municípios e os conjuntos pela densidade, …" e, também nas Condições, "Os conjuntos entram
+  também, cada um pelo valor dele: a soma das contagens dos componentes, com possível dupla contagem."
 - **Condições:** "municípios com menos de 1 médico por mil e a mais de 150 km de Manaus" (densidade < 1 e distância >
   150 km, com Manaus como referência); "população acima de 50 mil habitantes"; "quantidade de médicos menor que 2";
   "agora também …" acrescenta às condições em vigor. Desde 28/10/2026, "pelo menos" e "igual ou superior a" (ou "igual ou

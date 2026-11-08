@@ -70,6 +70,8 @@ export type ContextoDoGrafico = {
   competencia: string; janela: string[]; referencia: string[]; titulo: string;
   /** Os estados escolhidos no nível estados (24/10/2026). */
   estados?: string[];
+  /** Quantos conjuntos estão na análise (08/11/2026): a conversa diz que eles entram nas condições e na ordenação. */
+  conjuntos?: number;
   /** Vista em exibição e a frase-resumo do motor (verificada), para a conversa responder "o que o gráfico mostra?". */
   vista?: "grafico" | "mapa" | "lado"; resumo?: string | null;
   /** Se o mapa pode ser mostrado agora e, se não, o motivo (estados sem ponto, planilha sem coordenadas, visão Séries). */
@@ -231,6 +233,20 @@ export function todoMarcado(brasil: boolean, rotulos?: RotulosTerritoriais | nul
 const minuscula = (texto: string) => texto ? texto.charAt(0).toLocaleLowerCase("pt-BR") + texto.slice(1) : texto;
 /** "1 município", "62 municípios", "5.570 municípios". */
 export const quantos = (n: number, rotulo: Rotulo) => inteiro.format(n) + " " + (n === 1 ? rotulo.singular : rotulo.plural);
+/** Uma contagem do motor separada por tipo (08/11/2026, item 4 do comando de 08/11/2026): "3 municípios e 1 conjunto"; sem
+ * conjunto nela, só as unidades; só com conjuntos, só eles. Os dois números vêm do motor (`por_tipo`); nada é somado aqui. */
+export function contagemPorTipo(unidades: number | null | undefined, conjuntos: number | null | undefined, unidade: Rotulo): string {
+  const u = unidades ?? 0, c = conjuntos ?? 0;
+  const deConjuntos = quantos(c, { singular: "conjunto", plural: "conjuntos" });
+  if (!c) return quantos(u, unidade);
+  return u ? quantos(u, unidade) + " e " + deConjuntos : deConjuntos;
+}
+/** Os textos que acompanham uma comparação com conjuntos (08/11/2026, item 4): como o conjunto entra e o aviso da dupla contagem
+ * quando os membros também estão na análise. */
+export const TEXTO_CONJUNTOS_NAS_COMPARACOES = "Os conjuntos entram com o valor de cada um: a soma das contagens dos componentes, com " +
+  "possível dupla contagem (na distância, a menor, a do membro mais próximo da referência).";
+export const TEXTO_MEMBROS_NA_ANALISE = "Membros de conjuntos também estão na análise: nas contagens, entram o conjunto e esses membros " +
+  "(possível dupla contagem).";
 
 /** Os rótulos que valem: os do motor, senão os da fonte, senão os da base do Brasil (ou genéricos numa planilha). */
 export function rotulosEfetivos(resposta: RotulosTerritoriais | null | undefined, fonte: RotulosTerritoriais | null | undefined,
@@ -1111,8 +1127,9 @@ export function pintar(item: PainelItem, p: ParametrosPintura): Pintura {
 
 // ================================================================================================ régua (estado visual)
 export type Corte = { minimo: number; maximo: number };
-/** A régua filtra as unidades; conjuntos e membros da referência ficam sempre à vista. */
-export const sujeitoARegua = (item: PainelItem) => item.tipo !== "conjunto" && !item.referencia;
+/** A régua filtra as unidades e, desde 08/11/2026 (item 2 do comando de 08/11/2026; antes, ficavam sempre à vista), os conjuntos,
+ * pelo valor de cada um (a soma dos membros); os membros da referência ficam sempre à vista. */
+export const sujeitoARegua = (item: PainelItem) => !item.referencia;
 /** Dentro do corte, com os limites incluídos. Sem corte, tudo aparece. */
 export function noCorte(item: PainelItem, indicador: PainelIndicador, corte: Corte | null): boolean {
   if (!corte || !sujeitoARegua(item)) return true;
@@ -2920,6 +2937,7 @@ export function contextoDoGrafico(def: DefinicaoAnalise, idsNaTela: string[], ti
   referenciasDaResposta: string[] = []): ContextoDoGrafico {
   const referencia = def.familia !== "espacial" || !def.consulta ? [] : referenciasDaResposta;
   return { familia: def.familia, indicador: def.indicador, nivel: def.nivel, municipios: normalizarBase(def.base, grupoDe), estados: def.estados, idsNaTela,
+    ...(def.nivel === "municipios" && def.conjuntos.length ? { conjuntos: def.conjuntos.length } : {}),
     competencia: def.familia === "tendencia" ? def.janela.at(-1) ?? def.competencia : def.competencia, janela: def.janela,
     referencia, titulo, consulta: consultaEmUso(def) ? consultaParaOMotor(def.consulta!) : null };
 }

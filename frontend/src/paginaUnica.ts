@@ -84,6 +84,8 @@ export type ContextoDoGrafico = {
   competencia: string; janela: string[]; referencia: string[]; titulo: string;
   /** Os estados escolhidos no nível estados (24/10/2026). */
   estados?: string[];
+  /** Quantos conjuntos estão na análise (08/11/2026): a conversa diz que eles entram nas condições e na ordenação. */
+  conjuntos?: number;
   /** Vista em exibição e a frase-resumo do motor (verificada), para a conversa responder "o que o gráfico mostra?". */
   vista?: "grafico" | "mapa" | "lado"; resumo?: string | null;
   /** Se o mapa pode ser mostrado agora e, se não, o motivo (estados sem ponto, planilha sem coordenadas, visão Séries). */

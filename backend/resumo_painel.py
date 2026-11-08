@@ -140,6 +140,14 @@ class Composer:
             return self
         return self._add({"tipo": "RELACAO", "formato": "relacao", "caminho": list(path), "texto": text})
 
+    def named_range(self, extremes, field, unit="") -> "Composer":
+        """"de X (A) a Y (B) unidade" (08/11/2026): a faixa com o nome da unidade de cada extremo, para a frase com conjuntos."""
+        low, high = (resolve(self.body, ["itens", index] + field) for index in extremes)
+        places = places_for([low, high])
+        self.text("de ").number("itens", extremes[0], *field, places=places).text(" (").label("itens", extremes[0], "rotulo")
+        self.text(") a ").number("itens", extremes[1], *field, places=places).text(" (").label("itens", extremes[1], "rotulo")
+        return self.text(")" + unit)
+
     def range(self, extremes, field, unit="", each="") -> "Composer":
         """"de X a Y unidade": cópias do valor da unidade de menor e da de maior valor (posições do motor), com as mesmas
         casas; `each` vai depois de cada número (o sinal de %), `unit` só no fim."""
@@ -178,10 +186,15 @@ def _lead_many(c: Composer, body: dict, facts: dict):
     if extremes is None:
         c.text(" Sem valor de " + INDICATOR_TEXT[indicator] + " nesta competência.")
         return
+    # Com conjuntos no gráfico (08/11/2026, decisão do responsável), a faixa continua só com as unidades e diz isso, com o nome de
+    # cada extremo: "Entre os municípios, a densidade vai de X (A) a Y (B)".
+    entre = ("Entre " + article + " " + plural + ", a ") if facts["contagens"]["conjuntos"] else "A "
     if facts["iguais"]["indicador"]:
         every = ("todos" if article == "os" else "todas") + (" com valor" if facts["contagens"]["sem_valor"] else "")
-        c.text(" A " + INDICATOR_TEXT[indicator] + " é de ").number("itens", extremes[0], indicator) \
+        c.text(" " + entre + INDICATOR_TEXT[indicator] + " é de ").number("itens", extremes[0], indicator) \
             .text(unit + " em " + every + ".")
+    elif facts["contagens"]["conjuntos"]:
+        c.text(" " + entre + INDICATOR_TEXT[indicator] + " vai ").named_range(extremes, [indicator], unit).text(".")
     else:
         c.text(" A " + INDICATOR_TEXT[indicator] + " vai ").range(extremes, [indicator], unit).text(".")
     if facts["contagens"]["sem_valor"]:
@@ -199,15 +212,29 @@ def _lead_one(c: Composer, body: dict, facts: dict):
     c.text(INDICATOR_TEXT[indicator] + " de ").number("itens", index, indicator).text(unit + ".")
 
 
+def _por_tipo(c: Composer, body: dict, *path):
+    """Com conjuntos na comparação (comando de 08/11/2026, item 4): depois do total, quantos são unidades e quantos são
+    conjuntos, copiados de `por_tipo` ("4 (3 municípios e 1 conjunto)"); sem conjunto naquela contagem, nada."""
+    block = body[path[0]]
+    if "por_tipo" not in block or not resolve(body, [path[0], "por_tipo", "conjuntos", *path[1:]]):
+        return c
+    singular, plural, _ = _units(body)
+    return c.text(" (").count(singular, plural, path[0], "por_tipo", "unidades", *path[1:]).text(" e ") \
+        .count("conjunto", "conjuntos", path[0], "por_tipo", "conjuntos", *path[1:]).text(")")
+
+
 def _bands(c: Composer, body: dict, key: str, title: str, missing: str):
     bands = body[key]
     c.text(" " + title + ": ")
     for index in range(len(bands["rotulos"])):
         c.text("; " if index else "").label(key, "rotulos", index).text(", ").number(key, "contagens", index)
+        _por_tipo(c, body, key, "contagens", index)
     if bands.get("fora"):
         c.text("; fora das faixas, ").number(key, "fora")
+        _por_tipo(c, body, key, "fora")
     if bands.get("nao_avaliaveis"):
         c.text("; " + missing + ", ").number(key, "nao_avaliaveis")
+        _por_tipo(c, body, key, "nao_avaliaveis")
     c.text(".")
 
 
@@ -316,8 +343,10 @@ def _trend_many(c: Composer, body: dict):
     for order, (key, text) in enumerate(present):
         c.text(", " if 0 < order < len(present) - 1 else " e " if order else "") \
             .number("tendencia", "familias", key).text(" " + text)
+        _por_tipo(c, body, "tendencia", "familias", key)
     if trend["nao_avaliaveis"]:
         c.text("; " if present else "").count("não avaliável", "não avaliáveis", "tendencia", "nao_avaliaveis")
+        _por_tipo(c, body, "tendencia", "nao_avaliaveis")
     c.text(".")
 
 
@@ -349,11 +378,13 @@ def _series(c: Composer, body: dict):
 
 
 def _conditions(c: Composer, body: dict):
-    c.text(" Condições ").label("condicoes", "descricao").text(": atendem, ") \
-        .number("condicoes", "contagens", "ATENDE").text("; não atendem, ") \
-        .number("condicoes", "contagens", "NAO_ATENDE")
+    c.text(" Condições ").label("condicoes", "descricao").text(": atendem, ").number("condicoes", "contagens", "ATENDE")
+    _por_tipo(c, body, "condicoes", "contagens", "ATENDE")
+    c.text("; não atendem, ").number("condicoes", "contagens", "NAO_ATENDE")
+    _por_tipo(c, body, "condicoes", "contagens", "NAO_ATENDE")
     if body["condicoes"]["contagens"].get("NAO_AVALIAVEL"):
         c.text("; sem dado, ").number("condicoes", "contagens", "NAO_AVALIAVEL")
+        _por_tipo(c, body, "condicoes", "contagens", "NAO_AVALIAVEL")
     c.text(".")
 
 
@@ -441,6 +472,10 @@ def compose(body: dict, facts: dict) -> Composer:
         _rotation(c, view, facts)
     if facts["contagens"]["conjuntos"]:
         c.text(" Conjuntos: soma das contagens dos componentes, com possível dupla contagem.")
+        # Desde 08/11/2026 (comando de 08/11/2026, item 4): o conjunto que não fica no lugar dos membros conta junto com eles.
+        if any(((view.get(chave) or {}).get("por_tipo") or {}).get("conjuntos", {}).get("com_membros_na_analise")
+               for chave in ("condicoes", "ordenacao", "faixas", "faixas_distancia", "tendencia")):
+            c.text(" Há membros de conjuntos também na análise: nas contagens, entram o conjunto e esses membros.")
     if view["nivel"] == "estados":
         note = _note_index(view, NOTE_STATES)
         if note is not None:

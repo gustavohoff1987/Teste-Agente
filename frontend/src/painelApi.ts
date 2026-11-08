@@ -183,14 +183,23 @@ export type PainelReferenciaResposta = { tipo: "municipio" | "conjunto" | "consu
   consulta?: ConsultaTerritorios | null; texto?: string; baseTexto?: string;
   contagens?: { base: ContagensDoLado; referencia: ContagensDoLado } };
 export type Contagens = Record<string, number>;
+/** As contagens separadas por tipo (08/11/2026, item 4 do comando de 08/11/2026), só com conjuntos na comparação (`por_tipo` do
+ * motor): as das unidades, as dos conjuntos e os conjuntos com membros também na análise (possível dupla contagem). */
+export type PorTipo<T> = { unidades: T; conjuntos: T; comMembrosNaAnalise: string[] } | null;
+export type ParteDaTendencia = { contagens: Contagens; familias: Contagens; naoAvaliaveis: number | null };
+export type ParteDasFaixas = { contagens: number[]; fora: number | null; naoAvaliaveis: number | null };
+export type ParteDaOrdenacao = { ordenados: number | null; naoAvaliaveis: number | null; selecionados: number | null };
 export type TendenciaTopo = { janela: string[]; contagens: Contagens; familias: Contagens; naoAvaliaveis: number | null;
   bloqueio: string | null; unidadeTempo: string | null;
   /** Unidades sem classificação por motivo, do motor (MUDANCA_DE_DIRECAO e SERIE_ESTAVEL). */
-  semClassificacaoPorMotivo: Contagens };
+  semClassificacaoPorMotivo: Contagens; porTipo: PorTipo<ParteDaTendencia> };
 export type GruposTopo = { tipo: string; cortes: number[]; contagens: number[]; rotulos: string[] };
-export type FaixasTopo = { limites: number[]; rotulos: string[]; contagens: number[]; fora: number | null; naoAvaliaveis: number | null };
-export type CondicoesTopo = { contagens: Partial<Record<SituacaoCondicao, number>>; textos: string[] };
-export type OrdenacaoTopo = { atributo: string; ordem: string; primeiros: number | null; empatesNoCorte: boolean | null; texto: string | null };
+export type FaixasTopo = { limites: number[]; rotulos: string[]; contagens: number[]; fora: number | null; naoAvaliaveis: number | null;
+  porTipo: PorTipo<ParteDasFaixas> };
+export type CondicoesTopo = { contagens: Partial<Record<SituacaoCondicao, number>>; textos: string[];
+  porTipo: PorTipo<Partial<Record<SituacaoCondicao, number>>> };
+export type OrdenacaoTopo = { atributo: string; ordem: string; primeiros: number | null; empatesNoCorte: boolean | null; texto: string | null;
+  porTipo: PorTipo<ParteDaOrdenacao> };
 export type ValorComparado = { id: string; rotulo: string; valor: number | null };
 export type LinhaComparacao = { atributo: string; maior: ValorComparado[]; menor: ValorComparado[];
   diferencas: { entre: string[]; valor: number | null; texto: string | null }[] };
@@ -550,8 +559,21 @@ function faixasTopoDe(bruto: unknown, limites: number[]): FaixasTopo | null {
   const rotulos = lista(o.rotulos).filter((r): r is string => typeof r === "string");
   const doMotor = lista(o.limites).map(decimal).filter((l): l is number => l !== null);
   return { limites: doMotor.length ? doMotor : limites,
-    rotulos, contagens: contagensPorIndice(o.contagens, rotulos.length), fora: num(o.fora), naoAvaliaveis: num(o.nao_avaliaveis) };
+    rotulos, contagens: contagensPorIndice(o.contagens, rotulos.length), fora: num(o.fora), naoAvaliaveis: num(o.nao_avaliaveis),
+    porTipo: porTipoDe(o, parte => ({ contagens: contagensPorIndice(parte?.contagens, rotulos.length), fora: num(parte?.fora),
+      naoAvaliaveis: num(parte?.nao_avaliaveis) })) };
 }
+
+/** `por_tipo` de um bloco do motor (08/11/2026, item 4 do comando de 08/11/2026): sem ele (nenhum conjunto na comparação), null. */
+function porTipoDe<T>(bloco: Record<string, unknown>, parte: (o: Record<string, unknown> | null) => T): PorTipo<T> {
+  const o = objeto(bloco.por_tipo);
+  if (!o) return null;
+  const conjuntos = objeto(o.conjuntos);
+  return { unidades: parte(objeto(o.unidades)), conjuntos: parte(conjuntos),
+    comMembrosNaAnalise: lista(conjuntos?.com_membros_na_analise).filter((id): id is string => typeof id === "string") };
+}
+const contagensNumericas = (bruto: unknown) => Object.fromEntries(Object.entries(objeto(bruto) || {})
+  .filter(([, v]) => typeof v === "number")) as Contagens;
 
 function comparacaoDe(bruto: unknown): ComparacaoTopo | null {
   const o = objeto(bruto);
@@ -699,7 +721,9 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
       naoAvaliaveis: num(tendencia.nao_avaliaveis), bloqueio: texto(tendencia.bloqueio) ?? texto(objeto(tendencia.bloqueio)?.texto),
       unidadeTempo: texto(tendencia.unidade_tempo),
       semClassificacaoPorMotivo: Object.fromEntries(Object.entries(objeto(tendencia.sem_classificacao_por_motivo) || {})
-        .filter(([, v]) => typeof v === "number")) as Contagens } : null,
+        .filter(([, v]) => typeof v === "number")) as Contagens,
+      porTipo: porTipoDe(tendencia, parte => ({ contagens: contagensNumericas(parte?.contagens), familias: contagensNumericas(parte?.familias),
+        naoAvaliaveis: num(parte?.nao_avaliaveis) })) } : null,
     serie: serieTopoDe(o.serie),
     grupos: gruposTopoDe(o.grupos, itens.map(item => item.grupo)),
     gruposMapa: gruposTopoDe(o.grupos_mapa, itens.map(item => item.grupoMapa)),
@@ -708,12 +732,16 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
     condicoes: condicoes ? { contagens: Object.fromEntries(SITUACOES.map(s => [s, num(objeto(condicoes.contagens)?.[s])])
       .filter(([, v]) => v !== null)) as Partial<Record<SituacaoCondicao, number>>,
       textos: lista(condicoes.textos ?? condicoes.condicoes ?? condicoes.definicao).map(t => typeof t === "string" ? t
-        : texto(objeto(t)?.texto) ?? texto(objeto(t)?.condicao)).filter((t): t is string => !!t) } : null,
+        : texto(objeto(t)?.texto) ?? texto(objeto(t)?.condicao)).filter((t): t is string => !!t),
+      porTipo: porTipoDe(condicoes, parte => Object.fromEntries(SITUACOES.map(s => [s, num(objeto(parte?.contagens)?.[s])])
+        .filter(([, v]) => v !== null)) as Partial<Record<SituacaoCondicao, number>>) } : null,
     ordenacao: ordenacao ? { atributo: texto(ordenacao.atributo) ?? "", ordem: texto(ordenacao.ordem) ?? "", primeiros: num(ordenacao.primeiros),
       empatesNoCorte: typeof ordenacao.empates_no_corte === "boolean" ? ordenacao.empates_no_corte
         : Array.isArray(ordenacao.empates_no_corte) ? ordenacao.empates_no_corte.length > 0 : num(ordenacao.empates_no_corte) !== null
           ? (num(ordenacao.empates_no_corte) as number) > 0 : null,
-      texto: texto(ordenacao.texto) } : null,
+      texto: texto(ordenacao.texto),
+      porTipo: porTipoDe(ordenacao, parte => ({ ordenados: num(parte?.ordenados), naoAvaliaveis: num(parte?.nao_avaliaveis),
+        selecionados: num(parte?.selecionados) })) } : null,
     comparacao: comparacaoDe(o.comparacao),
     contextoBrasil: contexto ? { densidade: num(contexto.densidade), quantidade: num(contexto.quantidade), populacao: num(contexto.populacao),
       competencia: texto(contexto.competencia) } : null,

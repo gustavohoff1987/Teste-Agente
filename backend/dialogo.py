@@ -1238,7 +1238,9 @@ def _compara_extremos(ato: dict, amb: Ambiente) -> dict:
     diferenca = bool(DIFERENCA.search(texto)) and not COMPARA.search(texto)
     estado = _estado_citado(amb.mensagem, texto)
     itens = body.get("itens") or []
-    unidades = [item for item in itens if item.get("tipo") in ("municipio", "estado")]
+    # Desde 08/11/2026 (decisão do responsável na rodada do comando de 08/11/2026), os conjuntos entram, cada um pelo valor dele, com
+    # a marca e a ressalva da soma; com um estado citado, só as unidades dele (o conjunto não tem estado).
+    unidades = [item for item in itens if item.get("tipo") in ("municipio", "estado", "conjunto")]
     if estado:
         sigla = STATES[estado][0]
         unidades = [item for item in unidades if item.get("uf") == sigla or str(item.get("rotulo", "")).endswith("(" + sigla + ")")]
@@ -1268,7 +1270,16 @@ def _compara_extremos(ato: dict, amb: Ambiente) -> dict:
         empate = len(ordem["maior"]) > 1 or len(ordem["menor"]) > 1
         if ordem["maior"] and ordem["maior"] == ordem["menor"]:
             indices = []
-    rotulos = [unidades[i]["rotulo"] for i in indices]
+    rotulos = [unidades[i]["rotulo"] + (explicacao.MARCA_DO_CONJUNTO if unidades[i].get("tipo") == "conjunto" else "")
+               for i in indices]
+    com_conjunto = any(unidades[i].get("tipo") == "conjunto" for i in indices)
+    # Um conjunto e um membro dele não ficam lado a lado (o motor recusa a comparação de itens relacionados).
+    relacionados = [(unidades[a], unidades[b]) for a in indices for b in indices
+                    if unidades[a].get("tipo") == "conjunto" and unidades[b].get("id") in (unidades[a].get("membros") or [])]
+    if relacionados and len(indices) >= 2:
+        conjunto, membro = relacionados[0]
+        return _resposta(membro["rotulo"] + " é membro de " + conjunto["rotulo"] + explicacao.MARCA_DO_CONJUNTO + ": um conjunto e "
+                         "os membros dele não ficam lado a lado na comparação. Diga quais comparar, pelo nome.", memoria=memoria)
     if len(indices) < 2:
         return _resposta("No gráfico, não há dois territórios com valores diferentes de " + nome + " para comparar " + pedido +
                          ". Os territórios sem valor ficam em Não avaliáveis, nos Detalhes.", memoria=memoria)
@@ -1284,6 +1295,7 @@ def _compara_extremos(ato: dict, amb: Ambiente) -> dict:
     onde = (" entre os " + group_label(estado)[0].lower() + group_label(estado)[1:]) if estado else ""
     texto_resposta = ("Abri a comparação lado a lado com " + pedido + onde + quando + ": " + "; ".join(partes) + "." +
                       (" Há empate na posição, e os empatados entram juntos." if empate else "") +
+                      (" " + explicacao.RESSALVA_DOS_CONJUNTOS if com_conjunto else "") +
                       (" Assim que o motor calcular a diferença, eu leio para você." if diferenca else
                        " A comparação mostra também a diferença."))
     painel = _painel(funcao="comparar", selecao=[unidades[i]["id"] for i in indices],

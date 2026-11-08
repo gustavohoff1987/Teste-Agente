@@ -180,11 +180,16 @@ test('motivos do motor classificados pelo começo do texto, nunca pela posição
   assert.equal(M.textoDaLimitacao('CODIGO_NOVO'), 'Limitação registrada no cálculo: CODIGO_NOVO.');  // sem nome de bastidor (24/10/2026)
 });
 
-test('régua: limites incluídos, só as unidades; conjuntos e referência sempre à vista; passos redondos', () => {
+test('régua: limites incluídos; as unidades e, desde 08/11/2026, os conjuntos pelo valor deles; a referência sempre à vista', () => {
   const visiveis = corte => ITENS.filter(item => M.noCorte(item, 'densidade', corte)).map(item => item.id);
   assert.deepEqual(visiveis(null), ITENS.map(item => item.id));
   assert.deepEqual(visiveis({minimo: 3, maximo: 5}), ['code:130260', 'code:130420', 'code:130340', 'c1']);
   assert.deepEqual(visiveis({minimo: 3.5, maximo: 15}), ['code:130260', 'code:130420', 'code:350010', 'c1']);
+  // Desde 08/11/2026 (item 2 do comando de 08/11/2026; muda de propósito: antes, o conjunto ficava sempre à vista), o conjunto sai
+  // da régua pelo valor dele (3,67 por 1.000, a soma dos membros), como as unidades; a referência (MANAUS) continua à vista.
+  assert.deepEqual(visiveis({minimo: 4, maximo: 15}), ['code:130260', 'code:130420', 'code:350010']);
+  assert.equal(M.sujeitoARegua(ITENS[5]), true);
+  assert.equal(M.sujeitoARegua(ITENS[0]), false);
   assert.equal(M.noCorte({...ITENS[1], id: 'uf:13', tipo: 'estado'}, 'densidade', {minimo: 6, maximo: 9}), false);  // estados também
   assert.equal(M.corteAtivo(null, [3, 15]), false);
   assert.equal(M.corteAtivo({minimo: 3, maximo: 15}, [3, 15]), false);
@@ -1279,6 +1284,42 @@ test('rótulos das bolhas (05/11/2026): sem lugar dos dois lados, o nome fica ce
   assert.equal(M.posicionarRotulos([{id: 'b', x: 60, y: 100, r: 6, largura: 80}], 244, 16, 52).get('b').ancora, 'start');
   assert.equal(M.posicionarRotulos([{id: 'c', x: 230, y: 100, r: 6, largura: 80}], 244, 16, 52).get('c').ancora, 'end');
   assert.equal(M.posicionarRotulos([{id: 'd', x: 150, y: 100, r: 6, largura: 170}], 244).get('d').ancora, 'end');
+});
+
+test('os conjuntos nas comparações (08/11/2026, comando de 08/11/2026): as contagens por tipo, do motor, e o texto delas', () => {
+  assert.equal(M.contagemPorTipo(3, 1, BR.unidade), '3 municípios e 1 conjunto');
+  assert.equal(M.contagemPorTipo(1, 2, BR.unidade), '1 município e 2 conjuntos');
+  assert.equal(M.contagemPorTipo(4, 0, BR.unidade), '4 municípios');
+  assert.equal(M.contagemPorTipo(0, 1, BR.unidade), '1 conjunto');
+  assert.equal(M.contagemPorTipo(2, null, DISTRITOS.unidade), '2 distritos');
+  const r = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', indicador: 'densidade', itens: ITENS,
+    condicoes: {contagens: {ATENDE: 3, NAO_ATENDE: 2, NAO_AVALIAVEL: 0}, universo: 5, definicao: [],
+      por_tipo: {unidades: {contagens: {ATENDE: 2, NAO_ATENDE: 1, NAO_AVALIAVEL: 0}, universo: 3},
+        conjuntos: {contagens: {ATENDE: 1, NAO_ATENDE: 1, NAO_AVALIAVEL: 0}, universo: 2, com_membros_na_analise: ['c1']}}},
+    faixas: {rotulos: ['0 a <10', '10 a 20'], limites: ['0', '10', '20'], contagens: [1, 2], fora: 0, nao_avaliaveis: 0,
+      por_tipo: {unidades: {contagens: [1, 1], fora: 0, nao_avaliaveis: 0, universo: 2},
+        conjuntos: {contagens: [0, 1], fora: 0, nao_avaliaveis: 0, universo: 1, com_membros_na_analise: []}}},
+    ordenacao: {atributo: 'densidade', ordem: 'desc', primeiros: null, empates_no_corte: false,
+      por_tipo: {unidades: {universo: 3, ordenados: 3, nao_avaliaveis: 0, selecionados: null},
+        conjuntos: {universo: 2, ordenados: 2, nao_avaliaveis: 0, selecionados: null, com_membros_na_analise: ['c1']}}},
+    tendencia: {janela: {periodos: ['202106', '202406']}, contagens: {}, familias: {CRESCIMENTO: 2}, nao_avaliaveis: 1,
+      por_tipo: {unidades: {universo: 2, contagens: {}, familias: {CRESCIMENTO: 1}, nao_avaliaveis: 1},
+        conjuntos: {universo: 1, contagens: {}, familias: {CRESCIMENTO: 1}, nao_avaliaveis: 0, com_membros_na_analise: []}}}});
+  assert.deepEqual(r.condicoes.porTipo, {unidades: {ATENDE: 2, NAO_ATENDE: 1, NAO_AVALIAVEL: 0},
+    conjuntos: {ATENDE: 1, NAO_ATENDE: 1, NAO_AVALIAVEL: 0}, comMembrosNaAnalise: ['c1']});
+  assert.deepEqual(r.faixas.porTipo, {unidades: {contagens: [1, 1], fora: 0, naoAvaliaveis: 0},
+    conjuntos: {contagens: [0, 1], fora: 0, naoAvaliaveis: 0}, comMembrosNaAnalise: []});
+  assert.deepEqual(r.ordenacao.porTipo, {unidades: {ordenados: 3, naoAvaliaveis: 0, selecionados: null},
+    conjuntos: {ordenados: 2, naoAvaliaveis: 0, selecionados: null}, comMembrosNaAnalise: ['c1']});
+  assert.deepEqual(r.tendencia.porTipo.conjuntos, {contagens: {}, familias: {CRESCIMENTO: 1}, naoAvaliaveis: 0});
+  // Sem conjuntos na comparação, o motor não manda por_tipo, e a tela também não o tem.
+  const sem = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', indicador: 'densidade',
+    itens: ITENS.slice(0, 2), condicoes: {contagens: {ATENDE: 1, NAO_ATENDE: 1, NAO_AVALIAVEL: 0}, universo: 2, definicao: []}});
+  assert.equal(sem.condicoes.porTipo, null);
+  // A conversa sabe quantos conjuntos estão na análise (só o número), para dizer que eles entram nas condições e na ordenação.
+  const comConjuntos = definicao({nivel: 'municipios', estados: [], conjuntos: [{id: 'c1', rotulo: 'Interior', membros: ['code:130420', 'code:130340']}]});
+  assert.equal(M.contextoDoGrafico(comConjuntos, [], 'Título').conjuntos, 1);
+  assert.equal('conjuntos' in M.contextoDoGrafico(definicao({nivel: 'municipios', estados: []}), [], 'Título'), false);
 });
 
 test('os nomes dos conjuntos (07/11/2026, itens 8.2 e 8.3 do comando de 07/11/2026): Conjunto A, B…, depois de Z, AA; sem repetir', () => {

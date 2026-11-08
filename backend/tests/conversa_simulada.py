@@ -57,6 +57,7 @@ class Tela:
         self.competencia, self.janela = competencia, list(BRASIL_JUNHOS)
         self.comparar, self.referencia, self.ordenar, self.condicoes, self.grupos = None, None, None, None, None
         self.consulta = None  # Escolha dos territórios da Análise Espacial (28/10/2026: também pela conversa)
+        self.conjuntos = []  # os conjuntos da seleção (08/11/2026), como a tela os manda ao motor
         self.vista = "grafico"
         self.resposta, self.result_id = None, ""
         self.pendente = None  # esclarecimento com alternativas ainda sem resposta
@@ -129,7 +130,8 @@ class Tela:
             if all(s.startswith("uf:") for s in selecao):
                 self.nivel, self.estados = "estados", [s[3:] for s in selecao]
             elif self.nivel == "municipios" and not self.municipios["todos"]:
-                faltam = [s for s in selecao if s not in self.municipios["ids"]]
+                faltam = [s for s in selecao if s not in self.municipios["ids"] and s not in
+                          {conjunto["id"] for conjunto in self.conjuntos}]
                 if faltam and not self.municipios["estados"]:
                     self.municipios["ids"] = self.municipios["ids"] + faltam
         elif painel.get("funcao") and painel.get("funcao") != "comparar":
@@ -157,6 +159,8 @@ class Tela:
             opcoes["tendencia"] = {"competencias": self.janela}
         if self.comparar:
             opcoes["comparar"] = self.comparar
+        if self.conjuntos and self.nivel == "municipios":
+            opcoes["conjuntos"] = self.conjuntos
         if self.grupos and self.familia == "distribuicao":
             opcoes["grupos"] = {"tipo": self.grupos["tipo"]}
         if self.familia == "espacial" and self.consulta:
@@ -291,10 +295,11 @@ class Tela:
         self.historico, self.turnos = historico, turnos
         return resposta
 
-    def seleciona(self, ids=(), estados=(), familia=None, indicador=None, comparar=None):
-        """Escolha direta na tela (Seleção de Territórios e ajustes), sem a conversa."""
+    def seleciona(self, ids=(), estados=(), familia=None, indicador=None, comparar=None, conjuntos=None):
+        """Escolha direta na tela (Seleção de Territórios e ajustes), sem a conversa; `conjuntos`, os de Agrupar territórios."""
         self.nivel = "municipios"
         self.municipios = {"todos": False, "estados": list(estados), "ids": list(ids)}
+        self.conjuntos = [dict(conjunto) for conjunto in conjuntos or []]
         if familia:
             self.familia = familia
         if indicador:

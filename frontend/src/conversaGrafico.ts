@@ -285,7 +285,9 @@ export function opcoesDaConversa(contexto: ContextoDoGrafico | null, hoje: strin
     ...(contexto.vista ? { painel_vista: contexto.vista } : {}),
     ...(typeof contexto.mapaDisponivel === "boolean" ? { painel_mapa_disponivel: contexto.mapaDisponivel } : {}),
     ...(contexto.mapaDisponivel === false && contexto.motivoSemMapa ? { painel_motivo_sem_mapa: contexto.motivoSemMapa } : {}),
-    ...(typeof contexto.resumo === "string" && contexto.resumo ? { painel_resumo: contexto.resumo } : {}) };
+    ...(typeof contexto.resumo === "string" && contexto.resumo ? { painel_resumo: contexto.resumo } : {}),
+    // Quantos conjuntos estão na análise (08/11/2026): eles entram nas condições e na ordenação, e a resposta diz isso. Só o número.
+    ...(contexto.conjuntos ? { painel_conjuntos: contexto.conjuntos } : {}) };
 }
 
 export type EtapaDaFonte = { tipo: "brasil" | "arquivo" | null; pronta: boolean; colunasPendentes: boolean };

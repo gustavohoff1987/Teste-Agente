@@ -18,7 +18,7 @@ import {
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
   competenciaPorExtenso, limiteDaVariacao, limparEscolha, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
   escolhaDaArvore, escolhaDaUnidade, gruposParciais, motivoDaUnidade, unificarEscolha, type ContextoDaArvore,
-  MAX_CONJUNTOS, REGIOES_DO_BRASIL, RESSALVA_DA_SOMA, TEXTO_MAX_GRUPOS, competenciaAbreviada, emGrupos, gruposDaRegiao, regioesDaFonte, rotulosDaVista, type GrupoInfo,
+  MAX_CONJUNTOS, REGIOES_DO_BRASIL, RESSALVA_DA_SOMA, TEXTO_MAX_GRUPOS, competenciaAbreviada, contagemPorTipo, emGrupos, gruposDaRegiao, regioesDaFonte, rotulosDaVista, type GrupoInfo,
   regraConfere, textoDaRegra, quantos, criteriosDasCondicoes, type RegraDaSelecao, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
   textoVerUnidadesDosGrupos, type ParteDaTrilha,
   montarOpcoes, profissionaisDe,
@@ -1482,22 +1482,35 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           {exibirCompetencia(resposta.competencia)}: azul é aumento; laranja, redução; cinza, sem mudança. Contínua, sem classes.</p>
       </div>;
     }
-    const itensLegenda: { chave: string; cor: string | null; texto: string; contagem: number | null; vazada?: boolean }[] = [];
+    // Com conjuntos na comparação (08/11/2026, item 4 do comando de 08/11/2026), cada contagem diz também quantos são unidades e quantos
+    // são conjuntos (os números do motor, em `por_tipo`); nos grupos por posição, só as unidades entram.
+    const itensLegenda: { chave: string; cor: string | null; texto: string; contagem: number | null; vazada?: boolean;
+      porTipo?: { unidades: number | null; conjuntos: number | null } | null }[] = [];
+    const tendenciaPorTipo = resposta.tendencia?.porTipo ?? null, faixasPorTipo = resposta.faixas?.porTipo ?? null,
+      condicoesPorTipo = resposta.condicoes?.porTipo ?? null;
     if (camadaFinal === "classes") {
       (["CRESCIMENTO", "DECLINIO", "NENHUMA"] as const).forEach(familia => itensLegenda.push({ chave: familia, cor: paleta.tendencia[familia],
-        texto: NOMES_FAMILIA_TENDENCIA[familia], contagem: resposta.tendencia?.familias[familia] ?? null }));
-      itensLegenda.push({ chave: "NAO_AVALIAVEL", cor: null, vazada: true, texto: "Não avaliável", contagem: resposta.tendencia?.naoAvaliaveis ?? resposta.tendencia?.contagens.NAO_AVALIAVEL ?? null });
+        texto: NOMES_FAMILIA_TENDENCIA[familia], contagem: resposta.tendencia?.familias[familia] ?? null,
+        porTipo: tendenciaPorTipo && { unidades: tendenciaPorTipo.unidades.familias[familia] ?? 0, conjuntos: tendenciaPorTipo.conjuntos.familias[familia] ?? 0 } }));
+      itensLegenda.push({ chave: "NAO_AVALIAVEL", cor: null, vazada: true, texto: "Não avaliável", contagem: resposta.tendencia?.naoAvaliaveis ?? resposta.tendencia?.contagens.NAO_AVALIAVEL ?? null,
+        porTipo: tendenciaPorTipo && { unidades: tendenciaPorTipo.unidades.naoAvaliaveis, conjuntos: tendenciaPorTipo.conjuntos.naoAvaliaveis } });
     } else if (camadaFinal === "grupos" && resposta.grupos) {
       for (let i = 1; i <= totalGrupos; i++) itensLegenda.push({ chave: String(i), cor: corOrdinal(i, totalGrupos, paleta),
         texto: resposta.grupos.rotulos[i - 1] || i + "º grupo", contagem: resposta.grupos.contagens[i - 1] ?? null });
     } else if (camadaFinal === "faixas" && resposta.faixas) {
       resposta.faixas.rotulos.forEach((rotulo, i) => itensLegenda.push({ chave: String(i + 1), cor: corOrdinal(i + 1, totalFaixas, paleta), texto: rotulo,
-        contagem: resposta.faixas!.contagens[i] ?? null }));
-      if (resposta.faixas.fora !== null) itensLegenda.push({ chave: "fora", cor: paleta.neutra, texto: "Fora das faixas", contagem: resposta.faixas.fora });
+        contagem: resposta.faixas!.contagens[i] ?? null,
+        porTipo: faixasPorTipo && { unidades: faixasPorTipo.unidades.contagens[i] ?? 0, conjuntos: faixasPorTipo.conjuntos.contagens[i] ?? 0 } }));
+      if (resposta.faixas.fora !== null) itensLegenda.push({ chave: "fora", cor: paleta.neutra, texto: "Fora das faixas", contagem: resposta.faixas.fora,
+        porTipo: faixasPorTipo && { unidades: faixasPorTipo.unidades.fora, conjuntos: faixasPorTipo.conjuntos.fora } });
     } else if (camadaFinal === "condicoes" && resposta.condicoes) {
-      itensLegenda.push({ chave: "ATENDE", cor: paleta.bolha, texto: "Atendem a todas as condições", contagem: resposta.condicoes.contagens.ATENDE ?? null },
-        { chave: "NAO_ATENDE", cor: paleta.neutra, texto: "Não atendem", contagem: resposta.condicoes.contagens.NAO_ATENDE ?? null },
-        { chave: "NAO_AVALIAVEL", cor: null, vazada: true, texto: "Sem dado para avaliar", contagem: resposta.condicoes.contagens.NAO_AVALIAVEL ?? null });
+      const porSituacao = (situacao: "ATENDE" | "NAO_ATENDE" | "NAO_AVALIAVEL") => condicoesPorTipo &&
+        { unidades: condicoesPorTipo.unidades[situacao] ?? 0, conjuntos: condicoesPorTipo.conjuntos[situacao] ?? 0 };
+      itensLegenda.push({ chave: "ATENDE", cor: paleta.bolha, texto: "Atendem a todas as condições", contagem: resposta.condicoes.contagens.ATENDE ?? null,
+        porTipo: porSituacao("ATENDE") },
+        { chave: "NAO_ATENDE", cor: paleta.neutra, texto: "Não atendem", contagem: resposta.condicoes.contagens.NAO_ATENDE ?? null, porTipo: porSituacao("NAO_ATENDE") },
+        { chave: "NAO_AVALIAVEL", cor: null, vazada: true, texto: "Sem dado para avaliar", contagem: resposta.condicoes.contagens.NAO_AVALIAVEL ?? null,
+          porTipo: porSituacao("NAO_AVALIAVEL") });
     } else if (camadaFinal === "ordem" && resposta.ordenacao) {
       itensLegenda.push({ chave: "primeiros", cor: paleta.bolha, texto: primeiros !== null ? "Os " + primeiros + " primeiros (posições da ordenação" +
         (resposta.ordenacao.empatesNoCorte ? ", com os empatados no corte)" : ")") : "Com posição na ordenação", contagem: null },
@@ -1506,9 +1519,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!itensLegenda.length) return null;
     return <ul data-testid={id("analise-legenda-cor")} data-camada={camadaFinal} className="flex flex-col gap-1" aria-label="Legenda das cores">
       {itensLegenda.map(item => <li key={item.chave} data-testid={id("analise-legenda-cor-item")} data-chave={item.chave} data-contagem={item.contagem ?? ""}
-        className="flex items-center gap-1.5">
+        data-conjuntos={item.porTipo ? item.porTipo.conjuntos ?? 0 : ""} className="flex items-center gap-1.5">
         <span className="analise-amostra-bolha" style={item.vazada ? amostraVazada : { background: item.cor ?? paleta.bolha }} aria-hidden="true"/>
-        <span>{item.texto}{item.contagem !== null ? <> · <strong className="tabular-nums text-ink">{formatarNumero(item.contagem, true)}</strong></> : ""}</span>
+        <span>{item.texto}{item.contagem !== null ? <> · <strong className="tabular-nums text-ink">{formatarNumero(item.contagem, true)}</strong></> : ""}
+          {item.porTipo && !!item.porTipo.conjuntos && " (" + contagemPorTipo(item.porTipo.unidades, item.porTipo.conjuntos, unidade) + ")"}</span>
       </li>)}
       {camadaFinal === "grupos" && totalGrupos > 5 && <li className="leading-4">Nos decis, só as linhas de corte: mais de cinco tons não se distinguem.</li>}
     </ul>;
@@ -1552,7 +1566,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         aria-pressed={filtroClasse === classe.codigo} title={DESCRICAO_DAS_CLASSES[classe.codigo]} className="analise-contagem"
         onClick={() => filtrarClasse(classe.codigo)}>
         <span className="analise-amostra-bolha" style={{ background: paleta.tendencia[classe.familia] }} aria-hidden="true"/>
-        {classe.rotulo} <strong className="tabular-nums text-ink">{formatarNumero(n, true)}</strong></button>;
+        {classe.rotulo} <strong className="tabular-nums text-ink">{formatarNumero(n, true)}</strong>
+        {!!resposta.tendencia!.porTipo?.conjuntos.contagens[classe.codigo] && " (" + contagemPorTipo(resposta.tendencia!.porTipo.unidades.contagens[classe.codigo],
+          resposta.tendencia!.porTipo.conjuntos.contagens[classe.codigo], unidade) + ")"}</button>;
     })}
     {(!!naoAvaliaveis || filtroClasse === "NAO_AVALIAVEL") && <button type="button" data-testid="analise-contagem-classe" data-classe="NAO_AVALIAVEL" data-contagem={naoAvaliaveis ?? 0}
       aria-pressed={filtroClasse === "NAO_AVALIAVEL"} className="analise-contagem" onClick={() => filtrarClasse("NAO_AVALIAVEL")}>
@@ -1800,7 +1816,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         soAtende={soAtende} onSoAtende={valor => { registrar(valor ? "Mostrar só quem atende" : "Mostrar todos"); setSoAtende(valor); }}
         onAplicar={condicoes => ajustar(condicoes.length ? "Aplicar as condições" : "Limpar as condições", { condicoes })}
         onUsarComoSelecao={def.nivel === "municipios" && criteriosDasCondicoes(def.condicoes, true) ? usarCondicoesComoSelecao : undefined}/>;
-      case "ordenar": return <GavetaOrdenar ordenar={def.ordenar} espacial={distanciaNaTela} mudanca={exibicao.variacao} resposta={resposta}
+      case "ordenar": return <GavetaOrdenar rotulos={rotulos} ordenar={def.ordenar} espacial={distanciaNaTela} mudanca={exibicao.variacao} resposta={resposta}
         indicador={indicador} onAplicar={ordenar => ajustar(ordenar ? "Ordenar" : "Limpar a ordenação", { ordenar })}/>;
       case "comparar": return <GavetaComparar itens={resposta?.itens || []} selecionados={selecao} pedidos={def.comparar} resposta={resposta}
         nomes={nomes} rotulos={rotulos} onAlternar={alternar}

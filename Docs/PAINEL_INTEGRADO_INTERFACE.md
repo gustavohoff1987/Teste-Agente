@@ -657,8 +657,9 @@ O que cada análise mostra:
   conjuntos vale como base ("A base são os conjuntos da seleção em uso."). Na tela, o conjunto mostra a referência como as
   unidades: no gráfico, a linha do membro mais próximo ao mais distante; no mapa, a ligação até a referência sai do membro mais
   próximo; na dica, "Referência mais próxima" e "Membro mais próximo da referência"; nos Detalhes, a distância ("12,50 a 40,25") e
-  a referência. Nas faixas de distância, na ordenação e nas condições de distância, os conjuntos ficam fora, como com a
-  referência fixa (o universo dessas funções são as unidades da base). Um pedido
+  a referência. Desde 08/11/2026 (comando de 08/11/2026, item 1; antes, os conjuntos ficavam fora delas), o conjunto entra nas
+  faixas de distância, na ordenação pela distância e nas condições de distância pela menor distância (a do membro mais próximo),
+  nos dois modos, entre as unidades, com a marca e as contagens por tipo (seção "Funções"). Um pedido
   da conversa por critério ("use como referência o município de maior densidade") abre a janela na aba Referência com o filtro
   do atributo citado e, desde 25/10/2026 (decisão 4), o operador do "maior" ou "menor" ("acima de" ou "abaixo de"), sem valor: o
   valor fica com a pessoa, e nada é escolhido pela posição na ordem (CAP-REF-01 pede uma condição; CAP-SUB-01). Uma
@@ -896,9 +897,9 @@ entre 1.024 e 1.359 px e no lado a lado; na base da tela abaixo de 1.024 px). No
 
 | Função | O que faz | Pedido ao motor |
 |---|---|---|
-| Régua | Mostra só o que fica entre dois valores do indicador; só esconde (RQ-REP-06) | Nenhum |
-| Condições | Separa quem atende a todas as condições, quem não atende e quem não tem dado (CAP-SUB-01, combinação "e"), com as contagens do motor; "Mostrar só quem atende" é filtro visual. Desde 07/11/2026 (item 6.10), vendo por município e com condições de indicador aplicadas, "Usar como seleção" (`analise-condicoes-usar-como-selecao`) abre "Por critérios", na Seleção, preenchido, procurando nos marcados na lista (a seleção em uso) e com a prévia; a distância até a referência fica nas Condições (em "Por critérios", a distância é até um território), com o aviso; a análise só muda com a escolha no rodapé do modo | `condicoes` (as Condições); `POST /api/painel/criterios` (a prévia) |
-| Ordenar | Ordem e posições do motor, empates na mesma posição, os N primeiros (CAP-SUB-02 e CAP-SUB-03) | `ordenar` |
+| Régua | Mostra só o que fica entre dois valores do indicador; só esconde (RQ-REP-06). Desde 08/11/2026 (comando de 08/11/2026, item 2), também os conjuntos, pelo valor de cada um (a soma dos membros; antes, ficavam sempre à vista); os membros da referência continuam sempre à vista | Nenhum |
+| Condições | Separa quem atende a todas as condições, quem não atende e quem não tem dado (CAP-SUB-01, combinação "e"), com as contagens do motor; "Mostrar só quem atende" é filtro visual. Desde 07/11/2026 (item 6.10), vendo por município e com condições de indicador aplicadas, "Usar como seleção" (`analise-condicoes-usar-como-selecao`) abre "Por critérios", na Seleção, preenchido, procurando nos marcados na lista (a seleção em uso) e com a prévia; a distância até a referência fica nas Condições (em "Por critérios", a distância é até um território), com o aviso; a análise só muda com a escolha no rodapé do modo. Desde 08/11/2026 (comando de 08/11/2026), os conjuntos entram nas condições pelo valor de cada um (a soma dos membros; na distância, a menor), e cada contagem diz quantos são unidades e quantos são conjuntos ("3 atendem a todas (2 municípios e 1 conjunto)", `analise-condicoes-por-tipo`, com `data-conjuntos` em `analise-condicoes-contagem`), com a ressalva da soma e o aviso da dupla contagem (`analise-condicoes-conjuntos`); a legenda das cores faz o mesmo nas condições, nas faixas e nas classes da tendência (`data-conjuntos` em `analise-legenda-cor-item`), e os grupos por posição continuam só com as unidades | `condicoes` (as Condições); `POST /api/painel/criterios` (a prévia) |
+| Ordenar | Ordem e posições do motor, empates na mesma posição, os N primeiros (CAP-SUB-02 e CAP-SUB-03). Desde 08/11/2026 (comando de 08/11/2026), os conjuntos entram na ordem pelo valor de cada um (no indicador e na variação, o da soma dos membros; na distância, a menor), entre as unidades: a lista mostra cada conjunto com a marca "· conjunto" (`data-tipo="conjunto"`), a linha "Na ordem: 24 municípios e 9 conjuntos." (`analise-ordenar-por-tipo`) e a ressalva da soma, com o aviso da dupla contagem quando os membros também estão na análise (`analise-ordenar-conjuntos`) | `ordenar` |
 | Comparar | 2 ou 3 itens lado a lado, com maior, menor e diferença do motor (CAP-CMP-01) | `comparar` |
 | Exportar | CSV com todos os itens do resultado, em precisão integral, com a avaliabilidade e o motivo (não muda com a vista); a coluna do grupo é "UF" na base do Brasil e, numa planilha (desde 28/10/2026), leva o nome do grupo dela ("Condado"), com o valor da coluna-mãe, ou não existe sem grupo (desde 29/10/2026, com o nome de outra coluna, como o "território" que o modelo sugere para a unidade e o grupo, "Território (grupo)"); Imprimir / PDF, com a vista em exibição (no lado a lado, as duas, uma abaixo da outra) e a frase-resumo; método e parâmetros em texto, com a frase-resumo que está na tela (numa planilha, uma linha antes dos parâmetros diz que as chaves são as do contrato da API: "nesta planilha, “municipios” são as comunas, e “estados”, os condados.") | Nenhum |
 
@@ -1213,14 +1214,29 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   (06/11/2026).
 - "Por critérios" (07/11/2026) está na Seleção, na conversa e nas Condições ("Usar como seleção"). A distância até a referência
   das Condições não vai para o modo (lá, a distância é até um território).
-- Com a Escolha dos territórios, os conjuntos têm a distância e a referência pelos membros, mas ficam fora das faixas de
-  distância, da ordenação e das condições de distância, como com a referência fixa (o universo dessas funções são as unidades da
-  base).
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
 
 ## Testes
 
+- **Os conjuntos nas comparações (comando de 08/11/2026):**
+  - **pytest:**
+    - `test_painel_pagina.py`: as condições, a ordenação, as faixas, as faixas de distância e as contagens da tendência com os
+      conjuntos pelo valor de cada um e `por_tipo`; o conjunto não avaliável; o aviso da dupla contagem; os quantis sem mudança;
+      a resposta de antes sem conjuntos;
+    - `test_painel_resumo.py`: a faixa "Entre os municípios, …", as contagens por tipo, as ordens da conversa com o conjunto e
+      as respostas de maior e menor com a marca e a ressalva;
+    - `test_dialogo.py`: "compare os dois maiores" com um conjunto e com um conjunto e um membro dele;
+    - `test_conversa_grafico.py`: as respostas da ordenação e das Condições com conjuntos.
+  - **Node:**
+    - `painel.test.mjs`: `contagemPorTipo`, a leitura de `por_tipo`, a régua com o conjunto e o número de conjuntos para a
+      conversa;
+    - `conversaGrafico.test.mjs`: `painel_conjuntos`.
+  - **Navegador:** o passo 12 de `ui_criterios.py`, com a base versionada:
+    - os cortes dos quintis com e sem um conjunto que não fica no lugar dos membros;
+    - o Norte junto com dez municípios do Pará: a ordem por densidade com os conjuntos entre os municípios e a marca na lista;
+    - "densidade abaixo de 0,4" com cada conjunto pelo valor e a contagem por tipo;
+    - na Análise Espacial, as faixas 0; 100; 300 e a ordem pela distância.
 - **Seleção por critérios de ponta a ponta (comando de 07/11/2026; antes, item 6 do comando de 06/11/2026):** pytest,
   `test_painel_pagina.py` (o motor: os critérios, a distância, os conjuntos todos a até X km entre si, com o empate pela ordem do
   código, as extensões, o agrupamento só pela distância, os textos da regra e as recusas; a distância do conjunto na Escolha dos

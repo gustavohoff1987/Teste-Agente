@@ -5,7 +5,8 @@ import type {
   PainelOrdem, PainelResposta, SituacaoCondicao,
 } from "./painelApi";
 import {
-  ATRIBUTOS, OPERADORES, ORDENS, SIMBOLOS, artigo, formatarIndicador, formatarNumero, formatarVariacao, maiuscula, numero, ordemNeutra, variacaoDe, type RotulosTerritoriais,
+  ATRIBUTOS, OPERADORES, ORDENS, SIMBOLOS, TEXTO_CONJUNTOS_NAS_COMPARACOES, TEXTO_MEMBROS_NA_ANALISE, artigo, contagemPorTipo, formatarIndicador,
+  formatarNumero, formatarVariacao, maiuscula, numero, ordemNeutra, variacaoDe, type RotulosTerritoriais,
 } from "./painelModel";
 
 // Painéis laterais das funções e das opções das análises. Os valores, as posições, as contagens e as comparações vêm do motor;
@@ -29,6 +30,9 @@ export function GavetaCondicoes(p: CondicoesProps) {
   const validas = linhas.map(linha => ({ ...linha, numero: lerNumero(linha.valor) }));
   const prontas = validas.every(linha => linha.numero !== null) && validas.length > 0;
   const contagens = p.resposta?.condicoes?.contagens;
+  // Com conjuntos na comparação (08/11/2026, item 4 do comando de 08/11/2026), cada contagem diz quantos são unidades e quantos são
+  // conjuntos, com os números do motor.
+  const porTipo = p.resposta?.condicoes?.porTipo ?? null;
   const unidade = p.rotulos.unidade;
   const mudar = (indice: number, parte: Partial<Rascunho>) => setLinhas(atual => atual.map((linha, i) => i === indice ? { ...linha, ...parte } : linha));
   const NOMES: Record<SituacaoCondicao, string> = { ATENDE: "Atendem a todas", NAO_ATENDE: "Não atendem", NAO_AVALIAVEL: "Sem dado para avaliar" };
@@ -71,9 +75,14 @@ export function GavetaCondicoes(p: CondicoesProps) {
     {contagens && p.condicoes.length > 0 && <div className="space-y-2">
       <ul className="flex flex-wrap gap-1.5" aria-label="Contagens">
         {(["ATENDE", "NAO_ATENDE", "NAO_AVALIAVEL"] as SituacaoCondicao[]).map(situacao => <li key={situacao} data-testid="analise-condicoes-contagem"
-          data-situacao={situacao} data-contagem={contagens[situacao] ?? ""} className="analise-contagem">
-          <strong className="tabular-nums text-ink">{contagens[situacao] ?? "—"}</strong> {NOMES[situacao].toLowerCase()}</li>)}
+          data-situacao={situacao} data-contagem={contagens[situacao] ?? ""} data-conjuntos={porTipo ? porTipo.conjuntos[situacao] ?? 0 : ""}
+          className="analise-contagem">
+          <strong className="tabular-nums text-ink">{contagens[situacao] ?? "—"}</strong> {NOMES[situacao].toLowerCase()}
+          {porTipo && !!porTipo.conjuntos[situacao] && <span data-testid="analise-condicoes-por-tipo"> ({contagemPorTipo(porTipo.unidades[situacao],
+            porTipo.conjuntos[situacao], unidade)})</span>}</li>)}
       </ul>
+      {porTipo && <p data-testid="analise-condicoes-conjuntos" className="text-[12px] text-slate-600">{TEXTO_CONJUNTOS_NAS_COMPARACOES}
+        {porTipo.comMembrosNaAnalise.length > 0 && " " + TEXTO_MEMBROS_NA_ANALISE}</p>}
       <label className="analise-caixa">
         <input type="checkbox" data-testid="analise-condicoes-so-atende" checked={p.soAtende} onChange={event => p.onSoAtende(event.target.checked)}/>
         <span>Mostrar no gráfico só quem atende (filtro visual, sem novo cálculo)</span>
@@ -85,7 +94,9 @@ export function GavetaCondicoes(p: CondicoesProps) {
 
 // ------------------------------------------------------------------------------------------------ ordenar
 type OrdenarProps = { ordenar: OrdenarPedido | null; espacial: boolean; mudanca: boolean; resposta: PainelResposta | null;
-  indicador: PainelIndicador; onAplicar: (ordenar: OrdenarPedido | null) => void };
+  indicador: PainelIndicador; onAplicar: (ordenar: OrdenarPedido | null) => void;
+  /** Os nomes da base, para as contagens por tipo (08/11/2026). */
+  rotulos?: RotulosTerritoriais };
 /** Ordenar (CAP-SUB-02 e CAP-SUB-03): a ordem e as posições do motor, com empates na mesma posição, e os N primeiros. */
 export function GavetaOrdenar(p: OrdenarProps) {
   const [atributo, setAtributo] = useState<AtributoOrdenacao>(p.ordenar?.atributo ?? p.indicador);
@@ -147,13 +158,22 @@ export function GavetaOrdenar(p: OrdenarProps) {
     {ordenacao && p.ordenar && <div className="space-y-1.5">
       <p className="text-xs text-slate-700">{ordenacao.texto || "Ordem por " + (ATRIBUTOS[ordenacao.atributo] || ordenacao.atributo) + ", " +
         (ORDENS[ordenacao.ordem as PainelOrdem] || ordenacao.ordem) + "."}{ordenacao.empatesNoCorte ? " Há empate no corte: os empatados entram juntos." : ""}</p>
+      {/* Com conjuntos (08/11/2026, item 4 do comando de 08/11/2026): quantos entram na ordem, por tipo, e cada conjunto com a marca. */}
+      {ordenacao.porTipo && p.rotulos && <p data-testid="analise-ordenar-por-tipo" className="text-xs text-slate-700">Na ordem:{" "}
+        {contagemPorTipo(ordenacao.porTipo.unidades.ordenados, ordenacao.porTipo.conjuntos.ordenados, p.rotulos.unidade)}
+        {(ordenacao.porTipo.unidades.naoAvaliaveis || ordenacao.porTipo.conjuntos.naoAvaliaveis) ? "; sem valor: " +
+          contagemPorTipo(ordenacao.porTipo.unidades.naoAvaliaveis, ordenacao.porTipo.conjuntos.naoAvaliaveis, p.rotulos.unidade) : ""}.</p>}
       <ol data-testid="analise-ordenar-lista" className="analise-lista-rolavel">
-        {mostrados.map(item => <li key={item.id} data-id={item.id} data-posicao={item.ordem!.posicao ?? ""} className="flex items-center gap-2 px-2 py-1 text-xs">
+        {mostrados.map(item => <li key={item.id} data-id={item.id} data-posicao={item.ordem!.posicao ?? ""} data-tipo={item.tipo}
+          className="flex items-center gap-2 px-2 py-1 text-xs">
           <span className="w-9 shrink-0 tabular-nums text-slate-600">{item.ordem!.posicao}º</span>
-          <span className="min-w-0 flex-1 truncate text-ink">{item.rotulo}</span>
+          <span className="min-w-0 flex-1 truncate text-ink">{item.rotulo}{item.tipo === "conjunto" &&
+            <span className="analise-marca-grupo"> · conjunto</span>}</span>
           <span className="shrink-0 tabular-nums text-slate-700">{valorDe(item)}</span>
         </li>)}
       </ol>
+      {ordenacao.porTipo && <p data-testid="analise-ordenar-conjuntos" className="text-[12px] text-slate-600">{TEXTO_CONJUNTOS_NAS_COMPARACOES}
+        {ordenacao.porTipo.comMembrosNaAnalise.length > 0 && " " + TEXTO_MEMBROS_NA_ANALISE}</p>}
       {limite === null && posicionados.length > 20 && <p className="text-[12px] text-slate-600">Os 20 primeiros; a ordem completa fica na tabela (coluna Posição).</p>}
     </div>}
   </section>;

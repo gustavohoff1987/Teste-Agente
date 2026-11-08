@@ -78,10 +78,22 @@ class Composicao(Composer):
                           "texto": definicoes.FICHAS[id_ficha].texto})
 
     def item(self, atributo: str, qual: str, posicao: int) -> "Composicao":
-        """O rótulo da unidade que o motor pôs na ordem (o maior ou o menor valor de um atributo)."""
+        """O rótulo da unidade que o motor pôs na ordem (o maior ou o menor valor de um atributo); num conjunto, com a marca."""
         indice = self.body["conversa"]["ordem"][atributo][qual][posicao]
-        return self._add({"tipo": "ORDENACAO", "formato": "item", "caminho": ["conversa", "ordem", atributo, qual, posicao],
-                          "texto": self.body["itens"][indice]["rotulo"]})
+        self._add({"tipo": "ORDENACAO", "formato": "item", "caminho": ["conversa", "ordem", atributo, qual, posicao],
+                   "texto": self.body["itens"][indice]["rotulo"]})
+        return self.marca(indice)
+
+    def marca(self, indice: int) -> "Composicao":
+        """A marca do conjunto depois do nome dele (08/11/2026); a ressalva da soma vai no fim da resposta (ressalva)."""
+        if self.body["itens"][indice].get("tipo") == "conjunto":
+            self.com_conjunto = True
+            self.text(MARCA_DO_CONJUNTO)
+        return self
+
+    def ressalva(self) -> "Composicao":
+        """A ressalva da soma, uma vez, quando a resposta citou um conjunto."""
+        return self.text(" " + RESSALVA_DOS_CONJUNTOS) if getattr(self, "com_conjunto", False) else self
 
     def nota_igual(self, texto: str) -> "Composicao":
         indice = next((i for i, nota in enumerate(self.body.get("notas") or []) if nota == texto), None)
@@ -193,6 +205,18 @@ def _nomes_da_unidade(body: dict | None, rotulos: dict | None = None) -> tuple[s
 
 def indices_das_unidades(body: dict) -> list[int]:
     return [i for i, item in enumerate(body.get("itens") or []) if item.get("tipo") in ("municipio", "estado", "brasil")]
+
+
+# Desde 08/11/2026 (decisão do responsável na rodada do comando de 08/11/2026): os conjuntos entram em "qual tem a maior (ou a
+# menor) densidade?" e nas perguntas equivalentes, com a marca e a ressalva da soma.
+RESSALVA_DOS_CONJUNTOS = "Os conjuntos entram pela soma das contagens dos componentes, com possível dupla contagem."
+MARCA_DO_CONJUNTO = " (conjunto)"
+
+
+def indices_comparaveis(body: dict) -> list[int]:
+    """As unidades e os conjuntos do gráfico, na ordem dos itens: os que entram nas ordens da conversa."""
+    return [i for i, item in enumerate(body.get("itens") or []) if item.get("tipo") in ("municipio", "estado", "brasil",
+                                                                                          "conjunto")]
 
 
 def _simples(texto: str) -> str:
@@ -392,6 +416,7 @@ def _extremos(c: Composicao, atributo: str, plural: str) -> None:
     for k in range(len(ordem["menor"])):
         c.text(", " if k else "").item(atributo, "menor", k)
     c.text(" (").valor(ordem["menor"][0], atributo).text(").")
+    c.ressalva()
 
 
 def _simples_resultado(c: Composicao, body: dict, alvo: list[int], plural: str, feminino: bool) -> None:
@@ -731,7 +756,7 @@ def comparar_atributo(body: dict | None, atributo: str, maior: bool = True, rotu
         c.text("Nenhum" + ("a " if feminino else " ") + singular + " do gráfico tem valor de " + nome + " ")
         _periodo_do_resultado(c).text(".")
         return verificar(c.resultado(), body)
-    unidades_ = indices_das_unidades(body)
+    unidades_ = indices_comparaveis(body)
     empate = len(ordem[qual]) > 1
     if len(unidades_) == 1:
         c.text("Só há ").label("itens", unidades_[0], "rotulo").text(" no gráfico: ").valor(unidades_[0], atributo)
@@ -750,10 +775,11 @@ def comparar_atributo(body: dict | None, atributo: str, maior: bool = True, rotu
         if outros:
             c.text(" " + (("As demais" if feminino else "Os demais") if len(outros) > 1 else ("A outra" if feminino else "O outro")) + ": ")
             for k, indice in enumerate(outros):
-                c.text("; " if k else "").label("itens", indice, "rotulo").text(", ").valor(indice, atributo)
+                c.text("; " if k else "").label("itens", indice, "rotulo").marca(indice).text(", ").valor(indice, atributo)
             c.text(".")
     if ordem.get("sem_valor"):
         c.text(" ").number("conversa", "ordem", atributo, "sem_valor").text(" sem valor de " + nome + ".")
+    c.ressalva()
     if atributo == "distancia_km":
         c.text(" ").documento("DOC:TPL-11", forma="mensagem", evidencia="DISTANCIA_VERIFICADA")
     return verificar(c.resultado(), body)

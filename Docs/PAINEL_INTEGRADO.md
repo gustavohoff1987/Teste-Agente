@@ -434,10 +434,36 @@ só."). O total do Brasil não é a soma dos estados nem dos municípios e não 
 
 `grupos`, `grupos_mapa`, `faixas`, `faixas_distancia`, `condicoes` e `ordenar`, e as contagens de `tendencia`, valem no
 **universo**: os municípios base (ou as unidades base da planilha) ou, no nível estados, os estados escolhidos (todos, sem a
-lista `estados`); no nível Brasil, o Brasil. Conjuntos e membros
-da referência fora da base não entram no universo: os campos por item deles vêm `null`. A `tendencia` por item é
-calculada para todos os itens, inclusive conjuntos (CAP-AGR-01 por competência; membros com registro diferentes na
-janela → `INCOMPARABILIDADE`, pela entrada, como pede F-05b). A comparação aceita qualquer item da resposta.
+lista `estados`); no nível Brasil, o Brasil. Membros da referência fora da base não entram no universo: os campos por item
+deles vêm `null`. A `tendencia` por item é calculada para todos os itens, inclusive conjuntos (CAP-AGR-01 por competência;
+membros com registro diferentes na janela → `INCOMPARABILIDADE`, pela entrada, como pede F-05b). A comparação aceita
+qualquer item da resposta.
+
+**Os conjuntos nas comparações** (08/11/2026, comando de 08/11/2026; antes, os conjuntos ficavam fora do universo, com os
+campos `null`, nos dois modos de referência):
+- **Como entram:** em `condicoes`, `ordenar`, `faixas`, `faixas_distancia` e nas contagens de `tendencia`, cada conjunto entra
+  como um território a mais, depois das unidades, com o valor dele (`painel._comparaveis`):
+  - no indicador (densidade, quantidade e população) e na variação, o da soma dos membros (CAP-AGR-01), o mesmo do gráfico,
+    exato pela quantidade e pela população;
+  - na distância, a menor, a do membro mais próximo da referência (`distancia_km`), com a referência desse membro, nos dois
+    modos (a referência fixa e a Escolha dos territórios).
+- **Sem valor avaliável** (sem registro, membro sem distância), o conjunto é não avaliável, com o motivo, nunca zero. O
+  conjunto igual à referência fica fora, como os membros dela.
+- **Os grupos por posição** (`grupos` e `grupos_mapa`, CAP-DIS-02) continuam só com as unidades: calculam cortes a partir da
+  distribuição delas, e o conjunto não ganha classe. Os cortes não mudam quando se cria ou se desfaz um conjunto.
+- **`por_tipo`:** com conjuntos na comparação, cada bloco traz as mesmas contagens separadas por tipo; sem conjuntos, o bloco
+  fica como antes, sem `por_tipo`. O formato é `{"unidades": {…}, "conjuntos": {…, "com_membros_na_analise": [ids]}}`, e os
+  totais do bloco somam os dois tipos (`universo` incluído). As contagens de cada bloco:
+  - `condicoes`: `contagens` e `universo`;
+  - `ordenacao`: `universo`, `ordenados`, `nao_avaliaveis` e `selecionados`;
+  - `faixas` e `faixas_distancia`: `contagens`, `fora`, `nao_avaliaveis` e `universo`;
+  - `tendencia`: `universo`, `avaliaveis`, `nao_avaliaveis`, `contagens` e `familias`.
+- **A dupla contagem:** `com_membros_na_analise` lista os conjuntos com membros que também estão no universo como unidades (o
+  conjunto que não fica no lugar dos membros). Nas contagens, entram o conjunto e esses membros, com possível dupla
+  contagem, e a nota diz isso ("Membros de … também estão na análise: nas contagens, entram o conjunto e esses membros
+  (possível dupla contagem).").
+- **As notas e a memória:** as notas de cada bloco dizem como os conjuntos entram ("Os conjuntos entram nas condições como
+  territórios a mais, …"). A chave da memória (`_reaproveitar`) leva os conjuntos (o id, o nome e os membros).
 
 ### Resposta 200 da página única
 
@@ -463,9 +489,9 @@ Quando pedidos:
 | `tendencia` | O resumo do motor (`trend.summarize`): `capacidade`, `versao_metodo`, `desfecho` (`RES-VAL`, `RES-LIM`, `RES-SCL` ou `BLQ-MET`), `bloqueio`, `unidades_total`, `avaliaveis`, `nao_avaliaveis`, `contagens` (por classe), `sem_classificacao_por_motivo`, `nao_avaliaveis_por_motivo`, `familias`, `classes` ([{codigo, rotulo, familia}], a ordem da legenda), `rotulos_familia`, `rotulos_nao_avaliavel`, `rotulos_motivo`; e `indicador`, `unidade_valor`, `unidade_tempo`, `janela` ({periodos, inicio, fim, intervalos, intervalo_constante, serie_anual, serie_anual_disponivel, competencias_serie_anual}) e `universo`. As contagens são do universo. |
 | `grupos` | `{tipo, k, atributo, cortes, rotulos, contagens, universo, classificados, nao_avaliaveis}`. `cortes` são os k − 1 pontos de corte do motor; `rotulos` e `contagens` vão do 1º ao k-ésimo grupo. |
 | `grupos_mapa` | A mesma estrutura de `grupos`, com o mesmo cálculo (seção "Grupos do mapa"); `null` quando menos de duas unidades do universo têm valor do `indicador`. |
-| `faixas`, `faixas_distancia` | `{atributo, capacidade, limites, convencao, rotulos, contagens, fora, nao_avaliaveis, universo}`. `atributo` é o `indicador` ou `distancia_km`; `capacidade`, `CAP-DIS-03` ou `CAP-ESP-03`; `limites` em texto decimal com ponto, sem arredondar (`["0", "100.5", "1000"]`); `rotulos` com vírgula, como na análise ("0 a <100,5", "100,5 a 1000"); `fora` e `nao_avaliaveis` são contagens. |
-| `condicoes` | `{contagens: {ATENDE, NAO_ATENDE, NAO_AVALIAVEL}, universo, combinacao: "E", descricao, definicao: [{atributo, operador, valor, texto}]}`. |
-| `ordenacao` | `{atributo, ordem, primeiros, universo, ordenados, nao_avaliaveis, selecionados, empates_no_corte, ids_selecionados}`; sem `primeiros`, `selecionados` e `ids_selecionados` são `null`. |
+| `faixas`, `faixas_distancia` | `{atributo, capacidade, limites, convencao, rotulos, contagens, fora, nao_avaliaveis, universo}`. `atributo` é o `indicador` ou `distancia_km`; `capacidade`, `CAP-DIS-03` ou `CAP-ESP-03`; `limites` em texto decimal com ponto, sem arredondar (`["0", "100.5", "1000"]`); `rotulos` com vírgula, como na análise ("0 a <100,5", "100,5 a 1000"); `fora` e `nao_avaliaveis` são contagens; com conjuntos na comparação (08/11/2026), também `por_tipo`. |
+| `condicoes` | `{contagens: {ATENDE, NAO_ATENDE, NAO_AVALIAVEL}, universo, combinacao: "E", descricao, definicao: [{atributo, operador, valor, texto}]}`; com conjuntos na comparação (08/11/2026), também `por_tipo` (seção "Universo das análises"). |
+| `ordenacao` | `{atributo, ordem, primeiros, universo, ordenados, nao_avaliaveis, selecionados, empates_no_corte, ids_selecionados}`; sem `primeiros`, `selecionados` e `ids_selecionados` são `null`; com conjuntos, também `por_tipo`. |
 | `comparacao` | `{indicador, itens: [{id, rotulo, tipo, valor, avaliavel, motivos}], maior, menor, diferencas, relacoes, notas}`. Dois itens: `diferencas` = [{a, b, relacao, diferenca}], A e B em ordem de nome, relação A/B (`MAIOR`, `MENOR` ou `IGUALDADE`) e diferença assinada A − B. Três: `relacoes` = [{id, valor, proximo_valor_maior, mesmo_valor}] e `diferencas` vazia (sem diferenças automáticas entre pares, AT-84). `maior` e `menor` são listas de ids (empate: mais de um). Com menos de dois itens com valor, as listas ficam vazias, com a nota. |
 | `rotatividade` | `{inicial, final, universo, avaliaveis, nao_avaliaveis}`. |
 | `serie` | Com `serie` (24/10/2026; seção "Série temporal"): `{janela: {inicio, fim, competencias}, competencias, indicador, unidade_valor, itens_com_valor, itens, rotulo_itens}`. |
@@ -876,6 +902,15 @@ Municípios do Amazonas em junho de 2024, com a base versionada de 22/10/2026 (t
 `formato` diz a regra de apresentação do segmento: `numero` (com `casas` nas medidas contínuas), `texto` (nome ou nota,
 como estão na resposta), `competencia` (a competência por extenso, "junho de 2024") ou `relacao` (a relação do motor na
 comparação).
+
+**Com conjuntos no gráfico** (08/11/2026, comando de 08/11/2026 e decisão do responsável na mesma rodada):
+- **A faixa de valores** continua só com as unidades e diz isso, com o nome de cada extremo: "Entre os municípios, a densidade
+  vai de 8 (MANACAPURU (AM)) a 25 (MANAUS (AM)) por 1.000 habitantes."; antes, "A densidade vai de 8 a 25 por 1.000
+  habitantes.", como continua sem conjuntos.
+- **As contagens das condições, das faixas e da tendência** dizem quantos são unidades e quantos são conjuntos, copiados de
+  `por_tipo`: "atendem, 3 (2 municípios e 1 conjunto); não atendem, 2 (1 município e 1 conjunto)".
+- **A dupla contagem:** com membros de conjuntos também na análise, a frase acrescenta "Há membros de conjuntos também na
+  análise: nas contagens, entram o conjunto e esses membros."
 
 - **Só cópias verificadas:** cada número e cada nome da frase é um segmento com o caminho na própria resposta
   (`caminho`), conferido antes de a frase sair (`resumo_painel.verify`); se um segmento não confere, a frase é omitida.
