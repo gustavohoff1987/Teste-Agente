@@ -30,8 +30,9 @@ from ui_support import AREA, URL, accept_privacy, form_field, is_post, offline, 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 ACRE, RONDONIA = "12", "11"
 BOLHAS = '[data-testid="analise-bolha"][data-tipo="municipio"][data-visivel="true"]'
-# O que a conversa só pode dizer com o desfecho "concluido" da área (desde 06/11/2026, também "Agreguei", de Agregar territórios).
-AFIRMA_EXECUCAO = re.compile(r"\b(?:Mostrei|Ordenei|Selecionei|Atualizei|Apliquei|Abri|Comparei|Juntei|Agreguei|Destaquei|Troquei|"
+# O que a conversa só pode dizer com o desfecho "concluido" da área (desde 06/11/2026, também "Agreguei", de Agregar territórios; desde
+# 07/11/2026, "Agrupei", de Agrupar territórios).
+AFIRMA_EXECUCAO = re.compile(r"\b(?:Mostrei|Ordenei|Selecionei|Atualizei|Apliquei|Abri|Comparei|Juntei|Agreguei|Agrupei|Destaquei|Troquei|"
                              r"Voltei|Desfiz)\b")
 SEM_CONFIRMACAO = "O pedido foi enviado à área de análise, mas ainda não terminou."
 

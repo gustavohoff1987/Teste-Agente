@@ -161,6 +161,9 @@ export type PainelItem = {
   /** A referência do item: com membros escolhidos, o membro da referência mais próximo (`referencia_mais_proxima` do motor); com a
    * Escolha dos territórios, a referência mais próxima do item (`referencia_do_item`). Mais de um quando há empate (explícito). */
   referenciaDoItem: { id: string; rotulo: string }[] | null;
+  /** Num conjunto, com a Escolha dos territórios (07/11/2026, item 6 do comando de 07/11/2026): o membro mais próximo, de onde vem a
+   * referência do conjunto e de onde sai a ligação no mapa. */
+  membroDaReferencia: { id: string; rotulo: string } | null;
   condicoes: CondicoesItem | null;
   ordem: { posicao: number | null } | null;
   rotatividade: RotatividadeItem | null;
@@ -459,6 +462,8 @@ function itemDe(bruto: unknown): PainelItem | null {
     referencia: o.referencia === true,
     tendencia: tendenciaDe(o.tendencia), grupo: posicao(o.grupo), grupoMapa: posicao(o.grupo_mapa), faixa: faixaDe(o.faixa), faixa_distancia: faixaDe(o.faixa_distancia),
     referenciaDoItem: referenciaProximaDe(o.referencia_do_item ?? o.referencia_mais_proxima), condicoes: condicoesDe(o.condicoes),
+    membroDaReferencia: (() => { const membro = objeto(objeto(o.referencia_do_item)?.membro); const id = texto(membro?.id);
+      return id ? { id, rotulo: texto(membro?.rotulo) ?? id } : null; })(),
     ordem: ordem ? { posicao: num(ordem.posicao) } : null, rotatividade: rotatividadeDe(o.rotatividade), serie: serieDe(o.serie),
   };
 }

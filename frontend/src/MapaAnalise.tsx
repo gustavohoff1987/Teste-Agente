@@ -6,6 +6,7 @@ import type { PainelIndicador } from "./painelApi";
 import { artigo, compacto, formatarNumero, generoDe, geometriaDaLegendaDeTamanho, maiuscula, textoDaMarca, umA, type Dica,
   type RotulosTerritoriais } from "./painelModel";
 import MiniMapa from "./MiniMapa";
+import { contornoComFolga, dentroDoContorno } from "./MapaDosConjuntos";
 import { useNarrow } from "./useNarrow";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import {
@@ -74,6 +75,8 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
   const cantoRef = useRef<CantoHandle>(null);
   const atual = useRef(p);
   atual.current = p;
+  // Os contornos dos conjuntos desenhados (item 7.10), na tela, para o toque.
+  const contornosDosConjuntos = useRef<{ id: string; forma: [number, number][] }[]>([]);
   // Esquema de cor do aparelho (a impressão é sempre clara): as cores do canvas, das legendas e das variáveis de mapa.css.
   const esquema = useEsquemaDeCor();
   const cores = coresDoMapa(esquema), rampa = rampaContinua(esquema);
@@ -250,18 +253,39 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
       ctx.setLineDash([]);
     }
 
-    // 5. Membros de conjuntos: anel escuro (o conjunto não tem ponto).
+    // 5. Conjuntos (07/11/2026, item 7.10 do comando de 07/11/2026; antes, o mesmo anel escuro em todos os membros): cada conjunto com o
+    //    próprio contorno tracejado em volta dos membros e o nome dele, sem as cores das classes do mapa. Tocar no contorno destaca o
+    //    conjunto, como tocar na bolha dele.
+    contornosDosConjuntos.current = [];
     if (b.aneis.length) {
-      ctx.globalAlpha = 0.7;
-      ctx.strokeStyle = paleta.tinta;
-      ctx.lineWidth = 1.25;
-      ctx.beginPath();
+      const porConjunto = new Map<string, { rotulo: string; pontos: [number, number][] }>();
       for (const anel of b.aneis) {
         const pos = posicaoDe(anel.membro);
-        if (pos) circulo(ctx, pos[0], pos[1], pos[2] + 4);
+        if (!pos) continue;
+        const entrada = porConjunto.get(anel.conjunto) ?? { rotulo: anel.rotulo, pontos: [] };
+        entrada.pontos.push([pos[0], pos[1]]);
+        porConjunto.set(anel.conjunto, entrada);
       }
-      ctx.stroke();
-      ctx.globalAlpha = 1;
+      ctx.save();
+      ctx.strokeStyle = paleta.tinta;
+      ctx.fillStyle = paleta.tinta;
+      ctx.lineWidth = 1.4;
+      ctx.font = "600 11px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      for (const [id, entrada] of porConjunto) {
+        const forma = contornoComFolga(entrada.pontos, 10);
+        if (forma.length < 3) continue;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        forma.forEach(([x, y], indice) => indice ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+        ctx.closePath();
+        ctx.stroke();
+        const topo = forma.reduce((melhor, ponto) => ponto[1] < melhor[1] ? ponto : melhor, forma[0]);
+        ctx.setLineDash([]);
+        ctx.fillText(entrada.rotulo, topo[0], topo[1] - 4);
+        contornosDosConjuntos.current.push({ id, forma });
+      }
+      ctx.restore();
     }
 
     // 6. Referência: a mesma mira do gráfico.
@@ -609,7 +633,13 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
       if (!clique) return;
       const toque = evento.pointerType !== "mouse";
       const i = pegar(x, y, toque ? ALVO_TOQUE : ALVO_MOUSE);
-      if (i < 0) { if (toque || ativo.current?.origem === "busca") definirAtivo(null); return; }
+      if (i < 0) {
+        // Dentro do contorno de um conjunto (item 7.10): destaca o conjunto, como a bolha dele.
+        const conjunto = contornosDosConjuntos.current.find(entrada => dentroDoContorno(entrada.forma, x, y));
+        if (conjunto) { atual.current.onAlternar(conjunto.id); return; }
+        if (toque || ativo.current?.origem === "busca") definirAtivo(null);
+        return;
+      }
       const id = cenaRef.current.pontos[i].id;
       definirAtivo({ id, origem: toque ? "toque" : "mouse" });
       atual.current.onAlternar(id);
@@ -739,8 +769,8 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     cena.vazadas > 0 ? "anel tracejado cinza: valor não avaliável nesta camada, nunca zero (veja Não avaliáveis)" : "",
     cena.esmaecidos > 0 ? "pontos bem claros: fora da régua ou dos filtros (ficam no lugar, sem interação)" : "",
     base.fundo.length > 0 ? "cinza miúdo ao fundo: " + artigo(unidade, true) + " demais " + unidade.plural + " da fonte, só para situar" : "",
-    base.aneis.length > 0 ? "anel escuro: membro de conjunto; o conjunto não tem ponto, e o valor dele é a soma das contagens dos " +
-      "componentes, com possível dupla contagem" : "",
+    base.aneis.length > 0 ? "contorno tracejado com o nome: os membros de cada conjunto; o conjunto não tem ponto, e o valor dele é a " +
+      "soma das contagens dos componentes, com possível dupla contagem" : "",
     temReferencia ? (p.referenciaPorItem ? "mira: referência mais próxima" : "mira: membro da referência (distância 0)") : "",
   ].filter(Boolean).join("; ");
   const rotuloDoCanvas = "Mapa de pontos d" + artigo(unidade, true) + " " + unidade.plural + " do resultado. Com o mapa em foco: as setas " +

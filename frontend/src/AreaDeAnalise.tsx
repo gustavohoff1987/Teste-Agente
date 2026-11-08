@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ArrowLeftRight, ChartScatter, ChevronDown, Columns2, Crosshair, Database, Download, Filter, FilterX, GripVertical,
   ListOrdered, LoaderCircle, Map as MapaIcone, Pause, Play, RefreshCw, Ruler, Scale, SlidersHorizontal, Undo, Upload, Wrench, X } from "lucide-react";
 import {
-  ErroDoMotor, pedirLugar, pedirMapa, pedirPainel, type FonteDoMotor, type LugarOpcoes, type MapaOpcoes, type Pendencia,
+  ErroDoMotor, pedirCriterios, pedirLugar, pedirMapa, pedirPainel, type FonteDoMotor, type LugarOpcoes, type MapaOpcoes, type Pendencia,
   type PainelConjuntoPedido, type PainelItem, type PainelMunicipios, type PainelNivel, type PainelOpcoes, type PainelResposta,
   type RespostaLugar, type RespostaCriterios,
 } from "./painelApi";
@@ -18,7 +18,7 @@ import {
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
   competenciaPorExtenso, limiteDaVariacao, limparEscolha, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
   escolhaDaArvore, escolhaDaUnidade, gruposParciais, motivoDaUnidade, unificarEscolha, type ContextoDaArvore,
-  MAX_CONJUNTOS, RESSALVA_DA_SOMA, TEXTO_MAX_GRUPOS, emGrupos, gruposDaRegiao, regioesDaFonte, rotulosDaVista, type GrupoInfo,
+  MAX_CONJUNTOS, REGIOES_DO_BRASIL, RESSALVA_DA_SOMA, TEXTO_MAX_GRUPOS, competenciaAbreviada, emGrupos, gruposDaRegiao, regioesDaFonte, rotulosDaVista, type GrupoInfo,
   regraConfere, textoDaRegra, quantos, criteriosDasCondicoes, type RegraDaSelecao, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
   textoVerUnidadesDosGrupos, type ParteDaTrilha,
   montarOpcoes, profissionaisDe,
@@ -36,8 +36,8 @@ import PainelSeries, { LegendaDaSerie, MAX_SERIES, Velocidades, type SerieDeRefe
 import PainelSetas, { LegendaDoQuadro } from "./PainelSetas";
 import PainelRotatividade from "./PainelRotatividade";
 import PainelRuler from "./PainelRuler";
-import PainelTerritorios from "./PainelTerritorios";
-import SelecionarPorCriterios, { type PedidoDosCriterios } from "./SelecionarPorCriterios";
+import PainelTerritorios, { type ModoDaSelecao } from "./PainelTerritorios";
+import SelecionarPorCriterios, { type PedidoDosCriterios, type UsoDosCriterios } from "./SelecionarPorCriterios";
 import PainelAbrangencia from "./PainelAbrangencia";
 import FaixaDoLugar, { Trilha } from "./FaixaDoLugar";
 import PainelDetalhes from "./PainelDetalhes";
@@ -407,15 +407,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // conversa (com a prévia ao abrir; `n` conta os pedidos, para o mesmo pedido repetido abrir de novo).
   const [criterios, setCriterios] = useState<{ inicial: RegraDaSelecao["pedido"] | null; previa?: boolean; n?: number;
     aviso?: string } | null>(null);
-  // Onde a regra a reaplicar procurou, pelo nome (um grupo ou mais), mesmo que o lugar em uso já seja outro (a seleção que ela
-  // produziu, por exemplo).
-  const lugarDaRegra = useMemo(() => {
-    const partir = (criterios?.inicial as PedidoDosCriterios | null)?.criterios?.partir_de;
-    if (!partir || partir.tipo !== "ufs" || !partir.ufs?.length) return null;
-    const nomesDosGrupos = partir.ufs.map(id => grupos.find(grupo => grupo.id === id)?.nome || id);
-    return { rotulo: nomesDosGrupos.length <= 3 ? nomesDosGrupos.join(", ").replace(/, ([^,]*)$/, " e $1")
-      : quantos(nomesDosGrupos.length, rotulos.grupo ?? ROTULOS_GENERICOS.grupo!), partirDe: partir };
-  }, [criterios, grupos, rotulos]);
+  // O modo da Seleção (07/11/2026, item 1 do comando de 07/11/2026): "Marcar na lista" (padrão), "Por critérios" ou "Agrupar
+  // territórios". A conversa, as Condições e "Reaplicar em outra competência" abrem "Por critérios" preenchido (item 1.5).
+  const [modoSelecao, setModoSelecao] = useState<ModoDaSelecao>("lista");
+  const escolherModoDaSelecao = (modo: ModoDaSelecao) => {
+    if (modo === "criterios" && !criterios) setCriterios({ inicial: null });
+    setModoSelecao(modo);
+  };
   const [carregandoLugar, setCarregandoLugar] = useState(false);
   const [erroLugar, setErroLugar] = useState<{ chave: string; mensagem: string } | null>(null);
   const cacheLugar = useRef(new Map<string, RespostaLugar>());
@@ -696,10 +694,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     const { explicar, destacar, criterios: criteriosDoChat, ...resto } = pedido.pedido;
     setRealce(null);
     // Selecionar por critérios pela conversa (07/11/2026, item 6.9 do comando): o painel da Seleção abre preenchido, com a prévia do
-    // motor; nada muda na análise até a pessoa escolher no painel ("Como seleção" ou "Cada grupo como território agregado").
+    // motor; nada muda na análise até a pessoa escolher no painel ("Usar como seleção" ou "Usar cada conjunto como um território").
     if (criteriosDoChat) {
       setAba("territorios");
       setCriterios(atual => ({ inicial: criteriosDoChat, previa: true, n: (atual?.n ?? 0) + 1 }));
+      setModoSelecao("criterios");
       iniciarExecucao(pedido.id, [], { mudou: true, mapa: false, semCalculo: true });
       return;
     }
@@ -934,7 +933,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     informarDesfecho(em.mensagens.length ? "parcial" : "concluido", em.mensagens);
   });
 
-  const querMapa = !!fonteMotor && !!chaveMapa && mapa.disponivel && (mapaNaTela || (resposta?.nivel === "municipios" && plotaveis.length > 0));
+  // Os mini mapas da Seleção (07/11/2026, item 7 do comando de 07/11/2026) usam as mesmas coordenadas do mapa: pedidas também com a
+  // Seleção em "Por critérios" ou "Agrupar territórios", ou com conjuntos na seleção ("Ver os conjuntos no mapa").
+  const querMapaNaSelecao = aba === "territorios" && (modoSelecao !== "lista" || def.conjuntos.length > 0);
+  const querMapa = !!fonteMotor && !!chaveMapa && mapa.disponivel && (mapaNaTela || querMapaNaSelecao ||
+    (resposta?.nivel === "municipios" && plotaveis.length > 0));
   useEffect(() => {
     if (!querMapa || !fonteMotor) { setCarregandoMapa(false); return; }
     const emCache = cacheMapa.current.get(chaveMapa);
@@ -1081,24 +1084,40 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** A bolha de um estado ("Ver os N municípios"): os municípios dele na análise. */
   // ------------------------------------------------------------------------------------------ selecionar por critérios
   // Selecionar por critérios (07/11/2026, item 6 do comando de 06/11/2026; decisão 4): o painel da Seleção, com a prévia do motor; só
-  // "Como seleção" ou "Cada grupo como território agregado" muda a análise (um passo do Desfazer). A regra fica com a seleção que
+  // "Usar como seleção" ou "Usar cada conjunto como um território" muda a análise (um passo do Desfazer). A regra fica com a seleção que
   // ela produziu: a trilha, o método e os Detalhes a mostram enquanto a seleção for a dela.
-  function usarCriterios(previa: RespostaCriterios, pedido: RegraDaSelecao["pedido"], comGrupos: boolean) {
+  function usarCriterios(previa: RespostaCriterios, pedido: RegraDaSelecao["pedido"], uso: UsoDosCriterios) {
+    const comGrupos = uso.conjuntos;
     const grupos = comGrupos ? previa.grupos ?? [] : [];
-    if (grupos.length > MAX_CONJUNTOS) { setAviso(TEXTO_MAX_GRUPOS); return; }
-    const conjuntos: PainelConjuntoPedido[] = grupos.map((grupo, i) => ({ id: "c" + (i + 1), rotulo: grupo.rotulo, membros: [...grupo.membros],
-      substitui: true, retirados: [...grupo.membros] }));
-    const ids = comGrupos ? [...(previa.isolados ?? []), ...(previa.semPosicao ?? [])] : previa.ids;
-    const base = normalizarArvore({ todos: false, estados: [], ids }, arvore);
-    // "Como seleção": a regra dos critérios ("densidade abaixo de 0,5"); com os grupos, também o agrupamento.
+    // Junto com a seleção atual (item 5.2), os conjuntos novos se somam aos que já existem, e as unidades às já marcadas; no lugar
+    // dela (o padrão), o resultado substitui tudo, como antes.
+    const existentes = uso.junto ? def.conjuntos : [];
+    if (existentes.length + grupos.length > MAX_CONJUNTOS) { setAviso(TEXTO_MAX_GRUPOS); return; }
+    // Os sem conjunto entram como unidades, se a pessoa quiser (item 5.3).
+    const ids = comGrupos ? (uso.levarSemConjunto ? [...(previa.isolados ?? []), ...(previa.semPosicao ?? [])] : []) : previa.ids;
+    let base = uso.junto ? baseComUnidades(def.base, ids, contextoDaBase) : normalizarArvore({ todos: false, estados: [], ids }, arvore);
+    let lista: PainelConjuntoPedido[] = [...existentes];
+    for (const grupo of grupos) {
+      const novo = novoConjunto(lista, grupo.membros, uso.nomes[grupo.id] || grupo.rotulo);
+      // Os membros que estavam na seleção saem dela: o conjunto fica no lugar deles e os devolve ao ser desfeito.
+      const retirados = uso.junto ? membrosNaSelecao(base, novo.membros, grupoDe) : [...novo.membros];
+      if (uso.junto && retirados.length) base = baseSemUnidades(base, retirados, contextoDaBase);
+      lista = [...lista, { ...novo, substitui: true, retirados }];
+    }
+    const conjuntos = lista;
+    // "Usar como seleção": a regra dos critérios ("densidade abaixo de 0,5"); com os conjuntos, também o agrupamento. A regra só fica
+    // com a seleção quando o resultado entra no lugar dela (junto, a seleção não é só o que a regra produziu).
     const texto = comGrupos ? previa.regra.textoAgrupado ?? previa.regra.texto : previa.regra.texto;
-    const regra: RegraDaSelecao = { texto, competencia: previa.competencia, total: previa.atendem, base,
+    const regra: RegraDaSelecao | null = uso.junto ? null : { texto, competencia: previa.competencia, total: previa.atendem, base,
       conjuntos: conjuntos.map(conjunto => ({ id: conjunto.id, membros: [...conjunto.membros] })), pedido };
     registrar("Selecionar por critérios: " + texto);
-    mudar({ nivel: "municipios", base, estados: [], conjuntos, comparar: [], regra, competencia: previa.competencia });
-    setSelecionados([]); setCorte(null); setCriterios(null);
-    setAvisoSelecao(comGrupos ? quantos(conjuntos.length, { singular: "grupo", plural: "grupos" }) + " e " + quantos(ids.length, rotulos.unidade) +
-      " na análise: " + textoDaRegra(regra) + "." : "Seleção por critérios: " + textoDaRegra(regra) + ".");
+    mudar({ nivel: "municipios", base, estados: [], conjuntos, comparar: [], regra: regra ?? undefined, competencia: previa.competencia });
+    setSelecionados([]); setCorte(null); setCriterios(null); setModoSelecao("lista");
+    const emPalavras = texto + " em " + competenciaAbreviada(previa.competencia);
+    setAvisoSelecao(comGrupos ? quantos(grupos.length, { singular: "conjunto", plural: "conjuntos" }) +
+      (ids.length ? " e " + quantos(ids.length, rotulos.unidade) : "") + (uso.junto ? " entraram junto com a seleção" : " na análise") + ": " +
+      (regra ? textoDaRegra(regra) : emPalavras) + "."
+      : (uso.junto ? "Entraram junto com a seleção os que atendem: " + emPalavras : "Seleção por critérios: " + textoDaRegra(regra!)) + ".");
     pedirOQueFalta();
   }
 
@@ -1112,7 +1131,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setCriterios(atual => ({ inicial: convertido.pedido, previa: true, n: (atual?.n ?? 0) + 1,
       aviso: convertido.semDistancia ? "A distância até a referência ficou nas Condições: aqui, a distância é até " +
         (generoDe(rotulos.unidade) === "f" ? "uma " : "um ") + rotulos.unidade.singular + " (“a até … km de”)." : undefined }));
-    setAviso("As condições foram para Selecionar por critérios, na Seleção, com a prévia; nada mudou na análise.");
+    setModoSelecao("criterios");
+    setAviso("As condições foram para “Por critérios”, na Seleção, com a prévia; nada mudou na análise.");
   }
 
   function abrirGrupoDaBolha(id: string) {
@@ -1205,6 +1225,20 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // Agregar territórios (06/11/2026, item 5 do comando de navegação por níveis; no lugar do Juntar das Ferramentas das análises): o
   // grupo vem do painel da Seleção de Territórios. Com "O grupo fica no lugar dos membros", eles saem da seleção (a mesma exclusão
   // da árvore), e desfazer o grupo os devolve. Cada mudança é um passo do Desfazer; a soma é do motor (CAP-AGR-01).
+  const coordenadasDaSelecao = mapa.disponivel && dadosConferem ? dadosAtuais?.pontos ?? null : null;
+  // As regiões na árvore da base do Brasil (item 3): os estados pelo primeiro dígito do código do IBGE.
+  const secoesDoBrasil = useMemo(() => tipo === "brasil" && grupos.length ? {
+    regioes: REGIOES_DO_BRASIL.map(({ id, nome }) => ({ id, nome, sigla: "", rotuloGrupo: "",
+      unidades: grupos.filter(grupo => grupo.id.charAt(0) === id).reduce((soma, grupo) => soma + (grupo.unidades || 0), 0) })),
+    regiaoDoGrupo: (grupo: string) => grupo.charAt(0) } : null, [tipo, grupos]);
+  /** A extensão de ponta a ponta de um conjunto à mão (item 7.8), medida pelo motor: a mesma rota da prévia, na seleção dos membros. */
+  const medirExtensao = fonteMotor ? async (membros: string[], signal: AbortSignal) => {
+    const dados = await pedirCriterios(fonteMotor, { competencia: def.competencia, categoria: def.categoria,
+      criterios: { partir_de: { tipo: "selecao" }, filtros: [] }, agrupar: { km: 5000 }, base: { municipios: { todos: false, estados: [], ids: membros } },
+      ...(tipo === "arquivo" && Object.keys(def.premissas).length ? { premissas: def.premissas } : {}), ...(tipo === "arquivo" ? { rotulos } : {}) }, signal);
+    const unico = dados.grupos?.length === 1 && dados.grupos[0].membros.length === membros.length ? dados.grupos[0] : null;
+    return unico ? unico.extensaoKm : null;
+  } : undefined;
   const valoresDosConjuntos = useMemo(() => new Map((resposta?.itens ?? []).filter(item => item.tipo === "conjunto")
     .map(item => [item.id, { quantidade: item.quantidade, densidade: item.densidade }] as [string, { quantidade: number | null;
       densidade: number | null }])), [resposta]);
@@ -1217,16 +1251,16 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     // Com o grupo no lugar dos membros, saem da seleção os que estavam nela; o grupo guarda quais, para devolver só esses.
     const retirados = grupo.substitui ? membrosNaSelecao(def.base, novo.membros, grupoDe) : [];
     const conjunto = { ...novo, substitui: grupo.substitui, retirados };
-    registrar("Agregar " + conjunto.rotulo);
+    registrar("Agrupar " + conjunto.rotulo);
     const base = retirados.length ? baseSemUnidades(def.base, retirados, contextoDaBase) : def.base;
     trocarEscolha({ ...escolhaDe(def), nivel: "municipios", base, conjuntos: [...def.conjuntos, conjunto] });
-    setAviso("Grupo " + conjunto.rotulo + " criado" + (grupo.substitui ? ", no lugar dos membros" : "") +
+    setAviso("Conjunto " + conjunto.rotulo + " criado" + (grupo.substitui ? ", no lugar dos membros" : "") +
       ": a bolha mostra a soma das contagens dos componentes.");
   }
   function salvarGrupo(id: string, grupo: GrupoAgregado) {
     const antigo = def.conjuntos.find(item => item.id === id);
     if (!antigo || grupo.membros.length < 2) return;
-    registrar("Editar o grupo " + antigo.rotulo);
+    registrar("Editar o conjunto " + antigo.rotulo);
     const devolver = antigo.substitui ? antigo.retirados ?? antigo.membros : [];
     const devolvida = devolver.length ? baseComUnidades(def.base, devolver, contextoDaBase) : def.base;
     const membros = [...new Set(grupo.membros)];
@@ -1237,7 +1271,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   }
   function desfazerConjunto(id: string) {
     const conjunto = def.conjuntos.find(item => item.id === id);
-    registrar("Desfazer o grupo " + (conjunto?.rotulo ?? id));
+    registrar("Desfazer o conjunto " + (conjunto?.rotulo ?? id));
     const devolver = conjunto?.substitui ? conjunto.retirados ?? conjunto.membros : [];
     const base = devolver.length ? baseComUnidades(def.base, devolver, contextoDaBase) : def.base;
     trocarEscolha({ ...escolhaDe(def), base, conjuntos: def.conjuntos.filter(item => item.id !== id) });
@@ -1760,7 +1794,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         usadas={consultaNaTela && referenciaDaTela ? { referencias: referenciaDaTela.membros.map(membro => membro.rotulo),
           base: basesDaReferencia.length === 1 ? basesDaReferencia[0].rotulo : null } : null}
         faixas={def.faixasDistancia} onFaixas={limites => ajustar("Aplicar as faixas de distância", { faixasDistancia: limites })}
-        onCalcular={calcularConsulta} selecaoVazia={semSelecao({ ...def, nivel: "municipios" })}
+        onCalcular={calcularConsulta} selecaoVazia={semSelecao({ ...def, nivel: "municipios" })} conjuntos={def.conjuntos}
         onAlterarSelecao={() => { setPainel(null); irParaTerritorios(); }}/>;
       case "condicoes": return <GavetaCondicoes condicoes={def.condicoes} espacial={distanciaNaTela} resposta={resposta} rotulos={rotulos}
         soAtende={soAtende} onSoAtende={valor => { registrar(valor ? "Mostrar só quem atende" : "Mostrar todos"); setSoAtende(valor); }}
@@ -2038,25 +2072,31 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             <TextoDaApresentacao aba={aba} apresentacao={apresentacaoDaAba(aba, { rotulos, brasil: tipo === "brasil", comGrupos: grupos.length > 0 })}/>
           </div>
           <PainelTerritorios rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} regioes={regioes} regiaoDoGrupo={regioes.length ? arvore.regiaoDoGrupo : undefined} comNiveis={comBolhasDeGrupo} verPor={verPor} unidades={municipios}
+            secoesDaArvore={secoesDoBrasil} modo={modoSelecao} onModo={escolherModoDaSelecao} coordenadas={coordenadasDaSelecao} medirExtensao={medirExtensao}
             total={totalDeUnidades} nivel={def.nivel} base={def.base} estados={def.estados} conjuntos={def.conjuntos} aberto={aberto}
             aviso={avisoSelecao} verAnalise={"Ver a " + NOMES_FAMILIAS[def.familia]} totais={totaisNaSelecao}
             onUnidade={escolherNivel} onBase={mudarArvore}
             onAbrir={abrirLista} onDesfazerConjunto={desfazerConjunto} onCriarGrupo={criarGrupo} onSalvarGrupo={salvarGrupo}
             valoresDosConjuntos={valoresDosConjuntos} profissionais={profissionaisDe(def.categoria)}
-            criterios={fonteMotor ? { aberto: !!criterios, onAlternar: () => setCriterios(atual => atual ? null : { inicial: null }),
-              painel: <SelecionarPorCriterios key={JSON.stringify(criterios?.inicial ?? null) + ":" + (criterios?.n ?? 0)}
-                previaAoAbrir={!!criterios?.previa} aviso={criterios?.aviso} fonte={fonteMotor} rotulos={rotulos}
+            criterios={fonteMotor ? { painel: criterios ? <SelecionarPorCriterios key={JSON.stringify(criterios.inicial ?? null) + ":" + (criterios.n ?? 0)}
+                aviso={criterios.aviso} fonte={fonteMotor} rotulos={rotulos}
                 nomeDoTodo={nomeDoTodo(tipo !== "arquivo", rotulos)} unidades={municipios} competencia={def.competencia} periodos={periodos}
                 categoria={def.categoria} premissas={tipo === "arquivo" ? def.premissas : undefined}
-                base={def.nivel === "municipios" && !semSelecao(def) ? normalizarBase(def.base, grupoDe) : null}
-                lugar={lugar.tipo === "grupo" && lugar.grupo ? { rotulo: lugar.partes.find(parte => parte.chave === "grupo")?.rotulo ?? lugar.grupo,
-                  partirDe: { tipo: "ufs", ufs: [lugar.grupo] } }
-                  : lugar.tipo === "regiao" && lugar.regiao ? { rotulo: lugar.partes.find(parte => parte.chave === "regiao")?.rotulo ?? lugar.regiao,
-                    partirDe: { tipo: "ufs", ufs: gruposDaRegiao(lugar.regiao, arvore) } } : null}
-                lugarDoPedido={lugarDaRegra} inicial={criterios?.inicial as PedidoDosCriterios | null}
-                onComoSelecao={(previa, pedido) => usarCriterios(previa, pedido, false)}
-                onComoGrupos={(previa, pedido) => usarCriterios(previa, pedido, true)} onCancelar={() => setCriterios(null)}/> } : null}
-            regra={regraEmUso ? { texto: textoDaRegra(regraEmUso), onReaplicar: () => setCriterios({ inicial: regraEmUso.pedido }) } : null}
+                grupos={grupos} regioes={secoesDoBrasil?.regioes ?? regioes} regiaoDoGrupo={secoesDoBrasil?.regiaoDoGrupo ?? (regioes.length ? arvore.regiaoDoGrupo : undefined)}
+                marcados={{ base: def.nivel === "municipios" && !semSelecao(def) ? normalizarBase(def.base, grupoDe) : null,
+                  grupos: def.nivel === "estados" ? def.estados : [], vendoPorGrupo: def.nivel === "estados" }}
+                lugar={lugar.tipo === "grupo" && lugar.grupo ? { tipo: "estados", ids: [lugar.grupo] }
+                  : lugar.tipo === "regiao" && lugar.regiao ? { tipo: "regioes", ids: [lugar.regiao] } : null}
+                inicial={criterios.inicial as PedidoDosCriterios | null} coordenadas={coordenadasDaSelecao}
+                conjuntosNaAnalise={def.conjuntos.map(conjunto => ({ id: conjunto.id, rotulo: conjunto.rotulo }))}
+                algoNaAnalise={!semSelecao(def) || def.conjuntos.length > 0}
+                onUsar={(previa, pedido, uso) => usarCriterios(previa, pedido, uso)}
+                onMarcarNaLista={() => setModoSelecao("lista")}
+                onCancelar={() => { setCriterios(null); setModoSelecao("lista"); }}/> : null } : null}
+            regra={regraEmUso ? { texto: textoDaRegra(regraEmUso), onReaplicar: () => {
+              setCriterios(atual => ({ inicial: regraEmUso.pedido, n: (atual?.n ?? 0) + 1 }));
+              setModoSelecao("criterios");
+            } } : null}
             onVerAnalise={() => escolherAba(def.familia)}/>
         </> : <>
           {/* A faixa fixa do lugar em uso (06/11/2026, item 2.2): no alto de todas as abas de análise; no nível da unidade, o cartão. */}

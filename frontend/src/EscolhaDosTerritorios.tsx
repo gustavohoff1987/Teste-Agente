@@ -45,6 +45,9 @@ export type EscolhaDosTerritoriosProps = {
   onCalcular: (consulta: ConsultaTerritorios) => void;
   /** A seleção em uso está vazia (a base fica incompleta) e o caminho para mudá-la (a Seleção de Territórios). */
   selecaoVazia: boolean; onAlterarSelecao: () => void;
+  /** Os conjuntos da seleção (07/11/2026, item 6.4 do comando de 07/11/2026): entram inteiros na base, e os filtros dela valem só para
+   * as unidades; uma seleção só com conjuntos vale como base. */
+  conjuntos?: { id: string; rotulo: string; membros: string[] }[];
 };
 
 /** Opções do menu "Partir de"; "uma região" e "mais de uma região" (e os estados) são a mesma escolha na consulta, com uma ou mais. */
@@ -260,8 +263,13 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
         <legend>1. A seleção em uso</legend>
         <p className="territorios-apoio" data-testid="territorios-base-selecao-texto">{p.selecaoVazia
           ? "Nenhum território na seleção em uso: escolha " + (femUnidade ? "as " : "os ") + unidade.plural + " na Seleção de Territórios."
-          : !previa ? (carregando ? "Contando…" : "") : "A base é a seleção em uso, a da Seleção de Territórios: " + previa.nomes.join(", ") +
+          : !previa ? (carregando ? "Contando…" : "") : !previa.total && p.conjuntos?.length ? "A base são os conjuntos da seleção em uso."
+            : "A base é a seleção em uso, a da Seleção de Territórios: " + previa.nomes.join(", ") +
             (resto > 0 ? " e mais " + formatarInteiro(resto) : "") + "."}</p>
+        {!!p.conjuntos?.length && <p className="territorios-apoio" data-testid="territorios-base-conjuntos">Os conjuntos da seleção entram
+          inteiros (os filtros valem só para {femUnidade ? "as " : "os "}{unidade.plural}): {p.conjuntos.map(conjunto => conjunto.rotulo + " (" +
+            quantos(conjunto.membros.length, unidade) + ")").join(", ")}. Cada membro vai até a sua referência mais próxima, e o conjunto
+          mostra a menor distância, com a referência desse membro, e a maior.</p>}
         <button type="button" data-testid="territorios-base-alterar" className="analise-botao-secundario" onClick={p.onAlterarSelecao}>
           Alterar a seleção</button>
         <p className="territorios-contagem" data-testid="territorios-base-contagem-partir">{contagem(contagens?.partirDe)}</p>

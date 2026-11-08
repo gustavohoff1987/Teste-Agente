@@ -379,7 +379,9 @@ test('conjunto rotulado como soma das contagens dos componentes, com possível d
     variacao: false, tendencia: false, nomes: new Map(), rotulos: DISTRITOS});
   assert.equal(distrito.subtitulo, 'Distrito · AM');
   const novo = M.novoConjunto([{id: 'c1', rotulo: 'Interior', membros: []}], ['code:1', 'code:2', 'code:1'], '  ');
-  assert.deepEqual(novo, {id: 'c2', rotulo: 'Conjunto 2', membros: ['code:1', 'code:2']});
+  // Desde 07/11/2026 (item 8.2 do comando de 07/11/2026; muda de propósito), sem nome, a próxima letra livre (antes, "Conjunto 2").
+  assert.deepEqual(novo, {id: 'c2', rotulo: 'Conjunto A', membros: ['code:1', 'code:2']});
+  assert.equal(M.novoConjunto([{id: 'c1', rotulo: 'Conjunto A', membros: []}], ['code:3', 'code:4'], '').rotulo, 'Conjunto B');
 });
 
 test('estados em bolhas: a dica mostra a ação de ver os municípios do estado', () => {
@@ -842,7 +844,8 @@ test('comando da conversa aplicado ao gráfico: cada campo validado; o que não 
   // dos membros, eles ficavam ao lado, e a gaveta Juntar abria).
   const junta = M.aplicarPedido(def, {funcao: 'juntar', selecao: ['code:130260', 'code:130420', 'code:130340']}, c);
   // Vendo por estado, sem municípios na seleção, nenhum membro sai dela (retirados vazio).
-  assert.deepEqual(junta.definicao.conjuntos, [{id: 'c1', rotulo: 'Grupo 1', membros: ['code:130260', 'code:130420', 'code:130340'],
+  // Desde 07/11/2026 (item 8.2 do comando de 07/11/2026; muda de propósito), o nome padrão é "Conjunto A" (antes, "Grupo 1").
+  assert.deepEqual(junta.definicao.conjuntos, [{id: 'c1', rotulo: 'Conjunto A', membros: ['code:130260', 'code:130420', 'code:130340'],
     substitui: true, retirados: []}]);
   assert.deepEqual(junta.selecao, ['c1']);
   assert.equal(junta.definicao.nivel, 'municipios');
@@ -861,7 +864,7 @@ test('comando da conversa aplicado ao gráfico: cada campo validado; o que não 
   // A agregação sem nomes (uma alternativa escolhida na conversa) abria a gaveta Juntar, que saiu: a resposta diz o caminho, e
   // nada muda. Sem lugar para um grupo novo, o limite é dito.
   const semNomes = M.aplicarPedido(def, {funcao: 'juntar'}, c);
-  assert.ok(semNomes.mensagens.includes('Para agregar, use Agregar territórios, na Seleção de Territórios, ou diga os nomes no pedido.'),
+  assert.ok(semNomes.mensagens.includes('Para agrupar, use Agrupar territórios, na Seleção de Territórios, ou diga os nomes no pedido.'),
     semNomes.mensagens);
   assert.deepEqual([semNomes.definicao.conjuntos, semNomes.abrir], [[], null]);
   const cheios = Array.from({length: M.MAX_CONJUNTOS}, (_, i) => ({id: 'c' + (i + 1), rotulo: 'G' + (i + 1), membros: ['code:130260', 'code:130420']}));
@@ -1276,6 +1279,17 @@ test('rótulos das bolhas (05/11/2026): sem lugar dos dois lados, o nome fica ce
   assert.equal(M.posicionarRotulos([{id: 'b', x: 60, y: 100, r: 6, largura: 80}], 244, 16, 52).get('b').ancora, 'start');
   assert.equal(M.posicionarRotulos([{id: 'c', x: 230, y: 100, r: 6, largura: 80}], 244, 16, 52).get('c').ancora, 'end');
   assert.equal(M.posicionarRotulos([{id: 'd', x: 150, y: 100, r: 6, largura: 170}], 244).get('d').ancora, 'end');
+});
+
+test('os nomes dos conjuntos (07/11/2026, itens 8.2 e 8.3 do comando de 07/11/2026): Conjunto A, B…, depois de Z, AA; sem repetir', () => {
+  assert.deepEqual([0, 1, 25, 26, 27, 51, 52, 701, 702].map(M.letrasDoConjunto), ['A', 'B', 'Z', 'AA', 'AB', 'AZ', 'BA', 'ZZ', 'AAA']);
+  assert.deepEqual(M.nomesLivresDeConjunto([], 3), ['Conjunto A', 'Conjunto B', 'Conjunto C']);
+  // Junto com a seleção atual, as letras continuam da próxima livre, sem repetir as que já estão na análise (em maiúsculas ou não).
+  assert.deepEqual(M.nomesLivresDeConjunto(['Conjunto A', 'conjunto c', 'Carajás'], 3), ['Conjunto B', 'Conjunto D', 'Conjunto E']);
+  assert.equal(M.nomesLivresDeConjunto(Array.from({length: 26}, (_, i) => 'Conjunto ' + M.letrasDoConjunto(i)), 1)[0], 'Conjunto AA');
+  assert.equal(M.nomeRepetido(' carajás ', ['Carajás', 'Conjunto A']), true);
+  assert.equal(M.nomeRepetido('Carajás do Sul', ['Carajás']), false);
+  assert.equal(M.TEXTO_MAX_GRUPOS, 'A análise já tem 50 conjuntos, o máximo: desfaça um deles para agrupar outro.');
 });
 
 test('Agregar territórios (06/11/2026, item 5): os membros saem da seleção e voltam ao desfazer, pela exclusão da árvore', () => {

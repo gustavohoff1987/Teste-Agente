@@ -133,6 +133,27 @@ test('pintura do mapa: a camada do gráfico, a cor contínua da rotatividade ou 
     ['Coorte inicial', null, 120]);
 });
 
+test('a distância do conjunto na Escolha dos territórios (07/11/2026, item 6.6 do comando de 07/11/2026): a referência do membro mais próximo', () => {
+  const r = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', indicador: 'densidade',
+    itens: [{...municipio('c1', 'Conjunto A', {distancia_km: 12.5, distancia_km_max: 40.25, referencia_do_item: {id: 'code:1500107',
+      rotulo: 'ABAETETUBA (PA)', empate: [], membro: {id: 'code:1503002', rotulo: 'IGARAPE-MIRI (PA)'}}}), tipo: 'conjunto',
+      membros: ['code:1503002', 'code:1504703']}, municipio('code:1501303', 'BAGRE (PA)', {distancia_km: 30,
+      referencia_do_item: {id: 'code:1500107', rotulo: 'ABAETETUBA (PA)', empate: []}})]});
+  const [conjunto, unidade] = r.itens;
+  assert.deepEqual(conjunto.membroDaReferencia, {id: 'code:1503002', rotulo: 'IGARAPE-MIRI (PA)'});
+  assert.deepEqual(conjunto.referenciaDoItem, [{id: 'code:1500107', rotulo: 'ABAETETUBA (PA)'}]);
+  assert.equal(unidade.membroDaReferencia, null);
+  // A dica: a menor distância (a do membro mais próximo), a maior, a referência desse membro e o membro.
+  const dica = M.montarDica(conjunto, {indicador: 'densidade', competencia: '202406', competenciaInicial: null, distancia: true, variacao: false,
+    tendencia: false, nomes: new Map(), rotulos: BR, porItem: true});
+  assert.deepEqual(dica.linhas.filter(linha => /Distância|referência/i.test(linha.rotulo)).map(linha => [linha.rotulo, linha.valor]),
+    [['Distância até a referência mais próxima', '12,50 km'], ['Distância (membro mais distante)', '40,25 km'],
+      ['Referência mais próxima', 'ABAETETUBA (PA)'], ['Membro mais próximo da referência', 'IGARAPE-MIRI (PA)']]);
+  // No mapa, a ligação do conjunto sai do membro mais próximo (antes, as ligações eram só das unidades).
+  assert.deepEqual(M.ligacoesDoMapa(r.itens, ['c1', 'code:1501303']),
+    [{de: 'code:1503002', para: ['code:1500107']}, {de: 'code:1501303', para: ['code:1500107']}]);
+});
+
 test('ligações ilustrativas do mapa: só das unidades selecionadas, até a referência mais próxima do motor (com o empate), até 30', () => {
   const manaus = {id: 'code:130260', rotulo: 'MANAUS (AM)'};
   const itens = [municipio('code:130260', 'MANAUS (AM)', {referencia: true}),

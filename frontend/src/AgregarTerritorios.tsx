@@ -1,28 +1,37 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
+import MapaDosConjuntos from "./MapaDosConjuntos";
 import {
-  artigo, grupoDaUnidade, maiuscula, nomeDaUnidade, quantos, RESSALVA_DA_SOMA, type GrupoInfo, type RotulosTerritoriais,
+  artigo, formatarNumero, grupoDaUnidade, maiuscula, nomeDaUnidade, nomeRepetido, quantos, RESSALVA_DA_SOMA, type GrupoInfo, type RotulosTerritoriais,
   type UnidadeDoCatalogo,
 } from "./painelModel";
 
-// Agregar territórios (06/11/2026, item 5 do comando de navegação por níveis; no lugar do Juntar das Ferramentas das análises): na
-// Seleção de Territórios, um painel com a mesma busca da Seleção (digitar e marcar) e a lista de um grupo da base para marcar (a
-// árvore: escolher o estado e marcar os municípios dele), os escolhidos em etiquetas com ×, o nome do grupo (a sugestão "Grupo N",
-// editável), a opção "O grupo fica no lugar dos membros" (marcada) e "Criar grupo". Vale juntar unidades de grupos diferentes
-// (municípios de estados diferentes). A soma é do motor (CAP-AGR-01), com a ressalva; nada é calculado aqui. O mesmo painel edita um
-// grupo (✎): o nome e os membros.
+// "Agrupar territórios" (07/11/2026, comando de 07/11/2026, itens 1, 7.8 e 8; antes, "Agregar territórios", do comando de navegação
+// por níveis de 06/11/2026), um dos modos da Seleção de Territórios: o mini mapa no alto, que também é um jeito de escolher (tocar num
+// ponto cinza põe o território no conjunto; num ponto cheio, tira; a linha-resumo diz o que mudou e a extensão de ponta a ponta, que o
+// motor mede), a mesma busca da Seleção, a lista de um grupo da base para marcar (o caminho pelo teclado), os escolhidos em etiquetas
+// com ×, o nome do conjunto (a sugestão "Conjunto A"…, editável, sem repetir o de outro conjunto da análise), a opção "O conjunto fica
+// no lugar dos membros" (marcada) e "Criar conjunto". Vale juntar unidades de grupos diferentes. A soma é do motor (CAP-AGR-01), com a
+// ressalva; nada é calculado aqui. O mesmo modo edita um conjunto (✎): o nome e os membros.
 
 export type GrupoAgregado = { rotulo: string; membros: string[]; substitui: boolean };
 
 type Props = {
   unidades: UnidadeDoCatalogo[];
   rotulos: RotulosTerritoriais;
-  /** Os grupos da base (os estados): a lista de um deles é a árvore do painel. Sem grupos, a lista é a de todas as unidades. */
+  /** Os grupos da base (os estados): a lista de um deles é a árvore do modo. Sem grupos, a lista é a de todas as unidades. */
   grupos: GrupoInfo[];
-  /** O nome sugerido ("Grupo 1"). */
+  /** O nome sugerido ("Conjunto A", a próxima letra livre). */
   sugestao: string;
-  /** O grupo em edição (✎); sem ele, um grupo novo. */
+  /** Os nomes dos outros conjuntos da análise (o nome não pode repetir nenhum). */
+  nomesDosOutros: string[];
+  /** O conjunto em edição (✎) ou os marcados na lista ("Agrupar os marcados"); sem ele, um conjunto novo vazio. */
   inicial?: GrupoAgregado | null;
+  editando?: boolean;
+  /** Coordenadas autorizadas para o mini mapa (do motor), só para desenhar. */
+  coordenadas: Map<string, [number, number]> | null;
+  /** A extensão de ponta a ponta dos escolhidos (km), medida pelo motor; null quando não dá para medir. */
+  medirExtensao?: (membros: string[], signal: AbortSignal) => Promise<number | null>;
   onCriar: (grupo: GrupoAgregado) => void;
   onCancelar: () => void;
 };
@@ -30,21 +39,24 @@ type Props = {
 const sem = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const comparar = (a: string, b: string) => a.localeCompare(b, "pt-BR", { numeric: true });
 const LIMITE = 20;
+const ESPERA_DA_EXTENSAO = 300;
 
 export default function AgregarTerritorios(p: Props) {
   const [consulta, setConsulta] = useState("");
   const [membros, setMembros] = useState<string[]>(() => [...(p.inicial?.membros ?? [])]);
-  const [nome, setNome] = useState(() => p.inicial?.rotulo ?? p.sugestao);
+  const [nome, setNome] = useState(() => p.inicial?.rotulo || p.sugestao);
   const [substitui, setSubstitui] = useState(() => p.inicial?.substitui ?? true);
+  const [mudanca, setMudanca] = useState("");
+  const [extensao, setExtensao] = useState<{ chave: string; km: number | null } | null>(null);
   const temGrupos = p.grupos.length > 0;
-  // A árvore do painel: o grupo escolhido na lista (nenhum de início) ou, numa base sem grupos, a lista de todas as unidades, aberta
-  // pelo botão.
-  const [grupo, setGrupo] = useState("");
+  // A árvore do modo: o grupo escolhido na lista (de início, o do primeiro escolhido) ou, numa base sem grupos, a lista de todas as
+  // unidades, aberta pelo botão.
+  const porId = useMemo(() => new Map(p.unidades.map(item => [item.id, item])), [p.unidades]);
+  const [grupo, setGrupo] = useState(() => { const primeiro = membros[0] ? porId.get(membros[0]) : undefined; return primeiro ? grupoDaUnidade(primeiro) : ""; });
   const [verLista, setVerLista] = useState(false);
   const buscaRef = useRef<HTMLInputElement>(null);
   const unidade = p.rotulos.unidade, grupoRotulo = p.rotulos.grupo ?? { singular: "grupo", plural: "grupos" };
   const generoF = artigo(unidade, false) === "a", generoGrupoF = artigo(grupoRotulo, false) === "a";
-  const porId = useMemo(() => new Map(p.unidades.map(item => [item.id, item])), [p.unidades]);
   const nomeDoGrupo = useMemo(() => new Map(p.grupos.map(item => [item.id, item.nome])), [p.grupos]);
   const termo = sem(consulta.trim());
   const resultados = useMemo(() => termo.length < 2 ? [] : p.unidades.filter(item => sem(item.name || item.label).includes(termo) ||
@@ -53,9 +65,37 @@ export default function AgregarTerritorios(p: Props) {
   const lista = useMemo(() => (temGrupos ? (grupo ? p.unidades.filter(item => grupoDaUnidade(item) === grupo) : [])
     : verLista ? p.unidades : []).slice().sort((a, b) => comparar(nomeDaUnidade(a), nomeDaUnidade(b))), [p.unidades, grupo, temGrupos, verLista]);
   const rotulo = (id: string) => { const item = porId.get(id); return item ? nomeDaUnidade(item) : id; };
-  const alternar = (id: string) => setMembros(atual => atual.includes(id) ? atual.filter(item => item !== id) : [...atual, id]);
-  const editando = !!p.inicial;
-  const pronto = membros.length >= 2 && !!nome.trim();
+  const alternar = (id: string) => {
+    const saiu = membros.includes(id);
+    setMembros(atual => saiu ? atual.filter(item => item !== id) : [...atual, id]);
+    setMudanca(rotulo(id) + (saiu ? " saiu do conjunto." : " entrou no conjunto."));
+  };
+  const editando = !!p.editando;
+  const repetido = nomeRepetido(nome, p.nomesDosOutros);
+  const pronto = membros.length >= 2 && !!nome.trim() && !repetido;
+
+  // A extensão de ponta a ponta, pelo motor, a cada mudança nos escolhidos (espera curta e o pedido anterior cancelado).
+  const chaveDaExtensao = [...membros].sort().join(",");
+  useEffect(() => {
+    if (!p.medirExtensao || membros.length < 2) return;
+    const controle = new AbortController();
+    const espera = setTimeout(() => {
+      p.medirExtensao!(membros, controle.signal).then(km => { if (!controle.signal.aborted) setExtensao({ chave: chaveDaExtensao, km }); })
+        .catch(() => { if (!controle.signal.aborted) setExtensao({ chave: chaveDaExtensao, km: null }); });
+    }, ESPERA_DA_EXTENSAO);
+    return () => { clearTimeout(espera); controle.abort(); };
+  }, [chaveDaExtensao]);
+  const kmAtual = extensao && extensao.chave === chaveDaExtensao ? extensao.km : null;
+  const resumo = quantos(membros.length, unidade) + (membros.length >= 2 && kmAtual !== null
+    ? " · " + formatarNumero(Math.round(kmAtual), true) + " km de ponta a ponta" : "");
+
+  // O mini mapa (item 7.8): os escolhidos, cheios, no contorno do conjunto; em cinza claro, os demais do grupo aberto na lista e dos
+  // grupos dos escolhidos, para situar.
+  const fundo = useMemo(() => {
+    const gruposVisiveis = new Set([grupo, ...membros.map(id => { const item = porId.get(id); return item ? grupoDaUnidade(item) : ""; })]
+      .filter(Boolean));
+    return p.unidades.filter(item => !item.selection_reason && (temGrupos ? gruposVisiveis.has(grupoDaUnidade(item)) : true)).map(item => item.id);
+  }, [p.unidades, grupo, membros, temGrupos, porId]);
   const caixa = (item: UnidadeDoCatalogo, comGrupo: boolean) => {
     const nomeGrupo = comGrupo && temGrupos ? nomeDoGrupo.get(grupoDaUnidade(item)) : "";
     return <label className="analise-caixa analise-agregar-caixa">
@@ -64,11 +104,18 @@ export default function AgregarTerritorios(p: Props) {
     </label>;
   };
   return <section data-testid="analise-agregar" aria-labelledby="analise-agregar-titulo" className="analise-agregar">
-    <h4 id="analise-agregar-titulo" className="analise-agregar-titulo">{editando ? "Editar o grupo" : "Agregar territórios"}</h4>
-    <p className="analise-agregar-apoio">Busque ou marque {generoF ? "duas" : "dois"} ou mais {unidade.plural}
-      {temGrupos ? ", também de " + grupoRotulo.plural + " diferentes" : ""}; o grupo vira um território da análise.</p>
+    <h4 id="analise-agregar-titulo" className="analise-agregar-titulo">{editando ? "Editar o conjunto" : "Agrupar territórios"}</h4>
+    <div className="analise-criterios-alto">
+      <p data-testid="analise-agregar-resumo" className="analise-criterios-resumo" aria-live="polite">{resumo}{mudanca ? " · " + mudanca : ""}</p>
+      {p.coordenadas && <MapaDosConjuntos coordenadas={p.coordenadas} fundo={fundo} conjuntos={[{ id: "novo", nome: nome.trim() || p.sugestao, membros }]}
+        nomeDe={rotulo} onTocar={alternar} rotulo={"Mini mapa do conjunto: " + resumo + ". Toque num ponto para pôr ou tirar " + (generoF ? "a " : "o ") +
+          unidade.singular + "."} vazio={"O mapa aparece com " + (generoF ? "a primeira escolhida" : "o primeiro escolhido") +
+          (temGrupos ? " ou com a lista de " + (generoGrupoF ? "uma " : "um ") + grupoRotulo.singular + " aberta" : "") + "."}/>}
+    </div>
+    <p className="analise-agregar-apoio">Busque, marque ou toque no mapa {generoF ? "duas" : "dois"} ou mais {unidade.plural}
+      {temGrupos ? ", também de " + grupoRotulo.plural + " diferentes" : ""}; o conjunto vira um território da análise.</p>
     <div className="analise-busca">
-      <label className="sr-only" htmlFor="analise-agregar-busca">Buscar {unidade.singular} para o grupo</label>
+      <label className="sr-only" htmlFor="analise-agregar-busca">Buscar {unidade.singular} para o conjunto</label>
       <Search size={16} aria-hidden="true" className="analise-busca-icone"/>
       <input ref={buscaRef} id="analise-agregar-busca" type="search" data-testid="analise-agregar-busca" value={consulta} autoComplete="off"
         onChange={event => setConsulta(event.target.value)} placeholder={"Buscar " + unidade.singular} className="analise-campo analise-busca-campo"/>
@@ -96,22 +143,23 @@ export default function AgregarTerritorios(p: Props) {
     {membros.length > 0 ? <ul data-testid="analise-agregar-membros" className="analise-selecionado-unidades"
       aria-labelledby="analise-agregar-escolhidos" aria-describedby="analise-agregar-quantos">
       {membros.map(id => <li key={id} data-testid="analise-agregar-membro" data-id={id} className="analise-etiqueta">{rotulo(id)}
-        <button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Tirar " + rotulo(id) + " do grupo"}
+        <button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Tirar " + rotulo(id) + " do conjunto"}
           onClick={() => alternar(id)}><X size={13} aria-hidden="true"/></button></li>)}
     </ul> : <p className="analise-agregar-apoio">Nenhum{generoF ? "a" : ""} {unidade.singular} escolhid{generoF ? "a" : "o"} ainda.</p>}
     <span id="analise-agregar-quantos" className="sr-only">{quantos(membros.length, unidade)}</span>
-    <label className="analise-rotulo-campo">Nome do grupo
-      <input data-testid="analise-agregar-nome" value={nome} maxLength={60} onChange={event => setNome(event.target.value)}
+    <label className="analise-rotulo-campo">Nome do conjunto
+      <input data-testid="analise-agregar-nome" value={nome} maxLength={60} aria-invalid={repetido || !nome.trim()} onChange={event => setNome(event.target.value)}
         className="analise-campo"/>
     </label>
+    {repetido && <p role="alert" data-testid="analise-agregar-nome-repetido" className="analise-faixa-erro">Já existe um conjunto com esse nome na análise.</p>}
     <label className="analise-caixa analise-agregar-opcao">
       <input type="checkbox" data-testid="analise-agregar-substitui" checked={substitui} onChange={event => setSubstitui(event.target.checked)}/>
-      <span>O grupo fica no lugar dos membros</span>
+      <span>O conjunto fica no lugar dos membros</span>
     </label>
     <p data-testid="analise-agregar-ressalva" className="analise-ressalva">{RESSALVA_DA_SOMA}</p>
-    <div className="analise-agregar-acoes">
+    <div className="analise-criterios-rodape analise-agregar-acoes">
       <button type="button" data-testid="analise-agregar-criar" className="analise-botao-primario" disabled={!pronto}
-        onClick={() => p.onCriar({ rotulo: nome.trim(), membros, substitui })}>{editando ? "Salvar grupo" : "Criar grupo"}</button>
+        onClick={() => p.onCriar({ rotulo: nome.trim(), membros, substitui })}>{editando ? "Salvar conjunto" : "Criar conjunto"}</button>
       <button type="button" data-testid="analise-agregar-cancelar" className="analise-botao-secundario" onClick={p.onCancelar}>Cancelar</button>
     </div>
   </section>;

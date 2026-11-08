@@ -35,6 +35,130 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Seleção por critérios de ponta a ponta, parte B (comando de 07/11/2026, itens 1 a 3, 4.1 a 4.3, 5, 6.4, 6.6, 7, 8 e 9): a tela
+- **Classificação (regra 1):** a mesma da parte A (abaixo), feita pela leitura no início, para os nove itens: todos mudam
+  comportamento, decorrem do comando e não contrariam a SPEC nem uma divergência aprovada.
+  - O fim do item 6.6 continua como está, pela premissa que não vale (parte A); a dúvida vai ao responsável no fim da rodada.
+  - A imagem de referência do mini mapa (item 7.6, `modelo_mapa_previa_conjuntos.png`) não veio: o caminho ficou em branco no
+    comando, e o arquivo não está na área de trabalho, em Downloads, Imagens nem Documentos. O estilo segue a descrição do item
+    7.6, e a imagem vai ao responsável no fim da rodada.
+  - Surgidas na implementação, também previstas: o `data-testid` das caixas de "Onde procurar" (`analise-criterios-onde-estado`
+    e `analise-criterios-onde-regiao`), separado da linha de estado (`analise-criterios-estado`), e o nome de reserva de um
+    conjunto sem nome, que segue as letras do item 8.2.
+- **Antes:**
+  - **A Seleção de Territórios** tinha as Ferramentas Buscar, Agregar territórios e Selecionar por critérios. Os painéis abriam
+    empilhados acima da árvore e podiam ficar abertos juntos.
+  - **Onde procurar**, aberto direto, mostrava só o todo: "o lugar em uso" dependia da trilha, e "a seleção atual" dependia de
+    haver marcados e de o "Ver por" ser Município. Não havia regiões, nem na árvore do Brasil.
+  - **O campo de km** ficava dentro do rótulo da caixa "Agrupar…" e pegava a regra das caixas de marcar (16 px de largura: o
+    número digitado não aparecia).
+  - **A prévia** só saía com "Ver a prévia", embaixo, num mapa de 220 × 150 px, e listava só quantos eram, os estados e a
+    extensão. O resultado sempre substituía a seleção, inclusive os conjuntos criados antes. Com mais de 50 conjuntos, o botão
+    aparecia, e o clique dizia "A análise já tem 50 grupos…", sem nada acontecer.
+  - **No mapa da análise**, todos os membros de todos os conjuntos ganhavam o mesmo anel escuro.
+  - **Na Escolha dos territórios**, o conjunto não tinha distância, e a aba Base não o mostrava.
+  - **O vocabulário** era "agregar", "grupo" e "território agregado": "Criar grupo", "Salvar grupo", "Nome do grupo" ("Grupo
+    1"), "O grupo fica no lugar dos membros", "Desfazer o grupo …", "Carajás · grupo · 2 municípios", "Como seleção", "Cada
+    grupo como território agregado", "Agreguei …" na conversa e, no motor, "Grupos de condados … use Agregar territórios".
+- **Agora:**
+  - **Uma ferramenta por vez** (item 1): no alto da coluna da esquerda, os modos "Marcar na lista" (o de início: a busca e a
+    árvore, sem o botão Buscar), "Por critérios" e "Agrupar territórios". Só o modo escolhido aparece; "Na análise" fica sempre
+    à vista. Trocar de modo não apaga o rascunho; só "Cancelar" apaga. Concluir ou cancelar volta à lista, com o resultado já
+    marcado. A conversa, "Usar como seleção" das Condições e "Reaplicar em outra competência" abrem "Por critérios"; o ✎ abre
+    "Agrupar territórios".
+  - **Onde procurar sempre completo** (item 2), com os nomes da base:
+    - o todo; as regiões (o grupo de cima); os estados (os grupos); e "Os marcados na lista (N)";
+    - sem marcados, a opção fica inativa, com o botão "Marcar na lista", que troca de modo sem perder o rascunho; vendo por
+      estado, valem os estados marcados;
+    - o lugar em uso na trilha vem pré-escolhido (o estado ou a região).
+  - **As regiões na árvore do Brasil** (item 3): Brasil › região › estado › município. Marcar a região marca os estados dela
+    ("Todos os municípios da Região Norte marcados."). O "Ver por", a trilha e a faixa do lugar continuam como antes.
+  - **Os passos** (item 4): o formulário vira os passos 1. Onde procurar, 2. Critérios (com a competência) e 3. Agrupar por
+    proximidade (opcional), com "Não agrupar" (o padrão) ou "Agrupar os que ficam perto uns dos outros".
+    - Agrupando, aparece o campo "Distância máxima entre os membros do conjunto (km)": vazio, fora de qualquer rótulo e da
+      largura dos outros campos. Abaixo dele, a linha "Todos os territórios de um conjunto ficam a até essa distância uns dos
+      outros.". A regra das caixas de marcar (`.analise-caixa input`) vale só para caixas e botões de opção.
+    - Com mais de 50 conjuntos (contando, junto, os da análise), a linha de estado avisa, e "Usar cada conjunto como um
+      território" fica inativo, com o motivo.
+  - **O resultado na análise** (item 5):
+    - o rodapé fixo tem "Usar como seleção (N)", "Usar cada conjunto como um território" e "Cancelar";
+    - com algo na análise, a pessoa escolhe "No lugar da seleção atual" (o padrão) ou "Junto com a seleção atual" (os conjuntos
+      novos se somam aos que já existem, e as unidades às marcadas);
+    - com conjuntos, a caixa "Levar também os N sem conjunto" vem marcada.
+  - **A prévia ao vivo e o mini mapa** (item 7):
+    - **No alto de "Por critérios":** a linha-resumo ("40 atendem · 9 conjuntos · o maior com 90 km · 16 sem conjunto") e o mini
+      mapa ficam fixos ao rolar (em tela estreita, só a linha-resumo).
+    - **A prévia se atualiza sozinha** a cada ajuste, com espera de 300 ms e o pedido anterior cancelado; "Ver a prévia" saiu.
+      Com algo faltando ou um valor incompleto, o último resultado fica esmaecido, e a linha de estado diz o que falta ("Falta
+      o valor do critério 1.", "Falta a distância do agrupamento.", "Escolha ao menos uma região.").
+    - **O desenho do mini mapa:** onde procurar em cinza claro, os que atendem em destaque, os membros cheios dentro do
+      contorno tracejado de cada conjunto, com o nome, e os sem conjunto vazados, com o nome. Há a barra de escala da distância,
+      a legenda "tracejado: conjunto · vazados: sem conjunto" e o nome ao passar o mouse.
+    - **A lista "Ver os N conjuntos"** mostra o nome editável e os nomes dos membros.
+    - **Em "Agrupar territórios"** (também pelo ✎), o mini mapa escolhe: tocar num ponto cinza põe; num cheio, tira. A
+      linha-resumo diz "5 municípios · 42 km de ponta a ponta" (a extensão vem do motor) e o que mudou ("Moju entrou no
+      conjunto.").
+    - **Em "Na análise",** "Ver os conjuntos no mapa" mostra todos os conjuntos da seleção.
+    - **No mapa da análise,** cada conjunto tem o próprio contorno tracejado com o nome, sem as cores das classes. Tocar
+      dentro dele destaca o conjunto, e a legenda dos símbolos explica o contorno.
+  - **A distância dos conjuntos na tela** (itens 6.4 e 6.6):
+    - a aba Base da Escolha dos territórios mostra os conjuntos da seleção (eles entram inteiros, e os filtros valem só para as
+      unidades), e uma seleção só com conjuntos vale como base;
+    - a dica mostra "Referência mais próxima" e "Membro mais próximo da referência";
+    - no mapa, a ligação até a referência sai do membro mais próximo;
+    - nos Detalhes, a distância "X a Y" e a referência.
+  - **Agrupar e conjunto** (item 8), na tela e na conversa:
+    - os textos da tela: "Agrupar territórios", "Nome do conjunto", "Criar conjunto", "Salvar conjunto", "Editar o conjunto",
+      "O conjunto fica no lugar dos membros", "Desfazer o conjunto …", "Usar cada conjunto como um território" e "Carajás ·
+      conjunto · 2 municípios · …";
+    - na conversa: "Agrupei …", "agrupe … como …", "Uma função por vez: comparar lado a lado ou agrupar num conjunto?" com
+      "Agrupar", "Para agrupar, diga os nomes; todos de uma vez não formam um conjunto útil." e "A análise já tem 50 conjuntos,
+      o máximo: desfaça um deles para agrupar outro.";
+    - no motor: "Conjuntos de condados não estão disponíveis no gráfico; use Agrupar territórios com comunas.";
+    - **os nomes:** "Conjunto" e a próxima letra livre (A…Z, AA…), também o nome de reserva de um conjunto sem nome (antes,
+      "Conjunto 2"). Em "Por critérios", as letras recomeçam no lugar da seleção e continuam junto com ela. O nome é editável e
+      não pode repetir o de outro conjunto da análise, sem distinguir maiúsculas ("Já existe um conjunto com esse nome na
+      análise.").
+  - **Agrupar os marcados** (item 9.2): em "Marcar na lista", com dois a 500 marcados, o botão "Agrupar os marcados (N)" abre
+    "Agrupar territórios" com eles escolhidos. Agrupando, os critérios de valor são opcionais também na tela (item 9.1).
+- **Permanece:**
+  - a soma do motor (CAP-AGR-01) e a ressalva da soma;
+  - os números das unidades e dos conjuntos;
+  - o limite de 2.000 para agrupar;
+  - "Grupo" no nível da base (o estado, o grupo de cima, o grupo da planilha);
+  - o "Ver por", a trilha e a faixa do lugar;
+  - a regra na trilha, no método e nos Detalhes;
+  - nada é sugerido e nada vai ao provedor de IA;
+  - os conjuntos fora das faixas, da ordenação e das condições de distância.
+- **Motivo:** comando do responsável de 07/11/2026; a parte A trouxe o motor e a conversa.
+- **Documentação e testes:**
+  - **Documentação:**
+    - `Docs/PAINEL_INTEGRADO_INTERFACE.md`: a Seleção (os modos, o mini mapa, "Por critérios", "Agrupar territórios", "Agrupar
+      os marcados", "Na análise" e a árvore com as regiões), a trilha, o Desfazer, a Análise Espacial com os conjuntos, o mapa,
+      as Funções, os Detalhes, as limitações e os testes;
+    - `Docs/MAPA_DA_PAGINA_UNICA.md`: o contorno tracejado;
+    - `Docs/CONVERSACAO_INCREMENTO_FN.md` e `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md`: o vocabulário da conversa;
+    - `README.md`: os modos da Seleção.
+  - **Testes novos:**
+    - `frontend/tests/painel.test.mjs`: as letras e os nomes livres dos conjuntos, o nome repetido e o texto do limite;
+    - `frontend/tests/areaDeAnalise.test.mjs`: a referência do conjunto na leitura da resposta, na dica e na ligação do mapa;
+    - `backend/tests/test_conversa_grafico.py`: "agrupe … como …", a pergunta "comparar ou agrupar" e "agrupe todos";
+    - `backend/tests/ui_criterios.py`, reescrito para o comando, com a base versionada: os três modos, a prévia ao vivo, o
+      valor incompleto, o campo de km, os contornos, 0,5 → 0,7 sem clicar, as saídas no lugar e junto, as letras, o Pará a 100 km
+      e a 50 km, a conversa, as regiões na árvore, o lugar pré-escolhido, "Agrupar os marcados" com o mini mapa que escolhe, os
+      nomes únicos, o contorno no mapa da análise e o exemplo do objetivo (Norte, a 100 km entre si, só os conjuntos, Análise
+      Espacial com a Referência a partir de 1: a distância e a referência de cada conjunto, também nos Detalhes).
+  - **Testes que mudam de propósito** (o comportamento mudou, não o teste):
+    - `ui_navegacao.py`, passo 14: os modos no lugar das Ferramentas, "Conjunto A", "· conjunto ·", "Salvar conjunto",
+      "Desfazer o conjunto …" e "Agrupei …";
+    - `ui_area_de_analise.py`, passo 12: o modo "Agrupar territórios", "Conjunto A" e "· conjunto ·";
+    - `ui_execucao_conversa.py` e `conversaGrafico.test.mjs`: "Agrupei" entre as frases que só valem com a execução
+      confirmada;
+    - `ui_planilha_ficticia.py` e `conversaGrafico.test.mjs`: "comparar, agrupar, usar como referência";
+    - `painel.test.mjs`: "Conjunto A" no lugar de "Grupo 1" e de "Conjunto 2", e "Para agrupar, use Agrupar territórios…";
+    - `test_conversa_grafico.py`: "Agrupei … num conjunto";
+    - `test_contexto_conversa.py`: "Agrupar territórios" entre as funções da página.
+
 ### 2026-11-07 · Seleção por critérios de ponta a ponta, parte A (comando de 07/11/2026, itens 4.4, 6, 8.2 e 9.1): o motor e a conversa
 - **Classificação (regra 1), pela leitura, antes de codar:** os nove itens do comando de 07/11/2026 ("seleção por critérios de
   ponta a ponta e navegação da Seleção de Territórios") foram classificados de uma vez, no início. Todos mudam comportamento e

@@ -2362,9 +2362,10 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
     if not (comparar or juntar or dica in ("comparisons", "aggregate") or pendente):
         return None
     if comparar and juntar:
-        return _pergunta("Uma função por vez: comparar lado a lado ou agregar num grupo?" + NADA_MUDOU,
+        # Desde 07/11/2026 (item 8.1 do comando de 07/11/2026), o verbo é "agrupar" e o resultado, "conjunto".
+        return _pergunta("Uma função por vez: comparar lado a lado ou agrupar num conjunto?" + NADA_MUDOU,
                          [_escolha("Comparar", pedido.reescreve(juntar.start(), juntar.end(), "").strip() or "compare"),
-                          _escolha("Agregar", pedido.reescreve(comparar.start(), comparar.end(), "").strip() or "agregue")])
+                          _escolha("Agrupar", pedido.reescreve(comparar.start(), comparar.end(), "").strip() or "agrupe")])
     funcao = "comparar" if comparar or pendente or (not juntar and dica == "comparisons") else "juntar"
     for encontrado in list(COMPARAR.finditer(pedido.resto)) + list(JUNTAR.finditer(pedido.resto)):
         pedido.consome(*encontrado.span())
@@ -2392,11 +2393,12 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
     if nomes and dica is None:
         return _nao_encontrado(conv, nomes)
     rot = conv.rot
-    verbo = "comparar" if funcao == "comparar" else "agregar"
+    # Desde 07/11/2026 (item 8.1 do comando de 07/11/2026), o verbo é "agrupar" e o resultado, "conjunto" (antes, "agregar" e "grupo").
+    verbo = "comparar" if funcao == "comparar" else "agrupar"
     if achado["todos"]:
         return _pergunta("Para " + verbo + ", diga os nomes; " + ("a comparação mostra 2 ou 3 itens lado a lado." if
                                                                 funcao == "comparar" else "todos de uma vez não formam um "
-                                                                "grupo útil.") + NADA_MUDOU)
+                                                                "conjunto útil.") + NADA_MUDOU)
     ids, _ = _membros(conv, {"ids": achado["ids"], "grupos": [g for g in achado["grupos"] if g[1] != "objeto"]})
     objetos = [chave for chave, sabor in achado["grupos"] if sabor == "objeto" and conv.brasil]
     if not conv.brasil:
@@ -2442,7 +2444,7 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
             frases.append("Mostrei os estados e abri a comparação lado a lado de " + _e(rotulos) + quando + ", com o maior, "
                           "o menor e a diferença.")
         else:
-            frases.append("Agreguei " + _e(rotulos) + (" como " + nome_do_grupo if nome_do_grupo else " num grupo") + quando +
+            frases.append("Agrupei " + _e(rotulos) + (" como " + nome_do_grupo if nome_do_grupo else " num conjunto") + quando +
                           ": a bolha soma as contagens estaduais, com possível dupla contagem (quem atua em mais de um estado "
                           "conta em cada um).")
         return _resposta(painel, " ".join(frases))
@@ -2458,8 +2460,9 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
         if faltam:
             frases.append("Acrescentei " + _e(conv.cat.rotulo(i) for i in faltam) + " ao gráfico.")
     else:
-        # Agregar territórios (06/11/2026, item 5): o grupo fica no lugar dos membros na análise, como no painel da Seleção.
-        frases.append("Agreguei " + _listed(rotulos) + (" como " + nome_do_grupo if nome_do_grupo else " num grupo") + quando +
+        # Agrupar territórios (07/11/2026; antes, Agregar territórios, 06/11/2026, item 5): o conjunto fica no lugar dos membros na
+        # análise, como no modo da Seleção.
+        frases.append("Agrupei " + _listed(rotulos) + (" como " + nome_do_grupo if nome_do_grupo else " num conjunto") + quando +
                       ", no lugar " + ("delas" if rot.feminino else "deles") + ": a bolha soma as contagens dos componentes, "
                       "com possível dupla contagem (quem atua em mais de " + rot.um() + " conta em cada " +
                       ("uma" if rot.feminino else "um") + ").")

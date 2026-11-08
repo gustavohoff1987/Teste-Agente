@@ -37,8 +37,9 @@ def test_cartao_leva_a_tela_e_o_resultado_em_exibicao_como_na_tela():
     assert resultado["ordens_do_motor"]["densidade"] == {"maior": ["MANAUS (AM)"], "menor": ["TEFE (AM)"]}
     assert "linha reta" in resultado["ressalva_da_distancia"]
     # Desde 06/11/2026 (item 5 do comando de navegação por níveis; muda de propósito esta conferência, que pedia o Juntar entre as
-    # funções das análises): o grupo é criado em Agregar territórios, na Seleção de Territórios, e o Juntar saiu das Ferramentas.
-    assert any("Agregar territórios" in f for f in cartao["funcionalidades_da_pagina"])
+    # funções das análises): o conjunto é criado em Agrupar territórios (desde 07/11/2026, item 8.1 do comando de 07/11/2026; antes,
+    # Agregar territórios), na Seleção de Territórios, e o Juntar saiu das Ferramentas.
+    assert any("Agrupar territórios" in f for f in cartao["funcionalidades_da_pagina"])
     assert not any("Juntar" in f for f in cartao["funcionalidades_da_pagina"])
 
 

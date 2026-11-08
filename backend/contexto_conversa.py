@@ -40,8 +40,8 @@ FUNCIONALIDADES = (
     "Dados: “Dados do Brasil” (médicos por município, estado e Brasil, com população) ou “Enviar meus dados” (CSV, XLS ou "
     "XLSX, com o painel Colunas para as escolhas que faltam).",
     "Seleção de Territórios: escolhe os territórios analisados (estados, municípios, Brasil); vale para todas as análises. "
-    "Nela, Agregar territórios junta unidades num grupo (também de estados diferentes), que vira um território da análise: a "
-    "soma das contagens dos membros, com possível dupla contagem; por escolha da pessoa, o grupo fica no lugar dos membros.",
+    "Nela, Agrupar territórios junta unidades num conjunto (também de estados diferentes), que vira um território da análise: a "
+    "soma das contagens dos membros, com possível dupla contagem; por escolha da pessoa, o conjunto fica no lugar dos membros.",
     "Análise de Distribuição: o indicador de cada território numa competência, em bolhas (tamanho = população) ou no mapa; "
     "grupos por posição (quartis, quintis, decis) e a mudança entre duas competências.",
     "Análise Espacial: a distância geográfica direta (em linha reta) de cada município da base até a referência mais próxima, "

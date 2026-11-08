@@ -338,7 +338,7 @@ export function guiaDaConversa(fonte: EtapaDaFonte, contexto: ContextoDoGrafico 
     // território" (29/10/2026).
     const grupo = rotulos?.grupo && rotulos.grupo.singular.trim().toLowerCase() !== rotulos.unidade.singular.trim().toLowerCase()
       ? rotulos.grupo : null;
-    return "Peça mudanças no gráfico citando " + unidades + " pelo nome: comparar, agregar, usar como referência" +
+    return "Peça mudanças no gráfico citando " + unidades + " pelo nome: comparar, agrupar, usar como referência" +
       (grupo && grupos ? " ou mostrar " + (rotulos && feminino(rotulos.unidade) ? "as " : "os ") + unidades + " de " +
         (feminino(grupo) ? "uma " : "um ") + grupo.singular : "") + ".";
   }

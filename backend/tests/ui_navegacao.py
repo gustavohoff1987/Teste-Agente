@@ -26,9 +26,10 @@ Confere, contra as respostas de /api/painel, /api/painel/lugar e /api/painel/map
 - os grupos em tela estreita (item 7): a 360 px, nos modos claro e escuro, vendo por estado, a lista na ordem do motor, do DF
   (4,41) ao MA (1,13), com a linha "Brasil 2,36", sem textos sobrepostos; nas bolhas, os nomes só dos destaques (os 3 maiores e
   os 3 menores), sem rótulos sobrepostos, e a sigla do Pará junto da bolha;
-- Agregar territórios (item 5): o Juntar não aparece mais nas Ferramentas das análises; na Seleção do Pará, as ferramentas
-  Buscar e Agregar territórios; buscar "Parau", marcar PARAUAPEBAS (PA) e MARABA (PA), o nome "Carajás" e "Criar grupo": "Na
-  análise" mostra "Pará · 142 de 144 municípios" e "Carajás · grupo · 2 municípios · 894 médicos · 1,52 por mil", com a ressalva
+- Agrupar territórios (item 5; desde 07/11/2026, um dos modos da Seleção, com o vocabulário "conjunto"): o Juntar não aparece mais
+  nas Ferramentas das análises; na Seleção do Pará, os modos "Marcar na lista", "Por critérios" e "Agrupar territórios"; buscar
+  "Parau", marcar PARAUAPEBAS (PA) e MARABA (PA), o nome "Carajás" e "Criar conjunto": "Na análise" mostra "Pará · 142 de 144
+  municípios" e "Carajás · conjunto · 2 municípios · 894 médicos · 1,52 por mil", com a ressalva
   da soma; no gráfico, Carajás fica no lugar das duas; a trilha continua "Brasil › Pará", e a busca da tabela dos Detalhes acha o
   grupo. O ✎ renomeia e muda os membros (com MACAPA (AP), marcada na lista do Amapá, a trilha vai a "Brasil › Seleção"); o ×
   desfaz o grupo, e só os membros que saíram da seleção voltam (o Pará inteiro; o Amapá não entra). Pela conversa, "agregue
@@ -598,13 +599,15 @@ def main():
         assert len(ids_pa) == 144 and {PARAUAPEBAS, MARABA} <= ids_pa, len(ids_pa)
         aperta(area.get_by_test_id("analise-aba-territorios"))
         expect(area).to_have_attribute("data-aba", "territorios")
-        ferramentas = territorios.get_by_test_id("analise-selecao-ferramentas")
-        # Desde 07/11/2026 (item 6 do comando, parte B), a terceira ferramenta, "Selecionar por critérios" (conferida em
-        # ui_criterios.py); muda de propósito esta conferência.
-        expect(ferramentas.get_by_role("button")).to_have_text(["Buscar", "Agregar territórios", "Selecionar por critérios"])
-        aperta(ferramentas.get_by_test_id("analise-agregar-abrir"))
+        # Desde 07/11/2026 (item 1 do comando de 07/11/2026; muda de propósito esta conferência, que via os botões Buscar, Agregar
+        # territórios e Selecionar por critérios), uma ferramenta por vez: os modos no alto da coluna, "Marcar na lista" de início.
+        modos = territorios.get_by_test_id("analise-selecao-modos")
+        expect(modos.get_by_role("radio")).to_have_text(["Marcar na lista", "Por critérios", "Agrupar territórios"])
+        expect(modos.get_by_test_id("analise-modo-lista")).to_have_attribute("aria-checked", "true")
+        aperta(modos.get_by_test_id("analise-modo-agrupar"))
         agregar = territorios.get_by_test_id("analise-agregar")
-        expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Grupo 1")
+        expect(territorios.get_by_test_id("analise-modo-lista-conteudo")).to_be_hidden()
+        expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Conjunto A")
         expect(agregar.get_by_test_id("analise-agregar-substitui")).to_be_checked()
         busca_grupo = agregar.get_by_test_id("analise-agregar-busca")
         busca_grupo.fill("Parau")
@@ -628,7 +631,7 @@ def main():
         expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + PA + '"]')).to_contain_text(
             "Pará · 142 de 144 municípios")
         texto_do_grupo = territorios.get_by_test_id("analise-selecionado-conjunto-texto")
-        expect(texto_do_grupo).to_have_text("Carajás · grupo · 2 municípios · 894 médicos · 1,52 por mil", timeout=60000)
+        expect(texto_do_grupo).to_have_text("Carajás · conjunto · 2 municípios · 894 médicos · 1,52 por mil", timeout=60000)
         expect(territorios.get_by_test_id("analise-selecionado-ressalva")).to_have_text(re.compile(
             r"^O total corresponde à soma dos quantitativos .* podem ser contabilizados mais de uma vez\.$"))
         expect(partes).to_have_text(["Brasil", "Pará"])
@@ -663,15 +666,15 @@ def main():
         agregar.get_by_test_id("analise-agregar-grupo").select_option("16")
         marca(agregar.locator('[data-testid="analise-agregar-unidade"][data-id="' + MACAPA + '"] input'))
         agregar.get_by_test_id("analise-agregar-nome").fill("Carajás e Macapá")
-        expect(agregar.get_by_test_id("analise-agregar-criar")).to_have_text("Salvar grupo")
+        expect(agregar.get_by_test_id("analise-agregar-criar")).to_have_text("Salvar conjunto")
         editado, sent = ok(lambda: aperta(agregar.get_by_test_id("analise-agregar-criar")))
         assert sent["conjuntos"] == [{"id": "c1", "rotulo": "Carajás e Macapá", "membros": [PARAUAPEBAS, MARABA, MACAPA]}], sent
         assert set(sent["base"]["municipios"]["ids"]) == ids_pa - {PARAUAPEBAS, MARABA}, "a seleção é a mesma"
         expect(partes).to_have_text(["Brasil", "Seleção"])
-        expect(texto_do_grupo).to_contain_text("Carajás e Macapá · grupo · 3 municípios")
+        expect(texto_do_grupo).to_contain_text("Carajás e Macapá · conjunto · 3 municípios")
         # O ×: o grupo se desfaz, e só os membros que saíram da seleção voltam (o Pará inteiro; o Amapá não entra). A escolha
         # volta a ser a do Pará inteiro, já calculada: a tela pode reaproveitar a resposta guardada, sem novo pedido.
-        aperta(territorios.get_by_role("button", name="Desfazer o grupo Carajás e Macapá", exact=True))
+        aperta(territorios.get_by_role("button", name="Desfazer o conjunto Carajás e Macapá", exact=True))
         expect(territorios.get_by_test_id("analise-selecionado-conjunto")).to_have_count(0)
         expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + PA + '"]')).to_contain_text(
             "Pará · todos os 144")
@@ -688,7 +691,7 @@ def main():
         assert set(sent["base"]["municipios"]["ids"]) == ids_pa - {PARAUAPEBAS, MARABA}, "os membros saem da seleção"
         [grupo_chat] = [item for item in pelo_chat["itens"] if item["id"] == "c1"]
         assert (grupo_chat["quantidade"], round(grupo_chat["densidade"], 2)) == (894, 1.52), grupo_chat
-        expect(resposta_chat).to_contain_text("Agreguei MARABA (PA) e PARAUAPEBAS (PA) como Carajás", timeout=60000)
+        expect(resposta_chat).to_contain_text("Agrupei MARABA (PA) e PARAUAPEBAS (PA) como Carajás", timeout=60000)
         expect(resposta_chat).to_contain_text("no lugar deles: a bolha soma as contagens dos componentes")
         expect(resposta_chat.get_by_test_id("chat-conferido")).to_have_text("conferido: está na tela", timeout=60000)
         expect(chat.locator('[data-papel="agente"]').last).to_have_attribute("data-execucao", "concluido")
@@ -701,7 +704,7 @@ def main():
             expect(area.locator('[data-testid="analise-bolha"][data-id="' + membro + '"]')).to_have_count(0)
         shot("17-carajas-pela-conversa")
         aperta(area.get_by_test_id("analise-aba-territorios"))
-        expect(texto_do_grupo).to_have_text("Carajás · grupo · 2 municípios · 894 médicos · 1,52 por mil", timeout=60000)
+        expect(texto_do_grupo).to_have_text("Carajás · conjunto · 2 municípios · 894 médicos · 1,52 por mil", timeout=60000)
 
         assert not falhas, falhas
         assert not chamadas_llm, chamadas_llm

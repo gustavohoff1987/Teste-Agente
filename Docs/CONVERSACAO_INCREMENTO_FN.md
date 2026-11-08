@@ -244,11 +244,14 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   gráfico); "junte Manaus, Iranduba e Manacapuru", "junte os municípios do Amazonas" (soma dos componentes, com
   possível dupla contagem). Desde 06/11/2026 (item 5 do comando de navegação por níveis, Agregar territórios), o grupo fica
   no lugar dos membros, como no painel da Seleção, e o nome vem depois de "como", "com o nome" ou "chamado" ("agregue Marabá e
-  Parauapebas como Carajás", campo `nome_do_grupo` do `painel`; sem ele, "Grupo N"); a resposta diz "Agreguei MARABA (PA) e
-  PARAUAPEBAS (PA) como Carajás, no lugar deles: a bolha soma as contagens dos componentes, com possível dupla contagem (…)."
-  (antes, "Juntei … num conjunto", com os membros ao lado), e a confirmação é a conferida da área. Os dois no mesmo pedido
-  viram a pergunta "Uma função por vez: comparar lado a lado ou agregar num grupo?", com "Comparar" e "Agregar" (antes,
-  "… ou juntar num conjunto?", com "Juntar"). Com um nome só ("compare Manaus"), a conversa pergunta o outro ("Com qual outro município
+  Parauapebas como Carajás", campo `nome_do_grupo` do `painel`; sem ele, "Conjunto" e a próxima letra livre, desde 07/11/2026;
+  antes, "Grupo N"); desde 07/11/2026 (item 8.1 do comando de 07/11/2026), o verbo é "agrupar" e o resultado, "conjunto"
+  ("agrupe Marabá e Parauapebas como Carajás" também vale): a resposta diz "Agrupei MARABA (PA) e PARAUAPEBAS (PA) como Carajás,
+  no lugar deles: a bolha soma as contagens dos componentes, com possível dupla contagem (…)." (de 06 a 07/11/2026, "Agreguei …";
+  antes, "Juntei … num conjunto", com os membros ao lado), e a confirmação é a conferida da área. Os dois no mesmo pedido viram a
+  pergunta "Uma função por vez: comparar lado a lado ou agrupar num conjunto?", com "Comparar" e "Agrupar" (de 06 a 07/11/2026,
+  "… ou agregar num grupo?", com "Agregar"; antes, "… ou juntar num conjunto?", com "Juntar"). Com "todos" ("agrupe todos"), "Para agrupar,
+  diga os nomes; todos de uma vez não formam um conjunto útil." (antes, "Para agregar … grupo útil."). Com um nome só ("compare Manaus"), a conversa pergunta o outro ("Com qual outro município
   você quer comparar?") e devolve `pending_operation: "comparisons"` e `pending_ids` com a unidade identificada; a tela
   manda os dois de volta (`conversation_pending_operation` e `conversation_pending_ids`, que não vão ao provedor), e a
   mensagem seguinte só com nomes ("Tefé e Parintins") completa a comparação. Outro comando ou uma pergunta seguem o seu

@@ -188,7 +188,7 @@ export function GavetaComparar(p: CompararProps) {
       <li><button type="button" onClick={p.onLimpar} className="analise-link text-xs">Limpar a escolha</button></li>
     </ul> : <p className="text-xs text-slate-600">Nenhum item escolhido.</p>}
     {faltam > 0 && <p className="text-xs text-slate-600">Falta{faltam > 1 ? "m" : ""} {faltam === 1 ? "um item" : "dois itens"} para comparar.</p>}
-    {escolhidos.length > 3 && <p className="text-xs text-amber-900">Para comparar lado a lado, deixe até três itens. Para somar mais, use Agregar territórios, na Seleção.</p>}
+    {escolhidos.length > 3 && <p className="text-xs text-amber-900">Para comparar lado a lado, deixe até três itens. Para somar mais, use Agrupar territórios, na Seleção.</p>}
     <button type="button" data-testid="analise-comparar-calcular" className="analise-botao-primario"
       disabled={escolhidos.length < 2 || escolhidos.length > 3 || atual} onClick={() => p.onComparar(escolhidos.map(item => item.id))}>
       {atual ? "Comparação em exibição" : "Comparar"}</button>

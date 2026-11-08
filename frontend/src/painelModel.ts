@@ -629,14 +629,41 @@ export function baseComUnidades(base: PainelMunicipios, ids: string[], c: Contex
   return atual;
 }
 
-/** O limite de grupos de uma análise, dito quando um grupo novo não cabe (o painel e a conversa). */
-export const TEXTO_MAX_GRUPOS = "A análise já tem " + MAX_CONJUNTOS + " grupos, o máximo: desfaça um deles para agregar outro.";
+/** O limite de conjuntos de uma análise, dito quando um conjunto novo não cabe (o painel e a conversa); desde 07/11/2026 (item 8 do
+ * comando de 07/11/2026), com "conjunto" e "agrupar" (antes, "grupos" e "agregar"). */
+export const TEXTO_MAX_GRUPOS = "A análise já tem " + MAX_CONJUNTOS + " conjuntos, o máximo: desfaça um deles para agrupar outro.";
+
+/** As letras do nome padrão dos conjuntos (07/11/2026, item 8.2 do comando de 07/11/2026): 0 → A, 25 → Z, 26 → AA, 27 → AB… */
+export function letrasDoConjunto(indice: number): string {
+  let texto = "", n = indice + 1;
+  while (n > 0) {
+    const resto = (n - 1) % 26;
+    texto = String.fromCharCode(65 + resto) + texto;
+    n = Math.floor((n - 1) / 26);
+  }
+  return texto;
+}
+/** Os próximos nomes livres ("Conjunto A", "Conjunto B"…), sem repetir os que já estão em uso na análise. */
+export function nomesLivresDeConjunto(usados: string[], quantos: number): string[] {
+  const ocupados = new Set(usados.map(nome => nome.trim().toLocaleLowerCase("pt-BR")));
+  const saida: string[] = [];
+  for (let i = 0; saida.length < quantos; i++) {
+    const nome = "Conjunto " + letrasDoConjunto(i);
+    if (!ocupados.has(nome.toLocaleLowerCase("pt-BR"))) saida.push(nome);
+  }
+  return saida;
+}
+/** O nome repete o de outro conjunto da análise (item 8.3: dois conjuntos não ficam com o mesmo nome)? */
+export const nomeRepetido = (nome: string, outros: string[]) =>
+  outros.some(outro => outro.trim().toLocaleLowerCase("pt-BR") === nome.trim().toLocaleLowerCase("pt-BR"));
 
 /** Novo conjunto (CAP-AGR-01 no motor): identificador c1, c2…; os membros são unidades, sem repetição. */
 export function novoConjunto(existentes: PainelConjuntoPedido[], membros: string[], rotulo: string): PainelConjuntoPedido {
   const usados = existentes.map(conjunto => /^c(\d+)$/.exec(conjunto.id)).map(achado => achado ? Number(achado[1]) : 0);
   const proximo = Math.max(0, ...usados) + 1;
-  return { id: "c" + proximo, rotulo: rotulo.trim().slice(0, 120) || "Conjunto " + proximo, membros: [...new Set(membros)] };
+  // Sem nome, o padrão do item 8.2 do comando de 07/11/2026: "Conjunto" e a próxima letra livre (antes, "Conjunto 2", pelo número).
+  return { id: "c" + proximo, rotulo: rotulo.trim().slice(0, 120) || nomesLivresDeConjunto(existentes.map(conjunto => conjunto.rotulo), 1)[0],
+    membros: [...new Set(membros)] };
 }
 
 // ================================================================================================ ordem, motivos e não avaliáveis
@@ -1679,6 +1706,9 @@ export function montarDica(item: PainelItem, contexto: ContextoDica): Dica {
       linhas.push({ rotulo: porItem ? "Referência mais próxima" + (item.referenciaDoItem.length > 1 ? " (empate)" : "")
         : item.referenciaDoItem.length > 1 ? "Membros da referência mais próximos (empate)" : "Membro da referência mais próximo",
         valor: item.referenciaDoItem.map(ref => ref.rotulo).join(", ") });
+    // A referência do conjunto vem do membro mais próximo (07/11/2026, item 6.6 do comando de 07/11/2026).
+    if (item.membroDaReferencia && item.referenciaDoItem?.length)
+      linhas.push({ rotulo: "Membro mais próximo da referência", valor: item.membroDaReferencia.rotulo });
     if (item.faixa_distancia) linhas.push({ rotulo: "Faixa de distância", valor: item.faixa_distancia === "fora" ? "fora das faixas" : item.faixa_distancia.rotulo });
     if (distancia === null) notas.push(...motivosDe(item, "distancia").slice(0, 1));
   }
@@ -2845,12 +2875,13 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     if (selecao && selecao.length >= 2 && selecao.length <= 3) proxima.comparar = selecao;
     else if (selecao) mensagens.push("Para comparar, escolha dois ou três itens.");
   } else if (pedido.funcao === "juntar") {
-    // Agregar territórios (06/11/2026, item 5 do comando de navegação por níveis): o grupo, com o nome pedido (ou "Grupo N"), fica
-    // no lugar dos membros, que saem da seleção, como no painel da Seleção de Territórios; a gaveta Juntar das análises saiu.
+    // Agrupar territórios (07/11/2026; antes, Agregar territórios, 06/11/2026): o conjunto, com o nome pedido (ou "Conjunto" e a
+    // próxima letra livre, item 8.2 do comando de 07/11/2026), fica no lugar dos membros, que saem da seleção, como no modo da Seleção
+    // de Territórios; a gaveta Juntar das análises saiu.
     const membros = (selecao || []).filter(id => !/^c\d+$/.test(id));  // conjuntos não entram em outro conjunto
     if (membros.length >= 2 && proxima.conjuntos.length < MAX_CONJUNTOS) {
       const nome = typeof pedido.nomeDoGrupo === "string" && pedido.nomeDoGrupo.trim() ? pedido.nomeDoGrupo.trim()
-        : "Grupo " + (proxima.conjuntos.length + 1);
+        : nomesLivresDeConjunto(proxima.conjuntos.map(conjunto => conjunto.rotulo), 1)[0];
       const novo = novoConjunto(proxima.conjuntos, membros, nome);
       const atual = normalizarBase(proxima.base, c.grupoDe), grupoDe = c.grupoDe ?? prefixoDe;
       const retirados = proxima.nivel === "municipios" ? membrosNaSelecao(atual, novo.membros, grupoDe) : [];
@@ -2861,9 +2892,9 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
       proxima = { ...proxima, nivel: "municipios", base, conjuntos: [...proxima.conjuntos, conjunto] };
       selecao = [conjunto.id];
     } else if (proxima.conjuntos.length >= MAX_CONJUNTOS) mensagens.push(TEXTO_MAX_GRUPOS);
-    else if (selecao) mensagens.push("Para agregar, escolha pelo menos duas unidades.");
+    else if (selecao) mensagens.push("Para agrupar, escolha pelo menos duas unidades.");
     // A agregação escolhida sem nomes (numa alternativa da conversa) abria a gaveta Juntar, que saiu: a resposta diz o caminho.
-    else mensagens.push("Para agregar, use Agregar territórios, na Seleção de Territórios, ou diga os nomes no pedido.");
+    else mensagens.push("Para agrupar, use Agrupar territórios, na Seleção de Territórios, ou diga os nomes no pedido.");
   } else if (pedido.funcao === "exportar") abrir = "exportar";
   else if (pedido.funcao === "ordenar") abrir = "ordenar";
   else if (pedido.funcao === "condicoes") abrir = "condicoes";
@@ -3167,14 +3198,17 @@ export function tamanhoDoMapa(c: { rotatividade: boolean; indicador: PainelIndic
   return { valor: item => numero(item.populacao), rotulo: "População", maximo: maximo("populacao") };
 }
 /** Ligações ilustrativas do mapa (não são trajeto): de cada unidade selecionada até o membro (ou os membros, no empate) da
- * referência mais próximo, como o motor disse; só unidades, na ordem da seleção, até MAX_LIGACOES. */
+ * referência mais próximo, como o motor disse; desde 07/11/2026 (item 6.6 do comando de 07/11/2026), também de cada conjunto, saindo
+ * do membro mais próximo; na ordem da seleção, até MAX_LIGACOES. */
 export function ligacoesDoMapa(itens: PainelItem[], selecionados: string[]): { de: string; para: string[] }[] {
   const porId = new Map(itens.map(item => [item.id, item]));
   const ligacoes: { de: string; para: string[] }[] = [];
   for (const id of selecionados) {
     const item = porId.get(id);
-    if (!item || item.tipo !== "municipio" || item.referencia || !item.referenciaDoItem?.length) continue;
-    ligacoes.push({ de: item.id, para: item.referenciaDoItem.map(ref => ref.id) });
+    if (!item || item.referencia || !item.referenciaDoItem?.length) continue;
+    const de = item.tipo === "municipio" ? item.id : item.tipo === "conjunto" ? item.membroDaReferencia?.id : undefined;
+    if (!de) continue;
+    ligacoes.push({ de, para: item.referenciaDoItem.map(ref => ref.id) });
     if (ligacoes.length >= MAX_LIGACOES) break;
   }
   return ligacoes;
@@ -3353,7 +3387,7 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
     "Com vári" + (f ? "as " : "os ") + territorios + ", você pode dividi-l" + (f ? "as" : "os") + " em grupos do mesmo tamanho " +
       "(quartis, quintis ou decis) ou em faixas de " +
       "valores e usar as Ferramentas: Régua, Condições, Ordenar, Comparar e Exportar. Para somar " + territorios + " num grupo, use " +
-      "Agregar territórios, na Seleção. No mapa, os pontos aparecem em 5 grupos iguais (quintis) do indicador."] };
+      "Agrupar territórios, na Seleção. No mapa, os pontos aparecem em 5 grupos iguais (quintis) do indicador."] };
   if (aba === "espacial") return { titulo: NOMES_FAMILIAS.espacial, paragrafos: [
     "Mede a distância em linha reta entre cada " + unidade.singular + " da base e a referência mais próxima " + (fem(unidade) ? "dela" : "dele") +
       ". A base é sempre a seleção em uso, a da trilha e da Seleção de Territórios, com filtros por densidade, população ou " +

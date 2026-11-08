@@ -471,18 +471,32 @@ def test_comparar_e_juntar_municipios_nomeados():
     assert fora["painel"] == painel(funcao="comparar", selecao=["code:130260", "code:150140"], nivel="municipios",
                                     municipios={"todos": False, "estados": ["13"], "ids": ["code:150140"]})
     assert fora["reply"].endswith("Acrescentei BELEM (PA) ao gráfico.")
-    # Desde 06/11/2026 (item 5 do comando de navegação por níveis, Agregar territórios; muda de propósito este teste), a resposta
-    # diz "Agreguei" e que o grupo fica no lugar dos membros (antes, "Juntei … num conjunto", com os membros ao lado).
+    # Desde 06/11/2026 (item 5 do comando de navegação por níveis; muda de propósito este teste), a resposta diz que o conjunto fica
+    # no lugar dos membros (antes, "Juntei … num conjunto", com os membros ao lado); desde 07/11/2026 (item 8.1 do comando de
+    # 07/11/2026), com o verbo "agrupar" (antes, "Agreguei … num grupo").
     junte = pedir("junte Manaus, Iranduba e Manacapuru")
     assert junte["painel"] == painel(funcao="juntar", selecao=["code:130260", "code:130185", "code:130250"])
-    assert junte["reply"] == ("Agreguei MANAUS (AM), IRANDUBA (AM) e MANACAPURU (AM) num grupo, no lugar deles: a bolha soma as "
+    assert junte["reply"] == ("Agrupei MANAUS (AM), IRANDUBA (AM) e MANACAPURU (AM) num conjunto, no lugar deles: a bolha soma as "
                               "contagens dos componentes, com possível dupla contagem (quem atua em mais de um município conta "
                               "em cada um).")
     # O nome do grupo pela conversa ("agregue … como …"), como foi escrito, fora dos nomes a resolver.
     agregue = pedir("agregue Manaus e Tefé como Médio Solimões")
     assert agregue["painel"] == {**painel(funcao="juntar", selecao=["code:130260", "code:130420"]),
                                  "nome_do_grupo": "Médio Solimões"}
-    assert agregue["reply"].startswith("Agreguei MANAUS (AM) e TEFE (AM) como Médio Solimões, no lugar deles: a bolha soma")
+    assert agregue["reply"].startswith("Agrupei MANAUS (AM) e TEFE (AM) como Médio Solimões, no lugar deles: a bolha soma")
+    # Desde 07/11/2026 (item 8.1 do comando de 07/11/2026): "agrupe" cria o mesmo conjunto; as duas funções no mesmo pedido viram a
+    # pergunta com "agrupar num conjunto" e o botão "Agrupar" (antes, "agregar num grupo" e "Agregar"); "agrupe todos" pede os
+    # nomes, com "conjunto útil" (antes, "Para agregar … grupo útil").
+    agrupe = pedir("agrupe Manaus e Tefé como Médio Solimões")
+    assert agrupe["painel"] == {**painel(funcao="juntar", selecao=["code:130260", "code:130420"]), "nome_do_grupo": "Médio Solimões"}
+    assert agrupe["reply"].startswith("Agrupei MANAUS (AM) e TEFE (AM) como Médio Solimões, no lugar deles")
+    duas = pedir("compare e agrupe Manaus e Tefé")
+    assert duas["clarification"] == "Uma função por vez: comparar lado a lado ou agrupar num conjunto? Nada mudou no gráfico.", duas
+    assert [escolha["label"] for escolha in duas["choices"]] == ["Comparar", "Agrupar"], duas["choices"]
+    assert "painel" not in duas
+    todos = pedir("agrupe todos os municípios")
+    assert todos["clarification"] == ("Para agrupar, diga os nomes; todos de uma vez não formam um conjunto útil. Nada mudou no "
+                                      "gráfico."), todos
     # Estados se comparam no nível dos estados, na ordem do pedido; nunca junto com municípios.
     estados = pedir("compare o Pará e o Amazonas")
     assert estados["painel"] == painel(funcao="comparar", selecao=["uf:15", "uf:13"], nivel="estados")

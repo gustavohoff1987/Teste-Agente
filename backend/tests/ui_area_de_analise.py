@@ -1628,15 +1628,16 @@ def main():
         # A bolha ativa (com a dica, sob o mouse ou o foco) fica inteira enquanto está ativa.
         assert all(opacidade == ("1" if marca == "true" else "0.25") for _, marca, opacidade, ativa in destaque if not ativa), destaque
         fecha()
-        # Agregar territórios (06/11/2026, item 5 do comando de navegação por níveis; muda de propósito este trecho, que
-        # conferia a gaveta Juntar das Ferramentas): o Juntar saiu das Ferramentas das análises; o grupo é criado no painel da
-        # Seleção de Territórios, com a busca, as etiquetas, o nome e "O grupo fica no lugar dos membros" (marcada).
+        # Agrupar territórios (06/11/2026, item 5 do comando de navegação por níveis; muda de propósito este trecho, que
+        # conferia a gaveta Juntar das Ferramentas): o Juntar saiu das Ferramentas das análises; o conjunto é criado no modo
+        # "Agrupar territórios" da Seleção de Territórios (desde 07/11/2026, item 1 do comando de 07/11/2026: um dos três modos), com
+        # a busca, as etiquetas, o nome ("Conjunto A", item 8.2) e "O conjunto fica no lugar dos membros" (marcada).
         expect(area.get_by_test_id("analise-funcao-juntar")).to_have_count(0)
         aba_selecao()
-        aperta(territorios.get_by_test_id("analise-agregar-abrir"))
+        aperta(territorios.get_by_test_id("analise-modo-agrupar"))
         agregar = territorios.get_by_test_id("analise-agregar")
         expect(agregar).to_be_visible()
-        expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Grupo 1")
+        expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Conjunto A")
         expect(agregar.get_by_test_id("analise-agregar-substitui")).to_be_checked()
         expect(agregar.get_by_test_id("analise-agregar-criar")).to_be_disabled()
         # Digitar e marcar (a busca, com o estado de cada resultado) ou marcar na lista de um estado (a árvore do painel).
@@ -1659,7 +1660,7 @@ def main():
         assert not any(item["id"] in (MANAUS, TEFE) for item in junto["itens"]), "o grupo fica no lugar dos membros"
         # Em "Na análise": o grupo, com o número de unidades, os profissionais e a densidade do motor, e a ressalva da soma.
         linha_grupo = territorios.locator('[data-testid="analise-selecionado-conjunto"][data-id="c1"]')
-        expect(linha_grupo.get_by_test_id("analise-selecionado-conjunto-texto")).to_contain_text("Capital e Tefé · grupo · 2 municípios")
+        expect(linha_grupo.get_by_test_id("analise-selecionado-conjunto-texto")).to_contain_text("Capital e Tefé · conjunto · 2 municípios")
         if conjunto.get("quantidade") is not None:
             expect(linha_grupo).to_contain_text(milhar(conjunto["quantidade"]) + " médicos")
         expect(territorios.get_by_test_id("analise-selecionado-ressalva")).to_contain_text("contabilizados mais de uma vez")

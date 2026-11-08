@@ -264,7 +264,7 @@ test('orientação da conversa: pergunta na abertura e, na planilha, usa os nome
     'o de menor densidade” ou “municípios com menos de 1 médico por mil”.');
   const comandos = C.guiaDaConversa({tipo: 'arquivo', pronta: true, colunasPendentes: false}, CONTEXTO, DISTRITOS);
   // Numa planilha não há nível acima das unidades (28/10/2026): a orientação oferece ver os distritos de uma província.
-  assert.equal(comandos, 'Peça mudanças no gráfico citando distritos pelo nome: comparar, agregar, usar como referência ou mostrar ' +
+  assert.equal(comandos, 'Peça mudanças no gráfico citando distritos pelo nome: comparar, agrupar, usar como referência ou mostrar ' +
     'os distritos de uma província.');
   for (const texto of [planilha, comandos]) assert.doesNotMatch(texto, /munic/i);
 });
@@ -306,18 +306,18 @@ test('guia de uma planilha (28/10/2026): os nomes dela, sem prometer um nível a
   const contexto = {...CONTEXTO, municipios: {todos: true, estados: [], ids: []}};
   const comunas = {unidade: {singular: 'comuna', plural: 'comunas'}, grupo: {singular: 'condado', plural: 'condados'}};
   assert.equal(C.guiaDaConversa(pronta, contexto, comunas, 0),
-    'Peça mudanças no gráfico citando comunas pelo nome: comparar, agregar, usar como referência ou mostrar as comunas de um condado.');
+    'Peça mudanças no gráfico citando comunas pelo nome: comparar, agrupar, usar como referência ou mostrar as comunas de um condado.');
   const distritos = {unidade: {singular: 'distrito', plural: 'distritos'}, grupo: {singular: 'província', plural: 'províncias'}};
   assert.equal(C.guiaDaConversa(pronta, contexto, distritos, 0),
-    'Peça mudanças no gráfico citando distritos pelo nome: comparar, agregar, usar como referência ou mostrar os distritos de uma província.');
+    'Peça mudanças no gráfico citando distritos pelo nome: comparar, agrupar, usar como referência ou mostrar os distritos de uma província.');
   assert.equal(C.guiaDaConversa(pronta, contexto, {...comunas, grupo: null}, 0),
-    'Peça mudanças no gráfico citando comunas pelo nome: comparar, agregar, usar como referência.');
+    'Peça mudanças no gráfico citando comunas pelo nome: comparar, agrupar, usar como referência.');
   assert.doesNotMatch(C.guiaDaConversa(pronta, contexto, comunas, 0), /nível/);
   // Com os nomes que o modelo de planilha sugere (territorio_analise e territorio_superior_1), unidade e grupo se chamam
   // "território": sem "os territórios de um território" (29/10/2026).
   const territorios = {unidade: {singular: 'território', plural: 'territórios'}, grupo: {singular: 'Território', plural: 'Territórios'}};
   assert.equal(C.guiaDaConversa(pronta, contexto, territorios, 0),
-    'Peça mudanças no gráfico citando territórios pelo nome: comparar, agregar, usar como referência.');
+    'Peça mudanças no gráfico citando territórios pelo nome: comparar, agrupar, usar como referência.');
 });
 
 // Memória da conversa (26/10/2026): o que a tela guarda e manda ao gestor de diálogo do backend, no campo `conversa`.
@@ -397,8 +397,9 @@ test('proximidade pela conversa (28/10/2026): o campo consulta chega à área co
 // Confirmação de execução (05/11/2026): a conversa só diz que fez o que foi pedido com o desfecho "concluido" da área.
 const DESFECHO = {id: 7, situacao: 'concluido', mensagens: [], titulo: 'Densidade de médicos nos municípios do Acre · junho de 2024',
   resultado: 'r-1', execucao: 'k-1', semTerritorios: false};
-// Desde 06/11/2026 (item 5), também "Agreguei", a resposta de Agregar territórios.
-const AFIRMA_EXECUCAO = /\b(?:Mostrei|Ordenei|Selecionei|Atualizei|Apliquei|Abri|Comparei|Juntei|Agreguei|Destaquei|Reabri)\b/;
+// Desde 06/11/2026 (item 5), também "Agreguei", a resposta de Agregar territórios; desde 07/11/2026 (item 8.1 do comando de 07/11/2026),
+// "Agrupei", a de Agrupar territórios.
+const AFIRMA_EXECUCAO = /\b(?:Mostrei|Ordenei|Selecionei|Atualizei|Apliquei|Abri|Comparei|Juntei|Agreguei|Agrupei|Destaquei|Reabri)\b/;
 
 test('o comando e as ações de tela da mesma resposta vão num pedido só (dois pedidos no mesmo instante perderiam um)', () => {
   const explicar = {explicar: {aba: 'tendencia', termos: ['CRESCIMENTO_ACELERADO']}};

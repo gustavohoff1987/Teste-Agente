@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, ChevronDown, Filter, Layers3, Pencil, Search, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Filter, Layers3, Map as IconeMapa, Pencil, Search, X } from "lucide-react";
 import AgregarTerritorios, { type GrupoAgregado } from "./AgregarTerritorios";
+import MapaDosConjuntos from "./MapaDosConjuntos";
 import type { PainelConjuntoPedido, PainelMunicipios, PainelNivel } from "./painelApi";
 import {
   BASE_VAZIA, RESSALVA_DA_SOMA, alternarUnidade, artigo, baseVazia, desmarcarGrupo, doTodo, formatarNumero, grupoDaUnidade, grupoInteiro,
-  nomeDoTodo, todoInteiro, todoMarcado,
+  nomeDoTodo, nomesLivresDeConjunto, todoInteiro, todoMarcado,
   maiuscula, marcadasNoGrupo,
   marcadasPorGrupo, marcarGrupo, nomeDaUnidade, quantos, resumoDoUniverso, textoTodasAsUnidadesDoGrupo, todosOs,
   unidadeMarcada, type GrupoInfo, type OpcaoVerPor, type RotulosTerritoriais, type UnidadeDoCatalogo,
@@ -20,13 +21,19 @@ import {
 // análise e é a referência fixa), os totais individualizados (quando a abrangência é um estado inteiro ou o Brasil inteiro) e o que
 // está marcado, estado a estado, com o × de cada um. Nenhum nível é somado a outro (RQ-DAD-30). Numa planilha, os mesmos passos com
 // a nomenclatura dela (grupos e unidades), sem o "Ver por". Cada mudança é um pedido explícito ao motor e um passo do Desfazer;
-// nada é calculado aqui.
+// nada é calculado aqui. Desde 07/11/2026 (comando de 07/11/2026, item 1), uma ferramenta por vez: no alto da coluna da esquerda, os
+// modos "Marcar na lista" (a busca e a árvore), "Por critérios" e "Agrupar territórios"; só o escolhido aparece, e "Na análise"
+// fica sempre à vista. Trocar de modo não apaga o que foi preenchido no outro; só "Cancelar" apaga, e concluir ou cancelar volta a
+// "Marcar na lista". Na base do Brasil, a árvore tem as regiões (Brasil › região › estado › município; item 3).
+export type ModoDaSelecao = "lista" | "criterios" | "agrupar";
 
 const sem = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const comparar = (a: string, b: string) => a.localeCompare(b, "pt-BR", { numeric: true });
 /** Acima disto, a lista de um grupo ganha atalhos por letra inicial (a lista inteira continua à vista em "Todas"). */
 const COM_LETRAS = 120;
 const LIMITE_BUSCA = 20;
+/** Até quantos marcados o atalho "Agrupar os marcados" leva de uma vez (os membros de um conjunto vão um a um ao motor). */
+const MAX_MEMBROS_DO_ATALHO = 500;
 
 type Props = {
   rotulos: RotulosTerritoriais;
@@ -44,6 +51,16 @@ type Props = {
    * árvore, com o grupo de cima de cada grupo. */
   regioes?: GrupoInfo[];
   regiaoDoGrupo?: (grupo: string) => string;
+  /** As seções da árvore na base do Brasil (07/11/2026, item 3 do comando de 07/11/2026): as regiões, com a região de cada estado. Só
+   * a árvore muda: o "Ver por", a trilha e a faixa do lugar ficam como estão. */
+  secoesDaArvore?: { regioes: GrupoInfo[]; regiaoDoGrupo: (grupo: string) => string } | null;
+  /** O modo da Seleção (item 1): a área o controla, porque a conversa, as Condições e "Reaplicar" abrem "Por critérios". */
+  modo: ModoDaSelecao;
+  onModo: (modo: ModoDaSelecao) => void;
+  /** Coordenadas autorizadas para os mini mapas (do motor), só para desenhar; null enquanto não chegam. */
+  coordenadas: Map<string, [number, number]> | null;
+  /** A extensão de ponta a ponta de um conjunto à mão, medida pelo motor. */
+  medirExtensao?: (membros: string[], signal: AbortSignal) => Promise<number | null>;
   base: PainelMunicipios;
   /** Os estados como unidades (só leitura: vêm da árvore, com estados inteiros). */
   estados: string[];
@@ -61,16 +78,16 @@ type Props = {
   /** O "Ver por" escolhido (a área confere se a escolha permite). */
   onUnidade: (nivel: PainelNivel) => void;
   onAbrir: (grupo: string | null) => void;
-  /** Desfaz um grupo de Agregar territórios (o × dele, no que está na análise); com o grupo no lugar dos membros, eles voltam. */
+  /** Desfaz um conjunto (o × dele, no que está na análise); com o conjunto no lugar dos membros, eles voltam. */
   onDesfazerConjunto: (id: string) => void;
-  /** Agregar territórios (06/11/2026, item 5 do comando): cria um grupo ou salva o grupo editado (✎). */
+  /** Agrupar territórios (07/11/2026; antes, Agregar territórios): cria um conjunto ou salva o conjunto editado (✎). */
   onCriarGrupo: (grupo: GrupoAgregado) => void;
   onSalvarGrupo: (id: string, grupo: GrupoAgregado) => void;
-  /** Os números de cada grupo, do motor (os itens "conjunto" da resposta em exibição), e o nome dos profissionais ("médicos"). */
+  /** Os números de cada conjunto, do motor (os itens "conjunto" da resposta em exibição), e o nome dos profissionais ("médicos"). */
   valoresDosConjuntos?: Map<string, { quantidade: number | null; densidade: number | null }>;
-  /** Selecionar por critérios (07/11/2026, item 6 do comando): o painel (montado pela área, com a fonte e a regra em uso), aberto
-   * pelo botão das ferramentas; sem ele, o botão não aparece. */
-  criterios?: { aberto: boolean; painel: ReactNode; onAlternar: () => void } | null;
+  /** "Por critérios" (07/11/2026): o painel, montado pela área enquanto há rascunho (null sem rascunho); sem o objeto, o modo não
+   * aparece (fonte sem o motor). */
+  criterios?: { painel: ReactNode | null } | null;
   /** A regra em uso (07/11/2026): o texto ("densidade abaixo de 0,5 em jun/2024 (89)") e "Reaplicar em outra competência". */
   regra?: { texto: string; onReaplicar: () => void } | null;
   profissionais: string;
@@ -80,8 +97,10 @@ type Props = {
 export default function PainelTerritorios(p: Props) {
   const [consulta, setConsulta] = useState("");
   const [letra, setLetra] = useState("");
-  // O painel Agregar territórios: fechado (null), um grupo novo ("novo") ou o grupo em edição (o id).
-  const [agregar, setAgregar] = useState<string | null>(null);
+  // O rascunho de "Agrupar territórios": nenhum (null), um conjunto novo ("novo", vazio ou com os marcados) ou o conjunto em edição
+  // (o id). `n` renova o rascunho a cada abertura nova.
+  const [agregar, setAgregar] = useState<{ id: string; inicial: GrupoAgregado | null; n: number } | null>(null);
+  const [verConjuntos, setVerConjuntos] = useState(false);
   const buscaRef = useRef<HTMLInputElement>(null);
   const unidade = p.rotulos.unidade, grupoRotulo = p.rotulos.grupo ?? { singular: "grupo", plural: "grupos" };
   const generoF = artigo(unidade, false) === "a", generoGrupoF = artigo(grupoRotulo, false) === "a";
@@ -112,6 +131,11 @@ export default function PainelTerritorios(p: Props) {
   const unidadesMarcadas = marcadas.reduce((soma, item) => soma + item.marcadas, 0);
   const vazio = p.nivel === "brasil" ? false : p.nivel === "estados" || p.nivel === "regioes" ? !p.estados.length : baseVazia(p.base) && !p.conjuntos.length;
   const nomesCompletos = useMemo(() => new Map(validas.map(item => [item.id, nomeDaUnidade(item)])), [validas]);
+  // O fundo do mapa dos conjuntos (item 7.9): as unidades dos grupos dos membros, para situar.
+  const fundoDosConjuntos = useMemo(() => {
+    const dosMembros = new Set(p.conjuntos.flatMap(conjunto => conjunto.membros).map(id => grupoDeId.get(id) ?? ""));
+    return validas.filter(item => !temGrupos || dosMembros.has(grupoDaUnidade(item))).map(item => item.id);
+  }, [p.conjuntos, validas, grupoDeId, temGrupos]);
   const resumo = resumoDoUniverso({ nivel: p.nivel, base: p.base, estados: p.estados, conjuntos: p.conjuntos.length, grupos: p.grupos, regioes: p.regioes,
     rotulos: p.rotulos, total: p.total, grupoDe: id => grupoDeId.get(id) ?? "", nomes: nomesCompletos });
   const deGrupo = (g: Pick<GrupoInfo, "nome" | "rotuloGrupo">) => textoTodasAsUnidadesDoGrupo(p.rotulos, g).replace(/^Tod[oa]s [oa]s /, "");
@@ -147,15 +171,18 @@ export default function PainelTerritorios(p: Props) {
   };
   const tirarGrupo = (g: GrupoInfo) => p.onBase(desmarcarGrupo(p.base, g.id, idsDoGrupo(g.id), todosOsGrupos, todasAsUnidades),
     maiuscula(deGrupo(g)) + marcadosTexto(false), true);
-  // As seções dos grupos de cima (07/11/2026): só com eles e o grupo de cima de cada grupo.
-  const regioesDaArvore = p.regioes?.length && p.regiaoDoGrupo ? p.regioes : [];
-  const gruposDaSecao = (regiao: GrupoInfo) => p.grupos.filter(grupo => p.regiaoDoGrupo?.(grupo.id) === regiao.id);
+  // As seções dos grupos de cima (07/11/2026): numa planilha de dois níveis, os grupos de cima; na base do Brasil, as regiões (item 3).
+  const secoes = p.secoesDaArvore ?? (p.regioes?.length && p.regiaoDoGrupo ? { regioes: p.regioes, regiaoDoGrupo: p.regiaoDoGrupo } : null);
+  const regioesDaArvore = secoes?.regioes ?? [];
+  const gruposDaSecao = (regiao: GrupoInfo) => p.grupos.filter(grupo => secoes?.regiaoDoGrupo(grupo.id) === regiao.id);
+  // Na base do Brasil (desde 07/11/2026, item 3 do comando de 07/11/2026), "da Região Norte"; numa planilha, "de Zona Serrana".
+  const daRegiao = (regiao: GrupoInfo) => (p.brasil ? "da Região " : "de ") + regiao.nome;
   /** Marca (ou desmarca) um grupo de cima inteiro: todos os grupos dele, como marcar cada um. */
   const alternarRegiao = (regiao: GrupoInfo, grupos: GrupoInfo[], inteira: boolean) => {
     let base = p.base;
     for (const grupo of grupos) base = inteira ? desmarcarGrupo(base, grupo.id, idsDoGrupo(grupo.id), todosOsGrupos, todasAsUnidades)
       : marcarGrupo(base, grupo.id, idsDoGrupo(grupo.id));
-    p.onBase(base, maiuscula(todosOs(unidade)) + " de " + regiao.nome + marcadosTexto(!inteira), true);
+    p.onBase(base, maiuscula(todosOs(unidade)) + " " + daRegiao(regiao) + marcadosTexto(!inteira), true);
   };
   /** A raiz da árvore: o Brasil inteiro (ou a planilha inteira), marcado ou desmarcado de uma vez. */
   const alternarRaiz = () => p.base.todos
@@ -256,7 +283,7 @@ export default function PainelTerritorios(p: Props) {
     const inteira = p.base.todos || (grupos.length > 0 && grupos.every(grupo => grupoInteiro(p.base, grupo.id)));
     const parcial = !inteira && grupos.some(grupo => marcadasNoGrupo(p.base, grupo.id, idsDoGrupo(grupo.id)) > 0);
     const total = grupos.reduce((soma, grupo) => soma + (grupo.unidades || idsDoGrupo(grupo.id).length), 0);
-    const todas = maiuscula(todosOs(unidade)) + " de " + regiao.nome;
+    const todas = maiuscula(todosOs(unidade)) + " " + daRegiao(regiao);
     return <li key={regiao.id} data-testid="analise-regiao" data-id={regiao.id} data-situacao={inteira ? "inteiro" : parcial ? "parcial" : "nenhum"}
       className="analise-regiao">
       <div className="analise-regiao-linha">
@@ -270,7 +297,7 @@ export default function PainelTerritorios(p: Props) {
           </span>
         </label>
       </div>
-      <ul className="analise-grupos analise-grupos-arvore analise-grupos-da-regiao" aria-label={maiuscula(grupoRotulo.plural) + " de " + regiao.nome}>
+      <ul className="analise-grupos analise-grupos-arvore analise-grupos-da-regiao" aria-label={maiuscula(grupoRotulo.plural) + " " + daRegiao(regiao)}>
         {grupos.map(grupo => linhaDoGrupo(grupo, "analise-grupo"))}
       </ul>
     </li>;
@@ -359,68 +386,97 @@ export default function PainelTerritorios(p: Props) {
         </li>;
       })}
       {p.conjuntos.length > 0 && <li data-testid="analise-selecionado" data-grupo="conjuntos" className="analise-selecionado-grupo">
-        <ul className="analise-grupos-agregados" aria-label={p.conjuntos.length === 1 ? "Grupo agregado" : "Grupos agregados"}>
+        <ul className="analise-grupos-agregados" aria-label={p.conjuntos.length === 1 ? "Conjunto" : "Conjuntos"}>
           {p.conjuntos.map(conjunto => {
             const valores = p.valoresDosConjuntos?.get(conjunto.id);
             return <li key={conjunto.id} data-testid="analise-selecionado-conjunto" data-id={conjunto.id} className="analise-grupo-agregado">
               <span data-testid="analise-selecionado-conjunto-texto" className="min-w-0">
-                <strong className="text-ink">{conjunto.rotulo}</strong> · <span className="analise-marca-grupo">grupo</span> ·{" "}
+                <strong className="text-ink">{conjunto.rotulo}</strong> · <span className="analise-marca-grupo">conjunto</span> ·{" "}
                 {quantos(conjunto.membros.length, unidade)}
                 {typeof valores?.quantidade === "number" && " · " + valores.quantidade.toLocaleString("pt-BR") + " " + p.profissionais}
                 {typeof valores?.densidade === "number" && " · " + formatarNumero(valores.densidade) + " por mil"}</span>
               <span className="analise-grupo-agregado-acoes">
                 <button type="button" data-testid="analise-selecionado-conjunto-editar" className="analise-icone analise-icone-pequeno"
-                  aria-label={"Editar o grupo " + conjunto.rotulo} onClick={() => setAgregar(conjunto.id)}><Pencil size={13} aria-hidden="true"/></button>
-                <button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Desfazer o grupo " + conjunto.rotulo}
-                  onClick={() => { if (agregar === conjunto.id) setAgregar(null); p.onDesfazerConjunto(conjunto.id); }}>
+                  aria-label={"Editar o conjunto " + conjunto.rotulo} onClick={() => {
+                    setAgregar({ id: conjunto.id, inicial: { rotulo: conjunto.rotulo, membros: conjunto.membros, substitui: !!conjunto.substitui },
+                      n: (agregar?.n ?? 0) + 1 });
+                    p.onModo("agrupar");
+                  }}><Pencil size={13} aria-hidden="true"/></button>
+                <button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Desfazer o conjunto " + conjunto.rotulo}
+                  onClick={() => { if (agregar?.id === conjunto.id) { setAgregar(null); if (p.modo === "agrupar") p.onModo("lista"); } p.onDesfazerConjunto(conjunto.id); }}>
                   <X size={13} aria-hidden="true"/></button>
               </span>
             </li>;
           })}
         </ul>
+        {p.coordenadas && <button type="button" data-testid="analise-ver-conjuntos-no-mapa" className="analise-link" aria-expanded={verConjuntos}
+          onClick={() => setVerConjuntos(atual => !atual)}><IconeMapa size={13} aria-hidden="true"/>{verConjuntos ? "Fechar o mapa dos conjuntos"
+            : "Ver os conjuntos no mapa"}</button>}
+        {verConjuntos && p.coordenadas && <MapaDosConjuntos coordenadas={p.coordenadas} fundo={fundoDosConjuntos}
+          conjuntos={p.conjuntos.map(conjunto => ({ id: conjunto.id, nome: conjunto.rotulo, membros: conjunto.membros }))} nomeDe={nomeCompleto}
+          rotulo={"Mapa dos conjuntos da seleção: " + p.conjuntos.map(conjunto => conjunto.rotulo).join(", ")}/>}
         <p data-testid="analise-selecionado-ressalva" className="analise-ressalva">{RESSALVA_DA_SOMA}</p>
       </li>}
     </ul>;
   })();
+
+  // ------------------------------------------------------------------------------------------ os modos (item 1) e o atalho (item 9.2)
+  const modos: { id: ModoDaSelecao; rotulo: string; icone: ReactNode }[] = [
+    { id: "lista", rotulo: "Marcar na lista", icone: <Search size={14} aria-hidden="true"/> },
+    ...(p.criterios ? [{ id: "criterios" as const, rotulo: "Por critérios", icone: <Filter size={14} aria-hidden="true"/> }] : []),
+    { id: "agrupar", rotulo: "Agrupar territórios", icone: <Layers3 size={14} aria-hidden="true"/> }];
+  const escolherModo = (modo: ModoDaSelecao) => {
+    if (modo === "agrupar" && !agregar) setAgregar({ id: "novo", inicial: null, n: 1 });
+    if (modo !== p.modo) p.onModo(modo);
+  };
+  const marcadosParaAgrupar = useMemo(() => p.nivel === "municipios" && !p.base.todos ? validas.filter(item =>
+    unidadeMarcada(p.base, item.id, temGrupos ? grupoDaUnidade(item) : "")).map(item => item.id) : [], [p.base, p.nivel, validas, temGrupos]);
+  /** "Agrupar os marcados" (item 9.2): abre "Agrupar territórios" com os marcados já escolhidos. */
+  const agruparMarcados = () => {
+    setAgregar({ id: "novo", inicial: { rotulo: "", membros: marcadosParaAgrupar, substitui: true }, n: (agregar?.n ?? 0) + 1 });
+    p.onModo("agrupar");
+  };
 
   return <section data-testid="analise-territorios" data-nivel={p.nivel} data-marcadas={unidadesMarcadas} aria-labelledby="analise-territorios-titulo"
     className="analise-territorios">
     <h3 id="analise-territorios-titulo" tabIndex={-1} className="sr-only">Territórios</h3>
     <div className="analise-territorios-colunas">
       <div data-testid="analise-territorios-lista" className="analise-territorios-lista">
+        {/* Uma ferramenta por vez (07/11/2026, item 1 do comando de 07/11/2026): os modos, no alto da coluna. */}
+        <div role="radiogroup" aria-label="Como escolher os territórios" data-testid="analise-selecao-modos" className="analise-selecao-modos">
+          {modos.map(modo => <button key={modo.id} type="button" role="radio" aria-checked={p.modo === modo.id} data-testid={"analise-modo-" + modo.id}
+            className="analise-selecao-modo" onClick={() => escolherModo(modo.id)}>{modo.icone}{modo.rotulo}</button>)}
+        </div>
+        <div data-testid="analise-modo-lista-conteudo" hidden={p.modo !== "lista"}>
         <p data-testid="analise-territorios-instrucao" className="analise-territorios-instrucao">{temGrupos
-          ? "Marque " + (p.brasil ? "o Brasil, " : "") + grupoRotulo.plural + " inteir" + (generoGrupoF ? "as" : "os") + " ou " + unidade.plural + ". " +
-            maiuscula(artigo(grupoRotulo, false)) + " " + grupoRotulo.singular + " marcad" + (generoGrupoF ? "a" : "o") + " traz " + todosOs(unidade) + " del" +
-            (generoGrupoF ? "a" : "e") + ", e você pode desmarcar " + (generoF ? "algumas" : "alguns") + ". Abra a lista de " +
-            (generoGrupoF ? "uma " : "um ") + grupoRotulo.singular + " para escolher " + unidade.plural + (generoF ? " uma a uma." : " um a um.")
-          : "Marque " + unidade.plural + (generoF ? " uma a uma" : " um a um") + " ou " +
-            (p.rotulos.todo?.nome?.trim() ? todoInteiro(false, p.rotulos) : "toda a base") + "."}</p>
-        {/* As ferramentas da Seleção (06/11/2026, item 5 do comando): Buscar e Agregar territórios. */}
-        <div role="group" aria-label="Ferramentas da Seleção" data-testid="analise-selecao-ferramentas" className="analise-selecao-ferramentas">
-          <button type="button" data-testid="analise-selecao-buscar" className="analise-botao-secundario"
-            onClick={() => buscaRef.current?.focus()}><Search size={14} aria-hidden="true"/>Buscar</button>
-          <button type="button" data-testid="analise-agregar-abrir" className="analise-botao-secundario" aria-expanded={agregar !== null}
-            onClick={() => setAgregar(atual => atual === null ? "novo" : null)}><Layers3 size={14} aria-hidden="true"/>Agregar territórios</button>
-          {p.criterios && <button type="button" data-testid="analise-criterios-abrir" className="analise-botao-secundario"
-            aria-expanded={p.criterios.aberto} onClick={p.criterios.onAlternar}><Filter size={14} aria-hidden="true"/>Selecionar por critérios</button>}
-        </div>
-        {p.criterios?.aberto && p.criterios.painel}
-        {agregar !== null && (() => {
-          const emEdicao = agregar === "novo" ? null : p.conjuntos.find(conjunto => conjunto.id === agregar) ?? null;
-          return <AgregarTerritorios key={agregar} unidades={validas} rotulos={p.rotulos} grupos={p.grupos} sugestao={"Grupo " + (p.conjuntos.length + 1)}
-            inicial={emEdicao ? { rotulo: emEdicao.rotulo, membros: emEdicao.membros, substitui: !!emEdicao.substitui } : null}
-            onCancelar={() => setAgregar(null)}
-            onCriar={grupo => { if (emEdicao) p.onSalvarGrupo(emEdicao.id, grupo); else p.onCriarGrupo(grupo); setAgregar(null); }}/>;
-        })()}
+            ? "Marque " + (p.brasil ? "o Brasil, " : "") + grupoRotulo.plural + " inteir" + (generoGrupoF ? "as" : "os") + " ou " + unidade.plural + ". " +
+              maiuscula(artigo(grupoRotulo, false)) + " " + grupoRotulo.singular + " marcad" + (generoGrupoF ? "a" : "o") + " traz " + todosOs(unidade) + " del" +
+              (generoGrupoF ? "a" : "e") + ", e você pode desmarcar " + (generoF ? "algumas" : "alguns") + ". Abra a lista de " +
+              (generoGrupoF ? "uma " : "um ") + grupoRotulo.singular + " para escolher " + unidade.plural + (generoF ? " uma a uma." : " um a um.")
+            : "Marque " + unidade.plural + (generoF ? " uma a uma" : " um a um") + " ou " +
+              (p.rotulos.todo?.nome?.trim() ? todoInteiro(false, p.rotulos) : "toda a base") + "."}</p>
         <div className="analise-busca">
-          <label className="sr-only" htmlFor="analise-busca">{rotuloDaBusca}</label>
-          <Search size={16} aria-hidden="true" className="analise-busca-icone"/>
-          <input ref={buscaRef} id="analise-busca" type="search" data-testid="analise-busca" value={consulta} autoComplete="off"
-            onChange={event => setConsulta(event.target.value)} placeholder={placeholder} className="analise-campo analise-busca-campo"/>
-          {consulta && <button type="button" className="analise-icone analise-busca-limpar" aria-label="Limpar a busca"
-            onClick={() => { setConsulta(""); buscaRef.current?.focus(); }}><X size={14} aria-hidden="true"/></button>}
+            <label className="sr-only" htmlFor="analise-busca">{rotuloDaBusca}</label>
+            <Search size={16} aria-hidden="true" className="analise-busca-icone"/>
+            <input ref={buscaRef} id="analise-busca" type="search" data-testid="analise-busca" value={consulta} autoComplete="off"
+              onChange={event => setConsulta(event.target.value)} placeholder={placeholder} className="analise-campo analise-busca-campo"/>
+            {consulta && <button type="button" className="analise-icone analise-busca-limpar" aria-label="Limpar a busca"
+              onClick={() => { setConsulta(""); buscaRef.current?.focus(); }}><X size={14} aria-hidden="true"/></button>}
+          </div>
+          {conteudo}
+          {marcadosParaAgrupar.length >= 2 && marcadosParaAgrupar.length <= MAX_MEMBROS_DO_ATALHO && <button type="button"
+            data-testid="analise-agrupar-marcados" className="analise-botao-secundario analise-agrupar-marcados" onClick={agruparMarcados}>
+            <Layers3 size={14} aria-hidden="true"/>Agrupar os marcados ({marcadosParaAgrupar.length.toLocaleString("pt-BR")})</button>}
         </div>
-        {conteudo}
+        {p.criterios?.painel && <div data-testid="analise-modo-criterios-conteudo" hidden={p.modo !== "criterios"}>{p.criterios.painel}</div>}
+        {agregar && <div data-testid="analise-modo-agrupar-conteudo" hidden={p.modo !== "agrupar"}>
+          <AgregarTerritorios key={agregar.id + ":" + agregar.n} unidades={validas} rotulos={p.rotulos} grupos={p.grupos}
+            sugestao={nomesLivresDeConjunto(p.conjuntos.filter(conjunto => conjunto.id !== agregar.id).map(conjunto => conjunto.rotulo), 1)[0]}
+            nomesDosOutros={p.conjuntos.filter(conjunto => conjunto.id !== agregar.id).map(conjunto => conjunto.rotulo)}
+            inicial={agregar.inicial} editando={agregar.id !== "novo"} coordenadas={p.coordenadas} medirExtensao={p.medirExtensao}
+            onCancelar={() => { setAgregar(null); p.onModo("lista"); }}
+            onCriar={grupo => { if (agregar.id !== "novo") p.onSalvarGrupo(agregar.id, grupo); else p.onCriarGrupo(grupo); setAgregar(null); p.onModo("lista"); }}/>
+        </div>}
       </div>
 
       <aside data-testid="analise-selecionados" className="analise-selecionados" aria-label="Na análise">

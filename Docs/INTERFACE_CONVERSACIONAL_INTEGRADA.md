@@ -335,8 +335,8 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
   as alternativas e a envia na memória da conversa (`conversa`), e o gestor de diálogo do backend escolhe a alternativa, como
   o clique ([diálogo governado](DIALOGO_GOVERNADO.md)). Escolher uma alternativa reinterpreta o pedido com a escolha; se a resposta não trouxer o campo `painel`, a operação escolhida vira a família ou a
   função equivalente (densidade e quantitativos → Distribuição com o indicador; evolução → Tendência; espacial e referência
-  mais próxima → Análise espacial; comparação → Comparar; agregação → o pedido de agregar (desde 06/11/2026, o grupo de
-  Agregar territórios, no lugar dos membros; antes, a gaveta Juntar); ranking → Ordenar; critérios → Condições;
+  mais próxima → Análise espacial; comparação → Comparar; agregação → o pedido de agrupar (desde 06/11/2026, o conjunto de
+  Agrupar territórios, no lugar dos membros, com o nome "Agregar territórios" até 07/11/2026; antes, a gaveta Juntar); ranking → Ordenar; critérios → Condições;
   relatório → Exportar);
 - pendências da conversa continuam: "Compare Manaus" pergunta o outro município, e a resposta seguinte completa o pedido;
   a direção de uma ordenação é perguntada, nunca presumida;

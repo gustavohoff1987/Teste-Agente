@@ -3356,7 +3356,8 @@ def _compute_grupos_da_planilha(ctx, options, spec) -> dict:
     refusals = {
         "base": "No nível d" + group.g("os", "as") + " " + group.plural + ", " + group.g("os", "as") + " escolhid" +
                 group.g("os", "as") + " vão em estados: base vale só para " + unit.plural + ".",
-        "conjuntos": "Grupos de " + group.plural + " não estão disponíveis no gráfico; use Agregar territórios com " +
+        # Desde 07/11/2026 (item 8.1 do comando de 07/11/2026), "Conjuntos" e "Agrupar territórios" (antes, "Grupos" e "Agregar").
+        "conjuntos": "Conjuntos de " + group.plural + " não estão disponíveis no gráfico; use Agrupar territórios com " +
                      unit.plural + ".",
         "referencia": _sem_ponto_unico(ctx.labels), "consulta": _sem_ponto_unico(ctx.labels),
         "faixas_distancia": _sem_ponto_unico(ctx.labels),

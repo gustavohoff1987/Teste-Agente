@@ -326,7 +326,10 @@
 .analise-caixa { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 3px 6px; border-radius: 8px; color: var(--cor-tinta);
   font-size: 13px; cursor: pointer; }
 .analise-caixa:hover { background: var(--cor-realce-suave); }
-.analise-caixa input { flex-shrink: 0; width: 16px; height: 16px; accent-color: var(--cor-destaque); }
+/* Só as caixas de marcar e os botões de opção (07/11/2026, item 4.1 do comando de 07/11/2026): antes, a regra pegava também o campo de
+   km que estava dentro do mesmo <label> (16 px de largura, o número digitado sumia). */
+.analise-caixa input[type="checkbox"], .analise-caixa input[type="radio"] { flex-shrink: 0; width: 16px; height: 16px;
+  accent-color: var(--cor-destaque); }
 .analise-lista-rolavel { max-height: 16rem; overflow-y: auto; margin: 0; padding: 4px; border: 1px solid var(--cor-borda);
   border-radius: 10px; background: var(--cor-superficie-suave); list-style: none; }
 .analise-competencias { display: grid; grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr)); gap: 2px 8px; margin: 4px 0 0; padding: 0; list-style: none; }
@@ -361,7 +364,7 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
 .analise-grupo-aberto { border-color: var(--cor-destaque); background: var(--cor-realce-destaque); }
 .analise-grupo-linha { display: flex; align-items: flex-start; gap: 6px; }
 .analise-grupo-linha .analise-caixa { align-items: flex-start; }
-.analise-grupo-linha .analise-caixa input { margin-top: 2px; }
+.analise-grupo-linha .analise-caixa input[type="checkbox"] { margin-top: 2px; }
 .analise-ver { display: inline-flex; flex-shrink: 0; align-items: center; gap: 2px; margin-top: 3px; padding: 4px 7px;
   border: 1px solid var(--cor-borda-campo); border-radius: 8px; background: var(--cor-superficie); color: var(--cor-destaque-texto);
   font-size: 12px; font-weight: 650; white-space: nowrap; }
@@ -544,7 +547,6 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
   border: 1px solid var(--cor-borda-suave); border-radius: 8px; }
 .analise-criterios-bloco > legend { padding: 0 4px; color: var(--cor-tinta); font-size: 13px; font-weight: 700; }
 .analise-criterios-distancia { display: flex; flex-direction: column; gap: 6px; }
-.analise-criterios-km { width: 5.5rem; min-height: 36px; }
 .analise-criterios-previa { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--cor-borda-suave);
   color: var(--cor-texto); font-size: 14px; line-height: 1.45; }
 .analise-criterios-previa p { margin: 0; }
@@ -762,3 +764,33 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
   .analise-quadro-lado { display: block; }
   .analise-quadro-lado > .analise-vista + .analise-vista { margin-top: 12px; }
 }
+
+/* Uma ferramenta por vez na Seleção (07/11/2026, item 1 do comando de 07/11/2026): os modos no alto da coluna da esquerda. */
+.analise-selecao-modos { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px; padding: 3px; border: 1px solid var(--cor-borda-cartao);
+  border-radius: 10px; background: var(--cor-superficie); }
+.analise-selecao-modo { display: inline-flex; flex: 1 1 auto; align-items: center; justify-content: center; gap: 6px; min-height: 36px;
+  padding: 4px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--cor-tinta); font-size: 13px; font-weight: 600;
+  cursor: pointer; }
+.analise-selecao-modo[aria-checked="true"] { background: var(--cor-destaque); color: var(--cor-sobre-tinta); }
+.analise-selecao-modo:focus-visible { outline: 2px solid var(--cor-destaque); outline-offset: 2px; }
+.analise-agrupar-marcados { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; }
+/* "Por critérios" e "Agrupar territórios" (itens 4.2, 7.1 e 7.5): o mini mapa e a linha-resumo fixos no alto, os passos numerados e o
+   rodapé fixo; em tela estreita, só a linha-resumo fica fixa. */
+.analise-criterios-alto { position: sticky; top: 70px; z-index: 3; display: flex; flex-direction: column; gap: 4px; padding: 4px 0 6px;
+  background: var(--cor-superficie-suave); }
+.analise-criterios-resumo { margin: 0; color: var(--cor-tinta); font-size: 13px; font-weight: 700; }
+@media (max-width: 640px) {
+  .analise-criterios-alto { position: static; }
+  .analise-criterios-resumo { position: sticky; top: 70px; z-index: 3; padding: 4px 0; background: var(--cor-superficie-suave); }
+}
+.analise-criterios-passos { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.analise-criterios-escolhas { display: flex; flex-wrap: wrap; gap: 4px 12px; padding-left: 22px; }
+.analise-criterios-escolhas-longa { max-height: 9.5rem; overflow-y: auto; }
+.analise-criterios-lista { display: flex; flex-direction: column; gap: 6px; }
+.analise-criterios-rodape { position: sticky; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: 6px; padding: 8px 0 4px;
+  border-top: 1px solid var(--cor-borda-suave); background: var(--cor-superficie-suave); }
+.analise-criterios-estado { margin: 0; font-size: 13px; }
+.analise-criterios-uso { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.analise-mapa-conjuntos { margin: 0; }
+.analise-mapa-conjuntos-esmaecido svg { opacity: 0.45; }
+.analise-mapa-conjuntos-legenda { margin-top: 2px; color: var(--cor-texto-apoio); font-size: 12px; }
