@@ -35,6 +35,67 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Seleção por critérios de ponta a ponta, parte A (comando de 07/11/2026, itens 4.4, 6, 8.2 e 9.1): o motor e a conversa
+- **Classificação (regra 1), pela leitura, antes de codar:** os nove itens do comando de 07/11/2026 ("seleção por critérios de
+  ponta a ponta e navegação da Seleção de Territórios") foram classificados de uma vez, no início. Todos mudam comportamento e
+  passam nos dois testes: *escopo:* decorrem do comando; *compatibilidade:* nenhum contraria a SPEC nem uma divergência
+  aprovada.
+  - 4.4: o agrupamento continua um método só, versionado (RQ-CAP-13: versão 2.0), com a distância dita pela pessoa (EXC-11) e
+    sem "cluster" (EXC-05); o comando do responsável troca a cadeia, escolhida na decisão 4, por "todos a até X km entre si".
+  - 6: o conjunto passa a ter, na Escolha dos territórios, o que já tinha com a referência fixa: a menor e a maior distância dos
+    membros, cada membro até a sua referência mais próxima (CAP-ESP-02, mínimo do conjunto completo, com os empates), sem
+    ponto único nem centroide.
+  - O fim do item 6.6 ("nas faixas, na ordenação e nas condições de distância, o conjunto entra pela distância dele, como no
+    modo de referência fixa") parte de uma premissa que não vale hoje: os conjuntos ficam fora do universo dessas análises
+    também com a referência fixa (`Docs/PAINEL_INTEGRADO.md`, "Universo das análises"). Fica como está, e a dúvida vai ao
+    responsável no fim da rodada.
+- **Antes:**
+  - `POST /api/painel/criterios` agrupava em cadeia (dois territórios no mesmo grupo quando há uma sequência deles, cada um a até
+    X km do seguinte), com os nomes "Grupo 1", "Grupo 2"… e a regra "…, agrupados a até X km uns dos outros". No Pará, com
+    densidade abaixo de 0,5 e X = 100, saía um grupo de 12 municípios com 309 km de ponta a ponta.
+  - Sem critério de valor e sem a distância até um território, a rota e a conversa recusavam ("Escolha ao menos um critério").
+  - Na Escolha dos territórios, todo conjunto saía com "Distância não se aplica ao conjunto", sem distância nem referência.
+  - A conversa abria "Selecionar por critérios" e falava em "grupos por proximidade", "uns dos outros", "Como seleção" e "Cada
+    grupo como território agregado".
+- **Agora:**
+  - **Conjuntos todos a até X km entre si** (`METODO_AGRUPAMENTO`, versão 2.0): cada território começa sozinho; a cada passo,
+    juntam-se os dois conjuntos cujo par mais distante (um de cada conjunto) é o menor, enquanto esse par ficar a até X km;
+    empate, pela ordem do código; quem não entra em nenhum conjunto fica sem conjunto (`isolados`). Nenhum par de um conjunto
+    passa de X km, e a extensão de ponta a ponta fica sempre até X. O cálculo se faz dentro de cada componente da cadeia, sem
+    dependência nova. A regra diz "…, agrupados a até X km entre si", e as notas, "Conjuntos por proximidade, todos a até X km
+    entre si (RQ-CAP-13, versão 2.0)…", sem "cadeia".
+  - **Os nomes padrão** são "Conjunto A", "Conjunto B"… e, depois de Z, AA, AB… (item 8.2).
+  - **Só pela distância** (item 9.1): com `agrupar`, os critérios de valor são opcionais. A regra diz "todos os municípios" e
+    "todos os municípios, agrupados a até 50 km entre si". Sem critério e sem agrupamento, a recusa diz "Escolha ao menos um
+    critério (…) ou agrupe por proximidade.". O limite de 2.000 para agrupar continua.
+  - **A distância dos conjuntos na Escolha dos territórios** (item 6): cada membro tem a distância até a sua referência mais
+    próxima, mesmo fora da base. O conjunto mostra a menor (`distancia_km`) e a maior (`distancia_km_max`), e a referência dele
+    é a do membro mais próximo, com o membro (`referencia_do_item.membro`, de onde sai a ligação no mapa); no empate entre
+    membros, o de menor código. Um membro sem distância deixa as duas `null`, com o motivo e o dos membros, como na referência
+    fixa. As referências usadas pelos conjuntos entram em `referencia.membros`, e uma nota explica a regra. Uma seleção só com
+    conjuntos vale como base.
+  - **A conversa** abre "Por critérios", na Seleção, e fala em conjuntos "a até X km entre si", "Usar como seleção" e "Usar
+    cada conjunto como um território". Com o agrupamento, o critério de valor é opcional: "agrupe os municípios do Pará a até
+    50 km entre si" abre o modo com todos os municípios do Pará. Faltando a distância, a conversa pergunta "Para agrupar por
+    proximidade, diga a distância máxima entre os membros do conjunto, em km…"; faltando o critério sem agrupamento, "Para
+    selecionar por critérios, diga os critérios…".
+- **Permanece:** os números que o motor já calcula para unidades e conjuntos (as somas, as densidades, as distâncias das
+  unidades); os filtros de CAP-SUB-01, a distância "a até X km de …", onde procurar e as recusas; a referência fixa; os
+  conjuntos fora do universo das faixas, da ordenação e das condições; nada vai ao provedor de IA.
+- **Motivo:** comando do responsável de 07/11/2026, itens 4.4, 6, 8.2 e 9.1. A tela vem nas partes seguintes.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO.md` (a Rota 6 e o conjunto com a Escolha dos territórios) e
+    `Docs/CONVERSACAO_INCREMENTO_FN.md` (Selecionar por critérios pela conversa).
+  - **Testes novos:** em `test_painel_pagina.py`, os conjuntos todos a até X km numa linha do equador (A, B e C a 89 km um do
+    outro: a 100 km só A e B, pelo empate na ordem; a 200 km os três) e a distância dos conjuntos na Escolha dos territórios
+    (pelo membro mais próximo; um membro sem coordenada; uma seleção só com conjuntos); com a base versionada (job
+    dados-reais), a referência do comando no Pará a 100 km e, a 200 km, nenhum par acima de 200 km, conferido com o pyproj; em
+    `test_conversa_grafico.py`, "agrupe os municípios do Pará a até 50 km entre si".
+  - **Testes que mudam de propósito:** em `test_painel_pagina.py`, o teste da rota (o nome "Conjunto A", "entre si", a versão
+    2.0 e o agrupamento sem critério de valor), o aceite com a base versionada (a cadeia de 6 grupos e 8 isolados dá lugar à
+    conferência dos pares) e a Escolha dos territórios com um conjunto (esperava "Distância não se aplica ao conjunto"); em
+    `test_conversa_grafico.py`, as respostas e as perguntas do pedido por critérios.
+
 ### 2026-11-07 · Hospedagem: o CORS do serviço passa a aceitar só https://diagnostico-territorial.github.io (D-2)
 - **Classificação (regra 1), pela leitura, antes de mudar:** uma página na origem antiga deixa de receber o cabeçalho do CORS, o
   que muda o que um consumidor da API observa. A mudança decorre do pedido da responsável, que autorizou a D-2 junto com a

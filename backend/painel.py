@@ -1479,15 +1479,16 @@ def _lado_selecao(ctx, spec, previa, final):
                           "nao_avaliaveis": sum(1 for key in partir if states[key] == "NAO_AVALIAVEL")}}
 
 
-def _consulta_selecao(ctx, consulta, previa, final, distancias):
+def _consulta_selecao(ctx, consulta, previa, final, distancias, extras=()):
     """Os dois lados da consulta no motor, cada um pelas próprias etapas. Com `distancias` (o cálculo do gráfico) e a
-    referência completa, a distância de cada município da base até a referência mais próxima."""
+    referência completa, a distância de cada município da base até a referência mais próxima e, desde 07/11/2026 (item 6.3 do
+    comando de 07/11/2026), a de cada membro dos conjuntos (`extras`), mesmo fora da base: o conjunto fica no lugar deles."""
     ref_spec, base_spec = consulta["referencia"], consulta["base"]
     referencia = _lado_selecao(ctx, ref_spec, previa, final)
     base = _lado_selecao(ctx, base_spec, previa, final)
     spatial = None
     if distancias and not ref_spec["pendencias"]:
-        spatial = _consulta_spatial(ctx, ref_spec, referencia["final"], base["final"])
+        spatial = _consulta_spatial(ctx, ref_spec, referencia["final"], list(base["final"]) + list(extras))
     return {"base": base, "referencia": referencia, "spatial": spatial}
 
 
@@ -1591,11 +1592,33 @@ def _unidade_da_lista(ctx, key, final):
             "densidade": _num(record["valores"]["densidade"]) if record is not None else None}
 
 
+def _membro_mais_proximo(ctx, spatial, item, final):
+    """O membro do conjunto com a menor distância até a referência mais próxima (07/11/2026, item 6.2 do comando de 07/11/2026):
+    entre os membros com registro, o de menor distância; no empate entre membros, o de menor código. Sem distância no conjunto
+    (algum membro não avaliável), None."""
+    if spatial is None or item.get("distancia_km") is None:
+        return None
+    present = [key for key in item["membros"] if key in final.records and spatial.values.get(key) is not None]
+    if not present:
+        return None
+    menor = min(spatial.values[key] for key in present)
+    return min((key for key in present if spatial.values[key] == menor), key=lambda key: (ctx.catalog[key]["code"], key))
+
+
+def _referencias_do_item(ctx, spatial, item, final):
+    """As referências mais próximas de um item na Escolha dos territórios, com os empates: as do município ou, num conjunto,
+    as do membro mais próximo."""
+    if item["tipo"] == "conjunto":
+        membro = _membro_mais_proximo(ctx, spatial, item, final)
+        return list(spatial.nearest.get(membro, [])) if membro else []
+    return list(spatial.nearest.get(item["id"], []))
+
+
 def _consulta_block(ctx, consulta, selecao, spatial, items, final):
     """`referencia` da resposta com a Escolha dos territórios: a consulta normalizada, a base e a referência em palavras,
-    as contagens de cada etapa e os territórios que ficaram como referência de algum município (na ordem do código), com
-    a UF, a população, a quantidade e a densidade de cada um, lidas das mesmas medidas dos itens."""
-    used = sorted({key for item in items if item["tipo"] == "municipio" for key in spatial.nearest.get(item["id"], [])},
+    as contagens de cada etapa e os territórios que ficaram como referência de algum município ou conjunto (na ordem do
+    código), com a UF, a população, a quantidade e a densidade de cada um, lidas das mesmas medidas dos itens."""
+    used = sorted({key for item in items for key in _referencias_do_item(ctx, spatial, item, final)},
                   key=lambda key: (ctx.catalog[key]["code"], key))
 
     def member(key):
@@ -1731,24 +1754,34 @@ def _set_item(ctx, spec, final, initial, spatial, reference, changes=None):
             "densidade": _num(values.get("densidade")), "contagem": "SOMA_DOS_COMPONENTES",
             "distancia_km": None, "distancia_km_max": None}
     distance_ok = None
-    if spatial is not None and reference is not None and reference.get("modo") == "consulta":
-        # Cada membro tem a sua referência mais próxima: o conjunto não tem um ponto nem uma referência únicos.
-        distance_ok = False
-        motives.append("Distância não se aplica ao conjunto: com a referência mais próxima de cada " + unit.singular +
-                       ", cada membro tem a sua referência, e o conjunto não tem um ponto único")
-    elif spatial is not None:
+    if spatial is not None:
+        # Membro mais próximo e membro mais distante da referência, no mesmo suporte dos valores do conjunto: com a referência
+        # fixa e, desde 07/11/2026 (item 6.2 do comando de 07/11/2026), com a Escolha dos territórios, em que cada membro vai até
+        # a sua referência mais próxima (CAP-ESP-02, mínimo do conjunto completo, com os empates) e a referência do conjunto é a
+        # do membro mais próximo (_membro_mais_proximo). Sem ponto único nem centroide. Um membro sem distância deixa as duas
+        # não avaliáveis, como na referência fixa.
         distance_ok = False
         found = [spatial.values.get(key) for key in present]
         if present and all(value is not None for value in found):
-            # Membro mais próximo e membro mais distante da referência, no mesmo suporte dos valores do conjunto.
             item["distancia_km"], item["distancia_km_max"] = _num(min(found)), _num(max(found))
             distance_ok = True
         elif present:
-            missing = [_label(ctx.catalog[key]) for key in present if spatial.values.get(key) is None]
-            motives.append(_reference_gap(ctx, spatial) if spatial.invalid else
-                           "Distância não avaliável em " + human_period(ctx.period) + ": sem coordenada válida em " +
-                           _join(missing[:5]) + (" e mais " + str(len(missing) - 5) if len(missing) > 5 else "") +
-                           " (DEPENDENCIA_NAO_AVALIAVEL)")
+            missing = [key for key in present if spatial.values.get(key) is None]
+            names = _join([_label(ctx.catalog[key]) for key in missing[:5]]) + \
+                (" e mais " + str(len(missing) - 5) if len(missing) > 5 else "")
+            if reference is not None and reference.get("modo") == "consulta":
+                motives.append("Distância não avaliável em " + human_period(ctx.period) + ": " +
+                               ("o membro " + names + " não tem" if len(missing) == 1 else "os membros " + names + " não têm") +
+                               " a distância até a referência mais próxima, e o conjunto não fica com a menor das demais "
+                               "(DEPENDENCIA_NAO_AVALIAVEL)")
+                for key in missing[:2]:
+                    reason = _distance_reason(ctx, spatial, key)
+                    if reason:
+                        motives.append(_label(ctx.catalog[key]) + ": " + reason)
+            else:
+                motives.append(_reference_gap(ctx, spatial) if spatial.invalid else
+                               "Distância não avaliável em " + human_period(ctx.period) + ": sem coordenada válida em " + names +
+                               " (DEPENDENCIA_NAO_AVALIAVEL)")
     inicial, variation, variation_ok = _empty3(), _empty3(), None
     if initial is not None:
         variation_ok = False
@@ -1883,6 +1916,12 @@ def _notes(ctx, base, sets, items, final, initial, spatial, reference):
                          "mínimo do conjunto completo), com todos os empates exatos; uma referência do recorte sem "
                          "coordenada válida deixa a distância não avaliável, sem trocar pela mais próxima entre as demais; "
                          "sem referência no recorte, não há distância (nunca zero).")
+            if sets:
+                notes.append("Conjuntos na Escolha dos territórios: cada membro tem a distância até a sua referência mais "
+                             "próxima (CAP-ESP-02), mesmo fora da base; o conjunto mostra a menor delas, com a referência desse "
+                             "membro, e a maior (o membro mais distante de uma referência), sem ponto único nem centroide. Um "
+                             "membro sem distância deixa o conjunto sem distância. Os filtros da base valem só para " +
+                             lab.g("os ", "as ") + lab.plural + "; os conjuntos entram inteiros.")
         else:
             notes.append("Referência: " + _join([_label(ctx.catalog[key]) for key in members[:8]]) +
                          (" e mais " + str(len(members) - 8) if len(members) > 8 else "") +
@@ -2770,14 +2809,29 @@ def _series(ctx, res, window, by_id):
     return top, ([min(values), max(values)] if values else None)
 
 
-def _nearest_of(ctx, spatial, item):
-    if spatial is None or item["tipo"] != "municipio":
+def _nearest_of(ctx, spatial, item, final=None):
+    """A referência mais próxima de um item, com os empates. Com `final` (a Escolha dos territórios, desde 07/11/2026, item 6.2
+    do comando de 07/11/2026), também a de um conjunto: a do membro mais próximo, que vai em `membro` (a ligação no mapa sai
+    dele)."""
+    if spatial is None:
         return None
-    members = spatial.nearest.get(item["id"])
+    membro = None
+    if item["tipo"] == "conjunto" and final is not None:
+        membro = _membro_mais_proximo(ctx, spatial, item, final)
+        if membro is None:
+            return None
+        members = spatial.nearest.get(membro)
+    elif item["tipo"] != "municipio":
+        return None
+    else:
+        members = spatial.nearest.get(item["id"])
     if not members:
         return None
-    return {"id": members[0], "rotulo": _label(ctx.catalog[members[0]]),
-            "empate": [{"id": key, "rotulo": _label(ctx.catalog[key])} for key in members] if len(members) > 1 else []}
+    out = {"id": members[0], "rotulo": _label(ctx.catalog[members[0]]),
+           "empate": [{"id": key, "rotulo": _label(ctx.catalog[key])} for key in members] if len(members) > 1 else []}
+    if membro is not None:
+        out["membro"] = {"id": membro, "rotulo": _label(ctx.catalog[membro])}
+    return out
 
 
 def _group_of(ctx, item):
@@ -3011,12 +3065,13 @@ def _page_extras(ctx, spec, body, res):
         item["grupo_territorial"] = _group_of(ctx, item)
     if res.reference is not None:
         # Com a Escolha dos territórios (27/10/2026), a referência mais próxima de cada item (com os empates) vai em
-        # referencia_do_item; com membros escolhidos, o membro mais próximo, como antes.
+        # referencia_do_item, e desde 07/11/2026 também a de cada conjunto (a do membro mais próximo, com o membro); com membros
+        # escolhidos, o membro mais próximo, como antes.
         por_item = res.reference.get("modo") == "consulta"
         for item in items:
             item["referencia_mais_proxima"] = None if por_item else _nearest_of(ctx, res.spatial, item)
             if por_item:
-                item["referencia_do_item"] = _nearest_of(ctx, res.spatial, item)
+                item["referencia_do_item"] = _nearest_of(ctx, res.spatial, item, res.final)
     body.update({"nivel": ctx.nivel, "indicador": ctx.indicador, "rotulos": ctx.labels.public(),
                  "disponibilidade": _availability(ctx), "contexto": _context_line(ctx)})
     if res.completo is not None and ctx.nivel == "municipios":
@@ -3550,7 +3605,8 @@ def compute(sources, mapping, options, frame=None) -> dict:
     initial = _measures(ctx, initial_period) if initial_period else None
     spatial, selecao, previa = None, None, base
     if consulta is not None:
-        selecao = _consulta_selecao(ctx, consulta, previa, final, distancias=True)
+        selecao = _consulta_selecao(ctx, consulta, previa, final, distancias=True,
+                                    extras=[key for spec_ in sets for key in spec_["membros"]])
         spatial, base = selecao["spatial"], selecao["base"]["final"]
         uses = any(consulta[lado]["partir_de"]["tipo"] == "selecao_previa" for lado in LADOS)
         reference = {"modo": "consulta", "consulta": consulta, "selecao": selecao, "membros": [], "criterio": None,
@@ -4165,20 +4221,25 @@ def session_context(frame, mapping, options, body) -> dict:
 # Selecionar por critérios (07/11/2026, item 6 do comando de 06/11/2026; decisão 4 do responsável): o subconjunto por critério
 # (CAP-SUB-01: os mesmos filtros das Condições e da Escolha dos territórios, combinados por E), procurado no todo, num grupo
 # (o lugar em uso) ou na seleção em uso, com o critério opcional de distância "a até X km de {território}" (geodésica direta,
-# TPL-11) e, se a pessoa quiser, os grupos por proximidade: um método só, em cadeia (RQ-CAP-13) — dois territórios que atendem
-# ficam no mesmo grupo quando há uma sequência deles, cada um a até X km do seguinte; quem não tem nenhum a até X km fica
-# isolado. A distância é a geodésica entre as sedes, pelo mesmo método da Análise Espacial (nearest_reference, Karney, no
-# elipsoide do referencial). O sistema não sugere critério nem distância (EXC-11) e não detecta padrões espaciais (EXC-05): a
-# regra é toda da pessoa. Só calcula a prévia: nada é registrado na sessão, e nada vai ao provedor de IA.
+# TPL-11) e, se a pessoa quiser, os conjuntos por proximidade: um método só (RQ-CAP-13), desde 07/11/2026 (item 4.4 do comando
+# de 07/11/2026; antes, em cadeia) "todos a até X km entre si" — cada território começa sozinho e, a cada passo, juntam-se os
+# dois conjuntos cujo par mais distante (um de cada conjunto) é o menor, enquanto esse par ficar a até X km, com o empate pela
+# ordem do código; quem não entra em nenhum conjunto fica sem conjunto. Em todo conjunto, nenhum par passa de X km. Com o
+# agrupamento, os critérios de valor são opcionais (item 9.1): dá para agrupar só pela distância. A distância é a geodésica
+# entre as sedes, pelo mesmo método da Análise Espacial (nearest_reference, Karney, no elipsoide do referencial). O sistema não
+# sugere critério nem distância (EXC-11) e não detecta padrões espaciais (EXC-05): a regra é toda da pessoa. Só calcula a prévia:
+# nada é registrado na sessão, e nada vai ao provedor de IA.
 CRITERIOS_KEYS = frozenset(("competencia", "categoria", "base", "criterios", "agrupar", "premissas", "rotulos"))
 MAX_AGRUPAR = 2000
 MAX_KM = 5000
 OPERADOR_FRASE = {"<": "abaixo de", "<=": "até", ">": "acima de", ">=": "a partir de"}
-METODO_AGRUPAMENTO = {"capacidade": "RQ-CAP-13", "versao": "1.0",
-                      "metodo": "em cadeia: dois territórios que atendem ficam no mesmo grupo quando há uma sequência deles, "
-                                "cada um a até a distância escolhida do seguinte; quem não tem nenhum a essa distância fica "
-                                "isolado",
-                      "extensao": "a maior distância geodésica entre dois membros do grupo (de ponta a ponta)"}
+METODO_AGRUPAMENTO = {"capacidade": "RQ-CAP-13", "versao": "2.0",
+                      "metodo": "todos a até a distância escolhida entre si: cada território começa sozinho e, a cada passo, "
+                                "juntam-se os dois conjuntos cujo par mais distante (um território de cada conjunto) é o menor, "
+                                "enquanto esse par ficar a até a distância escolhida; empate, pela ordem do código; quem não "
+                                "entra em nenhum conjunto fica sem conjunto",
+                      "extensao": "a maior distância geodésica entre dois membros do conjunto (de ponta a ponta), nunca maior "
+                                  "que a distância escolhida"}
 
 
 def _km(raw, what) -> Decimal:
@@ -4213,15 +4274,17 @@ def _valor_br(texto) -> str:
 
 def _frase_dos_criterios(ctx, filtros, distancia, agrupar) -> str:
     """A regra em palavras, para a trilha, o método e os Detalhes: "densidade abaixo de 0,5", "… a até 200 km de MANAUS (AM)",
-    "…, agrupados a até 200 km uns dos outros"."""
+    "…, agrupados a até 200 km entre si" (desde 07/11/2026; antes, "uns dos outros"). Sem critério de valor nem distância (só o
+    agrupamento, item 9.1 do comando de 07/11/2026): "todos os municípios" e "todos os municípios, agrupados a até 50 km entre
+    si"."""
+    unit = ctx.labels.unidade
     partes = [VALUE_TEXT.get(item["indicador"], item["indicador"]) + " " + OPERADOR_FRASE[item["operador"]] + " " +
               _valor_br(item["valor"]) for item in filtros if item["valor"] is not None]
     if distancia:
         partes.append("a até " + _valor_br(format(distancia["km"], "f")) + " km de " + _label(ctx.catalog[distancia["de"]]))
-    texto = _join(partes)
+    texto = _join(partes) if partes else unit.g("todos os ", "todas as ") + unit.plural
     if agrupar is not None:
-        texto += ", agrupad" + ctx.labels.unidade.g("os", "as") + " a até " + _valor_br(format(agrupar, "f")) + " km " + \
-            ctx.labels.unidade.g("uns dos outros", "umas das outras")
+        texto += ", agrupad" + unit.g("os", "as") + " a até " + _valor_br(format(agrupar, "f")) + " km entre si"
     return texto
 
 
@@ -4269,24 +4332,81 @@ def _grupos_em_cadeia(lat, lon, limite_m, crs):
     return [find(i) for i in range(n)], calculadas
 
 
-def _extensao(lat, lon, crs) -> float:
-    """A extensão de ponta a ponta de um grupo: a maior geodésica entre dois membros (km)."""
+def _conjuntos_por_proximidade(lat, lon, ordem, limite_m, crs):
+    """Os conjuntos "todos a até X km entre si" (07/11/2026, item 4.4 do comando de 07/11/2026; METODO_AGRUPAMENTO, versão
+    2.0): cada território começa sozinho e, a cada passo, juntam-se os dois conjuntos cujo par mais distante (um de cada
+    conjunto, pela geodésica de Karney) é o menor, enquanto esse par ficar a até o limite; empate, pela ordem do código
+    (`ordem`: a chave de ordenação de cada índice). Em todo conjunto, nenhum par passa do limite. Um conjunto assim fica sempre
+    dentro de um componente da cadeia (os pares a até o limite), então o cálculo se faz dentro de cada componente: só as
+    geodésicas dos pares dele.
+
+    Devolve as listas de índices (os conjuntos, com dois ou mais; os sem conjunto, com um só) e, para cada conjunto, a extensão
+    de ponta a ponta em km (a maior geodésica entre dois membros, a mesma matriz do cálculo)."""
     from nearest_reference import GEODS
-    n = len(lat)
-    if n < 2:
-        return 0.0
-    i, j = np.triu_indices(n, 1)
+    componente, _ = _grupos_em_cadeia(lat, lon, limite_m, crs)
+    por_raiz = {}
+    for indice, raiz in enumerate(componente):
+        por_raiz.setdefault(raiz, []).append(indice)
     lat, lon = np.asarray(lat, float), np.asarray(lon, float)
-    _, _, metros = GEODS[crs].inv(lon[i], lat[i], lon[j], lat[j])
-    return float(metros.max()) / 1000
+    saida = []
+    for indices in por_raiz.values():
+        if len(indices) < 2:
+            saida.append((indices, None))
+            continue
+        # Linha k da matriz = o território de ordem k no componente; o conjunto de uma linha guarda a linha do seu menor código,
+        # então a primeira ocorrência do mínimo (np.argmin, linha a linha) é o par de conjuntos de menores códigos: o empate.
+        indices = sorted(indices, key=lambda indice: ordem[indice])
+        m = len(indices)
+        a, b = np.triu_indices(m, 1)
+        idx = np.asarray(indices)
+        _, _, metros = GEODS[crs].inv(lon[idx[a]], lat[idx[a]], lon[idx[b]], lat[idx[b]])
+        pares = np.full((m, m), np.inf)
+        pares[a, b] = metros
+        pares[b, a] = metros
+        ligacao = pares.copy()
+        membros = [[k] for k in range(m)]
+        while True:
+            posicao = int(np.argmin(ligacao))
+            i, j = divmod(posicao, m)
+            if not ligacao[i, j] <= limite_m:
+                break
+            # Ligação completa: a distância do conjunto novo a outro é o maior par entre eles (o maior dos dois de antes).
+            novo = np.maximum(ligacao[i], ligacao[j])
+            ligacao[i, :] = novo
+            ligacao[:, i] = novo
+            ligacao[i, i] = np.inf
+            ligacao[j, :] = np.inf
+            ligacao[:, j] = np.inf
+            membros[i] += membros[j]
+            membros[j] = []
+        for grupo in membros:
+            if not grupo:
+                continue
+            if len(grupo) < 2:
+                saida.append(([indices[grupo[0]]], None))
+                continue
+            sub = pares[np.ix_(grupo, grupo)]
+            saida.append(([indices[k] for k in grupo], float(sub[np.isfinite(sub)].max()) / 1000))
+    return saida
+
+
+def _letras(indice: int) -> str:
+    """O nome padrão dos conjuntos (07/11/2026, item 8.2 do comando de 07/11/2026): 0 → A, 25 → Z, 26 → AA, 27 → AB…"""
+    texto = ""
+    indice += 1
+    while indice:
+        indice, resto = divmod(indice - 1, 26)
+        texto = chr(65 + resto) + texto
+    return texto
 
 
 def criterios(sources, mapping, options, frame=None) -> dict:
     """POST /api/painel/criterios (07/11/2026, item 6 do comando de 06/11/2026): a prévia de "Selecionar por critérios", toda do
     motor: os que atendem (no todo, num grupo ou na seleção em uso, pelos filtros de CAP-SUB-01 e, com ele, pelo critério de
-    distância), e, com `agrupar`, os grupos por proximidade em cadeia (cada grupo com os membros, os grupos territoriais deles e a
-    extensão de ponta a ponta) e os isolados, com os pontos para o mapa pequeno. Nada é registrado na sessão; nada vai ao
-    provedor de IA."""
+    distância), e, com `agrupar`, os conjuntos por proximidade, todos a até X km entre si (desde 07/11/2026, item 4.4 do comando
+    de 07/11/2026; cada conjunto com os membros, o nome padrão "Conjunto A"…, os grupos territoriais dos membros e a extensão de
+    ponta a ponta) e os sem conjunto (`isolados`), com os pontos para o mapa pequeno. Com `agrupar`, os critérios de valor são
+    opcionais (item 9.1). Nada é registrado na sessão; nada vai ao provedor de IA."""
     ctx = context(sources, mapping, options, CRITERIOS_KEYS, frame=frame, page=True)
     unit = ctx.labels.unidade
     raw = options.get("criterios")
@@ -4308,9 +4428,11 @@ def criterios(sources, mapping, options, frame=None) -> dict:
         if not isinstance(bruto, dict) or set(bruto) != {"km"}:
             raise ValueError("Agrupamento inválido: use {\"km\": <distância>}.")
         agrupar = _km(bruto["km"], "do agrupamento")
-    if not spec["filtros"] and distancia is None:
-        raise ValueError("Escolha ao menos um critério: um indicador com a comparação e o valor, ou a distância até " +
-                         unit.g("um ", "uma ") + unit.singular + ".")
+    # Com o agrupamento, os critérios de valor são opcionais (07/11/2026, item 9.1): dá para agrupar só pela distância os
+    # territórios de onde procurar; a distância continua dita pela pessoa.
+    if not spec["filtros"] and distancia is None and agrupar is None:
+        raise ValueError("Escolha ao menos um critério (um indicador com a comparação e o valor, ou a distância até " +
+                         unit.g("um ", "uma ") + unit.singular + ") ou agrupe por proximidade.")
     previa = _universe(options.get("base"), ctx, "a seleção em uso", allow_empty=True)
     final = _measures(ctx, ctx.period)
     sel = _lado_selecao(ctx, spec, previa, final)
@@ -4352,14 +4474,11 @@ def criterios(sources, mapping, options, frame=None) -> dict:
         sem_posicao = [key for key in atendem if condicao.get(key) != "VALIDA"]
         lat = coords.loc[validos, "lat"].astype(float).to_numpy() if validos else np.array([])
         lon = coords.loc[validos, "lon"].astype(float).to_numpy() if validos else np.array([])
-        componente, _ = _grupos_em_cadeia(lat, lon, float(agrupar) * 1000, crs)
-        membros_de = {}
-        for indice, raiz in enumerate(componente):
-            membros_de.setdefault(raiz, []).append(indice)
         codigo = {key: (ctx.catalog[key]["code"], key) for key in validos}
-        componentes = sorted(membros_de.values(), key=lambda indices: (-len(indices), min(codigo[validos[i]] for i in indices)))
+        calculados = _conjuntos_por_proximidade(lat, lon, [codigo[key] for key in validos], float(agrupar) * 1000, crs)
+        calculados.sort(key=lambda par: (-len(par[0]), min(codigo[validos[i]] for i in par[0])))
         grupos, isolados, grupo_de = [], [], {}
-        for indices in componentes:
+        for indices, extensao in calculados:
             membros = sorted((validos[i] for i in indices), key=codigo.get)
             if len(membros) < 2:
                 isolados.extend(membros)
@@ -4372,21 +4491,23 @@ def criterios(sources, mapping, options, frame=None) -> dict:
             territoriais = sorted(({"id": chave, "rotulo": (STATES[chave][0] if ctx.brazil and chave in STATES else chave),
                                     "unidades": n} for chave, n in contagem.items() if chave),
                                   key=lambda item: (-item["unidades"], item["rotulo"]))
-            grupos.append({"id": gid, "rotulo": "Grupo " + str(len(grupos) + 1), "membros": membros,
-                           "grupos_territoriais": territoriais,
-                           "extensao_km": _extensao(lat[indices], lon[indices], crs)})
+            # O nome padrão (07/11/2026, item 8.2): "Conjunto A", "Conjunto B"…; a tela continua as letras quando o resultado
+            # entra junto com os conjuntos que já estão na análise, e a pessoa pode renomear.
+            grupos.append({"id": gid, "rotulo": "Conjunto " + _letras(len(grupos)), "membros": membros,
+                           "grupos_territoriais": territoriais, "extensao_km": extensao})
             for key in membros:
                 grupo_de[key] = gid
         isolados.sort(key=codigo.get)
         pontos = [{"id": key, "lat": float(coords.loc[key, "lat"]), "lon": float(coords.loc[key, "lon"]),
                    "grupo": grupo_de.get(key)} for key in validos]
-        notas.append("Grupos por proximidade, em cadeia (RQ-CAP-13): " + METODO_AGRUPAMENTO["metodo"] + "; a extensão é " +
+        notas.append("Conjuntos por proximidade, todos a até " + _valor_br(format(agrupar, "f")) + " km entre si (RQ-CAP-13, "
+                     "versão " + METODO_AGRUPAMENTO["versao"] + "): " + METODO_AGRUPAMENTO["metodo"] + "; a extensão é " +
                      METODO_AGRUPAMENTO["extensao"] + ". A regra e a distância são da pessoa; nada é sugerido.")
         if sem_posicao:
             notas.append(str(len(sem_posicao)) + " " + (unit.singular if len(sem_posicao) == 1 else unit.plural) +
-                         " sem coordenada válida não entra" + ("" if len(sem_posicao) == 1 else "m") + " nos grupos.")
-    # O texto dos critérios (a trilha de "Como seleção") e, com o agrupamento, o texto com ele ("Cada grupo como território
-    # agregado").
+                         " sem coordenada válida não entra" + ("" if len(sem_posicao) == 1 else "m") + " nos conjuntos.")
+    # O texto dos critérios (a trilha de "Usar como seleção") e, com o agrupamento, o texto com ele ("Usar cada conjunto como um
+    # território").
     regra = {"texto": _frase_dos_criterios(ctx, spec["filtros"], distancia, None),
              "texto_agrupado": _frase_dos_criterios(ctx, spec["filtros"], distancia, agrupar) if agrupar is not None else None,
              "competencia": ctx.period,

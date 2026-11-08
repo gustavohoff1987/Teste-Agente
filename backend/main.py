@@ -1937,8 +1937,9 @@ def integrated_panel_criteria(file: UploadFile | None = File(None), mapping: str
                               scope: str = Form("municipal"), dataset_version: str = Form(""),
                               geo_version: str = Form(""), context_revision: int = Form(0)):
     """Prévia de "Selecionar por critérios" (07/11/2026, item 6 do comando de 06/11/2026; Docs/PAINEL_INTEGRADO.md): os que
-    atendem aos critérios da pessoa (CAP-SUB-01 e a distância "a até X km de …") e, pedido, os grupos por proximidade em cadeia
-    (RQ-CAP-13), com os isolados e os pontos do mapa pequeno. Base Brasil ou planilha enviada. Só calcula a prévia: nada é
+    atendem aos critérios da pessoa (CAP-SUB-01 e a distância "a até X km de …") e, pedido, os conjuntos por proximidade, todos a
+    até X km entre si (RQ-CAP-13, versão 2.0, desde 07/11/2026; antes, em cadeia), com os sem conjunto e os pontos do mapa pequeno.
+    Com o agrupamento, os critérios de valor são opcionais. Base Brasil ou planilha enviada. Só calcula a prévia: nada é
     registrado na sessão e nada vai ao provedor de IA."""
     try:
         frame, sources, fields, requested = _panel_request(file, sheet, dataset, scope, dataset_version, mapping,

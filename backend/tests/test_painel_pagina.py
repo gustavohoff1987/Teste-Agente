@@ -720,12 +720,20 @@ def test_consulta_steps_start_from_filters_and_choice_as_in_the_command(repo):
     assert [item["id"] for item in alone["itens"]] == TODOS
     empty = ok(post(info, nivel="municipios", indicador="densidade", competencia="202406", consulta=consulta(referencia=ref)))
     assert empty["itens"] == [] and empty["referencia"]["contagens"]["base"]["final"] == 0
-    # Conjuntos continuam como itens, sem distância própria: cada membro tem a sua referência.
+    # Conjuntos continuam como itens. Desde 07/11/2026 (item 6 do comando de 07/11/2026; muda de propósito esta conferência, que
+    # esperava "Distância não se aplica ao conjunto"), cada membro vai até a sua referência mais próxima, e o conjunto mostra a
+    # menor (com a referência desse membro e o membro) e a maior. MANAUS e PARINTINS são referências e a mais próxima um do outro.
     sets = ok(page(info, consulta=consulta(referencia=ref), conjuntos=[{"id": "c1", "rotulo": "Capital e vizinho",
                                                                            "membros": [MANAUS, PARINTINS]}]))
     [group] = [item for item in sets["itens"] if item["tipo"] == "conjunto"]
-    assert group["distancia_km"] is None and group["referencia_do_item"] is None
-    assert any(text.startswith("Distância não se aplica ao conjunto") for text in group["motivos"])
+    de_manaus, de_parintins = km(MANAUS, PARINTINS), km(PARINTINS, MANAUS)
+    assert (group["distancia_km"], group["distancia_km_max"]) == (min(de_manaus, de_parintins), max(de_manaus, de_parintins))
+    membro = MANAUS if de_manaus <= de_parintins else PARINTINS  # no empate entre membros, o de menor código
+    assert group["referencia_do_item"]["membro"] == {"id": membro, "rotulo": {MANAUS: "MANAUS (AM)",
+                                                                              PARINTINS: "PARINTINS (AM)"}[membro]}
+    assert reference_of(group) == {MANAUS: [PARINTINS, BELEM], PARINTINS: [MANAUS]}[membro]
+    assert group["avaliavel"]["distancia"] is True
+    assert not any(text.startswith("Distância não se aplica ao conjunto") for text in group["motivos"])
 
 
 def test_consulta_reference_follows_the_base_and_never_hides_a_municipality(repo):
@@ -1555,11 +1563,13 @@ def test_total_do_todo_informado_pela_pessoa_no_lugar_da_soma(repo):
             "Na base do Brasil, o total vem da fonte nacional")
 
 
-def test_selecionar_por_criterios_com_grupos_por_proximidade_em_cadeia(repo):
+def test_selecionar_por_criterios_com_conjuntos_todos_a_ate_x_km_entre_si(repo):
     """Selecionar por critérios (07/11/2026, item 6 do comando de 06/11/2026; decisão 4): os que atendem aos filtros de
-    CAP-SUB-01 (densidade ≥ 10 em 2024: os quatro distritos), o critério de distância "a até X km de …" e os grupos por
-    proximidade em cadeia, pela geodésica de Karney entre as sedes (conferida aqui com o pyproj, à parte): Alto Rio e Baixo Rio
-    (~119 km) num grupo, Campina isolada e Serra sem coordenada, fora dos grupos. A regra e a distância são da pessoa."""
+    CAP-SUB-01 (densidade ≥ 10 em 2024: os quatro distritos), o critério de distância "a até X km de …" e os conjuntos por
+    proximidade, desde o comando de 07/11/2026 (item 4.4; muda de propósito este teste, que conferia a cadeia) todos a até X km
+    entre si, pela geodésica de Karney entre as sedes (conferida aqui com o pyproj, à parte): Alto Rio e Baixo Rio (~119 km) no
+    Conjunto A (o nome padrão, item 8.2), Campina sem conjunto e Serra sem coordenada, fora dos conjuntos. Com o agrupamento,
+    o critério de valor é opcional (item 9.1). A regra e a distância são da pessoa."""
     from pyproj import Geod
     premissas = {"count_unit": "pessoas", "crs": "SIRGAS2000"}
     criterios = {"partir_de": {"tipo": "pais"}, "filtros": [{"indicador": "densidade", "operador": ">=", "valor": 10}]}
@@ -1570,16 +1580,24 @@ def test_selecionar_por_criterios_com_grupos_por_proximidade_em_cadeia(repo):
     body = ok(upload({**pedido, "agrupar": {"km": 200}}, path="/api/painel/criterios"))
     assert len(body["grupos"]) == 1 and body["isolados"] == [CAMPINA] and body["sem_posicao"] == [SERRA]
     grupo = body["grupos"][0]
-    assert (grupo["id"], grupo["rotulo"], grupo["membros"]) == ("g1", "Grupo 1", [ALTO, BAIXO])
+    assert (grupo["id"], grupo["rotulo"], grupo["membros"]) == ("g1", "Conjunto A", [ALTO, BAIXO])
     assert grupo["grupos_territoriais"] == [{"id": "Província Norte", "rotulo": "Província Norte", "unidades": 2}]
     _, _, metros = Geod(a=6378137.0, rf=298.257222101).inv(-60.0, -3.1, -61.0, -3.5)
     assert abs(grupo["extensao_km"] - metros / 1000) < 1e-6 and 100 < grupo["extensao_km"] < 150
     assert {ponto["id"]: ponto["grupo"] for ponto in body["pontos"]} == {ALTO: "g1", BAIXO: "g1", CAMPINA: None}
     assert (body["regra"]["texto"], body["regra"]["texto_agrupado"]) == (
-        "densidade a partir de 10", "densidade a partir de 10, agrupados a até 200 km uns dos outros")
+        "densidade a partir de 10", "densidade a partir de 10, agrupados a até 200 km entre si")
     assert "DISTANCIA_GEODESICA_DIRETA" in body["limitacoes"] and any("RQ-CAP-13" in nota for nota in body["notas"])
-    # A cadeia junta só quem está a até a distância do seguinte: a 100 km, ninguém se junta.
+    assert body["metodo"]["agrupamento"]["versao"] == "2.0" and "cadeia" not in json.dumps(body)
+    # A 100 km, nenhum par fica a essa distância: ninguém se junta.
     assert ok(upload({**pedido, "agrupar": {"km": 100}}, path="/api/painel/criterios"))["grupos"] == []
+    # Só a distância, sem critério de valor (item 9.1): todos os distritos de onde procurar.
+    so_distancia = ok(upload({**pedido, "criterios": {"partir_de": {"tipo": "pais"}}, "agrupar": {"km": 200}},
+                             path="/api/painel/criterios"))
+    assert (so_distancia["atendem"], [g["membros"] for g in so_distancia["grupos"]], so_distancia["isolados"]) == (
+        4, [[ALTO, BAIXO]], [CAMPINA])
+    assert (so_distancia["regra"]["texto"], so_distancia["regra"]["texto_agrupado"]) == (
+        "todos os distritos", "todos os distritos, agrupados a até 200 km entre si")
     # A distância "a até 150 km de Alto Rio": Alto Rio (0 km) e Baixo Rio; Serra, sem coordenada, não é avaliável.
     perto = ok(upload({**pedido, "criterios": {**criterios, "distancia": {"de": ALTO, "km": 150}}}, path="/api/painel/criterios"))
     assert (perto["ids"], perto["nao_avaliaveis"]) == ([ALTO, BAIXO], 1)
@@ -1590,7 +1608,7 @@ def test_selecionar_por_criterios_com_grupos_por_proximidade_em_cadeia(repo):
     assert (na_selecao["ids"], na_selecao["regra"]["partir_de"]["tipo"]) == ([ALTO, CAMPINA], "selecao"), na_selecao["regra"]
     assert ok(upload({**pedido, "criterios": {**criterios, "partir_de": {"tipo": "ufs", "ufs": ["Província Sul"]}}},
                      path="/api/painel/criterios"))["ids"] == [CAMPINA, SERRA]
-    # O sistema não escolhe critério nem distância: sem eles, a recusa diz o que falta.
+    # O sistema não escolhe critério nem distância: sem critério e sem agrupamento, a recusa diz o que falta.
     refused(upload({**pedido, "criterios": {"partir_de": {"tipo": "pais"}}}, path="/api/painel/criterios"),
             "Escolha ao menos um critério")
     refused(upload({**pedido, "agrupar": {}}, path="/api/painel/criterios"), "Agrupamento inválido")
@@ -1598,6 +1616,66 @@ def test_selecionar_por_criterios_com_grupos_por_proximidade_em_cadeia(repo):
     refused(upload({**pedido, "agrupar": {"km": None}}, path="/api/painel/criterios"), "o sistema não escolhe a distância")
     refused(upload({**pedido, "criterios": {**criterios, "distancia": {"de": SERRA, "km": 100}}}, path="/api/painel/criterios"),
             "não tem coordenada válida")
+
+
+def test_conjuntos_todos_a_ate_x_km_entre_si_com_o_empate_pela_ordem_do_codigo(repo):
+    """O método do item 4.4 do comando de 07/11/2026 (METODO_AGRUPAMENTO, versão 2.0), numa linha do equador: A, B e C a 0,8° de
+    longitude um do outro (89 km; o par mais distante, A e C, a 178 km) e D longe. A 100 km, a cadeia de antes juntaria A, B e C;
+    todos a até 100 km entre si, só A e B (o empate entre os pares A–B e B–C, à mesma distância, sai pela ordem) e C fica sem
+    conjunto. A 200 km, os três, com 178 km de ponta a ponta. Nenhum conjunto passa de X km. Só pela distância (item 9.1)."""
+    from pyproj import Geod
+    geod = Geod(a=6378137.0, rf=298.257222101)
+    linha = {nome: ("Província Norte", "0", lon, [10] * 4, [1000] * 4)
+             for nome, lon in (("A", "0"), ("B", "0.8"), ("C", "1.6"), ("D", "5"))}
+    a, b, c, d = ("name:" + nome for nome in linha)
+    pedido = {"competencia": "2024", "rotulos": LABELS, "premissas": {"count_unit": "pessoas", "crs": "SIRGAS2000"},
+              "criterios": {"partir_de": {"tipo": "pais"}}}
+    _, _, ab = geod.inv(0, 0, 0.8, 0)
+    _, _, bc = geod.inv(0.8, 0, 1.6, 0)
+    _, _, ac = geod.inv(0, 0, 1.6, 0)
+    assert ab == bc and ab < 100000 < ac < 200000
+    a100 = ok(upload({**pedido, "agrupar": {"km": 100}}, contents=districts_csv(linha), path="/api/painel/criterios"))
+    assert [(grupo["rotulo"], grupo["membros"]) for grupo in a100["grupos"]] == [("Conjunto A", [a, b])]
+    assert (a100["atendem"], a100["isolados"]) == (4, [c, d])
+    assert abs(a100["grupos"][0]["extensao_km"] - ab / 1000) < 1e-6
+    assert a100["regra"]["texto_agrupado"] == "todos os distritos, agrupados a até 100 km entre si"
+    a200 = ok(upload({**pedido, "agrupar": {"km": 200}}, contents=districts_csv(linha), path="/api/painel/criterios"))
+    assert [(grupo["rotulo"], grupo["membros"]) for grupo in a200["grupos"]] == [("Conjunto A", [a, b, c])]
+    assert a200["isolados"] == [d] and abs(a200["grupos"][0]["extensao_km"] - ac / 1000) < 1e-6
+
+
+def test_conjunto_na_escolha_dos_territorios_pelo_membro_mais_proximo(repo):
+    """A distância dos conjuntos na Escolha dos territórios (07/11/2026, item 6 do comando de 07/11/2026; antes, "Distância não se
+    aplica ao conjunto"): cada membro vai até a sua referência mais próxima (CAP-ESP-02, mínimo do conjunto completo), mesmo fora
+    da base; o conjunto mostra a menor (com a referência desse membro, e o membro, para a ligação no mapa) e a maior, sem ponto
+    único nem centroide; um membro sem distância deixa o conjunto sem distância, como na referência fixa. Uma seleção só com
+    conjuntos vale como base."""
+    from pyproj import Geod
+    geod = Geod(a=6378137.0, rf=298.257222101)
+    referencia = lado(filtros=[filtro("densidade", ">", 12)])  # Alto Rio (16 por mil) é a única referência
+    pedido = {"nivel": "municipios", "indicador": "densidade", "competencia": "2024", "rotulos": LABELS,
+              "premissas": {"count_unit": "pessoas", "crs": "SIRGAS2000"}, "consulta": consulta(referencia=referencia),
+              "base": {"municipios": {"ids": []}},
+              "conjuntos": [{"id": "c1", "rotulo": "Conjunto A", "membros": [BAIXO, CAMPINA]},
+                            {"id": "c2", "rotulo": "Conjunto B", "membros": [BAIXO, SERRA]}]}
+    body = ok(upload(pedido))
+    itens = by_id(body)
+    assert sorted(itens) == ["c1", "c2"]
+    _, _, baixo = geod.inv(-61.0, -3.5, -60.0, -3.1)
+    _, _, campina = geod.inv(-55.0, -8.0, -60.0, -3.1)
+    um = itens["c1"]
+    assert abs(um["distancia_km"] - baixo / 1000) < 1e-6 and abs(um["distancia_km_max"] - campina / 1000) < 1e-6
+    assert um["avaliavel"]["distancia"] is True
+    assert not any("não se aplica" in motivo for motivo in um["motivos"])
+    assert um["referencia_do_item"] == {"id": ALTO, "rotulo": "Alto Rio", "empate": [],
+                                        "membro": {"id": BAIXO, "rotulo": "Baixo Rio"}}
+    assert [membro["id"] for membro in body["referencia"]["membros"]] == [ALTO]
+    dois = itens["c2"]
+    assert (dois["distancia_km"], dois["distancia_km_max"], dois["avaliavel"]["distancia"], dois["referencia_do_item"]) == (
+        None, None, False, None)
+    assert any("o membro Serra não tem a distância até a referência mais próxima" in motivo for motivo in dois["motivos"])
+    assert any(motivo.startswith("Serra: Distância não avaliável") for motivo in dois["motivos"])
+    assert any("Conjuntos na Escolha dos territórios" in nota for nota in body["notas"])
 
 
 @pytest.fixture(scope="module")
@@ -1776,28 +1854,31 @@ def test_real_consulta_matches_every_geodesic_and_the_series_matches_the_trend(r
 
 
 def test_real_selecionar_por_criterios_do_comando(real):
-    """Aceite do item 6 do comando de 06/11/2026 (base versionada, jun/2024; valores do comando, calculados com as sedes da base e
-    a distância geodésica): no todo, densidade abaixo de 0,5 → 89 municípios; agrupar a até 200 km → 6 grupos e 8 isolados (81
-    agrupados); o maior com 46 municípios (PI 33, TO 11, MA 1, BA 1) e 1.235 km de ponta a ponta; o segundo, 24 municípios do PA e
-    907 km; os outros quatro, de 2 a 4 municípios. A cadeia é conferida aqui, à parte, com as geodésicas de Karney (pyproj) de
-    todos os pares dos 89 pontos."""
+    """Aceite dos itens 6 do comando de 06/11/2026 e 4.4 do comando de 07/11/2026 (base versionada, jun/2024): no todo, densidade
+    abaixo de 0,5 → 89 municípios. Desde 07/11/2026, os conjuntos ficam todos a até X km entre si (muda de propósito este teste,
+    que conferia a cadeia: 6 grupos e 8 isolados a 200 km, o maior com 46 municípios e 1.235 km). A 200 km, conferido à parte
+    com as geodésicas de Karney (pyproj): nenhum par de um conjunto passa de 200 km, a extensão é o maior par, e cada conjunto
+    cabe num componente da cadeia. A referência do comando, calculada fora do agente com a mesma base e a mesma distância: no
+    Pará, densidade abaixo de 0,5 e X = 100, o grupo em cadeia de 12 municípios (309 km) vira 3 conjuntos (Igarapé-Miri,
+    Limoeiro do Ajuru, Moju e Muaná; Bagre, Curralinho e Oeiras do Pará; Acará e Concórdia do Pará), e Anajás, Baião e Melgaço
+    ficam sem conjunto."""
     from pyproj import Geod
+    geod = Geod(a=6378137.0, rf=298.257222101)
     criterios = {"partir_de": {"tipo": "pais"}, "filtros": [{"indicador": "densidade", "operador": "<", "valor": 0.5}]}
     so = ok(post(real, path="/api/painel/criterios", competencia="202406", criterios=criterios))
     assert (so["atendem"], len(so["ids"]), so["regra"]["texto"]) == (89, 89, "densidade abaixo de 0,5")
     body = ok(post(real, path="/api/painel/criterios", competencia="202406", criterios=criterios, agrupar={"km": 200}))
-    grupos = body["grupos"]
-    assert (len(grupos), len(body["isolados"]), sum(len(grupo["membros"]) for grupo in grupos)) == (6, 8, 81)
-    maior, segundo = grupos[0], grupos[1]
-    assert len(maior["membros"]) == 46 and round(maior["extensao_km"]) == 1235
-    assert {item["rotulo"]: item["unidades"] for item in maior["grupos_territoriais"]} == {"PI": 33, "TO": 11, "MA": 1, "BA": 1}
-    assert len(segundo["membros"]) == 24 and round(segundo["extensao_km"]) == 907
-    assert [(item["rotulo"], item["unidades"]) for item in segundo["grupos_territoriais"]] == [("PA", 24)]
-    assert all(2 <= len(grupo["membros"]) <= 4 for grupo in grupos[2:])
-    # A cadeia, à parte: os componentes dos pares a até 200 km, pelas geodésicas de todos os pares.
-    pontos = body["pontos"]
-    assert len(pontos) == 89
-    geod = Geod(a=6378137.0, rf=298.257222101)
+    grupos, pontos = body["grupos"], body["pontos"]
+    assert len(pontos) == 89 and sum(len(grupo["membros"]) for grupo in grupos) + len(body["isolados"]) == 89
+    assert [grupo["rotulo"] for grupo in grupos[:3]] == ["Conjunto A", "Conjunto B", "Conjunto C"]
+    posicao = {ponto["id"]: (ponto["lon"], ponto["lat"]) for ponto in pontos}
+
+    def maior_par(membros):
+        return max(geod.inv(*posicao[um], *posicao[outro])[2] for i, um in enumerate(membros) for outro in membros[i + 1:])
+    for grupo in grupos:
+        maior = maior_par(grupo["membros"])
+        assert maior <= 200000 and abs(grupo["extensao_km"] - maior / 1000) < 1e-6, grupo["rotulo"]
+    # Cada conjunto cabe num componente da cadeia (os pares a até 200 km), pelas geodésicas de todos os pares.
     pai = list(range(len(pontos)))
 
     def raiz(i):
@@ -1809,12 +1890,18 @@ def test_real_selecionar_por_criterios_do_comando(real):
             _, _, metros = geod.inv(pontos[i]["lon"], pontos[i]["lat"], pontos[j]["lon"], pontos[j]["lat"])
             if metros <= 200000:
                 pai[max(raiz(i), raiz(j))] = min(raiz(i), raiz(j))
-    componentes = {}
-    for i, ponto in enumerate(pontos):
-        componentes.setdefault(raiz(i), set()).add(ponto["id"])
-    esperados = sorted(sorted(membros) for membros in componentes.values() if len(membros) > 1)
-    assert esperados == sorted(sorted(grupo["membros"]) for grupo in grupos)
-    assert "cluster" not in json.dumps(body).lower()
+    componente = {ponto["id"]: raiz(i) for i, ponto in enumerate(pontos)}
+    assert all(len({componente[key] for key in grupo["membros"]}) == 1 for grupo in grupos)
+    assert "cluster" not in json.dumps(body).lower() and "cadeia" not in json.dumps(body)
+    # A referência do comando: o Pará a até 100 km.
+    para = ok(post(real, path="/api/painel/criterios", competencia="202406", agrupar={"km": 100},
+                   criterios={**criterios, "partir_de": {"tipo": "ufs", "ufs": ["15"]}}))
+    ids = lambda *codigos: sorted("code:" + codigo for codigo in codigos)  # noqa: E731
+    conjuntos = [sorted(grupo["membros"]) for grupo in para["grupos"]]
+    for esperado in (ids("150330", "150400", "150470", "150490"), ids("150110", "150280", "150520"), ids("150020", "150275")):
+        assert esperado in conjuntos, (esperado, conjuntos)
+    assert set(ids("150070", "150120", "150450")) <= set(para["isolados"]), para["isolados"]
+    assert all(grupo["extensao_km"] <= 100 for grupo in para["grupos"])
 
 
 def test_real_consulta_of_the_command_north_far_from_acre(real):

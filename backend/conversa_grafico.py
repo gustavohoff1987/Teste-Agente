@@ -1508,10 +1508,11 @@ def _voltar(conv, dica, dica_indicador):
 
 # --------------------------------------------------------------------------------------------- selecionar por critérios
 # Selecionar por critérios pela conversa (07/11/2026, itens 6.5 e 6.9 do comando de 06/11/2026; decisão 4 do responsável): o
-# pedido com os critérios da pessoa e, se ela quiser, a distância dos grupos por proximidade abre o painel da Seleção
-# preenchido, com a prévia do motor; nada muda na análise até a pessoa escolher no painel. A pessoa diz tudo: faltando o
-# critério ou a distância, a conversa pergunta, sem sugerir valor. Um sinal de EXC-05 ("cluster") num pedido com critério e
-# distância da pessoa é o agrupamento por regra: a leitura o descarta, e a resposta não usa a palavra.
+# pedido com os critérios da pessoa e, se ela quiser, a distância dos conjuntos por proximidade (todos a até X km entre si, desde
+# o comando de 07/11/2026, item 4.4) abre o modo "Por critérios" da Seleção preenchido, com a prévia do motor; nada muda na
+# análise até a pessoa escolher no painel. A pessoa diz tudo: faltando o critério ou a distância, a conversa pergunta, sem sugerir
+# valor; com o agrupamento, o critério de valor é opcional (item 9.1: agrupar só pela distância). Um sinal de EXC-05 ("cluster")
+# num pedido com critério e distância da pessoa é o agrupamento por regra: a leitura o descarta, e a resposta não usa a palavra.
 UNS_DOS_OUTROS = re.compile(r"\s*(?:uns\s+dos\s+outros|umas\s+das\s+outras|um\s+do\s+outro|uma\s+da\s+outra|entre\s+si)\b")
 KM_UNS_DOS_OUTROS = re.compile(r"\b(?:km|quilometros?)\s+(?:uns\s+dos\s+outros|umas\s+das\s+outras|um\s+do\s+outro|"
                                r"uma\s+da\s+outra|entre\s+si)\b")
@@ -1561,16 +1562,15 @@ def _criterios(conv, dica, dica_indicador):
             continue
         if UNS_DOS_OUTROS.match(pedido.resto, clausula["fim"]):
             if item["operador"] not in ("<", "<="):
-                return _pergunta("Os grupos por proximidade juntam " + os_ + " que ficam a até uma distância " +
-                                 ("umas das outras" if rot.feminino else "uns dos outros") + ": diga “a até … km " +
-                                 ("umas das outras" if rot.feminino else "uns dos outros") + "”, com o valor em km." + NADA_MUDOU)
+                return _pergunta("Os conjuntos por proximidade juntam " + os_ + " que ficam todos a até uma distância entre "
+                                 "si: diga “a até … km entre si”, com o valor em km." + NADA_MUDOU)
             km = item["valor"]
             pedido.consome(encontrado.start(), UNS_DOS_OUTROS.match(pedido.resto, clausula["fim"]).end())
             continue
         if clausula["alvo"] is None or item["operador"] not in ("<", "<="):
             return _pergunta("Nos critérios, a distância é “a até … km de” " + ("uma " if rot.feminino else "um ") +
-                             rot.singular + " (em linha reta) ou, para os grupos por proximidade, “a até … km " +
-                             ("umas das outras" if rot.feminino else "uns dos outros") + "”." + NADA_MUDOU)
+                             rot.singular + " (em linha reta) ou, para os conjuntos por proximidade, “a até … km entre si”." +
+                             NADA_MUDOU)
         fim = achadas[indice + 1][0].start() if indice + 1 < len(achadas) else len(pedido.texto)
         alvos.append((clausula["alvo"], fim, item["valor"]))
         pedido.consome(encontrado.start(), clausula["fim"])
@@ -1586,14 +1586,14 @@ def _criterios(conv, dica, dica_indicador):
             return _pergunta("A distância dos critérios é até " + ("uma " if rot.feminino else "um ") + rot.singular +
                              " só: diga o nome dele" + ("a" if rot.feminino else "") + "." + NADA_MUDOU)
         distancia = {"de": ids[0], "km": valor}
-    faltam = []
-    if not filtros and distancia is None:
-        faltam.append("os critérios (o indicador, a comparação e o valor)")
+    # Com o agrupamento, o critério de valor é opcional (07/11/2026, item 9.1): dá para agrupar só pela distância.
     if GRUPOS_POR_PROXIMIDADE.search(texto) and km is None:
-        faltam.append("a distância " + ("umas das outras" if rot.feminino else "uns dos outros") + ", em km")
-    if faltam:
-        return _pergunta("Para selecionar por critérios" + (" e formar os grupos por proximidade" if GRUPOS_POR_PROXIMIDADE.search(texto)
-                         else "") + ", diga " + _e(faltam) + ". Os valores são seus: nada é sugerido." + NADA_MUDOU)
+        return _pergunta("Para agrupar por proximidade, diga a distância máxima entre os membros do conjunto, em km" +
+                         ("" if filtros or distancia else " (os critérios de valor são opcionais)") + ". Os valores são seus: "
+                         "nada é sugerido." + NADA_MUDOU)
+    if not filtros and distancia is None and km is None:
+        return _pergunta("Para selecionar por critérios, diga os critérios (o indicador, a comparação e o valor). Os valores são "
+                         "seus: nada é sugerido." + NADA_MUDOU)
     # Onde procurar: um grupo (estado) citado; a seleção em uso; senão, o todo.
     if NA_SELECAO_ATUAL.search(pedido.resto):
         if conv.base_atual() is None:
@@ -1617,12 +1617,13 @@ def _criterios(conv, dica, dica_indicador):
     criterios = {"partir_de": partir_de, "filtros": filtros, **({"distancia": distancia} if distancia else {})}
     painel = _painel()
     painel["criterios"] = {"criterios": criterios, "agrupar": {"km": km} if km is not None else None}
-    agrupando = (", agrupando " + os_ + " que ficam a até " + _valor_escrito(km) + " km " +
-                 ("umas das outras" if rot.feminino else "uns dos outros")) if km is not None else ""
-    return _resposta(painel, "Abri Selecionar por critérios, na Seleção, com " + _e(frases) + onde + agrupando + ". A prévia, no "
-                     "painel, mostra quant" + os_ + " atendem" + (" e os grupos por proximidade" if km is not None else "") +
-                     "; nada muda na análise até você escolher “Como seleção”" +
-                     (" ou “Cada grupo como território agregado”" if km is not None else "") + ".")
+    agrupando = (", agrupando " + os_ + " que ficam a até " + _valor_escrito(km) + " km entre si") if km is not None else ""
+    # Sem critério de valor (só o agrupamento, item 9.1): "todos os municípios" de onde procurar.
+    descricao = _e(frases) if frases else ("todas as " if rot.feminino else "todos os ") + rot.plural
+    return _resposta(painel, "Abri “Por critérios”, na Seleção, com " + descricao + onde + agrupando + ". A prévia, no "
+                     "painel, mostra quant" + os_ + " atendem" + (" e os conjuntos" if km is not None else "") +
+                     "; nada muda na análise até você escolher “Usar como seleção”" +
+                     (" ou “Usar cada conjunto como um território”" if km is not None else "") + ".")
 
 
 def _clausula(conv, encontrado, inicio_local):

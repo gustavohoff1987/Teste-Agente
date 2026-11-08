@@ -133,6 +133,13 @@ Regras dos campos:
   - **Num conjunto base:** `distancia_km` é a do membro mais próximo e `distancia_km_max`, a do mais distante, no mesmo
     suporte dos valores do conjunto. Basta um membro sem coordenada para as duas ficarem `null`, com o motivo. O conjunto
     cujos membros são exatamente os da referência recebe `referencia: true`.
+  - **Com a Escolha dos territórios** (desde 07/11/2026, item 6 do comando de 07/11/2026; antes, "Distância não se aplica ao
+    conjunto"): o mesmo, com cada membro até a sua referência mais próxima (CAP-ESP-02, mínimo do conjunto completo, com os
+    empates), calculada mesmo para os membros fora da base. `referencia_do_item` do conjunto é a do membro mais próximo, com o
+    membro em `membro` (`id`, `rotulo`; a ligação no mapa sai dele); no empate entre membros à mesma distância, o de menor
+    código. Um membro sem distância (sem coordenada, sem referência no recorte ou com referência sem coordenada) deixa as duas
+    `null`, com o motivo e o dos membros. Sem ponto único nem centroide. Os conjuntos entram inteiros (os filtros da base valem
+    só para as unidades), e uma seleção só com conjuntos vale como base.
 - **`variacao_percentual` (CAP-TMP-01, DA-14):** `temporal_change.change` sobre os valores exatos (Fraction; a
   densidade sai da quantidade e da população, sem passar pelo float), para população, quantidade e densidade.
   - Valor inicial zero: `null`, com `BASE_ZERO`.
@@ -312,23 +319,32 @@ análise; nada é registrado na sessão e nada vai ao provedor de IA. Base do Br
   - `criterios`: `{"partir_de", "filtros", "distancia"}` — `partir_de` e `filtros` como os da Escolha dos territórios (o todo
     `pais`, `ufs`/`regioes` para o lugar em uso, `selecao` para a seleção atual; os filtros de CAP-SUB-01, combinados por E, o
     mesmo construtor das Condições); `distancia`, opcional: `{"de": <id do território>, "km": X}` ("a até X km de …",
-    geodésica direta, TPL-11). Sem critério → 422 "Escolha ao menos um critério: …"; filtro sem valor → 422 com a pendência.
-  - `agrupar`, opcional: `{"km": X}`, os grupos por proximidade em cadeia (RQ-CAP-13): dois territórios que atendem ficam no
-    mesmo grupo quando há uma sequência deles, cada um a até X km do seguinte; quem não tem nenhum a até X km fica isolado. A
-    distância é a geodésica de Karney entre as sedes, no elipsoide do referencial (o mesmo método da Análise Espacial; a corda
-    3D só descarta pares que não podem estar a essa distância). Até 2.000 que atendem (acima → 422 "… refine os critérios").
-    A distância é sempre da pessoa (sem ela → 422 "Diga a distância … o sistema não escolhe a distância."; até 5.000 km).
-- Resposta: `regra` (`texto`, os critérios, como "densidade abaixo de 0,5"; com `agrupar`, `texto_agrupado`, "…, agrupados a
-  até 200 km uns dos outros"; a competência e o pedido normalizado), `atendem` e `ids` (na ordem do código), `nomes` (os primeiros), `nao_avaliaveis` (sem o dado de algum
-  critério: nunca entram nem viram "não atende"), e, com `agrupar`: `grupos` (`id` "g1"…, `rotulo` "Grupo 1"…, `membros`,
-  `grupos_territoriais` com as unidades de cada estado ou grupo da coluna-mãe, `extensao_km`: a maior geodésica entre dois
-  membros), `isolados`, `sem_posicao` (sem coordenada válida, fora dos grupos) e `pontos` (`id`, `lat`, `lon`, `grupo`, para o
-  mapa pequeno); `notas`, `limitacoes` (`DISTANCIA_GEODESICA_DIRETA` com a distância) e `metodo`. Os grupos vêm do maior para o
-  menor; nenhum texto diz "cluster".
+    geodésica direta, TPL-11). Sem critério e sem `agrupar` → 422 "Escolha ao menos um critério (…) ou agrupe por
+    proximidade."; filtro sem valor → 422 com a pendência. Com `agrupar`, os critérios de valor são opcionais (desde
+    07/11/2026, item 9.1 do comando de 07/11/2026): dá para agrupar só pela distância os territórios de onde procurar.
+  - `agrupar`, opcional: `{"km": X}`, os conjuntos por proximidade (RQ-CAP-13, `METODO_AGRUPAMENTO` versão 2.0, desde
+    07/11/2026, item 4.4 do comando de 07/11/2026; antes, em cadeia), todos a até X km entre si: cada território começa sozinho
+    e, a cada passo, juntam-se os dois conjuntos cujo par mais distante (um território de cada conjunto) é o menor, enquanto
+    esse par ficar a até X km; empate, pela ordem do código; quem não entra em nenhum conjunto fica sem conjunto. Em todo
+    conjunto, nenhum par passa de X km, e a extensão de ponta a ponta fica sempre até X. Os conjuntos cabem dentro dos
+    componentes da cadeia (os pares a até X km), e o cálculo se faz dentro de cada um. A distância é a geodésica de Karney entre
+    as sedes, no elipsoide do referencial (o mesmo método da Análise Espacial; a corda 3D só descarta pares que não podem estar
+    a essa distância). Até 2.000 que atendem (acima → 422 "… refine os critérios"). A distância é sempre da pessoa (sem ela →
+    422 "Diga a distância … o sistema não escolhe a distância."; até 5.000 km).
+- Resposta: `regra` (`texto`, os critérios, como "densidade abaixo de 0,5" ou, sem critério de valor, "todos os municípios";
+  com `agrupar`, `texto_agrupado`, "…, agrupados a até 200 km entre si"; a competência e o pedido normalizado), `atendem` e
+  `ids` (na ordem do código), `nomes` (os primeiros), `nao_avaliaveis` (sem o dado de algum critério: nunca entram nem viram
+  "não atende"), e, com `agrupar`: `grupos` (os conjuntos: `id` "g1"…, `rotulo` "Conjunto A", "Conjunto B"… e, depois de Z,
+  AA, AB…, `membros`, `grupos_territoriais` com as unidades de cada estado ou grupo da coluna-mãe, `extensao_km`: a maior
+  geodésica entre dois membros), `isolados` (os sem conjunto), `sem_posicao` (sem coordenada válida, fora dos conjuntos) e
+  `pontos` (`id`, `lat`, `lon`, `grupo`, para o mapa pequeno); `notas`, `limitacoes` (`DISTANCIA_GEODESICA_DIRETA` com a
+  distância) e `metodo`. Os conjuntos vêm do maior para o menor; nenhum texto diz "cluster" nem "cadeia".
 
-Com a base versionada, em junho de 2024 (o aceite do comando): no todo, densidade abaixo de 0,5 → 89 municípios; agrupar a até
-200 km → 6 grupos e 8 isolados (81 agrupados); o maior com 46 municípios (PI 33, TO 11, MA 1, BA 1) e 1.235 km de ponta a ponta;
-o segundo, 24 municípios do PA e 907 km.
+Com a base versionada, em junho de 2024 (o aceite do comando de 06/11/2026): no todo, densidade abaixo de 0,5 → 89 municípios. A
+200 km, desde o item 4.4, nenhum par de um conjunto passa de 200 km (antes, em cadeia: 6 grupos e 8 isolados, o maior com 46
+municípios e 1.235 km). A referência do comando de 07/11/2026: no Pará, densidade abaixo de 0,5 e X = 100, o grupo em cadeia de
+12 municípios (309 km) vira 3 conjuntos (Igarapé-Miri, Limoeiro do Ajuru, Moju e Muaná; Bagre, Curralinho e Oeiras do Pará;
+Acará e Concórdia do Pará), e Anajás, Baião e Melgaço ficam sem conjunto.
 
 ### Erros
 

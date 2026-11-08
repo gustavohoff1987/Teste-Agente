@@ -254,21 +254,25 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   mensagem seguinte só com nomes ("Tefé e Parintins") completa a comparação. Outro comando ou uma pergunta seguem o seu
   próprio sentido.
 - **Selecionar por critérios** (07/11/2026, itens 6.5 e 6.9 do comando de 06/11/2026; decisão 4 do responsável): o pedido
-  com os critérios da pessoa e o agrupamento "a até X km uns dos outros" ("municípios com menos de 0,5 médico por mil
-  habitantes a até 200 km uns dos outros"), ou com "selecione" e os critérios ("selecione os municípios do Amazonas com
-  densidade abaixo de 0,5"), abre o painel "Selecionar por critérios" da Seleção preenchido, com a prévia do motor (campo
+  com os critérios da pessoa e o agrupamento "a até X km entre si" (também "uns dos outros": "municípios com menos de 0,5
+  médico por mil habitantes a até 200 km uns dos outros"), ou com "selecione" e os critérios ("selecione os municípios do
+  Amazonas com densidade abaixo de 0,5"), abre o modo "Por critérios" da Seleção preenchido, com a prévia do motor (campo
   `criterios` do `painel`: `{criterios: {partir_de, filtros, distancia?}, agrupar}`, os mesmos de `POST /api/painel/criterios`).
-  A resposta diz o que foi aberto ("Abri Selecionar por critérios, na Seleção, com densidade abaixo de 0,5 em todo o país,
-  agrupando os que ficam a até 200 km uns dos outros. A prévia, no painel, mostra quantos atendem e os grupos por proximidade;
-  nada muda na análise até você escolher “Como seleção” ou “Cada grupo como território agregado”."), sem números (a prévia é
-  do motor, no painel); a análise só muda com a escolha no painel. A pessoa diz tudo: faltando o critério ou a distância dos
-  grupos, a conversa pergunta, sem sugerir valor ("… diga a distância uns dos outros, em km. Os valores são seus: nada é
-  sugerido."); "a mais de X km uns dos outros" também vira pergunta. Onde procurar: o estado (ou grupo) citado, "na seleção"
-  ou, sem nada, o todo. "a até X km de Manaus" é a distância até um município (TPL-11). Um sinal de EXC-05 num pedido com o
-  critério e a distância da pessoa ("clusters de municípios com …") é descartado pelo contexto, e a resposta nunca usa
-  "cluster"; sem o critério ou a distância, a conversa pergunta. Correlação, regressão e Moran continuam fora (EXC-05), com a
-  recusa governada, que desde 07/11/2026 fala em "agrupamento automático dos territórios" (antes, "padrão espacial") e
-  oferece os grupos por proximidade com os critérios e a distância da pessoa. "Separe" e "marque" continuam nas Condições.
+  Desde 07/11/2026 (itens 4.4, 8 e 9.1 do comando de 07/11/2026), a resposta fala em conjuntos todos a até X km entre si e nos
+  botões novos ("Abri “Por critérios”, na Seleção, com densidade abaixo de 0,5 em todo o país, agrupando os que ficam a até 200
+  km entre si. A prévia, no painel, mostra quantos atendem e os conjuntos; nada muda na análise até você escolher “Usar como
+  seleção” ou “Usar cada conjunto como um território”."), sem números (a prévia é do motor, no painel); a análise só muda com
+  a escolha no painel. Com o agrupamento, o critério de valor é opcional: "agrupe os municípios do Pará a até 50 km entre si"
+  abre o modo com todos os municípios do Pará ("… com todos os municípios (onde procurar: Pará), agrupando …"). A pessoa diz
+  tudo: faltando a distância do agrupamento, a conversa pergunta, sem sugerir valor ("Para agrupar por proximidade, diga a
+  distância máxima entre os membros do conjunto, em km. Os valores são seus: nada é sugerido."); sem agrupamento, faltando o
+  critério, também ("Para selecionar por critérios, diga os critérios …"); "a mais de X km entre si" também vira pergunta. Onde
+  procurar: o estado (ou grupo) citado, "na seleção" ou, sem nada, o todo. "a até X km de Manaus" é a distância até um
+  município (TPL-11). Um sinal de EXC-05 num pedido com a distância da pessoa ("clusters de municípios com …") é descartado
+  pelo contexto, e a resposta nunca usa "cluster"; sem a distância, a conversa pergunta. Correlação, regressão e Moran
+  continuam fora (EXC-05), com a recusa governada, que desde 07/11/2026 fala em "agrupamento automático dos territórios"
+  (antes, "padrão espacial") e oferece os conjuntos por proximidade com os critérios e a distância da pessoa. "Separe" e
+  "marque" continuam nas Condições.
 - **Exportar:** "exporte em CSV", "imprimir", "relatório".
 - **Vista do desenho** (desde 23/10/2026), junto com outro pedido: "mostre o Pará no mapa", "onde ficam os municípios
   com menos de 1 médico por mil?", "o mapa da quantidade" e "volte aos municípios no mapa" levam `vista: "mapa"`; "a
