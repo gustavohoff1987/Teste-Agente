@@ -110,7 +110,9 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
     - em `test_painel_pagina.py`, a tendência com conjuntos: as contagens das unidades passam a `por_tipo`, e o universo passa de
       5 para 7;
     - em `test_painel_resumo.py`, a frase com conjuntos ("Entre os municípios, …") e as ordens da conversa com o conjunto "e";
-    - em `painel.test.mjs`, a régua, em que o conjunto sai pelo valor.
+    - em `painel.test.mjs`, a régua, em que o conjunto sai pelo valor, e a resposta normalizada, em que `ordenacao` ganha
+      `porTipo`;
+    - em `areaDeAnalise.test.mjs`, os filtros do mapa: o conjunto sai da régua de 11 a 20 pelo valor dele (10 por mil).
 
 ### 2026-11-07 · Seleção por critérios de ponta a ponta, parte B (comando de 07/11/2026, itens 1 a 3, 4.1 a 4.3, 5, 6.4, 6.6, 7, 8 e 9): a tela
 - **Classificação (regra 1):** a mesma da parte A (abaixo), feita pela leitura no início, para os nove itens: todos mudam

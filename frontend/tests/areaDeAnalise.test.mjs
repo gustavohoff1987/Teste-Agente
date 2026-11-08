@@ -1125,11 +1125,13 @@ test('mapa com todas as unidades em análise: também as que o gráfico deixa de
   assert.deepEqual(M.itensParaOMapa(itens).map(item => item.id), ['code:140005', 'code:140010', 'code:140028', 'c1']);
   const filtros = {indicador: 'densidade', corte: null, soAtende: false, condicoes: false, filtroClasse: null, tendencia: false};
   assert.ok(M.itensParaOMapa(itens).every(item => M.dentroDosFiltros(item, filtros)), 'sem filtros, ninguém esmaece no mapa');
-  // Com a régua, quem não tem o valor do indicador fica fora do corte (esmaece no mapa, nunca some); o conjunto não entra na régua.
+  // Com a régua, quem não tem o valor do indicador fica fora do corte (esmaece no mapa, nunca some). Desde 08/11/2026 (item 2 do
+  // comando de 08/11/2026; muda de propósito: antes, o conjunto não entrava na régua), o conjunto entra pelo valor dele (10 por mil):
+  // dentro de 5 a 20, fora de 11 a 20.
   const corte = {minimo: 5, maximo: 20};
   assert.deepEqual(M.itensParaOMapa(itens).filter(item => !M.dentroDosFiltros(item, {...filtros, corte})).map(item => item.id), ['code:140028']);
   assert.deepEqual(M.itensParaOMapa(itens).filter(item => !M.dentroDosFiltros(item, {...filtros, corte: {minimo: 11, maximo: 20}}))
-    .map(item => item.id), ['code:140005', 'code:140010', 'code:140028']);
+    .map(item => item.id), ['code:140005', 'code:140010', 'code:140028', 'c1']);
   // Os mesmos filtros do gráfico: "Mostrar só quem atende" (com as condições no desenho) e a classe escolhida na tendência.
   const atende = municipio('code:1', 'A (AM)', {condicoes: {situacao: 'ATENDE', porCondicao: [], motivo: null}});
   const naoAtende = municipio('code:2', 'B (AM)', {condicoes: {situacao: 'NAO_ATENDE', porCondicao: [], motivo: null}});

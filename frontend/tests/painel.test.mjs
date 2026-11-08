@@ -1081,7 +1081,8 @@ test('cliente do motor: a resposta normalizada para a tela (tendência, grupos, 
   assert.deepEqual(r.tendencia.janela, ['202106', '202206', '202306', '202406']);
   assert.deepEqual(r.tendencia.contagens, {CRESCIMENTO_ACELERADO: 1, SEM_CLASSIFICACAO: 0});
   assert.deepEqual(r.condicoes.contagens, {ATENDE: 0, NAO_ATENDE: 1, NAO_AVALIAVEL: 0});
-  assert.deepEqual(r.ordenacao, {atributo: 'densidade', ordem: 'desc', primeiros: 5, empatesNoCorte: false, texto: null});
+  // Desde 08/11/2026 (comando de 08/11/2026; muda de propósito), com `porTipo`: null sem conjuntos na comparação.
+  assert.deepEqual(r.ordenacao, {atributo: 'densidade', ordem: 'desc', primeiros: 5, empatesNoCorte: false, texto: null, porTipo: null});
   assert.deepEqual(r.comparacao, {itens: ['code:130260', 'code:130420'], linhas: [{atributo: 'densidade',
     maior: [{id: 'code:130260', rotulo: 'MANAUS (AM)', valor: 15}], menor: [{id: 'code:130420', rotulo: 'TEFE (AM)', valor: 5}],
     diferencas: [{entre: ['code:130260', 'code:130420'], valor: 10, texto: null}]}], textos: []});
