@@ -1211,10 +1211,6 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   municípios); a Tendência vale para os estados desde 24/10/2026.
 - O mapa vendo por estado mostra uma bolha por estado no ponto de desenho do servidor, sem limites oficiais nem ladrilhos
   (06/11/2026).
-- A faixa do lugar e o cartão do território existem só na base do Brasil nesta etapa; os nomes da base escolhidos pela pessoa (o
-  todo, até dois níveis de grupo e a unidade) ficam para a etapa seguinte do comando de 06/11/2026, como as demais etapas dele
-  (a seleção única com a conversa que confere, a lista ordenada em tela estreita, Agregar territórios e Selecionar por
-  critérios).
 - "Por critérios" (07/11/2026) está na Seleção, na conversa e nas Condições ("Usar como seleção"). A distância até a referência
   das Condições não vai para o modo (lá, a distância é até um território).
 - Com a Escolha dos territórios, os conjuntos têm a distância e a referência pelos membros, mas ficam fora das faixas de
