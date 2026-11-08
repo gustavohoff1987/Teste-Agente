@@ -1383,3 +1383,81 @@ A D-3 está concluída. Nada foi republicado, e os algoritmos analíticos não m
 
 Ponto de retomada: nenhuma operação pendente. A conferência V da interface no endereço novo será registrada quando for
 informada.
+
+## R. Publicação controlada do `dbc7fe3` (08/11/2026)
+
+**"AUTORIZO a publicação controlada do commit dbc7fe3e57df806d6093ff005c4a8e545eb029c5"**, do mesmo jeito que o `590bf8b`
+(seção O). Junto com a P-2, a pessoa responsável confirmou o plano: no Cloud Run, só a troca da imagem, sem mudar o CORS
+nem outra configuração. O comando do update foi apresentado antes e executado só depois do OK.
+
+- **O commit:** o `dbc7fe3` traz a Seleção com uma ferramenta por vez, "Por critérios" com o mini mapa ao vivo, "Agrupar
+  territórios", os conjuntos todos a até X km entre si (Conjunto A, B…), o agrupamento só pela distância, a distância e a
+  referência dos conjuntos na Escolha dos territórios e os conjuntos nas comparações, com as contagens por tipo. O CI dele
+  passou nos 7 jobs e no `resumo` (execução 496, `42494073105`). Desde o `590bf8b`:
+  - não mudaram o Dockerfile, o `.dockerignore`, as dependências da imagem, os dados, a SPEC, o modelo do destino nem o
+    `scripts/implantacao`;
+  - em `.github`, mudaram só os scripts do CI da seção P (`comparar_respostas.py`, `medir_conteiner.py` e
+    `referencia_na_imagem.py`), o nome de um passo do `ci.yml` e o texto de abertura do `conferir_protecao.py`, com a mesma
+    lógica. O `pages.yml` saiu na D-3 (seção Q);
+  - no backend, o CORS não mudou no código.
+- **Antes da imagem:**
+  - a F2-0 deu 0 falhas e 2 itens MANUAL;
+  - a P-2 foi confirmada no Console pela pessoa responsável: o orçamento e o limite de R$ 11;
+  - a conferência nova do serviço, rodada como linha de base contra a produção do `590bf8b`, deu 16 OK e 5 falhas
+    previstas, todas no que o `dbc7fe3` traz:
+    - a até 200 km, 6 grupos em cadeia, o maior com 1.235 km, com os nomes "Grupo 1…";
+    - no Pará, a até 100 km, 4 grupos, nenhum da referência, o maior com 309 km;
+    - o agrupamento só pela distância, recusado (422);
+    - o conjunto sem distância na Escolha dos territórios;
+    - a ordenação sem o conjunto.
+- **Imagem:** a etiqueta `imagem-20261108-1` no `dbc7fe3` acionou a execução 42498311690 do `imagem.yml`. A conferência do
+  ambiente `producao` passou, e a aprovação registrada é de `gustavohoff1987`. O job construiu a imagem, passou no teste rápido
+  do contêiner e a enviou pela federação: `sha256:a5a34815e1ee411143ac9efdbe359bb47d43d9884422aa353c8a74ed6c5ed7ee`.
+- **Cloud Run:**
+  - a F2-0 de novo, logo antes do update, sem falhas, com os mesmos 2 itens MANUAL;
+  - `gcloud run services update agente-diagnostico-territorial --project=agente-diagnostico-territorial --region=us-central1
+    --image=...@sha256:a5a34815…` gerou a revisão `agente-diagnostico-territorial-00006-q6c`, com 100% do tráfego;
+  - a configuração antes e depois só difere na imagem e no marcador interno do gcloud (`client.knative.dev/nonce`). O CORS (só
+    `https://diagnostico-territorial.github.io`), os limites, `ADT_DOCUMENTACAO_DA_API=0`, o segredo `gemini-api-key:1`, a
+    conta, a sonda e o acesso público ficaram iguais;
+  - etiquetas, movidas depois de a revisão nova responder: `anterior` no `b6728170…` (`590bf8b`) e `em-uso` no digest novo. O
+    `4ac2726d…` (`cb1f301`) ficou só com a etiqueta do commit, para a limpeza automática; depois dela, a `00004-wr4` não volta
+    mais ao ar.
+- **Testes do serviço** (`conferir_servico_dbc7fe3.py`, só leitura, sem credencial): 21 OK e 0 falhas.
+  - as 16 de antes, como na publicação do `590bf8b`: a saúde, a documentação desligada, o CORS (a origem nova aceita; a antiga
+    e uma estranha, recusadas), a base, os gráficos, os totais do Amazonas e do Brasil, `/api/painel/lugar` e os 89 municípios
+    com densidade abaixo de 0,5 em jun/2024 em `/api/painel/criterios`;
+  - novo: desses 89, a até 200 km, 20 conjuntos, nenhum acima de 200 km (o maior com 192,7 km), com os nomes Conjunto A, B, C…;
+  - novo: no Pará, com densidade abaixo de 0,5 em jun/2024, a até 100 km, 6 conjuntos, nenhum acima de 100 km (o maior com
+    90,6 km). Entre eles estão os três da referência do comando de 07/11/2026: Igarapé-Miri, Limoeiro do Ajuru, Moju e Muaná;
+    Bagre, Curralinho e Oeiras do Pará; e Acará e Concórdia do Pará. Anajás, Baião e Melgaço ficam sem conjunto;
+  - novo: só pela distância, sem critério de valor, os 144 municípios do Pará a até 50 km entre si: 43 conjuntos, o maior com
+    48,2 km;
+  - novo: na Escolha dos territórios, com a referência nos municípios do Brasil com densidade a partir de 1, o conjunto de
+    Igarapé-Miri e Moju tem a distância de 22,2 a 30,0 km e a referência Abaetetuba, pelo membro Moju, sem "Distância não se
+    aplica ao conjunto";
+  - novo: na ordenação por densidade dos municípios do Pará, o conjunto fica entre os municípios (posição 16 de 145), com a
+    contagem separada: 144 unidades e 1 conjunto;
+  - nenhuma chamada ao Gemini (0 antes e 0 depois).
+- **Interface:**
+  - o commit `f0fc36c` do destino passou o `origem.txt` para `dbc7fe3`. O `publicar.yml`, o `conferir_origem.py` e o
+    `verificar_chave_google.py` do destino são iguais aos desse commit. O `conferir_protecao.py` de lá ficou igual ao do
+    `590bf8b`, porque a origem só mudou o texto de abertura;
+  - a etiqueta `publicacao-pages-20261108-1` acionou a execução 42500439213. As conferências e o build passaram, e a publicação
+    terminou às 16:42 UTC. Conferido pela API: a aprovação registrada é de `gustavohoff1987`, no ambiente `github-pages` do
+    destino, e os jobs `conferir`, `build` e `publicar` passaram;
+  - a página responde 200, com o título oficial. O script `index-CDs4gAcg.js` traz o endereço do serviço e os textos "Por
+    critérios", "Agrupar territórios" e "Conjunto".
+- **Preservados:**
+  - o endereço antigo segue em 404;
+  - não houve merge no `main` do Teste-Agente nem mudança na SPEC;
+  - a API de orçamentos segue desligada, e a F2-0 conta 32 APIs ligadas, como antes;
+  - o faturamento não foi alterado: o orçamento e a trava só se conferem no Console (P-2).
+- **Reversão** (o serviço e a interface juntos):
+  - serviço: `gcloud run services update-traffic agente-diagnostico-territorial --project=agente-diagnostico-territorial
+    --region=us-central1 --to-revisions=agente-diagnostico-territorial-00005-js5=100`, com a etiqueta `em-uso` de volta ao
+    `b6728170…` e `anterior` no `a5a34815…` (F2-6). A `00005-js5` tem a mesma configuração, com a imagem do `590bf8b`;
+  - interface: o `origem.txt` do destino de volta a `590bf8b7c9dd8c6f70bb467c2a8e72910189036e` e uma etiqueta nova.
+
+Ponto de retomada: a publicação do `dbc7fe3` está concluída. A conferência V da interface no endereço novo será registrada
+quando for informada.
