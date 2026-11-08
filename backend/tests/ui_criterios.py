@@ -261,8 +261,11 @@ def main():
         expect(painel.get_by_test_id("analise-criterios-resumo")).to_contain_text("89 atendem")
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(antes)
         expect(chat.locator('[data-papel="agente"]').last).to_have_attribute("data-execucao", "concluido", timeout=60000)
-        analise(lambda: aperta(painel.get_by_test_id("analise-criterios-como-selecao")))
+        # A mesma definição do passo 5 (os 89, com a condição aplicada): a tela reaproveita a resposta guardada, sem novo pedido ao
+        # motor (a memória das respostas da área), e por isso o roteiro não espera um pedido aqui.
+        aperta(painel.get_by_test_id("analise-criterios-como-selecao"))
         expect(partes).to_have_text(["Brasil", "Seleção: densidade abaixo de 0,5 em jun/2024 (89)"])
+        expect(modos.get_by_test_id("analise-modo-lista")).to_have_attribute("aria-checked", "true")
 
         if chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
             chat.get_by_test_id("painel-chat-minimizar").click()
