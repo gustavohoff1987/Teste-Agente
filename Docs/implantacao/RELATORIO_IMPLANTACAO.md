@@ -1324,7 +1324,7 @@ Ponto de retomada: a D-3, na seção Q.
   commits e as execuções do CI, que são públicas;
 - o ambiente `github-pages` do Teste-Agente não tinha segredos nem variáveis, e o repositório não tem segredos.
 
-**D3-a (neste commit).**
+**D3-a (commit `168cf183`; a execução 490 do CI passou nos 7 jobs e no `resumo`).**
 - O `pages.yml` saiu do ramo.
 - Em `test_implantacao.py`, os testes deixam de conferir o `pages.yml`. Um teste novo exige que nenhum workflow do
   Teste-Agente publique no Pages nem use a variável ou o ambiente, e o modelo do destino continua conferido.
@@ -1336,7 +1336,50 @@ Ponto de retomada: a D-3, na seção Q.
   - o build do CI em `/Teste-Agente/`, que confere a publicação fora da raiz.
 - O registro do workflow continua desativado, e a etiqueta `publicacao-pages-20261103-1` fica como histórico.
 
-**D3-b (depois da CI verde deste commit).** Serão apagados, no Teste-Agente, a variável `VITE_API_BASE_URL` e o ambiente
-`github-pages`. Antes, a configuração dos dois fica salva para recriá-los, e o registro da execução vem no commit seguinte.
+**D3-b (executada em 07/11/2026, às 21:10 de Brasília, ou 00:10 UTC de 08/11).** Logo antes de apagar, com o `pages.yml` já fora do
+ramo, a busca nos workflows dos ramos remotos não achou nenhum uso. Os dois comandos responderam 204:
+- `gh api -X DELETE repos/gustavohoff1987/Teste-Agente/actions/variables/VITE_API_BASE_URL`;
+- `gh api -X DELETE repos/gustavohoff1987/Teste-Agente/environments/github-pages`.
 
-Ponto de retomada: a D3-b e o registro dela.
+Configuração salva antes, para recriar (o endereço do Cloud Run não é segredo):
+- a variável `VITE_API_BASE_URL` = `https://agente-diagnostico-territorial-338451103854.us-central1.run.app`, criada em
+  04/11/2026;
+- o ambiente `github-pages`: revisor obrigatório `gustavohoff1987` (id 322563090), autorrevisão permitida, sem bypass de
+  administradores e implantação só pela etiqueta `publicacao-pages-*`; não tinha segredos nem variáveis.
+
+**Para desfazer.** Desfazer não reativa a publicação antiga, porque o Teste-Agente não tem site do Pages.
+- a variável: `gh api -X POST repos/gustavohoff1987/Teste-Agente/actions/variables -f name=VITE_API_BASE_URL -f
+  value=<o endereço acima>`;
+- o ambiente: `gh api -X PUT repos/gustavohoff1987/Teste-Agente/environments/github-pages --input ambiente.json`, com o
+  `ambiente.json` assim:
+  `{"wait_timer": 0, "prevent_self_review": false, "reviewers": [{"type": "User", "id": 322563090}], "can_admins_bypass": false,
+  "deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}`.
+  Depois, `gh api -X POST repos/gustavohoff1987/Teste-Agente/environments/github-pages/deployment-branch-policies -f
+  name='publicacao-pages-*' -f type=tag`;
+- o `pages.yml`: `git revert 168cf183`.
+
+**Conferências depois da limpeza (só leitura), todas sem falha.**
+- Teste-Agente:
+  - os ambientes são `gemini-real` e `producao`, este com o revisor, e não há variáveis;
+  - o `pages.yml` está fora do ramo, com o registro desativado, e o `imagem.yml` está ativo;
+  - não há site do Pages, e o endereço antigo responde 404.
+- Destino:
+  - o `publicar.yml` está ativo;
+  - o ambiente `github-pages` tem o revisor e só a etiqueta `publicacao-pages-*`;
+  - a variável `VITE_API_BASE_URL` tem o endereço do serviço;
+  - o site está construído, e o `origem.txt` aponta o `590bf8b`;
+  - a interface responde 200, com o `index-BNIXBSjc.js`.
+- Cloud Run:
+  - a `00005-js5` tem 100% do tráfego, com a imagem `b6728170…` (`em-uso`);
+  - o `anterior` está no `4ac2726d…`, com a `00004-wr4` para voltar;
+  - o máximo é de 1 instância, e o `ADT_ALLOWED_ORIGINS` tem só `https://diagnostico-territorial.github.io`.
+- Serviço: as 17 conferências por HTTP passaram, sem nenhuma chamada ao Gemini. Elas cobrem a saúde, a documentação desligada,
+  o CORS (a origem nova aceita e a antiga recusada), a base, os gráficos, `/api/painel/lugar` e `/api/painel/criterios`.
+- Artifact Registry: a política de limpeza já apagou a imagem `0b5bd9a6…`, e ficam só a `em-uso` e a `anterior`. A revisão
+  `00003-dk5`, que usava essa imagem, não volta mais ao ar.
+- Faturamento: nada foi consultado nem alterado. O orçamento e a trava de gastos só se conferem no Console (P-2).
+
+A D-3 está concluída. Nada foi republicado, e os algoritmos analíticos não mudaram.
+
+Ponto de retomada: nenhuma operação pendente. A conferência V da interface no endereço novo será registrada quando for
+informada.
