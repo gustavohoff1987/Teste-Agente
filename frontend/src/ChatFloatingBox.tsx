@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { ChevronUp, GripHorizontal, Minus } from "lucide-react";
+import { GripHorizontal, Minus } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
 import { useNarrow } from "./useNarrow";
 
@@ -9,12 +9,15 @@ import { useNarrow } from "./useNarrow";
 // compacta. A posição fica no localStorage, sempre com try/catch (sem armazenamento, vale só nesta tela). No celular, a caixa
 // fica ancorada embaixo. A conversa mantém o id "assistente". Desde 04/11/2026, a caixa inteira cabe na janela em qualquer
 // altura: ela nunca passa da altura da janela, o histórico e a orientação rolam por dentro e o campo de envio fica sempre à
-// vista (styles.css, "Caixa da conversa inteira na janela"). Desde 10/11/2026 (conferência das capturas do comando V22), a caixa
-// minimizada é compacta (o rosto, "Assistente" e o botão que a abre), e, no canto de sempre, a página reserva o espaço dela no fim
-// do painel da Seleção (a variável --espaco-da-conversa), para ela não cobrir textos nem botões.
+// vista (styles.css, "Caixa da conversa inteira na janela"). Desde 10/11/2026 (conferência das capturas da pausa 2 do comando
+// V22), a caixa minimizada é só o botão redondo com o rosto do agente, sem texto, para não cobrir campos nem botões da página
+// (antes, o rosto, "Assistente" e o botão que a abria); arrastar o botão move a caixa. No canto de sempre, a página reserva o
+// espaço dela no fim do painel da Seleção (a variável --espaco-da-conversa).
 
 const CHAVE = "adt:painel-chat:v1";
 const PASSO = 16, PASSO_LONGO = 64;
+/** Até aqui (em px), o ponteiro no botão redondo ainda é um clique; além disso, é um arrasto. */
+const FOLGA_DO_CLIQUE = 6;
 type Guardado = { x: number | null; y: number | null; minimizada: boolean };
 type Posicao = { x: number; y: number };
 
@@ -45,7 +48,16 @@ export default function ChatFloatingBox({ children, ocupado = false, ampla = fal
   const [posicao, setPosicao] = useState<Posicao | null>(guardado.x !== null && guardado.y !== null ? { x: guardado.x, y: guardado.y } : null);
   const [minimizada, setMinimizada] = useState(ampla ? false : guardado.minimizada);
   const [anuncio, setAnuncio] = useState("");
-  const arrasto = useRef<{ id: number; dx: number; dy: number } | null>(null);
+  const arrasto = useRef<{ id: number; dx: number; dy: number; x0: number; y0: number; moveu: boolean } | null>(null);
+  /** O botão redondo foi arrastado: o clique que encerra o arrasto não abre a caixa. */
+  const arrastada = useRef(false);
+  /** Abrir e minimizar trocam o botão por outro: o foco vai para o botão novo, para o teclado não perder o lugar. */
+  const focar = useRef(false);
+  useEffect(() => {
+    if (!focar.current) return;
+    focar.current = false;
+    caixa.current?.querySelector<HTMLButtonElement>('[data-testid="painel-chat-minimizar"]')?.focus({ preventScroll: true });
+  }, [minimizada]);
 
   /** Posição presa à janela: a caixa inteira fica visível. */
   const prender = useCallback((x: number, y: number): Posicao => {
@@ -84,31 +96,50 @@ export default function ChatFloatingBox({ children, ocupado = false, ampla = fal
     return () => window.clearTimeout(timer);
   }, [posicao, minimizada]);
   // Minimizada no canto de sempre (ou ancorada embaixo, no celular), a caixa fica por cima do fim da tela: quem prende um painel à
-  // janela desconta esse espaço.
+  // janela desconta esse espaço (o botão redondo, de 52 px, com a borda e a margem do canto).
   useEffect(() => {
     const raiz = document.documentElement;
-    raiz.style.setProperty("--espaco-da-conversa", minimizada && (narrow || !posicao) ? "72px" : "0px");
+    raiz.style.setProperty("--espaco-da-conversa", minimizada && (narrow || !posicao) ? "80px" : "0px");
     return () => { raiz.style.removeProperty("--espaco-da-conversa"); };
   }, [minimizada, narrow, posicao]);
 
   function agarrar(event: PointerEvent<HTMLDivElement>) {
-    if (narrow || event.button !== 0 || (event.target as Element).closest("button")) return;
+    const botao = (event.target as Element).closest("button");
+    // Aberta, os botões do cabeçalho não arrastam. Minimizada, a caixa é o botão redondo: ele arrasta depois de uma folga.
+    if (narrow || event.button !== 0 || (botao && !minimizada)) return;
     const box = caixa.current?.getBoundingClientRect();
     if (!box) return;
-    arrasto.current = { id: event.pointerId, dx: event.clientX - box.left, dy: event.clientY - box.top };
-    event.currentTarget.setPointerCapture(event.pointerId);
-    event.preventDefault();
+    arrastada.current = false;
+    arrasto.current = { id: event.pointerId, dx: event.clientX - box.left, dy: event.clientY - box.top, x0: event.clientX, y0: event.clientY,
+      moveu: !botao };
+    // No botão redondo, a captura fica nele (o clique continua sendo dele), e os movimentos sobem até o cabeçalho.
+    (botao ?? event.currentTarget).setPointerCapture(event.pointerId);
+    if (!botao) event.preventDefault();
   }
   function mover(event: PointerEvent<HTMLDivElement>) {
     const atual = arrasto.current;
     if (!atual || atual.id !== event.pointerId) return;
+    if (!atual.moveu) {
+      if (Math.hypot(event.clientX - atual.x0, event.clientY - atual.y0) < FOLGA_DO_CLIQUE) return;
+      atual.moveu = true;
+      arrastada.current = true;
+    }
     setPosicao(prender(event.clientX - atual.dx, event.clientY - atual.dy));
   }
   function soltar(event: PointerEvent<HTMLDivElement>) {
-    if (arrasto.current?.id !== event.pointerId) return;
+    const atual = arrasto.current;
+    if (atual?.id !== event.pointerId) return;
     arrasto.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    setAnuncio("Caixa da conversa movida.");
+    for (const alvo of [event.target as Element, event.currentTarget as Element])
+      if (alvo.hasPointerCapture?.(event.pointerId)) alvo.releasePointerCapture(event.pointerId);
+    if (atual.moveu) setAnuncio("Caixa da conversa movida.");
+    // O clique do botão (se houver) vem logo depois deste evento; passado ele, um arrasto antigo não engole o clique seguinte.
+    window.setTimeout(() => { arrastada.current = false; }, 0);
+  }
+  function alternar() {
+    if (arrastada.current) { arrastada.current = false; return; }
+    focar.current = true;
+    setMinimizada(valor => !valor);
   }
   function teclado(event: KeyboardEvent<HTMLDivElement>) {
     if (event.target !== event.currentTarget || narrow) return;
@@ -132,22 +163,29 @@ export default function ChatFloatingBox({ children, ocupado = false, ampla = fal
   return <section id="assistente" ref={caixa} aria-label="Assistente de análise territorial" data-testid="painel-chat"
     data-minimizada={minimizada ? "true" : "false"} data-ancorada={narrow ? "true" : "false"} data-ampla={ampla ? "true" : "false"}
     className={"painel-chat no-print" + (narrow ? " painel-chat-ancorada" : "")} style={estilo}>
-    <div className="painel-chat-cabecalho" data-testid="painel-chat-handle" tabIndex={0} role="group"
+    <div className="painel-chat-cabecalho" data-testid="painel-chat-handle" tabIndex={minimizada ? -1 : 0} role="group"
       aria-label={narrow ? "Conversa com o agente" : "Conversa com o agente. Para mover a caixa, arraste o cabeçalho ou, com ele focado, use as setas; Shift acelera e Home volta ao canto."}
       onPointerDown={agarrar} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar} onKeyDown={teclado}>
-      <BrandAvatar size={34}/>
-      {minimizada ? <p data-testid="painel-chat-compacta" className="shrink-0 whitespace-nowrap text-[14px] font-bold tracking-[-0.01em] text-ink">
-        {ocupado ? "Interpretando…" : "Assistente"}</p> : <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">Agente Diagnóstico Territorial</p>
-        <p className="truncate text-[12px] text-slate-600">{ocupado ? "Interpretando o pedido…" : narrow ? "Conversa sobre o gráfico" : "Arraste pelo cabeçalho para mover"}</p>
-      </div>}
-      {!narrow && !minimizada && <GripHorizontal size={16} aria-hidden="true" className="shrink-0 text-slate-400"/>}
-      <button type="button" data-testid="painel-chat-minimizar" aria-expanded={!minimizada} aria-controls="painel-chat-corpo"
-        aria-label={minimizada ? "Abrir a conversa" : "Minimizar a conversa"} title={minimizada ? "Abrir a conversa" : "Minimizar a conversa"}
-        onClick={() => setMinimizada(valor => !valor)}
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-ink hover:bg-cyan-50">
-        {minimizada ? <ChevronUp size={16} aria-hidden="true"/> : <Minus size={16} aria-hidden="true"/>}
-      </button>
+      {minimizada
+        // Minimizada: só o botão redondo com o rosto do agente. O nome do botão diz o que ele faz e, com um pedido em curso, isso também.
+        ? <button type="button" data-testid="painel-chat-minimizar" data-ocupado={ocupado ? "true" : "false"} aria-expanded={false}
+            aria-controls="painel-chat-corpo" aria-label={ocupado ? "Abrir a conversa (o agente está interpretando o pedido)" : "Abrir a conversa"}
+            title={ocupado ? "Abrir a conversa (interpretando o pedido…)" : "Abrir a conversa"} onClick={alternar} className="painel-chat-redonda">
+            <BrandAvatar size={40}/>
+          </button>
+        : <>
+          <BrandAvatar size={34}/>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">Agente Diagnóstico Territorial</p>
+            <p className="truncate text-[12px] text-slate-600">{ocupado ? "Interpretando o pedido…" : narrow ? "Conversa sobre o gráfico" : "Arraste pelo cabeçalho para mover"}</p>
+          </div>
+          {!narrow && <GripHorizontal size={16} aria-hidden="true" className="shrink-0 text-slate-400"/>}
+          <button type="button" data-testid="painel-chat-minimizar" aria-expanded={true} aria-controls="painel-chat-corpo"
+            aria-label="Minimizar a conversa" title="Minimizar a conversa" onClick={alternar}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-ink hover:bg-cyan-50">
+            <Minus size={16} aria-hidden="true"/>
+          </button>
+        </>}
     </div>
     <div id="painel-chat-corpo" className="painel-chat-corpo" hidden={minimizada}>{children}</div>
     <p aria-live="polite" className="sr-only">{anuncio}</p>

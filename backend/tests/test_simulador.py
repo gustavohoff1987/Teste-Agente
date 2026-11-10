@@ -265,7 +265,16 @@ def test_intervencao_so_nos_territorios_indicados_e_validacoes():
     finais = [simulador._simular(b, cal, retro, municipio(b, codigo), cenario, 15, 21, series_brasil.mes_da_competencia("202606"))
               for codigo in ("110001", "110002")]
     assert [final["final"]["total"] for final in finais] == [10, 94]
-    assert "sem intervenção" in finais[0]["texto"] and "acréscimo de 4 médicos" in finais[1]["texto"]
+    assert "sem intervenção" in finais[0]["texto"] and "acréscimo de 4 médicos em jan/2025" in finais[1]["texto"]
+    # Com mais de um território no pedido, o texto diz para quem a intervenção vale: cada território recebe a quantidade inteira.
+    geral = simulador._cenarios([{"metodo": "M0", "intervencoes": [{"tipo": "acrescimo", "quantidade": 4, "em": "202501"}]}], b, ids)[0]
+    varios = [simulador._simular(b, cal, retro, municipio(b, codigo), geral, 15, 21, series_brasil.mes_da_competencia("202606"), True)
+              for codigo in ("110001", "110002")]
+    assert [final["final"]["total"] for final in varios] == [14, 94]
+    assert all("acréscimo de 4 médicos em cada território do cenário, em jan/2025, com permanência total (hipótese)" in final["texto"]
+               for final in varios)
+    so_um = simulador._simular(b, cal, retro, municipio(b, "110002"), cenario, 15, 21, series_brasil.mes_da_competencia("202606"), True)
+    assert "acréscimo de 4 médicos só nos territórios indicados, em jan/2025" in so_um["texto"]
     for intervencao, trecho in (
             ({"tipo": "doacao", "quantidade": 1, "em": "202501"}, "o tipo é acrescimo ou retirada"),
             ({"tipo": "acrescimo", "quantidade": 0, "em": "202501"}, "número acima de zero"),
@@ -524,6 +533,8 @@ def test_rota_do_simulador_cenarios_estatisticas_e_recusas(catalogo, monkeypatch
     assert com["final"] == {"data": "202606", "base": pytest.approx(51 * (1 + deriva) ** 2), "intervencao": 4.0,
                             "total": pytest.approx(51 * (1 + deriva) ** 2 + 4), "faixa": None}
     assert com["texto"].startswith(FIXO) and com["texto"].endswith("MANAUS (AM) teria 59 médicos em jun/2026. Base: registros até jun/2024.")
+    assert "acréscimo de 4 médicos em cada território do cenário, em jan/2025, com permanência total (hipótese)" in com["texto"]
+    assert any("Cada intervenção vale para cada território do cenário" in nota for nota in body["notas"])
     assert com["faixa"]["estado"] == "indisponivel"   # o catálogo de teste não tem retroprojeções bastantes
     assert (referencia["id"], referencia["metodo"]["usado"], referencia["final"]["total"]) == ("m0", "M0", 51.0)
     assert manaus["historico"]["taxa_composta_pct"] == pytest.approx(100 * ((51 / 45) ** (1 / 3) - 1))

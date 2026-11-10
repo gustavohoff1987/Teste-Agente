@@ -35,6 +35,48 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-10 · Ajustes da conferência da pausa 2 do V22: caixa da conversa redonda, conjuntos e intervenções no Simulador e textos do Detector
+- **Classificação (regra 1), pela leitura, antes de codar:** textos e uma forma de tela pedidos pelo responsável na conferência
+  das capturas da pausa 2 (10/11/2026): mudança de comportamento. *Escopo:* decorre do pedido. *Compatibilidade:* não contraria a
+  SPEC nem as divergências aprovadas (o Detector e o Simulador continuam nos limites das decisões D-A e 2; o rótulo da soma segue
+  RQ-REP-14). Mudança prevista.
+- **Antes:**
+  - a caixa da conversa minimizada mostrava o rosto, "Assistente" e o botão que a abria, e cobria campos no canto da tela (o
+    "Buscar" do Detector);
+  - na tabela do Simulador, um conjunto aparecia com o método "último valor com o crescimento do estado", e a faixa dele não
+    era marcada como aproximação na tabela;
+  - a tela e o texto do cenário não diziam que a intervenção vale para cada território: cada um recebia a quantidade inteira,
+    inclusive estados como unidade e conjuntos, sem aviso;
+  - depois da primeira alteração na seleção do Simulador, só o texto do alto da etapa dizia que ela era só do Simulador;
+  - no Detector, a linha do afastamento de patamar dizia "sem base para dizer se é muito incomum" logo abaixo de "Alta", e o
+    fenômeno 4 dizia "Sem desaceleração do crescimento (declínio)".
+- **Agora:**
+  - **caixa da conversa minimizada:** só o botão redondo com o rosto do agente, sem texto ("Abrir a conversa"; com um pedido em
+    curso, o nome do botão diz isso e ele ganha o anel do destaque). Arrastar o botão move a caixa; o clique a abre; o foco do
+    teclado acompanha o botão ao abrir e ao minimizar;
+  - **Simulador, conjuntos:** na tabela, o método do conjunto é "soma das projeções dos membros (cada um com o crescimento do seu
+    estado)" (na persistência, "cada um no último valor"; nos demais métodos, "soma das contagens dos componentes · …"), e a
+    faixa leva o rótulo "aproximação" na tabela, no texto da faixa e na legenda do gráfico;
+  - **Simulador, intervenções:** a etapa 3 avisa que cada intervenção vale para cada território do cenário, não para o total, com
+    o número de territórios; a tabela repete o aviso; as contas da data final dizem "neste território"; o texto fixo do cenário,
+    com mais de um território no pedido, diz "acréscimo de 5 médicos em cada território do cenário, em jun/2025, …" (ou "só nos
+    territórios indicados"); as notas da resposta ganharam a frase. O cálculo não mudou;
+  - **Simulador, cópia local:** junto de "Copiar de novo a seleção principal", o aviso de que a cópia deixou de acompanhar a
+    seleção principal depois da alteração feita no Simulador;
+  - **Detector:** "crítica: sem base para avaliar", na linha do patamar com intensidade alta; no fenômeno 4, "Não se aplica: a
+    série está em declínio", "Não se aplica: a série não tem classificação de tendência", "Sem desaceleração: a série está em
+    crescimento" ou "Sem desaceleração: o crescimento está acelerando".
+- **Permanece:** os cálculos do Detector e do Simulador, as rotas e os contratos (a resposta de `/api/simulador` só ganhou uma
+  nota e a frase nas premissas do texto); a caixa aberta, o arrasto pelo cabeçalho, as setas e o Home; o espaço reservado no fim
+  dos painéis (`--espaco-da-conversa`).
+- **Motivo:** conferência das capturas da pausa 2 pelo responsável (10/11/2026).
+- **Documentação e testes:** [área de análise](PAINEL_INTEGRADO_INTERFACE.md) (a caixa minimizada),
+  [Simulador](SIMULADOR_DE_CENARIOS.md) e [Detector](DETECTOR_DE_SINAIS.md). Testes: pytest (`test_simulador.py`, o texto com
+  vários territórios e a nota; `test_detector.py`, a situação do fenômeno 4 em todas as classes da Análise de Tendência), Node
+  (`simulador.test.mjs`, `detector.test.mjs`) e os roteiros `ui_pagina_unica.py` (o botão redondo, sem texto, arrastável),
+  `ui_simulador.py` (o aviso da cópia, a intervenção por território e um conjunto importado, com a soma e a aproximação) e
+  `ui_detector.py` (a situação do fenômeno 4).
+
 ### 2026-11-10 · Simulador de Cenários Territoriais: o núcleo, como exceção aprovada à exclusão de projeção da SPEC
 - **Classificação (regra 1), pela leitura, antes de codar:** a etapa 4 do comando V22 (seção 10, sem o planejamento inverso e a
   seção 10.5) cria uma ferramenta, uma rota e textos novos: mudança de comportamento. *Escopo:* decorre do comando (seções 10, 11

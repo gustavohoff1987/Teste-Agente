@@ -44,7 +44,7 @@ import numpy as np
 import series_brasil
 from series_brasil import Base, Territorio
 from territorial_levels import STATES, human_period
-from trend import LABELS as ROTULOS_DA_TENDENCIA, classify_pairs
+from trend import FAMILY as FAMILIA_DA_TENDENCIA, LABELS as ROTULOS_DA_TENDENCIA, classify_pairs
 
 VERSION = "DETECTOR-SINAIS/V2.2/1"
 # Faixas de porte da calibração (seção 4.2): pelo número de médicos antes da transição (ou pelo patamar, no indicador 7).
@@ -1099,7 +1099,16 @@ def _texto_desaceleracao(base: Base, av: dict) -> dict:
                 "acaso produziria e não antecipa o crescimento seguinte."
         return {"situacao": "Desaceleração do crescimento" + (" · repetida (exploratória)" if s["persistente"] else ""),
                 "observado": observado, "habitual": habitual, **comum}
-    return {"situacao": "Sem desaceleração do crescimento (" + s["rotulo"].lower() + ").", "observado": observado,
+    # Sem a classe: o fenômeno descreve séries em crescimento. Em declínio ou sem classificação de tendência, não se aplica.
+    familia = FAMILIA_DA_TENDENCIA[s["tendencia"]]
+    if familia == "DECLINIO":
+        return {"situacao": "Não se aplica: a série está em declínio.", "observado": observado,
+                "habitual": "Não se aplica: o fenômeno descreve séries em crescimento.", **comum}
+    if familia == "NENHUMA":
+        return {"situacao": "Não se aplica: a série não tem classificação de tendência.", "observado": observado,
+                "habitual": "Não se aplica: o fenômeno descreve séries em crescimento.", **comum}
+    return {"situacao": "Sem desaceleração: " + ("o crescimento está acelerando." if s["tendencia"] == "CRESCIMENTO_ACELERADO"
+                                                  else "a série está em crescimento."), "observado": observado,
             "habitual": "Sem sinal.", **comum}
 
 

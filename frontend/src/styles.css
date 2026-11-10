@@ -392,9 +392,15 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .painel-chat-cabecalho { display:flex; align-items:center; gap:10px; padding:8px 10px 8px 12px; border-bottom:1px solid var(--cor-borda-suave); border-radius:18px 18px 0 0; background:var(--cor-superficie-suave); cursor:grab; touch-action:none; user-select:none; }
 .painel-chat-cabecalho:active { cursor:grabbing; }
 .painel-chat-cabecalho:focus-visible { outline:3px solid var(--cor-foco); outline-offset:2px; }
-.painel-chat[data-minimizada="true"] .painel-chat-cabecalho { border-bottom:0; border-radius:18px; }
-/* Minimizada (10/11/2026), a caixa é compacta: o rosto, "Assistente" e o botão que a abre; não cobre o fim dos painéis. */
-.painel-chat[data-minimizada="true"] { width:auto !important; max-width:calc(100vw - 16px); }
+.painel-chat[data-minimizada="true"] .painel-chat-cabecalho { padding:0; border-bottom:0; border-radius:999px; background:transparent; }
+/* Minimizada (10/11/2026, conferência da pausa 2 do comando V22), a caixa é só o botão redondo com o rosto do agente, sem texto:
+   não cobre campos nem botões da página. Com um pedido em curso, o anel do destaque. */
+.painel-chat[data-minimizada="true"] { width:auto !important; max-width:calc(100vw - 16px); border-radius:999px; }
+.painel-chat-redonda { display:inline-flex; align-items:center; justify-content:center; width:52px; height:52px; border-radius:999px;
+  background:var(--cor-superficie-suave); cursor:pointer; touch-action:none; }
+.painel-chat-redonda:hover { background:var(--cor-realce-destaque); }
+.painel-chat-redonda:focus-visible { outline:3px solid var(--cor-foco); outline-offset:2px; }
+.painel-chat-redonda[data-ocupado="true"] { box-shadow:0 0 0 3px var(--cor-destaque); }
 .painel-chat-ancorada[data-minimizada="true"] { left:auto; }
 .painel-chat-corpo { min-height:0; overflow:auto; }
 .painel-chat .conversation-dock { position:static; border-top:0; border-radius:0 0 18px 18px; box-shadow:none; }

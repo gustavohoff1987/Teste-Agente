@@ -25,7 +25,7 @@ from playwright.sync_api import expect, sync_playwright
 from ui_support import URL, offline, options_of
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
-MANAUS, RIO_RUFINO, BRASILIA, PR = "code:130260", "code:421505", "code:530010", "41"
+MANAUS, TEFE, RIO_RUFINO, BRASILIA, PR = "code:130260", "code:130420", "code:421505", "code:530010", "41"
 FIXO = "Cenário hipotético, não é previsão: "
 
 
@@ -105,6 +105,7 @@ def main():
         # A cópia ainda não foi alterada no Simulador: ela acompanha a seleção principal.
         expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "2")
         expect(simulador.get_by_test_id("simulador-origem-da-selecao")).to_have_attribute("data-acompanha", "true")
+        expect(simulador.get_by_test_id("simulador-nao-acompanha")).to_have_count(0)
         expect(local(MANAUS)).to_contain_text("MANAUS (AM)")
         expect(local(RIO_RUFINO)).to_contain_text("RIO RUFINO (SC)")
 
@@ -112,6 +113,9 @@ def main():
         acrescentar("brasilia", BRASILIA)
         expect(simulador.get_by_test_id("simulador-origem-da-selecao")).to_have_attribute("data-acompanha", "false")
         expect(simulador.get_by_test_id("simulador-origem-da-selecao")).to_contain_text("só do Simulador")
+        # Perto de "Copiar de novo a seleção principal", a tela diz que a cópia deixou de acompanhar a seleção principal.
+        expect(simulador.get_by_test_id("simulador-nao-acompanha")).to_contain_text("deixou de acompanhar a seleção principal")
+        expect(simulador.get_by_test_id("simulador-nao-acompanha")).to_contain_text("Copiar de novo a seleção principal")
         acrescentar("parana", "uf:" + PR)
         expect(local("uf:" + PR)).to_contain_text("Paraná (PR) (estado)")
         local(MANAUS).get_by_role("button").click()
@@ -150,6 +154,9 @@ def main():
         expect(simulador.get_by_test_id("simulador-atalho-4")).to_have_attribute("aria-pressed", "true")
         horizonte.fill("2027-03")
         expect(simulador.get_by_test_id("simulador-atalho-4")).to_have_attribute("aria-pressed", "false")
+        # A intervenção vale para cada território do cenário (cada um recebe a quantidade inteira), e a tela diz isso.
+        expect(simulador.get_by_test_id("simulador-por-territorio")).to_contain_text("Cada intervenção vale para cada território do cenário, não para o total")
+        expect(simulador.get_by_test_id("simulador-por-territorio")).to_contain_text("com 3 territórios na seleção do Simulador")
         simulador.get_by_test_id("simulador-intervencao-nova").click()
         expect(simulador.get_by_test_id("simulador-intervencao-em")).to_have_value("2025-06")
         expect(simulador.get_by_test_id("simulador-intervencao-permanencia")).to_have_value("100")
@@ -172,6 +179,8 @@ def main():
         rufino = do_territorio(corpo, RIO_RUFINO)
         cenario, referencia = rufino["cenarios"]
         assert cenario["metodo"]["usado"] == "M0d" and cenario["final"]["intervencao"] == 3 and cenario["texto"].startswith(FIXO), cenario
+        assert "acréscimo de 3 médicos em cada território do cenário, em jun/2025, com permanência total (hipótese)" in cenario["texto"], cenario["texto"]
+        assert all(item["cenarios"][0]["final"]["intervencao"] == 3 for item in corpo["territorios"]), "cada território recebe os 3 médicos"
         assert cenario["final"]["faixa"] and cenario["final"]["faixa"]["anos"] == 3 and cenario["final"]["faixa"]["validada"] is False, cenario["final"]
         expect(simulador.get_by_test_id("simulador-foco")).to_have_value(RIO_RUFINO)
         resultado = simulador.locator('[data-testid="simulador-cenario-resultado"][data-id="c1"]')
@@ -180,7 +189,9 @@ def main():
         expect(resultado.get_by_test_id("simulador-texto")).to_contain_text("RIO RUFINO (SC) teria")
         expect(resultado.get_by_test_id("simulador-texto")).to_contain_text("Base: registros até jun/2024.")
         expect(resultado).to_contain_text("método provisório")
+        expect(resultado.get_by_test_id("simulador-contas")).to_contain_text("Na data final, neste território: base do cenário de ")
         expect(resultado.get_by_test_id("simulador-contas")).to_contain_text(" + 3 da intervenção = ")
+        expect(simulador.get_by_test_id("simulador-tabela").locator("caption")).to_contain_text("Cada intervenção vale para cada território")
         expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 80% em mar/2027: de ")
         expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Limite provisório")
         # O registro de jun/2023 (4 → 87 → 5) é um pico que volta: fica fora da base do cenário, com o aviso.
@@ -277,6 +288,36 @@ def main():
         assert exportado["base"]["versao"] and exportado["base"]["ultimo_registro"] == "202406", exportado["base"]
         assert exportado["selecao_local"] == {"municipios": [RIO_RUFINO, BRASILIA], "estados": [PR], "conjuntos": []}, exportado["selecao_local"]
         assert [item["id"] for item in exportado["cenarios"]] == ["c1", "c2"] and exportado["horizonte"] == "202703", exportado
+
+        # 11b. Um cenário importado com um conjunto (MANAUS e TEFE): na tabela, o conjunto é a "soma das projeções dos membros", e a
+        # faixa dele é rotulada como aproximação (a dos municípios com o porte da soma).
+        com_conjunto = OUTPUT / "simulador-cenario-com-conjunto.json"
+        com_conjunto.write_text(json.dumps({**exportado, "selecao_local": {**exportado["selecao_local"], "conjuntos": [
+            {"id": "g1", "rotulo": "Manaus e Tefé", "membros": [MANAUS, TEFE], "versao": 1}]}}, ensure_ascii=False), encoding="utf-8")
+        simulador.get_by_test_id("simulador-etapa-1").click()
+        simulador.get_by_test_id("simulador-arquivo").set_input_files(str(com_conjunto))
+        expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "4")
+        expect(local("g1")).to_contain_text("Manaus e Tefé (conjunto de 2)")
+        simulador.get_by_test_id("simulador-composicao-botao").click()
+        expect(simulador.get_by_test_id("simulador-composicao")).to_contain_text("Manaus e Tefé (versão 1): MANAUS (AM), TEFE (AM).")
+        corpo_g, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular-direto").click())
+        assert enviado["conjuntos"] == [{"id": "g1", "rotulo": "Manaus e Tefé", "membros": [MANAUS, TEFE], "versao": 1}], enviado
+        do_conjunto = do_territorio(corpo_g, "g1")
+        assert do_conjunto["cenarios"][0]["metodo"]["soma"] == "soma das projeções dos membros", do_conjunto["cenarios"][0]["metodo"]
+        assert do_conjunto["cenarios"][0]["faixa"]["rotulo"].startswith("aproximação"), do_conjunto["cenarios"][0]["faixa"]
+        linha_g = simulador.locator('[data-testid="simulador-linha"][data-id="g1"]')
+        usado = '[data-testid="simulador-final"][data-cenario="{}"] [data-testid="simulador-metodo-usado"]'
+        expect(linha_g.locator(usado.format("c1"))).to_have_text("soma das projeções dos membros (cada um com o crescimento do seu estado)")
+        expect(linha_g.locator(usado.format("c2"))).to_have_text("soma das contagens dos componentes · taxa composta da janela")
+        expect(linha_g.locator(usado.format("m0"))).to_have_text("soma das projeções dos membros (cada um no último valor)")
+        expect(linha_g.locator('[data-testid="simulador-final"][data-cenario="c1"]')).to_contain_text(", aproximação)")
+        simulador.get_by_test_id("simulador-foco").select_option("g1")
+        expect(resultado.get_by_test_id("simulador-texto")).to_have_text(do_conjunto["cenarios"][0]["texto"])
+        expect(resultado.get_by_test_id("simulador-texto")).to_contain_text("Manaus e Tefé (soma das projeções dos membros) teria")
+        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 80% (aproximação) em mar/2027: de ")
+        expect(grafico).to_contain_text("banda: faixa de 80% (aproximação)")
+        expect(simulador.get_by_test_id("simulador-resultados")).to_contain_text("soma das contagens dos componentes")
+        page.screenshot(path=str(OUTPUT / "simulador-03-conjunto-real.png"), full_page=True)
 
         # 12. "Copiar de novo a seleção principal" refaz a cópia; importar o cenário exportado traz a seleção local e os cenários de volta.
         simulador.get_by_test_id("simulador-etapa-1").click()

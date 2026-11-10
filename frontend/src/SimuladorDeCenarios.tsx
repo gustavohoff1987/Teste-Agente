@@ -4,7 +4,7 @@ import { ErroDoMotor, pedirAoMotor, type FonteDoMotor } from "./painelApi";
 import type { GrupoInfo, UnidadeDoCatalogo } from "./painelModel";
 import {
   ID_DA_REFERENCIA, MAX_CENARIOS, MAX_TERRITORIOS, METODOS_DA_TELA, NOME_CURTO_DO_METODO, acrescentarTerritorio, anosDepois, cenariosEmUso, competenciaCurta, configInicial,
-  contasDoFinal, tempoDesde,
+  contasDoFinal, metodoNaTabela, tempoDesde,
   copiarSelecao, csvDoSimulador, doCampoDeMes, exportarCenario, formatarMedicos, formatarPercentualInteiro, formatarTaxa, importarCenario, janelaPadrao, mesDe, normalizarSimulador,
   novaIntervencao, novoCenario, paraCampoDeMes, pedidoDoSimulador, pendenciaDoPedido, textoDaFaixa, textoDoFinal, tirarTerritorio, totalDaSelecaoLocal,
   type CenarioCalculado, type CenarioDaTela, type ConfigDoSimulador, type IntervencaoDaTela, type MetodoDoCenario, type RespostaDoSimulador,
@@ -118,7 +118,7 @@ function GraficoDoCenario({ territorio, ultimoRegistro, cores }: { territorio: T
       {calculados.map(cenario => <span key={cenario.id}><svg width="28" height="8" aria-hidden="true"><line x1="0" x2="28" y1="4" y2="4"
         stroke={cores.get(cenario.id)} strokeWidth="2" strokeDasharray={cenario.id === ID_DA_REFERENCIA ? "2 4" : "7 4"}/></svg>{cenario.nome}: base do cenário
         {cenario.trajetoria.some(ponto => ponto.intervencao !== 0) ? "; linha contínua: com a intervenção (▼ nos eventos)" : ""}
-        {cenario.trajetoria.some(ponto => ponto.faixa) ? "; banda: faixa de 80%" : ""}</span>)}
+        {cenario.trajetoria.some(ponto => ponto.faixa) ? "; banda: faixa de 80%" + (territorio.tipo === "conjunto" ? " (aproximação)" : "") : ""}</span>)}
       <span>Fonte: base do Brasil (medicina), registros de janeiro e junho até {competenciaCurta(ultimoRegistro)}.</span>
     </figcaption>
   </figure>;
@@ -296,10 +296,10 @@ export default function SimuladorDeCenarios(props: Props) {
       <Plus size={14} aria-hidden="true"/>Acrescentar intervenção</button>
   </div>;
 
-  const cenarioDaTabela = (cenario: CenarioCalculado) => <td key={cenario.id} data-testid="simulador-final" data-cenario={cenario.id} data-estado={cenario.estado}
-    title={cenario.motivo ?? cenario.texto ?? undefined}>{textoDoFinal(cenario)}
-    {cenario.estado === "calculado" && cenario.metodo.usado && <span className="ferramenta-apoio block" title={"Método " + cenario.metodo.usado}>
-      {NOME_CURTO_DO_METODO[cenario.metodo.usado] ?? cenario.metodo.usado}{cenario.metodo.voltouAoM0 ? " (sem o crescimento do estado)" : ""}</span>}</td>;
+  const cenarioDaTabela = (cenario: CenarioCalculado, conjunto: boolean) => <td key={cenario.id} data-testid="simulador-final" data-cenario={cenario.id}
+    data-estado={cenario.estado} title={cenario.motivo ?? cenario.texto ?? undefined}>{textoDoFinal(cenario, conjunto)}
+    {cenario.estado === "calculado" && cenario.metodo.usado && <span data-testid="simulador-metodo-usado" className="ferramenta-apoio block"
+      title={"Método " + cenario.metodo.usado}>{metodoNaTabela(cenario, conjunto)}</span>}</td>;
 
   return <section data-testid="simulador" data-estado={carregando ? "carregando" : erro ? "erro" : resposta ? (desatualizado ? "desatualizado" : "pronto") : "configurando"}
     data-etapa={etapa} data-modo={config.modo} aria-labelledby="simulador-titulo" aria-busy={carregando || undefined} className="ferramenta">
@@ -373,6 +373,9 @@ export default function SimuladorDeCenarios(props: Props) {
         {!achados.estados.length && !achados.municipios.length && <li className="ferramenta-apoio">Nada encontrado com “{busca.trim()}”.</li>}
       </ul>}
       {avisoLocal && <p data-testid="simulador-aviso-local" role="status" className="ferramenta-apoio">{avisoLocal}</p>}
+      {!config.acompanha && <p data-testid="simulador-nao-acompanha" role="status" className="ferramenta-exploratorio">A cópia <strong>deixou de acompanhar</strong> a
+        seleção principal depois da alteração feita aqui: o que mudar na Seleção de Territórios não chega mais ao Simulador. “Copiar de novo a seleção
+        principal” traz a seleção principal de volta, e a cópia volta a acompanhá-la.</p>}
       <div className="ferramenta-detalhe-acoes">
         <button type="button" data-testid="simulador-copiar-principal" className="analise-botao-secundario" disabled={!p.principal}
           onClick={() => { mudar({ local: copiaDaPrincipal(), acompanha: true }); setAvisoLocal("Seleção principal copiada de novo."); }}>Copiar de novo a seleção principal</button>
@@ -456,6 +459,10 @@ export default function SimuladorDeCenarios(props: Props) {
       <p className="ferramenta-cartao-titulo">Intervenções hipotéticas</p>
       <p className="ferramenta-apoio">Acréscimos e retiradas somam-se à base do cenário; o crescimento histórico não é aplicado aos médicos acrescentados. Permanência de 100% ao
         ano (todos ficam) é a hipótese padrão. Um acréscimo anual acontece uma vez por ano.</p>
+      <p data-testid="simulador-por-territorio" role="note" className="ferramenta-aviso">{total > 1
+        ? <>Cada intervenção vale para <strong>cada território</strong> do cenário, não para o total: com {total.toLocaleString("pt-BR")} territórios na seleção do
+          Simulador, um acréscimo de 5 médicos soma 5 a cada um deles (municípios, estados como unidade e conjuntos).</>
+        : <>A intervenção vale para o território do cenário. Com mais territórios, ela vale para cada um deles, não para o total.</>}</p>
       {(config.modo === "simples" ? config.cenarios.slice(0, 1) : config.cenarios).map((cenario, indice) => intervencoesDo(cenario, indice))}
       <div className="ferramenta-detalhe-acoes">
         <button type="button" className="analise-botao-secundario" onClick={() => setEtapa(2)}>Voltar</button>
@@ -503,7 +510,8 @@ export default function SimuladorDeCenarios(props: Props) {
       </>}
       <div className="ferramenta-rolagem"><table data-testid="simulador-tabela" className="analise-tabela ferramenta-tabela">
         <caption className="ferramenta-apoio">Médicos na data final ({competenciaCurta(resposta.horizonte.data)}), por território e cenário; entre parênteses, a faixa de 80%,
-          quando há. Valores de cenário, com uma casa; a precisão integral vai no CSV.</caption>
+          quando há (nos conjuntos, uma aproximação: a dos municípios com o porte da soma). Cada intervenção vale para cada território: cada linha recebe
+          o acréscimo ou a retirada inteiros. Valores de cenário, com uma casa; a precisão integral vai no CSV.</caption>
         <thead><tr><th scope="col">Território</th><th scope="col">Último registro usável</th>
           {(resposta.territorios[0]?.cenarios ?? []).map(cenario => <th key={cenario.id} scope="col">{cenario.nome}</th>)}</tr></thead>
         <tbody>{resposta.territorios.map(item => {
@@ -511,7 +519,7 @@ export default function SimuladorDeCenarios(props: Props) {
           return <tr key={item.id} data-testid="simulador-linha" data-id={item.id}>
             <th scope="row"><button type="button" className="ferramenta-abrir" onClick={() => setFoco(item.id)}>{item.rotulo}</button></th>
             <td>{origem ? competenciaCurta(String(origem.parametros.origem)) + " · " + formatarMedicos(Number(origem.parametros.n0)) : "sem registro na janela"}</td>
-            {item.cenarios.map(cenarioDaTabela)}
+            {item.cenarios.map(cenario => cenarioDaTabela(cenario, item.tipo === "conjunto"))}
           </tr>;
         })}</tbody>
       </table></div>

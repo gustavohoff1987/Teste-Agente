@@ -216,7 +216,7 @@ export function trechosDaTrajetoria(linha: LinhaDoDetector): Trecho[] {
   if (pa.abaixo && pa.diferencaPct !== null && pa.estado !== "descontinuidade_de_registro") saida.push({ chave: "patamar",
     texto: formatarPct(pa.diferencaPct) + " abaixo do patamar anterior", classe: pa.classe,
     apoio: pa.estado === "descritivo" ? "descritivo: patamar com poucos médicos" : pa.estado === "nivel_sem_classificacao" ? "sem classificação neste nível"
-      : pa.critica === "nao_calibravel" ? "sem base para dizer se é muito incomum" : null });
+      : pa.critica === "nao_calibravel" ? "crítica: sem base para avaliar" : null });
   const d = linha.declinio;
   if ((d.reducoes ?? 0) >= 2 && d.perdaPct !== null) saida.push({ chave: "declinio",
     texto: "Queda em " + d.reducoes + " junhos seguidos (−" + formatarPct(d.perdaPct) + ")", classe: null,

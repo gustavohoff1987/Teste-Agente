@@ -57,7 +57,14 @@ botão fica desligado, com o motivo.
 **Linguagem simples (decisão D-C).** A tela diz "sem classificação", com o motivo ("poucos municípios parecidos na base para
 dizer se esta queda é incomum"), no lugar de "não calibrado"; "limites provisórios", no lugar de "candidatos"; "incomum" e
 "muito incomum", no lugar de "cauda de 1%" e "de 0,1%". Os termos técnicos ficam em "Qual critério", em "Como foi calculado" e
-nas exportações.
+nas exportações. Dois textos da conferência de 10/11/2026 (pausa 2):
+
+- no afastamento de patamar com intensidade alta, quando o afastamento também chega ao limite da crítica mas a base não permite
+  avaliá-la, a linha da tabela diz "**crítica: sem base para avaliar**" (antes, "sem base para dizer se é muito incomum", que
+  parecia contradizer a intensidade alta); o detalhe explica o porquê;
+- no fenômeno 4 (desaceleração do crescimento), a situação diz "**Não se aplica: a série está em declínio**" ou "Não se aplica:
+  a série não tem classificação de tendência" (antes, "Sem desaceleração do crescimento (declínio)"); em crescimento sem a
+  classe, "Sem desaceleração: a série está em crescimento" ou "Sem desaceleração: o crescimento está acelerando".
 
 ## O que é calculado
 

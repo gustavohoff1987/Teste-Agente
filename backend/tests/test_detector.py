@@ -300,6 +300,7 @@ def test_declinio_persistente_na_serie_de_junho():
 # --------------------------------------------------------------------------------------------- desaceleração (4)
 def test_desaceleracao_e_a_classe_da_analise_de_tendencia_nos_quatro_junhos():
     sorteio = random.Random(20261110)
+    vistas = set()
     for _ in range(400):
         junhos = [sorteio.randint(0, 40) for _ in range(4)]
         if sorteio.random() < 0.5:  # metade das séries com crescimento, para a classe aparecer
@@ -313,6 +314,17 @@ def test_desaceleracao_e_a_classe_da_analise_de_tendencia_nos_quatro_junhos():
                                   for ano, valor in zip((2021, 2022, 2023, 2024), junhos))
         assert (saida["tendencia"], saida["rotulo"]) == (esperada.category, esperada.label), junhos
         assert saida["desacelera"] == (esperada.category == "CRESCIMENTO_DESACELERADO")
+        # A situação em palavras: fora do crescimento, o fenômeno não se aplica (em vez de "sem desaceleração (declínio)").
+        situacao = detector._texto_desaceleracao(b, {"desaceleracao": saida})["situacao"]
+        if esperada.category == "CRESCIMENTO_DESACELERADO":  # com a repetição, "· repetida (exploratória)"
+            assert situacao.startswith("Desaceleração do crescimento"), (junhos, situacao)
+        else:
+            assert situacao == {"CRESCIMENTO": "Sem desaceleração: a série está em crescimento.",
+                                "CRESCIMENTO_ACELERADO": "Sem desaceleração: o crescimento está acelerando.",
+                                "SEM_CLASSIFICACAO": "Não se aplica: a série não tem classificação de tendência."}.get(
+                esperada.category, "Não se aplica: a série está em declínio."), (junhos, situacao)
+        vistas.add(esperada.category)
+    assert vistas == set(trend.CLASSES), "as 400 séries passam por todas as classes da Análise de Tendência"
     # 10, 16, 20, 22 desacelera; atualizada só em junho (em janeiro, vale o último junho); a persistência é exploratória.
     valores = [7] * T
     for competencia, valor in (("202006", 2), ("202106", 10), ("202206", 16), ("202306", 20), ("202406", 22)):

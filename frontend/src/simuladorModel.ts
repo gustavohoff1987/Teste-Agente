@@ -251,7 +251,8 @@ export function textoDaFaixa(cenario: CenarioCalculado, conjunto = false): strin
   const faixa = cenario.final?.faixa;
   if (!cenario.final || !faixa) return "Faixa de 80%: indisponível" + (cenario.faixa.motivo ? ". " + cenario.faixa.motivo
     : cenario.faixa.estado === "disponivel" ? " nesta data: ela vai só até 4 anos depois do último registro usado." : ".");
-  return "Faixa de 80% em " + competenciaCurta(cenario.final.data) + ": de " + formatarMedicos(faixa.inferior) + " a " + formatarMedicos(faixa.superior) +
+  return "Faixa de 80% " + (conjunto ? "(aproximação) " : "") + "em " + competenciaCurta(cenario.final.data) + ": de " + formatarMedicos(faixa.inferior) +
+    " a " + formatarMedicos(faixa.superior) +
     " médicos. No passado da base, em 8 de cada 10 casos de municípios " + (conjunto ? "com o porte desta soma (uma aproximação para o conjunto)" : "do mesmo porte") +
     ", o número observado ficou dentro dessa margem; ela acompanha a intervenção." + (faixa.validada ? " Conferida com dados que não entraram no cálculo dela."
       : " Limite provisório: para 3 e 4 anos, a margem ainda não foi conferida com dados à parte.");
@@ -261,15 +262,25 @@ export function contasDoFinal(cenario: CenarioCalculado): string {
   const f = cenario.final;
   if (!f) return "";
   if (!f.intervencao) return "Na data final: base do cenário de " + formatarMedicos(f.base) + " médicos, sem intervenção.";
-  return "Na data final: base do cenário de " + formatarMedicos(f.base) + (f.intervencao > 0 ? " + " : " − ") + formatarMedicos(Math.abs(f.intervencao)) +
-    " da intervenção = " + formatarMedicos(f.total) + " médicos (o texto acima arredonda para o inteiro).";
+  return "Na data final, neste território: base do cenário de " + formatarMedicos(f.base) + (f.intervencao > 0 ? " + " : " − ") +
+    formatarMedicos(Math.abs(f.intervencao)) + " da intervenção = " + formatarMedicos(f.total) + " médicos (o texto acima arredonda para o inteiro).";
 }
-/** O valor final de um cenário, para a tabela: "26,4 (20,3 a 39,0)" com a faixa, ou o motivo quando não há valor. */
-export function textoDoFinal(cenario: CenarioCalculado): string {
+/** O método de um cenário na tabela, em palavras. Num conjunto, a soma vem primeiro: a soma das projeções dos membros (a
+ * persistência, com ou sem o crescimento do estado de cada um) ou a soma das contagens dos componentes (os demais métodos). */
+export function metodoNaTabela(cenario: CenarioCalculado, conjunto = false): string {
+  const usado = cenario.metodo.usado ?? "", nome = NOME_CURTO_DO_METODO[usado] ?? usado;
+  if (!conjunto) return nome + (cenario.metodo.voltouAoM0 ? " (sem o crescimento do estado)" : "");
+  if (cenario.metodo.soma) return cenario.metodo.soma + (usado === "M0d" ? " (cada um com o crescimento do seu estado)" : " (cada um no último valor)");
+  return "soma das contagens dos componentes · " + nome;
+}
+/** O valor final de um cenário, para a tabela: "26,4 (20,3 a 39,0)" com a faixa, ou o motivo quando não há valor. Num conjunto,
+ * a faixa é a do porte da soma e leva o rótulo "aproximação". */
+export function textoDoFinal(cenario: CenarioCalculado, conjunto = false): string {
   if (cenario.estado !== "calculado" || !cenario.final) return cenario.estado === "retirada_acima_do_estoque" ? "retirada acima do estoque: rever"
     : cenario.estado === "nao_aplicavel" ? "não se aplica" : "não calculável";
   const faixa = cenario.final.faixa;
-  return formatarMedicos(cenario.final.total) + (faixa ? " (" + formatarMedicos(faixa.inferior) + " a " + formatarMedicos(faixa.superior) + ")" : "");
+  return formatarMedicos(cenario.final.total) + (faixa ? " (" + formatarMedicos(faixa.inferior) + " a " + formatarMedicos(faixa.superior) +
+    (conjunto ? ", aproximação" : "") + ")" : "");
 }
 
 // ------------------------------------------------------------------------------------------------ exportar e importar

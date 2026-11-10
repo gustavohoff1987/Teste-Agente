@@ -183,8 +183,18 @@ test('a resposta do motor vira os tipos da tela, sem calcular nada', () => {
   // Uma resposta vazia não quebra a tela.
   assert.deepEqual(S.normalizarSimulador(null).territorios, []);
   // Os textos da tabela: o valor com a faixa, ou o estado em palavras (nunca um número inventado).
-  assert.deepEqual([calculado, retirada, naoSeAplica, naoCalculavel].map(S.textoDoFinal),
+  assert.deepEqual([calculado, retirada, naoSeAplica, naoCalculavel].map(item => S.textoDoFinal(item)),
     ['58,5 (48,2 a 74,9)', 'retirada acima do estoque: rever', 'não se aplica', 'não calculável']);
+  // Num conjunto, a faixa leva o rótulo "aproximação", e o método é a soma das projeções dos membros (ou a soma das contagens).
+  assert.equal(S.textoDoFinal(calculado, true), '58,5 (48,2 a 74,9, aproximação)');
+  assert.equal(S.textoDoFinal(retirada, true), 'retirada acima do estoque: rever');
+  const somado = {...calculado, metodo: {...calculado.metodo, soma: 'soma das projeções dos membros'}};
+  assert.equal(S.metodoNaTabela(calculado), 'último valor com o crescimento do estado');
+  assert.equal(S.metodoNaTabela({...calculado, metodo: {...calculado.metodo, usado: 'M0', voltouAoM0: true}}), 'último valor mantido (sem o crescimento do estado)');
+  assert.equal(S.metodoNaTabela(somado, true), 'soma das projeções dos membros (cada um com o crescimento do seu estado)');
+  assert.equal(S.metodoNaTabela({...somado, metodo: {...somado.metodo, usado: 'M0'}}, true), 'soma das projeções dos membros (cada um no último valor)');
+  assert.equal(S.metodoNaTabela({...calculado, metodo: {...calculado.metodo, usado: 'M1'}}, true), 'soma das contagens dos componentes · taxa composta da janela');
+  assert.ok(S.textoDaFaixa(calculado, true).startsWith('Faixa de 80% (aproximação) em jun/2026: de 48,2 a 74,9 médicos.'));
   assert.deepEqual([S.formatarMedicos(51), S.formatarMedicos(58.5189), S.formatarMedicos(14771.16), S.formatarTaxa(4.2603), S.formatarTaxa(-12.642), S.formatarTaxa(0)],
     ['51', '58,5', '14.771,2', '+4,26%', '−12,64%', '0,00%']);
   // A faixa de 80%, em linguagem simples: o que ela é e, de 3 a 4 anos, que é um limite provisório; sem faixa, indisponível.
@@ -206,9 +216,9 @@ test('a resposta do motor vira os tipos da tela, sem calcular nada', () => {
   for (const termo of ['deriva', 'candidato', 'não calibrado', 'limiar', 'Theil', 'Poisson', 'fora da amostra', 'média aritmética como'])
     assert.ok(!codigo.includes(termo), termo);
   // As contas da data final: a base do cenário e a intervenção, separadas.
-  assert.equal(S.contasDoFinal(calculado), 'Na data final: base do cenário de 54,5 médicos + 4 da intervenção = 58,5 médicos (o texto acima arredonda para o inteiro).');
+  assert.equal(S.contasDoFinal(calculado), 'Na data final, neste território: base do cenário de 54,5 + 4 da intervenção = 58,5 médicos (o texto acima arredonda para o inteiro).');
   assert.equal(S.contasDoFinal({...calculado, final: {...calculado.final, intervencao: -3, total: 51.5189}}),
-    'Na data final: base do cenário de 54,5 médicos − 3 da intervenção = 51,5 médicos (o texto acima arredonda para o inteiro).');
+    'Na data final, neste território: base do cenário de 54,5 − 3 da intervenção = 51,5 médicos (o texto acima arredonda para o inteiro).');
   assert.equal(S.contasDoFinal({...calculado, final: {...calculado.final, intervencao: 0, total: 54.5189}}), 'Na data final: base do cenário de 54,5 médicos, sem intervenção.');
   assert.equal(S.contasDoFinal(retirada), '');
   // Os limites das faixas, em percentual inteiro: arredondados, nunca truncados.

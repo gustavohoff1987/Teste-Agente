@@ -246,7 +246,10 @@ Pedidos pelo responsável ao conferir as capturas da etapa 2; onde divergem, val
   nomes que cobririam outros ficam só na dica de cada bolha"). Nos mini mapas (`MapaDosConjuntos.tsx`), o nome de um conjunto é
   desenhado por cima dos pontos, com halo, acima do contorno ou, sem lugar ali, abaixo dele; não cobre outro nome nem pontos em
   destaque e, sem lugar, fica só na dica do contorno (`analise-mapa-nomes-na-dica`, na legenda).
-- **Caixa da conversa minimizada:** compacta (o rosto, "Assistente" e o botão que a abre). No canto de sempre, o painel direito
+- **Caixa da conversa minimizada:** só o botão redondo com o rosto do agente, sem texto (10/11/2026, conferência da pausa 2 do
+  comando V22; antes, o rosto, "Assistente" e o botão que a abria), para não cobrir campos nem botões da página. O botão se chama
+  "Abrir a conversa"; com um pedido em curso, o nome diz que o agente está interpretando o pedido e o botão ganha o anel do
+  destaque. Arrastar o botão move a caixa, e o clique a abre. No canto de sempre, o painel direito
   da Seleção e o painel lateral das análises terminam acima dela (a variável `--espaco-da-conversa`).
 
 ### Ferramentas do comando V22

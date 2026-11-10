@@ -45,7 +45,9 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
    - Ela nasce como **cópia da seleção principal**: os municípios um a um, os estados como unidade e os conjuntos, com o nome, a
      composição e a versão. "Ver a composição dos conjuntos" lista os componentes de cada conjunto.
    - Enquanto não for alterada no Simulador, a cópia **acompanha** a seleção principal. Depois da primeira alteração feita aqui (ou
-     de um cenário importado), ela é só do Simulador e só muda aqui dentro ou por "Copiar de novo a seleção principal".
+     de um cenário importado), ela é só do Simulador e só muda aqui dentro ou por "Copiar de novo a seleção principal". A tela diz
+     isso duas vezes: no alto da etapa e, junto do botão "Copiar de novo a seleção principal", o aviso de que a cópia **deixou de
+     acompanhar** a seleção principal (`simulador-nao-acompanha`).
    - A busca acrescenta um município ou um estado como unidade **só no Simulador**; o "×" de cada território o tira. O estado
      inteiro e os municípios dele não entram juntos, como na Seleção de Territórios (RQ-DAD-30): a tela recusa, com o motivo.
    - **"Aplicar à seleção principal"** é o único caminho pelo qual o Simulador muda a seleção principal. É um comando separado e
@@ -62,14 +64,18 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
 3. **Intervenções e horizonte** (`simulador-intervencoes-etapa`):
    - a **data final**, em qualquer mês depois do último registro; os atalhos de 1, 2, 4 e 10 anos são só atalhos, nunca limites;
    - as **intervenções hipotéticas** de cada cenário: acréscimo ou retirada de X médicos, numa data ou num calendário (a cada
-     tantos meses, de uma data a outra), com a **permanência** em % ao ano (100, todos ficam, é a hipótese padrão).
+     tantos meses, de uma data a outra), com a **permanência** em % ao ano (100, todos ficam, é a hipótese padrão);
+   - o aviso de que cada intervenção vale para **cada território** do cenário, não para o total (`simulador-por-territorio`):
+     com 49 territórios, um acréscimo de 5 médicos soma 5 a cada um deles, inclusive aos estados como unidade e aos conjuntos.
 4. **Comparações e resultados** (`simulador-resultados`):
    - o **gráfico** de um território por vez (`simulador-grafico`): o observado, a base de cada cenário, a linha com a intervenção
      e os marcadores dos eventos, a faixa de 80% quando existe, a fronteira "observado | simulado (hipótese)" e a fonte;
    - o **texto de cada cenário** (`simulador-texto`), que vem pronto do motor, pelo modelo fixo; as contas da data final (base,
      intervenção e total), a faixa em linguagem simples e os avisos;
    - a **tabela** de todos os territórios (`simulador-tabela`): o último registro usável e, por cenário, o valor na data final, a
-     faixa e o método usado em palavras;
+     faixa e o método usado em palavras. Num **conjunto**, o método aparece como "soma das projeções dos membros (cada um com o
+     crescimento do seu estado)" (ou "cada um no último valor", na persistência; nos demais métodos, "soma das contagens dos
+     componentes · …"), e a faixa leva o rótulo "**aproximação**" na tabela, no texto da faixa e na legenda do gráfico;
    - **"Como os métodos se saíram no passado"** (`simulador-validacao`): as notas, as faixas por porte e horizonte (com o número
      de origens e de casos) e o erro de cada método frente à persistência;
    - a linha das **versões** (`simulador-versoes`): o método, a versão da base, a janela e o último registro.
@@ -82,7 +88,9 @@ O texto de um cenário segue só o **modelo fixo** da seção 2.5 do anexo, mont
 > Base: registros até [última competência usada].
 
 As premissas trazem a janela, o parâmetro do método (a deriva e o estado dela, a taxa ou a variação por ano) e cada intervenção,
-com a permanência rotulada como hipótese. N é o inteiro mais próximo; a precisão integral fica na resposta e nas exportações. Um
+com a permanência rotulada como hipótese. Com mais de um território no pedido, a premissa diz para quem a intervenção vale:
+"acréscimo de 5 médicos **em cada território do cenário**, em jun/2025, …" (ou "só nos territórios indicados"). N é o inteiro mais
+próximo; a precisão integral fica na resposta e nas exportações. Um
 conjunto é rotulado como "soma das projeções dos membros" (M0 e M0d) ou "soma das contagens dos componentes" (demais métodos).
 
 A tela e os textos de cenário usam linguagem simples (decisão D-C): "método provisório", "limite provisório", "sem intervenção",
@@ -126,7 +134,9 @@ com `t` em **anos reais** desde a origem (o último registro usável da janela; 
   anual acontece **uma vez por ano**, não a cada registro.
 - **Permanência:** `S(u) = (p/100)^u`, com `p` em % ao ano. O padrão é 100 (todos permanecem), rotulado como hipótese.
 - O crescimento histórico **não** é aplicado aos médicos acrescentados: eles se somam à base.
-- Uma intervenção pode valer só para parte dos territórios (`territorios`, na rota).
+- Cada intervenção vale para **cada território** do cenário: cada município, estado como unidade e conjunto recebe a quantidade
+  inteira, não uma parte de um total. A tela, o texto do cenário e as notas dizem isso. Na rota, uma intervenção pode valer só
+  para parte dos territórios (`territorios`); a tela ainda não oferece essa escolha.
 - **Retirada acima do estoque:** quando as retiradas passam do número de médicos do cenário, o cenário volta com o estado
   `retirada_acima_do_estoque` e o pedido de revisão; o zero matemático não esconde a intervenção impossível, e nenhum valor é
   mostrado.

@@ -121,6 +121,10 @@ def main():
         expect(fenomenos).to_have_count(6)
         assert fenomenos.evaluate_all("els => els.map(e => e.dataset.chave)") == [
             "estrutural", "declinio", "perda", "patamar", "desaceleracao", "instabilidade"]
+        # O fenômeno 4 diz em palavras quando não se aplica (em vez de "Sem desaceleração do crescimento (declínio)").
+        situacao_4 = next(item for item in detalhe_do_motor["fenomenos"] if item["chave"] == "desaceleracao")["situacao"]
+        assert situacao_4.startswith(("Sem desaceleração: ", "Não se aplica: ", "Desaceleração do crescimento", "Não avaliável")), situacao_4
+        expect(detalhe.locator('[data-testid="detector-fenomeno"][data-chave="desaceleracao"]')).to_contain_text(situacao_4)
         perda = detalhe.locator('[data-testid="detector-fenomeno"][data-chave="perda"]')
         if perda.locator(".ferramenta-fenomeno-cabeca").get_attribute("aria-expanded") != "true":
             perda.locator(".ferramenta-fenomeno-cabeca").click()

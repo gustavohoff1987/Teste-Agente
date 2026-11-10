@@ -574,8 +574,10 @@ def _efeito(intervencoes: list[dict], territorio: Territorio, mes: int) -> float
     return total
 
 
-def _premissas(resultado: dict, cenario: dict, territorio: Territorio) -> str:
-    """As premissas do texto de cenário: a janela, o parâmetro do método e as intervenções, por extenso."""
+def _premissas(resultado: dict, cenario: dict, territorio: Territorio, varios: bool = False) -> str:
+    """As premissas do texto de cenário: a janela, o parâmetro do método e as intervenções, por extenso. Com mais de um território
+    no pedido (`varios`), o texto diz que a intervenção vale para cada território do cenário (cada um recebe a quantidade
+    inteira), ou só para os indicados."""
     p = resultado["parametros"]
     partes = ["janela de " + detector.curta(p["janela"]["inicio"]) + " a " + detector.curta(p["janela"]["fim"])]
     if resultado["usado"] == "M0d":
@@ -593,13 +595,14 @@ def _premissas(resultado: dict, cenario: dict, territorio: Territorio) -> str:
         quando = ("em " + detector.curta(_data(item["em"]))) if not item["periodica"] else \
             ("a cada " + str(item["a_cada_meses"]) + " meses, de " + detector.curta(_data(item["em"])) + " a " + detector.curta(_data(item["ate"])))
         permanencia = "com permanência total" if item["permanencia"] >= 100 else "com permanência de " + _br(item["permanencia"], 1) + "% ao ano"
-        partes.append(verbo + " de " + _br(item["quantidade"], 1) + (" médico " if item["quantidade"] == 1 else " médicos ") + quando + ", " +
-                      permanencia + " (hipótese)")
+        onde = "" if not varios else " em cada território do cenário," if item["territorios"] is None else " só nos territórios indicados,"
+        partes.append(verbo + " de " + _br(item["quantidade"], 1) + (" médico" if item["quantidade"] == 1 else " médicos") + onde + " " + quando +
+                      ", " + permanencia + " (hipótese)")
     return "; ".join(partes)
 
 
 def _simular(base: Base, cal: detector.Calibracao, retro: Retroprojecao, territorio: Territorio, cenario: dict, inicio: int, fim: int,
-             horizonte: int) -> dict:
+             horizonte: int, varios: bool = False) -> dict:
     """Um território num cenário: a base B(t), as intervenções I(t), o total, a faixa (quando sustentada), os avisos e o texto."""
     if cenario["janela"] not in (None, {}):
         inicio, fim, _ = _janela(base, cenario["janela"])
@@ -698,7 +701,7 @@ def _simular(base: Base, cal: detector.Calibracao, retro: Retroprojecao, territo
     quem = territorio.rotulo + (" (soma das projeções dos membros)" if metodo["soma"] else
                                 " (soma das contagens dos componentes)" if territorio.tipo == "conjunto" else "")
     texto = (PREVISAO_NAO + ": com o método " + NOMES_DOS_METODOS[usado] + " e as premissas " +
-             _premissas(resultado, cenario, territorio) + ", " + quem + " teria " + _br(_inteiro_da_tela(final["total"])) +
+             _premissas(resultado, cenario, territorio, varios) + ", " + quem + " teria " + _br(_inteiro_da_tela(final["total"])) +
              (" médico em " if _inteiro_da_tela(final["total"]) == 1 else " médicos em ") + detector.curta(final["data"]) +
              ". Base: registros até " + detector.curta(base.periodos[origem]) + ".")
     return {**cabecalho, "metodo": metodo, "estado": "calculado", "parametros": resultado["parametros"], "avisos": avisos,
@@ -741,6 +744,8 @@ def _notas(base: Base, niveis: set) -> list[str]:
              "nunca observado. A base só tem médicos, com registros de janeiro e junho (5 e 7 meses entre um e outro).",
              "A base do cenário e a intervenção ficam separadas: N(t) = máx(0, B(t) + I(t)). O crescimento histórico não é aplicado aos "
              "médicos acrescentados; a permanência total dos acréscimos é uma hipótese.",
+             "Cada intervenção vale para cada território do cenário: cada município, estado como unidade e conjunto recebe o acréscimo "
+             "ou a retirada inteiros, não uma parte de um total.",
              "Comparar métodos e janelas mostra a sensibilidade ao método e à janela, não uma faixa de confiança. A faixa de 80% só "
              "existe para o método padrão dos municípios, de 1 a 4 anos; fora disso, é indisponível.",
              "A média aritmética das taxas é só descrição do passado; o percentual médio que reproduz o crescimento ocorrido é a taxa "
@@ -783,7 +788,8 @@ def compute(sources, opcoes: dict) -> dict:
             "observado": _observado(base, cal, territorio),
             "historico": _estatisticas(base, territorio.serie, indices),
             "lacunas": [base.periodos[i] for i in range(inicio, fim + 1) if territorio.serie[i] != territorio.serie[i]],
-            "cenarios": [_simular(base, cal, retro, territorio, cenario, inicio, fim, horizonte) for cenario in cenarios],
+            "cenarios": [_simular(base, cal, retro, territorio, cenario, inicio, fim, horizonte, len(territorios) > 1)
+                         for cenario in cenarios],
         })
     return {"versao": VERSION,
             "fonte": {"base": "Brasil", "categoria": "MEDICINA", "versao": base.versao, "primeira": base.periodos[0],

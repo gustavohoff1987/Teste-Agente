@@ -91,7 +91,7 @@ test('os textos da tabela usam linguagem simples: sem classificação com o moti
   const completa = D.trechosDaTrajetoria(ler({patamar: {estado: 'classificado', classe: 'alta', patamar: 59.2, diferenca_pct: -47.7, abaixo: true, critica: 'nao_calibravel'},
     declinio: {estado: 'sinal_observado', reducoes: 3, perda_pct: 21, sinal: 'muito_forte'}}));
   assert.deepEqual(completa, [
-    {chave: 'patamar', texto: '47,7% abaixo do patamar anterior', classe: 'alta', apoio: 'sem base para dizer se é muito incomum'},
+    {chave: 'patamar', texto: '47,7% abaixo do patamar anterior', classe: 'alta', apoio: 'crítica: sem base para avaliar'},
     {chave: 'declinio', texto: 'Queda em 3 junhos seguidos (−21,0%)', classe: null, apoio: 'sinal observado muito forte'}]);
   assert.equal(D.trechosDaTrajetoria(ler({patamar: {estado: 'descritivo', classe: null, patamar: 4, diferenca_pct: -25, abaixo: true, critica: null}}))[0].apoio,
     'descritivo: patamar com poucos médicos');
