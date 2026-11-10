@@ -93,6 +93,19 @@ def main():
                 if request.url.endswith("/api/painel") and request.method == "POST" else None)
         page.on("request", lambda request: lugares.append(request)
                 if request.url.endswith("/api/painel/lugar") and request.method == "POST" else None)
+        respostas_mapa = []
+        page.on("response", lambda resposta: respostas_mapa.append(resposta)
+                if resposta.url.endswith("/api/painel/mapa") and resposta.request.method == "POST" else None)
+
+        def resposta_do_mapa(com_grupos):
+            """A última resposta de /api/painel/mapa com (ou sem) os pontos de desenho dos estados. Desde o comando V22, o mapa da
+            seleção fica no painel direito da Seleção e pede os pontos ali; o mapa da análise usa a mesma memória, sem novo pedido."""
+            for _ in range(360):
+                for resposta in reversed(respostas_mapa):
+                    if bool(options_of(resposta.request).get("grupos")) == com_grupos:
+                        return resposta
+                page.wait_for_timeout(500)
+            raise AssertionError("nenhuma resposta de /api/painel/mapa " + ("com" if com_grupos else "sem") + " os grupos")
         page.goto(URL)
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         area = page.get_by_test_id("area-de-analise")
@@ -230,11 +243,10 @@ def main():
         shot("01-todo")
 
         # 3. O mapa vendo por estado: 27 bolhas, nos pontos de desenho que o servidor calcula; de volta ao gráfico.
-        with page.expect_response(lambda r: r.url.endswith("/api/painel/mapa") and r.request.method == "POST", timeout=180000) as evento:
-            aperta(area.get_by_test_id("analise-desenho-mapa"))
-        assert evento.value.status == 200, evento.value.text()[:2000]
-        assert options_of(evento.value.request).get("grupos") is True, options_of(evento.value.request)
-        assert len(evento.value.json()["grupos"]) == 27
+        aperta(area.get_by_test_id("analise-desenho-mapa"))
+        resposta_mapa = resposta_do_mapa(True)  # pedida na Seleção, com os estados no mapa da seleção (comando V22)
+        assert resposta_mapa.status == 200, resposta_mapa.text()[:2000]
+        assert len(resposta_mapa.json()["grupos"]) == 27
         mapa = area.get_by_test_id("mapa-analise")
         expect(mapa).to_have_attribute("data-pontos", "27", timeout=60000)
         shot("02-mapa-estados")

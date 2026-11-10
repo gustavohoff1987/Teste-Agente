@@ -346,7 +346,9 @@ def main():
         desmarcado(norte.get_by_test_id("analise-regiao-todos"))
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         linha_pa = linha_do_estado(territorios, PARA)
-        analise(lambda: marcado(linha_pa.get_by_test_id("analise-grupo-todos")))
+        # O Pará inteiro já foi calculado no passo 7: a tela usa a memória, sem novo pedido ao motor.
+        marcado(linha_pa.get_by_test_id("analise-grupo-todos"))
+        expect(linha_pa).to_have_attribute("data-situacao", "inteiro")
         expect(partes).to_have_text(["Brasil", "Pará"])
         painel = criterios()
         expect(painel.get_by_test_id("analise-criterios-onde-todo")).to_be_checked()

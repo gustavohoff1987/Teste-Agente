@@ -170,10 +170,14 @@ def main():
             expect(linhas).to_have_count(27)
             medidas = linhas.evaluate_all("""els => els.map(e => { const n = e.querySelector('.analise-no-nome');
               const v = e.querySelector('[data-testid=analise-grupo-ver]'), c = e.querySelector('.analise-no-caixa');
+              const r = document.createRange(); r.selectNodeContents(n);
+              const linhas = new Set([...r.getClientRects()].map(x => Math.round(x.top))).size;
               return { id: e.dataset.id, nome: n.textContent, cortado: n.scrollWidth > n.clientWidth + 1, largura: n.getBoundingClientRect().width,
-                ver: [v.getBoundingClientRect().width, v.getBoundingClientRect().height], caixa: c.getBoundingClientRect().height }; })""")
+                linhas, ver: [v.getBoundingClientRect().width, v.getBoundingClientRect().height], caixa: c.getBoundingClientRect().height }; })""")
             for medida in medidas:
-                assert not medida["cortado"] and medida["largura"] >= 60, (nome, "nome do estado cortado ou espremido", medida)
+                # Espremido: com menos de 60 px e o nome quebrado em linhas. Um nome curto ("Pará (PA)", 58 px) cabe inteiro numa linha.
+                espremido = medida["largura"] < 60 and medida["linhas"] > 1
+                assert not medida["cortado"] and not espremido, (nome, "nome do estado cortado ou espremido", medida)
                 if movel:
                     assert min(medida["ver"]) >= 39.5 and medida["caixa"] >= 39.5, (nome, "alvo de toque menor que 40 px", medida)
             legivel(territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"] .analise-no-nome'), "nome do estado")

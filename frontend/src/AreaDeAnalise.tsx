@@ -957,9 +957,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     informarDesfecho(em.mensagens.length ? "parcial" : "concluido", em.mensagens);
   });
 
-  // Os mini mapas da Seleção (07/11/2026, item 7 do comando de 07/11/2026) usam as mesmas coordenadas do mapa: pedidas também com a
-  // Seleção em "Por critérios" ou "Agrupar territórios", ou com conjuntos na seleção ("Ver os conjuntos no mapa").
-  const querMapaNaSelecao = aba === "territorios";
+  // Os mini mapas da Seleção (07/11/2026, item 7 do comando de 07/11/2026) usam as mesmas coordenadas do mapa. Desde o comando V22, o
+  // mapa da seleção fica sempre no painel direito: os pontos vêm com o primeiro território selecionado ou com os critérios e o
+  // agrupamento abertos; sem seleção, nada é pedido ao motor.
+  const querMapaNaSelecao = aba === "territorios" && (acaoSelecao !== "lista" || !semSelecao(def));
   const querMapa = !!fonteMotor && !!chaveMapa && mapa.disponivel && (mapaNaTela || querMapaNaSelecao ||
     (resposta?.nivel === "municipios" && plotaveis.length > 0));
   useEffect(() => {

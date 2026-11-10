@@ -625,7 +625,15 @@ def main():
         expect(desfazer).to_have_attribute("title", "Desfazer: desmarcar " + nomes_am[PARINTINS])
         # À direita, em tempo real: o estado com "N de M" e cada município marcado, com o × dele.
         expect(grupo_am_direita).to_contain_text(str(len(restantes)) + " de " + str(total_am))
-        expect(grupo_am_direita.get_by_test_id("analise-selecionado-unidade")).to_have_count(len(restantes))
+        # Desde o comando V22, as etiquetas de um estado vão até 8; acima disso, "Ver todos os N" mostra as demais.
+        etiquetas_am = grupo_am_direita.get_by_test_id("analise-selecionado-unidade")
+        if len(restantes) > 8:
+            expect(etiquetas_am).to_have_count(8)
+            ver_todas = grupo_am_direita.get_by_test_id("analise-selecionado-ver-todas")
+            expect(ver_todas).to_have_text("Ver todos os " + str(len(restantes)))
+            aperta(ver_todas)
+            expect(ver_todas).to_have_text("Mostrar menos")
+        expect(etiquetas_am).to_have_count(len(restantes))
         expect(grupo_am_direita.locator('[data-testid="analise-selecionado-unidade"][data-id="' + PARINTINS + '"]')).to_have_count(0)
         calls = len(painel_calls)
         aperta(lista_am.get_by_test_id("analise-desmarcar-todos"))

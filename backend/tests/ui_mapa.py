@@ -61,7 +61,20 @@ def main():
         page.on("request", lambda request: pedidos.append(request)
                 if request.url.endswith("/api/painel") and request.method == "POST" else None)
         page.on("request", lambda request: mapa_calls.append(request) if request.url.endswith("/api/painel/mapa") else None)
+        respostas_mapa = []
+        page.on("response", lambda resposta: respostas_mapa.append(resposta)
+                if resposta.url.endswith("/api/painel/mapa") and resposta.request.method == "POST" else None)
         page.goto(URL)
+
+        def resposta_do_mapa(com_grupos):
+            """A última resposta de /api/painel/mapa com (ou sem) os pontos de desenho dos estados. Desde o comando V22, o mapa da
+            seleção fica no painel direito da Seleção e pede os pontos ali; o mapa da análise usa a mesma memória, sem novo pedido."""
+            for _ in range(360):
+                for resposta in reversed(respostas_mapa):
+                    if bool(options_of(resposta.request).get("grupos")) == com_grupos:
+                        return resposta
+                page.wait_for_timeout(500)
+            raise AssertionError("nenhuma resposta de /api/painel/mapa " + ("com" if com_grupos else "sem") + " os grupos")
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         area = page.get_by_test_id("area-de-analise")
         mapa = area.get_by_test_id("mapa-analise")
@@ -211,9 +224,8 @@ def main():
         botao_mapa = area.get_by_test_id("analise-desenho-mapa")
         expect(botao_mapa).not_to_have_attribute("aria-disabled", "true")
         expect(area.get_by_test_id("analise-desenho-motivo")).to_have_count(0)
-        with page.expect_response(lambda r: r.url.endswith("/api/painel/mapa") and r.request.method == "POST", timeout=180000) as evento:
-            aperta(botao_mapa)
-        resposta_mapa = evento.value
+        aperta(botao_mapa)
+        resposta_mapa = resposta_do_mapa(True)  # pedida na Seleção, com os estados no mapa da seleção
         assert resposta_mapa.status == 200, resposta_mapa.text()[:2000]
         dados_estados = resposta_mapa.json()
         assert options_of(resposta_mapa.request) == {"competencia": estados["competencia"], "categoria": estados["categoria"],
