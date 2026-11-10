@@ -10,7 +10,8 @@ aberta, a seleção com o Pará e a Bahia como unidade ("Só o estado") e os mun
 e as três ações; a Distribuição com os dois níveis e os quintis de cada um; "Aplicar critérios de seleção"; "Agrupar territórios selecionados" por escolha livre e
 por proximidade; a seleção com os conjuntos; a dica de um conjunto, com todos os membros; a Escolha dos territórios da Análise
 Espacial com a base em conjuntos e territórios individuais; o foco numa base da Análise Espacial; os estados como unidade ("Só
-os estados"). Depois, o Histórico, o diálogo de Nova sessão, o painel "Colunas" de uma planilha de distritos e províncias
+os estados"); o Detector de Sinais Territoriais (a tabela, os detalhes, os alertas do Brasil e os parâmetros) e o Simulador de
+Cenários Territoriais (os territórios, as intervenções, os resultados, a base e o método e a validação). Depois, o Histórico, o diálogo de Nova sessão, o painel "Colunas" de uma planilha de distritos e províncias
 (criada numa pasta temporária) e a Seleção no celular. Nada vai para o provedor de IA, nenhum dado é alterado e o servidor é
 encerrado no fim. Uma tela que falhar é informada no fim, sem impedir as seguintes. Saída: 0 se todas as capturas foram feitas.
 """
@@ -74,6 +75,8 @@ def capturar(url, saida, canal):
             """Executa os passos da tela e salva a captura da página inteira."""
             try:
                 acao()
+                if area.count() and area.get_attribute("data-ferramenta"):
+                    page.evaluate("window.scrollTo(0, 0)")  # com uma ferramenta aberta, a barra fixa volta ao lugar na captura inteira
                 page.wait_for_timeout(900)  # transições curtas do gráfico
                 caminho = saida / (nome + ".png")
                 page.screenshot(path=str(caminho), full_page=True)
@@ -216,6 +219,48 @@ def capturar(url, saida, canal):
             detector.get_by_test_id("detector-parametros-aplicar").click()
             expect(detector.get_by_test_id("detector-exploratorio")).to_be_visible(timeout=180000)
 
+        def simulador_territorios():
+            # O Simulador de Cenários com a cópia local da seleção mista; um município acrescentado só no Simulador.
+            area.get_by_test_id("analise-ferramenta-simulador").click()
+            simulador = area.get_by_test_id("simulador")
+            expect(simulador.get_by_test_id("simulador-local").first).to_be_visible(timeout=60000)
+            simulador.get_by_test_id("simulador-composicao-botao").click()
+            simulador.get_by_test_id("simulador-busca").fill("rio rufino")
+            expect(simulador.get_by_test_id("simulador-acrescentar").first).to_be_visible()
+
+        def simulador_intervencoes():
+            simulador = area.get_by_test_id("simulador")
+            simulador.locator('[data-testid="simulador-acrescentar"][data-id="code:421505"]').click()
+            simulador.get_by_test_id("simulador-busca").fill("")
+            simulador.get_by_test_id("simulador-etapa-3").click()
+            simulador.get_by_test_id("simulador-atalho-4").click()
+            simulador.get_by_test_id("simulador-intervencao-nova").click()
+            simulador.get_by_test_id("simulador-intervencao-quantidade").fill("5")
+
+        def simulador_resultados():
+            simulador = area.get_by_test_id("simulador")
+            simulador.get_by_test_id("simulador-calcular").click()
+            expect(simulador).to_have_attribute("data-estado", "pronto", timeout=180000)
+            expect(simulador.get_by_test_id("simulador-grafico")).to_be_visible()
+
+        def simulador_base_e_metodo():
+            # O modo avançado, com um segundo cenário (a taxa composta da janela), e as estatísticas históricas, só descritivas.
+            simulador = area.get_by_test_id("simulador")
+            simulador.get_by_test_id("simulador-modo-avancado").click()
+            simulador.get_by_test_id("simulador-etapa-2").click()
+            simulador.get_by_test_id("simulador-cenario-novo").click()
+            simulador.get_by_test_id("simulador-metodo").nth(1).select_option("M1")
+            expect(simulador.get_by_test_id("simulador-estatisticas")).to_be_visible()
+
+        def simulador_validacao():
+            # Dois cenários e a referência, com um estado como unidade no gráfico (sem faixa) e a validação dos métodos aberta.
+            simulador = area.get_by_test_id("simulador")
+            simulador.get_by_test_id("simulador-calcular-direto").click()
+            expect(simulador).to_have_attribute("data-estado", "pronto", timeout=180000)
+            simulador.get_by_test_id("simulador-foco").select_option("uf:" + PA)
+            simulador.get_by_test_id("simulador-validacao-botao").click()
+            expect(simulador.get_by_test_id("simulador-faixas")).to_be_visible()
+
         def estados_como_unidade():
             if area.get_attribute("data-ferramenta"):
                 area.get_by_test_id("analise-ferramenta-" + area.get_attribute("data-ferramenta")).click()
@@ -292,6 +337,11 @@ def capturar(url, saida, canal):
         tela("12-espacial-foco", espacial_foco)
         tela("16-detector-selecao-mista", detector_tabela)
         tela("17-detector-detalhe", detector_detalhe)
+        tela("20-simulador-territorios", simulador_territorios)
+        tela("21-simulador-intervencoes", simulador_intervencoes)
+        tela("22-simulador-resultados", simulador_resultados)
+        tela("23-simulador-base-e-metodo", simulador_base_e_metodo)
+        tela("24-simulador-validacao", simulador_validacao)
         tela("13-estados-como-unidade", estados_como_unidade)
         tela("18-detector-brasil-alertas", detector_brasil)
         tela("19-detector-parametros", detector_parametros)

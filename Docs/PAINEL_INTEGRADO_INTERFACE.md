@@ -252,11 +252,16 @@ Pedidos pelo responsável ao conferir as capturas da etapa 2; onde divergem, val
 ### Ferramentas do comando V22
 
 Acima das abas, a linha "Ferramentas" (`analise-ferramentas-novas`) traz os botões das ferramentas do Eixo II do comando V22. Cada
-uma abre no lugar do painel da aba e do desenho da análise (`analise-ferramenta-painel`; `area-de-analise` leva `data-ferramenta`),
-usa a seleção em uso e fecha quando a pessoa escolhe uma aba, altera a seleção ou faz um pedido pela conversa. Só existem na base
-do Brasil; com uma planilha enviada, ficam desligadas, com o motivo (`analise-ferramentas-motivo`).
+uma abre no lugar do painel da aba e do desenho da análise (`analise-ferramenta-painel`; `area-de-analise` leva `data-ferramenta`)
+e fecha quando a pessoa escolhe uma aba, vai à Seleção de Territórios ou faz um pedido pela conversa. Só existem na base do
+Brasil; com uma planilha enviada, ficam desligadas, com o motivo (`analise-ferramentas-motivo`).
 
-- **Detector de Sinais** (`analise-ferramenta-detector`): [Detector de Sinais Territoriais](DETECTOR_DE_SINAIS.md).
+- **Detector de Sinais** (`analise-ferramenta-detector`): [Detector de Sinais Territoriais](DETECTOR_DE_SINAIS.md). Usa a seleção
+  em uso.
+- **Simulador de Cenários** (`analise-ferramenta-simulador`): [Simulador de Cenários Territoriais](SIMULADOR_DE_CENARIOS.md).
+  Trabalha numa **seleção local**, cópia da seleção em uso, guardada na área enquanto a fonte for a mesma (sair e voltar não a
+  perde, nem os cenários). A seleção em uso só muda por "Aplicar à seleção principal", que é um passo do Desfazer ("Aplicar a
+  seleção do Simulador") e deixa a ferramenta aberta.
 
 ### Até 09/11/2026: a seleção unificada, o Ver por e os modos (histórico)
 
@@ -1360,8 +1365,10 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   território).
 - Os conjuntos de estados existem só na base do Brasil (a soma das fontes estaduais); numa planilha, os conjuntos são de unidades.
   Na Análise de Rotatividade, os estados como unidade e os conjuntos de estados ficam de fora, com o aviso.
-- O Detector de Sinais Territoriais e o Simulador de Cenários Territoriais (Eixo II do comando V22) vêm nas etapas seguintes do
-  comando ([Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md); [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md)).
+- O Detector de Sinais Territoriais e o Simulador de Cenários Territoriais (Eixo II do comando V22) existem desde 10/11/2026, no
+  núcleo de cada um ([Detector](DETECTOR_DE_SINAIS.md); [Simulador](SIMULADOR_DE_CENARIOS.md)). Os comparativos, as referências,
+  o planejamento inverso e a ligação entre as duas ferramentas vêm na etapa 5 do comando
+  ([Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md); [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md)).
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
 

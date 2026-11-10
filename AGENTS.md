@@ -151,3 +151,5 @@ No Windows, rode o pytest com `PYTHONUTF8=1` e uma pasta temporária gravável (
     teto de chamadas próprio; fora do CI.
   - `calibrar_detector.py`: estudo de calibração do Detector de Sinais Territoriais com a base versionada (somente leitura),
     com o modelo nulo sintético; imprime as tabelas de `Docs/DETECTOR_DE_SINAIS.md`; fora do CI.
+  - `calibrar_simulador.py`: estudo de retroprojeção do Simulador de Cenários Territoriais com a base versionada (somente leitura),
+    com origens móveis; imprime as tabelas de `Docs/SIMULADOR_DE_CENARIOS.md`; fora do CI.

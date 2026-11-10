@@ -896,7 +896,7 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
   background: rgb(var(--tom-amber-50)); color: rgb(var(--tom-amber-900)); font-size: 13px; line-height: 1.5; }
 .ferramenta-controles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 12px; align-items: end; }
 .ferramenta-acoes, .ferramenta-detalhe-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.ferramenta-apoio { color: var(--cor-texto-2); font-size: 12.5px; line-height: 1.45; }
+.ferramenta-apoio { color: var(--cor-texto-2); font-size: 13px; line-height: 1.45; }
 .ferramenta-resumo { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; color: var(--cor-texto); font-size: 13px; }
 .ferramenta-contagem strong { color: var(--cor-tinta); }
 .ferramenta-rolagem { min-width: 0; overflow-x: auto; }
@@ -937,7 +937,7 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .ferramenta-fenomeno-corpo { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 16px; margin: 0;
   padding: 4px 12px 12px 33px; }
 .ferramenta-fenomeno-corpo dt { color: var(--cor-texto-3); font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
-.ferramenta-fenomeno-corpo dd { margin: 2px 0 0; color: var(--cor-texto); font-size: 13.5px; line-height: 1.5; }
+.ferramenta-fenomeno-corpo dd { margin: 2px 0 0; color: var(--cor-texto); font-size: 14px; line-height: 1.5; }
 .ferramenta-parametros { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--cor-borda-campo); border-radius: 12px;
   background: var(--cor-superficie-suave); }
 .ferramenta-parametros-grupo { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px 12px; margin: 0; padding: 8px 10px;
@@ -946,7 +946,40 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .ferramenta-paginas { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; }
 .ferramenta-metodo-corpo { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .ferramenta-notas { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; color: var(--cor-texto); font-size: 13px; line-height: 1.5; }
+/* Simulador de Cenários Territoriais (comando V22, etapa 4): as quatro etapas, os cartões dos cenários e o gráfico. */
+.ferramenta-modos, .ferramenta-atalhos { display: flex; flex-wrap: wrap; gap: 6px; }
+.ferramenta-modos .analise-botao-secundario[aria-pressed="true"], .ferramenta-atalhos .analise-botao-secundario[aria-pressed="true"] {
+  border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.ferramenta-etapas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ferramenta-etapa { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 6px 10px; border: 1px solid var(--cor-borda-campo);
+  border-radius: 12px; background: var(--cor-superficie); color: var(--cor-texto); font-size: 14px; font-weight: 600; line-height: 1.25; text-align: left; }
+.ferramenta-etapa:hover:not(:disabled):not([aria-current="step"]) { background: var(--cor-realce-destaque); }
+.ferramenta-etapa[aria-current="step"] { border-color: var(--cor-destaque); box-shadow: inset 0 -3px 0 var(--cor-destaque); color: var(--cor-tinta); }
+.ferramenta-etapa:disabled { opacity: .5; }
+.ferramenta-etapa-numero { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 999px;
+  background: var(--cor-tinta); color: var(--cor-sobre-tinta); font-size: 13px; font-weight: 700; }
+.ferramenta-etapa-corpo { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ferramenta-cartao { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--cor-borda-suave); border-radius: 12px;
+  background: var(--cor-superficie-suave); }
+.ferramenta-cartao-cabeca { display: flex; align-items: flex-end; gap: 8px; }
+.ferramenta-cartao-titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; color: var(--cor-tinta); font-size: 14px; font-weight: 650; }
+.ferramenta-cor { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 3px; }
+.ferramenta-intervencao { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 10px; align-items: end; padding: 8px 0;
+  border-top: 1px dashed var(--cor-borda-suave); }
+.ferramenta-intervencao .analise-icone { justify-self: start; }
+.ferramenta-caixa { min-height: 36px; }
+.ferramenta-busca { max-width: 520px; }
+.ferramenta-achados { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ferramenta-numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 16px; margin: 0; }
+.ferramenta-numeros dt { color: var(--cor-texto-3); font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+.ferramenta-numeros dd { margin: 2px 0 0; color: var(--cor-tinta); font-size: 15px; font-weight: 650; }
+.ferramenta-serie-larga { max-width: 860px; }
+.ferramenta-legenda { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; color: var(--cor-texto-2); font-size: 13px; line-height: 1.45; }
+.ferramenta-legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.ferramenta-cenario-resultado { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; }
+.ferramenta-texto-do-cenario { margin: 0; color: var(--cor-texto); font-size: 14px; line-height: 1.55; }
 @media (max-width: 699px) {
+  .ferramenta-etapas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .analise-ferramenta-painel { padding: 12px 10px; }
   .ferramenta-fenomeno-cabeca { grid-template-columns: auto minmax(0, 1fr); }
   .ferramenta-fenomeno-situacao { grid-column: 2; }

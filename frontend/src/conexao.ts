@@ -53,7 +53,7 @@ export const DURACAO_DO_RESTABELECIMENTO_MS = 6000;
  * confere a lista): só a resposta de uma delas mostra que o serviço deixou de estar no limite. */
 export const ROTAS_COM_LIMITE: ReadonlySet<string> = new Set(["/api/inspect", "/api/preflight", "/api/analyze", "/api/painel",
   "/api/painel/referencias", "/api/painel/territorios", "/api/painel/mapa", "/api/painel/lugar", "/api/brazil/description",
-  "/api/detector", "/api/llm/interpret",
+  "/api/detector", "/api/simulador", "/api/llm/interpret",
   "/api/llm/interpret-context", "/api/exploration/interpret"]);
 
 export type Relogio = { agendar: (acao: () => void, ms: number) => unknown; cancelar: (id: unknown) => void };

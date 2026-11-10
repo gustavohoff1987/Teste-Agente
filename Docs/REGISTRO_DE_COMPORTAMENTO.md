@@ -35,6 +35,61 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-10 · Simulador de Cenários Territoriais: o núcleo, como exceção aprovada à exclusão de projeção da SPEC
+- **Classificação (regra 1), pela leitura, antes de codar:** a etapa 4 do comando V22 (seção 10, sem o planejamento inverso e a
+  seção 10.5) cria uma ferramenta, uma rota e textos novos: mudança de comportamento. *Escopo:* decorre do comando (seções 10, 11
+  e 12) e do Anexo A (seções 2.5, 7, 8, 8.8, 9 e 11). *Compatibilidade:* a ferramenta contraria a SPEC, que exclui "projeção ou
+  previsão (Caso 4)" da FAM-08 e, no AT-04, manda não projetar. **Divergência aprovada pelo responsável em 9/11/2026 (decisão 2 do
+  comando V22; seção 2.5 do anexo), só no Simulador:** a ferramenta determinística projeta cenários rotulados como hipotéticos e
+  condicionais, com o texto fixo de cenário; o assistente de conversa continua recusando pedidos livres de projeção ou previsão; a
+  SPEC não é editada. O restante não contraria a SPEC: os níveis não se somam (RQ-DAD-30); a soma de um conjunto é rotulada como
+  soma (RQ-REP-14); ausência de dado não é zero; nada vai ao provedor de IA; nenhuma rota existente muda.
+- **Antes:** não existia Simulador. Nenhuma tela mostrava valores depois do último registro.
+- **Agora:**
+  - o botão **Simulador de Cenários**, na linha "Ferramentas" da navegação principal, ao lado do Detector de Sinais, abre a
+    ferramenta no lugar do painel da aba e do desenho; só existe na base do Brasil (com uma planilha, o botão fica desligado, com o
+    motivo, que agora cita as duas ferramentas);
+  - o Simulador trabalha numa **seleção local**: uma cópia da seleção principal (municípios, estados como unidade e conjuntos, com
+    a composição e a versão), que acompanha a principal enquanto não for alterada no Simulador; a busca acrescenta um município ou
+    um estado como unidade só ali, e o "×" tira; o estado inteiro e os municípios dele não entram juntos; o limite é de 100
+    territórios; a seleção principal só muda por **"Aplicar à seleção principal"**, um passo do Desfazer;
+  - o fluxo tem quatro etapas (territórios em análise; base histórica e método; intervenções e horizonte; comparações e
+    resultados), com o modo simples (um cenário) e o avançado (até 5 cenários, cada um com nome, método, janela e intervenções); o
+    motor só é chamado por "Calcular os cenários", e os resultados ficam marcados como desatualizados depois de uma mudança;
+  - os métodos da base do cenário são os da seção 8.8 do anexo: M0 (persistência, sempre como referência); M0d (persistência com a
+    deriva do estado, o padrão provisório dos municípios, que volta ao M0, com aviso, sem a deriva); M1 (taxa composta com o tempo
+    real, o padrão provisório dos estados como unidade, em 3 anos); M2 (Theil–Sen, com a diferença para o último registro à
+    vista); M3 (Poisson com ligação log); e a taxa informada pela pessoa, como hipótese dela. Os registros de pico que volta e de
+    quebra de fonte ficam fora do ajuste, com aviso. A média aritmética das taxas aparece só nas estatísticas históricas, nunca
+    como método, cenário ou sugestão;
+  - as intervenções (acréscimo ou retirada, pontual ou periódica, com a permanência em % ao ano como hipótese) somam-se à base,
+    sem crescer com ela; a retirada acima do estoque devolve o cenário para revisão, sem valor;
+  - a data final é livre (qualquer mês depois do último registro); os atalhos de 1, 2, 4 e 10 anos são só atalhos; os avisos de
+    horizonte dizem a distância em palavras;
+  - a **faixa de 80%** só aparece para o método padrão dos municípios, de 1 a 4 anos, pela retroprojeção com origens móveis da
+    própria base, e acompanha a intervenção; a de 3 e 4 anos é rotulada como limite provisório; fora disso, "indisponível", com o
+    motivo;
+  - os resultados separam o observado (linha contínua, só nas datas reais), a base do cenário (tracejada), a intervenção
+    (marcadores) e a faixa (banda); cada cenário traz o texto do modelo fixo "Cenário hipotético, não é previsão: com o método …
+    e as premissas …, … teria N médicos em …. Base: registros até …", montado no motor;
+  - a tela mostra que o registro mais recente é jun/2024, há quanto tempo ele é e que tudo depois dele é simulado; usa linguagem
+    simples (decisão D-C);
+  - o cenário é exportado e importado em JSON (`ADT-CENARIO/1`), e os resultados saem em CSV, com as versões do método e da base;
+  - a rota nova `POST /api/simulador` entra nas vagas das operações pesadas e na lista das rotas com limite da tela; nada é
+    registrado na sessão.
+- **Permanece:** as análises existentes, o Detector, as rotas e os contratos de `/api/painel` e `/api/detector`; a recusa de
+  projeção e previsão na conversa e na guarda de fidelidade; a base e o manifesto (só leitura); o provedor de IA fora dos cálculos.
+  O planejamento inverso, as referências, a ligação com o Detector ("Simular recuperação") e a indicação do Simulador pela conversa
+  ficam para a etapa 5 do comando.
+- **Motivo:** comando V22 do responsável (9/11/2026), Eixo II, etapa 4, com a decisão 2 do comando e as decisões D-B e D-C de
+  10/11/2026.
+- **Documentação e testes:** [Simulador de Cenários Territoriais](SIMULADOR_DE_CENARIOS.md) (a tela, os métodos, a rota e o estudo
+  de retroprojeção de 10/11/2026, com as faixas recalculadas); [área de análise](PAINEL_INTEGRADO_INTERFACE.md#ferramentas-do-comando-v22);
+  README (a seção do Simulador e as duas divergências do comando V22 na lista de divergências). Testes: pytest
+  (`test_simulador.py`, com os casos da base versionada no job `dados-reais`), Node (`simulador.test.mjs`) e o roteiro
+  `ui_simulador.py`, registrado na suíte `base-versionada`. `scripts/calibrar_simulador.py` refaz o estudo (fora do CI) e
+  `scripts/capturar_telas.py` ganhou as telas do Simulador.
+
 ### 2026-11-10 · Detector de Sinais Territoriais: o núcleo (fenômenos 1 a 7), com a intensidade do sinal como divergência aprovada
 - **Classificação (regra 1), pela leitura, antes de codar:** a etapa 3 do comando V22 (seção 9) cria uma ferramenta, uma rota e
   textos novos: mudança de comportamento. *Escopo:* decorre do comando (seções 8, 9 e 11) e do Anexo A (seções 2.4, 4, 4.2 e 5).

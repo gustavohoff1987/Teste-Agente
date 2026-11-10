@@ -925,6 +925,20 @@ aprovada da SPEC, só nesta ferramenta). Os cálculos são do motor (`POST /api/
 estudo de calibração e limitações: [Docs/DETECTOR_DE_SINAIS.md](Docs/DETECTOR_DE_SINAIS.md); a referência metodológica é
 [Docs/DETECTOR_E_SIMULADOR_V2_2.md](Docs/DETECTOR_E_SIMULADOR_V2_2.md).
 
+## Simulador de Cenários Territoriais (comando V22)
+
+Na base do Brasil, o botão **Simulador de Cenários**, na navegação principal, monta cenários hipotéticos para os territórios de uma
+**seleção local** (uma cópia da seleção principal, que só volta a ela por "Aplicar à seleção principal"). Em quatro etapas, a
+pessoa escolhe os territórios, a janela histórica e o método da base do cenário (a persistência, a persistência com o crescimento
+recente do estado, que é o padrão provisório dos municípios, a taxa composta, a tendência linear robusta, a tendência log-linear
+ou uma taxa informada por ela), as intervenções (acréscimos e retiradas de médicos, com a permanência como hipótese) e a data
+final, em qualquer mês. Os resultados separam o observado, a base do cenário, a intervenção e, quando sustentada, a faixa de 80%
+(só no método padrão dos municípios, até 4 anos). Cada cenário traz o texto fixo "Cenário hipotético, não é previsão: …"; nada é
+previsão, observação atual nem recomendação de provimento. A média aritmética das taxas aparece só como descrição do passado. O
+Simulador é a exceção aprovada à exclusão de projeção da SPEC, só nesta ferramenta: o assistente de conversa continua recusando
+previsões livres. Os cálculos são do motor (`POST /api/simulador`), sem o provedor de IA. Métodos, rota, estudo de retroprojeção
+e limitações: [Docs/SIMULADOR_DE_CENARIOS.md](Docs/SIMULADOR_DE_CENARIOS.md).
+
 ## Escopo e limitações do protótipo
 
 A interface é a página única de análise (22/10/2026): a Seleção de Territórios e o gráfico de bolhas com a Análise de Distribuição, a Análise Espacial, a Análise de Tendência e a Análise de Rotatividade e as funções da área de análise, guiado também pela conversa. O motor implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico, referência geográfica mais próxima, critérios combinados com rankings e faixas, e o contrato de representação (`metadata.representacao`).
@@ -934,7 +948,9 @@ A interface é a página única de análise (22/10/2026): a Seleção de Territ�
 **Divergências da SPEC decididas pelo responsável pelo produto** (registradas em [Docs/REGISTRO_DE_COMPORTAMENTO.md](Docs/REGISTRO_DE_COMPORTAMENTO.md); a SPEC não foi alterada):
 - o aviso de prazo da sessão (RQ-FLX-19, TPL-09, AT-44) não é exibido no início da sessão; o pop-up traz só a declaração de privacidade (19/10/2026);
 - nenhuma confirmação de colunas e campos (19/10/2026): a proposta não é apresentada para confirmação e a escolha no seletor substitui a confirmação (RQ-DAD-05, RQ-DAD-06); coordenadas sem confirmação, com o seletor vazio quando o reconhecimento não é conclusivo (RQ-DAD-25, na parte "requer confirmação do usuário"; a validade por elemento segue a SPEC); a identidade da pessoa (contagem de pessoas distintas e rotatividade) é estabelecida pela coluna de identificador individual, escolhida no seletor ou reconhecida pelo nome do vocabulário, sem regra de identidade autorizada nem declaração (RQ-DAD-35, CAP-ROT-01); aditividade e comparabilidade viram premissas com nota e limitação, e, na base importada, o significado longitudinal da chave territorial é verificado nos dados, não estabelecido por regra, metadado ou confirmação (RQ-DAD-36, CFG-TER); a interação "Confirmar significado de campo" da tabela de interação (L274) não existe;
-- a densidade do Brasil de 2015 (regra BR-POP-JUNHO-1) é avaliável com limitações (`POPULACAO_NACIONAL_PARCIAL`): a população de junho soma os 5.569 municípios com registro, sem o 430607, enquanto o numerador continua sendo a contagem nacional inteira, em vez de NAO_AVALIAVEL por DENOMINADOR_AUSENTE e sem exclusão do ausente (CAP-IND-02 L1742, DA-10, INV-04, AT-08; a densidade parcial da CAP-AGR-01, L1751, exige o mesmo suporte no numerador e no denominador) (19/10/2026).
+- a densidade do Brasil de 2015 (regra BR-POP-JUNHO-1) é avaliável com limitações (`POPULACAO_NACIONAL_PARCIAL`): a população de junho soma os 5.569 municípios com registro, sem o 430607, enquanto o numerador continua sendo a contagem nacional inteira, em vez de NAO_AVALIAVEL por DENOMINADOR_AUSENTE e sem exclusão do ausente (CAP-IND-02 L1742, DA-10, INV-04, AT-08; a densidade parcial da CAP-AGR-01, L1751, exige o mesmo suporte no numerador e no denominador) (19/10/2026);
+- a intensidade do sinal (atenção, alta, crítica) do Detector de Sinais Territoriais, com limites provisórios pré-configurados, quando CFG-NOR (4.4.19) não traz critério normativo pré-configurado; vale só no Detector, e o assistente continua recusando "crítico" sem critério (10/11/2026, decisão D-A);
+- o Simulador de Cenários Territoriais projeta cenários hipotéticos, quando a SPEC exclui "projeção ou previsão (Caso 4)" da FAM-08 e o AT-04 manda não projetar; vale só na ferramenta determinística, com o texto fixo de cenário, e o assistente continua recusando previsões livres (9/11/2026, decisão 2 do comando V22; implementado em 10/11/2026).
 
 Uploads são processados em memória por requisição e não são persistidos pelo aplicativo. O arquivo é reenviado a cada análise; o limite é de 15 MB (15.000.000 bytes) por arquivo desde 01/11/2026 (antes, o limite experimental de 30 MB), e cada nova análise lê o arquivo de novo (a leitura de um XLSX é bem mais lenta que a de um CSV do mesmo tamanho; medições em [Docs/implantacao/](Docs/implantacao/RELATORIO_IMPLANTACAO.md)). Evite bases pessoais e sensíveis no protótipo. Para arquivos muito grandes, será preciso processamento incremental/local, sessão segura e proteção de dados aprofundada.
 

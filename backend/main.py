@@ -60,6 +60,7 @@ import conversa_grafico
 import dialogo
 import painel
 import detector
+import simulador
 import series_brasil
 import conversa_gemini
 import contexto_conversa
@@ -1994,6 +1995,24 @@ def territorial_signal_detector(file: UploadFile | None = File(None), options: s
         requested = json.loads(options)
         _, _, sources = _dataset_do_pedido(None, "", "brazil", "municipal", "", dataset_version, with_sources=True)
         return _PanelJSON(detector.compute(sources, requested))
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/simulador")
+def territorial_scenario_simulator(file: UploadFile | None = File(None), options: str = Form("{}"), dataset: str = Form(""),
+                                   scope: str = Form("municipal"), dataset_version: str = Form(""),
+                                   context_revision: int = Form(0)):
+    """Simulador de Cenários Territoriais (comando V22; Docs/SIMULADOR_DE_CENARIOS.md): para os territórios da seleção local, a
+    base de cada cenário (M0, M0d, M1, M2, M3 ou a taxa da pessoa), as intervenções hipotéticas, a faixa de 80% quando sustentada, os
+    avisos e o texto fixo de cenário. Exceção aprovada à exclusão de projeção da SPEC, só nesta rota determinística. Só a base do
+    Brasil. Só calcula: nada é registrado na sessão, e nada vai ao provedor de IA."""
+    try:
+        if file is not None or dataset != "brazil":
+            raise ValueError(series_brasil.OFFICIAL_ONLY)
+        requested = json.loads(options)
+        _, _, sources = _dataset_do_pedido(None, "", "brazil", "municipal", "", dataset_version, with_sources=True)
+        return _PanelJSON(simulador.compute(sources, requested))
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

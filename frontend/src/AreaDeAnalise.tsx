@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as EventoPonteiro,
   type ReactNode } from "react";
 import { ArrowLeftRight, ChartScatter, ChevronDown, Columns2, Crosshair, Database, Download, Filter, FilterX, GripVertical,
-  ListOrdered, LoaderCircle, Map as MapaIcone, Pause, Play, Radar, RefreshCw, Ruler, Scale, SlidersHorizontal, Undo, Upload, Wrench, X } from "lucide-react";
+  LineChart, ListOrdered, LoaderCircle, Map as MapaIcone, Pause, Play, Radar, RefreshCw, Ruler, Scale, SlidersHorizontal, Undo, Upload, Wrench, X } from "lucide-react";
 import {
   ErroDoMotor, pedirCriterios, pedirLugar, pedirMapa, pedirPainel, type FonteDoMotor, type LugarOpcoes, type MapaOpcoes, type Pendencia,
   type PainelConjuntoPedido, type PainelItem, type PainelMunicipios, type PainelNivel, type PainelOpcoes, type PainelResposta,
@@ -53,6 +53,8 @@ import EscolhaDosTerritorios from "./EscolhaDosTerritorios";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import IconeVassoura from "./IconeVassoura";
 import DetectorDeSinais from "./DetectorDeSinais";
+import SimuladorDeCenarios from "./SimuladorDeCenarios";
+import type { ConfigDoSimulador, SelecaoLocal } from "./simuladorModel";
 import "./analise.css";
 
 // Área de análise da página única (22/10/2026). Numa linha de abas (23/10/2026), que aparece só com os dados prontos
@@ -261,10 +263,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** Aba à vista: a Seleção de Territórios ou uma análise. A análise desenhada é a da definição (def.familia): a Seleção e a aba de
    * uma análise que não pode ser executada mostram a apresentação e o motivo, e o desenho continua com a última análise. */
   const [aba, setAba] = useState<Aba>("territorios");
-  // As ferramentas do comando V22 (o Detector de Sinais Territoriais; o Simulador de Cenários entra na etapa seguinte): abertas pela
+  // As ferramentas do comando V22 (o Detector de Sinais Territoriais e o Simulador de Cenários Territoriais): abertas pela
   // navegação principal, ao lado das abas, usam a seleção em uso e ficam no lugar do painel e do desenho da análise, que continua
-  // como estava ao voltar para uma aba.
-  const [ferramenta, setFerramenta] = useState<"detector" | null>(null);
+  // como estava ao voltar para uma aba. O Simulador trabalha numa cópia local da seleção, guardada aqui (sair da ferramenta e
+  // voltar não perde a cópia nem os cenários); a seleção principal só muda por "Aplicar à seleção principal".
+  const [ferramenta, setFerramenta] = useState<"detector" | "simulador" | null>(null);
+  const [configDoSimulador, setConfigDoSimulador] = useState<ConfigDoSimulador | null>(null);
   // Uma aba que muda por outro caminho (a conversa, o Histórico, o Limpar seleção) volta a ser o que está à vista.
   useEffect(() => { setFerramenta(null); }, [aba]);
   const [explicacaoPedida, setExplicacaoPedida] = useState<ExplicacaoPedida | null>(null);
@@ -436,7 +440,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   useEffect(() => {
     if (!fonte) {
       if (iniciado.current) { iniciado.current = ""; cache.current.clear(); cacheMapa.current.clear(); setResposta(null); setCalculado(null); setErro(null);
-        setDadosDoMapa(null); setErroMapa(null); reiniciarVisual(); setPassos([]); pendente.current = null;
+        setDadosDoMapa(null); setErroMapa(null); reiniciarVisual(); setPassos([]); pendente.current = null; setConfigDoSimulador(null);
         setDef(definicaoInicial({ tipo: null, periodos, categoria: props.categoria, temGrupos: false })); }
       return;
     }
@@ -448,8 +452,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setResposta(null); setCalculado(null); setErro(null); setDadosDoMapa(null); setErroMapa(null);
     let inicial = definicaoInicial({ tipo, periodos, categoria: props.categoria, temGrupos: grupos.length > 0, temPopulacao,
       premissas: premissasDaFonte });
-    // Outra fonte, outro histórico: o Desfazer não volta a uma seleção de outra base.
-    setPassos([]); pendente.current = null;
+    // Outra fonte, outro histórico: o Desfazer não volta a uma seleção de outra base, e o Simulador recomeça com a cópia da seleção nova.
+    setPassos([]); pendente.current = null; setConfigDoSimulador(null);
     const pendentePedido = pedidoPendente.current ?? (pedido && pedido.id !== ultimoPedido.current ? pedido : null);
     if (pendentePedido) {
       pedidoPendente.current = null;
@@ -1095,6 +1099,14 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       }
       mudarEscolha(ativarEstados(escolhaDe(def), gruposPedidos, arvore), acao);
     } else mudarEscolha(desativarEstados(escolhaDe(def), gruposPedidos), acao);
+  }
+  /** "Aplicar à seleção principal", no Simulador de Cenários: a seleção local dele (municípios, estados como unidade e conjuntos)
+   * passa a ser a seleção principal, num só passo do Desfazer. É o único caminho pelo qual o Simulador muda a seleção principal. */
+  function aplicarSelecaoDoSimulador(local: SelecaoLocal) {
+    const estados = [...local.estados];
+    mudarEscolha({ nivel: "municipios", base: normalizarArvore({ todos: false, estados: [], ids: [...local.municipios] }, arvore), estados,
+      conjuntos: local.conjuntos.map(conjunto => ({ ...conjunto, membros: [...conjunto.membros] })) }, "Aplicar a seleção do Simulador");
+    setAviso("A seleção do Simulador foi aplicada à seleção principal.");
   }
   /** "Só a zona", numa planilha com dois níveis: o grupo de cima como unidade, sozinho (não se mistura com outros níveis). */
   function regioesComoUnidade(regioesPedidas: string[], ativar: boolean, acao: string) {
@@ -2162,7 +2174,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const selecaoParaFerramentas = useMemo(() => tipo === "brasil" && !semSelecao(def) ? selecaoDasFerramentas(def, grupoDe) : null,
     [tipo, def.nivel, def.base, def.estados, def.conjuntos, grupoDe]);
   const motivoDasFerramentas = tipo === "brasil" ? null
-    : "O Detector usa a base do Brasil (médicos, registros de janeiro e junho de 2014 a 2024); com uma planilha enviada, não está disponível.";
+    : "O Detector e o Simulador usam a base do Brasil (médicos, registros de janeiro e junho de 2014 a 2024); com uma planilha enviada, não estão disponíveis.";
   const resumoDaSelecao = !fonte ? "Escolha os dados primeiro" : !pronto ? "Preparando os dados…"
     : semUnidades ? "Nenhum território selecionado"
     : resumoDoUniverso({ nivel: def.nivel, base: def.base, estados: def.estados, conjuntos: def.conjuntos.length, grupos, regioes, rotulos,
@@ -2245,6 +2257,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         <button type="button" data-testid="analise-ferramenta-detector" aria-pressed={ferramenta === "detector"} disabled={!!motivoDasFerramentas}
           title={motivoDasFerramentas ?? "A situação mais recente de cada território da seleção, fenômeno a fenômeno"} className="analise-ferramenta-nova"
           onClick={() => setFerramenta(atual => atual === "detector" ? null : "detector")}><Radar size={15} aria-hidden="true"/>Detector de Sinais</button>
+        <button type="button" data-testid="analise-ferramenta-simulador" aria-pressed={ferramenta === "simulador"} disabled={!!motivoDasFerramentas}
+          title={motivoDasFerramentas ?? "Cenários hipotéticos para os territórios da seleção: método, intervenções e data final à sua escolha"}
+          className="analise-ferramenta-nova" onClick={() => setFerramenta(atual => atual === "simulador" ? null : "simulador")}>
+          <LineChart size={15} aria-hidden="true"/>Simulador de Cenários</button>
         {motivoDasFerramentas && <span data-testid="analise-ferramentas-motivo" className="analise-ferramentas-novas-motivo">{motivoDasFerramentas}</span>}
       </div>
       <div role="tablist" aria-label="Seleção de territórios e análises" className="analise-familias analise-nao-imprimir">
@@ -2268,6 +2284,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       </div>
       {ferramenta === "detector" && fonteMotor && <div data-testid="analise-ferramenta-painel" data-ferramenta={ferramenta} className="analise-ferramenta-painel">
         <DetectorDeSinais fonte={fonteMotor} selecao={selecaoParaFerramentas} resumoDaSelecao={resumoDaSelecao} onAlterarSelecao={irParaTerritorios}/>
+      </div>}
+      {ferramenta === "simulador" && fonteMotor && <div data-testid="analise-ferramenta-painel" data-ferramenta={ferramenta} className="analise-ferramenta-painel">
+        <SimuladorDeCenarios fonte={fonteMotor} principal={selecaoParaFerramentas} resumoDaPrincipal={resumoDaSelecao} unidades={municipios} grupos={grupos}
+          competencias={periodos} config={configDoSimulador} onConfig={setConfigDoSimulador} onAplicarSelecao={aplicarSelecaoDoSimulador}/>
       </div>}
       <div role="tabpanel" id="analise-aba-painel" data-testid="analise-aba-painel" data-aba={aba} aria-labelledby={idDaAba(aba)} hidden={!!ferramenta}
         className="analise-aba-painel analise-nao-imprimir">

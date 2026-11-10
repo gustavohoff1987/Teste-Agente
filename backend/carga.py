@@ -166,8 +166,9 @@ POR_SESSAO = _inteiro("ADT_PEDIDOS_POR_SESSAO", 6, 1)
 # Rotas que leem a base ou a planilha e calculam no motor: ocupam uma vaga durante todo o pedido.
 PESADAS = frozenset(("/api/inspect", "/api/preflight", "/api/analyze", "/api/painel", "/api/painel/referencias",
                      "/api/painel/territorios", "/api/painel/mapa", "/api/painel/lugar", "/api/brazil/description",
-                     # O Detector de Sinais Territoriais (comando V22): cálculo sobre a base inteira.
-                     "/api/detector"))
+                     # O Detector de Sinais Territoriais e o Simulador de Cenários Territoriais (comando V22): cálculo sobre a base
+                     # inteira.
+                     "/api/detector", "/api/simulador"))
 # Rotas da conversa: contam nos pedidos da sessão; a leitura da base ocupa uma vaga só enquanto dura (main._request_dataset),
 # e a espera pelo provedor de IA não ocupa vaga.
 CONVERSA = frozenset(("/api/llm/interpret", "/api/llm/interpret-context", "/api/exploration/interpret"))
