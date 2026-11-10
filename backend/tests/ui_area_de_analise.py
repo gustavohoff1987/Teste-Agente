@@ -1734,6 +1734,9 @@ def main():
             # chegar ao todo levava a ver por estado), a caixa do Brasil marca os municípios; os estados como unidade são "Só os
             # estados". O resumo do universo só aparece quando corresponde à base carregada.
             expect(territorios.get_by_test_id("analise-raiz-universo")).to_have_text("5.570 municípios | 27 UFs")
+            # Começa sem os conjuntos dos passos anteriores: a seleção é só a caixa do Brasil.
+            aperta(limpar)
+            expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum município marcado")
             brasil, sent = ok(lambda: marca(territorios.get_by_test_id("analise-raiz-caixa")))
             assert sent.get("nivel") == "municipios" and sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
             assert brasil["contexto"]["brasil_completo"] is True and brasil["contexto"]["estados"] == [], brasil["contexto"]

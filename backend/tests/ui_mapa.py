@@ -565,19 +565,36 @@ def main():
         simbolos = area.get_by_test_id("analise-simbolos")
         expect(simbolos).to_contain_text("referência fora da base, no início do eixo (0 km)")
         expect(simbolos).to_contain_text("de cada território da base até a sua referência mais próxima")
-        # Só BOA VISTA na base: o toque (Enter) na bolha dela abre o lugar dela; a consulta continua a mesma, com a base na seleção.
+        # O toque (Enter) na bolha de uma base foca a base (comando V22, seção 7; muda de propósito: até então, abria o lugar dela):
+        # a referência e a distância dela, sem novo pedido ao motor; "Limpar o foco" volta aos 15.
         expect(area.get_by_test_id("analise-painel")).to_have_count(0)
         bolha_bv = area.locator('[data-testid="analise-bolha"][data-id="' + boa_vista + '"]')
-        so_bv, sent = ok(lambda: aperta(bolha_bv))
+        calls = len(painel_calls)
+        aperta(bolha_bv)
+        foco = area.get_by_test_id("analise-foco-espacial")
+        expect(foco).to_contain_text("BOA VISTA")
+        expect(foco).to_contain_text(ref_bv["rotulo"])
+        page.wait_for_timeout(400)
+        assert len(painel_calls) == calls, "o foco não recalcula"
+        aperta(foco.get_by_test_id("analise-foco-limpar"))
+        expect(foco).to_have_count(0)
+        # Só BOA VISTA na base, pela Seleção (desde o comando V22): desmarcar os municípios de Roraima e marcar BOA VISTA; a
+        # consulta continua a mesma, com a base na seleção.
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        if linha_rr.get_attribute("data-aberto") != "true":
+            aperta(linha_rr.get_by_test_id("analise-grupo-ver"))
+        lista_rr = linha_rr.get_by_test_id("analise-grupo-unidades")
+        aperta(lista_rr.get_by_test_id("analise-desmarcar-todos"))
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
+        so_bv, sent = ok(lambda: marca(lista_rr.locator('[data-testid="analise-unidade"][data-id="' + boa_vista + '"] input')))
+        aperta(territorios.get_by_test_id("analise-confirmar-selecao"))
+        expect(area).to_have_attribute("data-familia", "espacial")
         assert sent["base"] == {"municipios": {"todos": False, "estados": [], "ids": [boa_vista]}}, sent
         assert sent["consulta"]["base"] == {"partir_de": {"tipo": "selecao_previa", "regioes": [], "ufs": []}, "filtros": [],
                                             "escolha": {"modo": "todos", "municipios": []}}, sent
         assert sent["consulta"]["referencia"]["filtros"] == [{"indicador": "densidade", "operador": ">", "valor": 2}], sent
         assert [item["id"] for item in so_bv["itens"]] == [boa_vista], so_bv["itens"]
-        expect(area.get_by_test_id("analise-trilha").get_by_test_id("analise-trilha-parte")).to_have_text(
-            ["Brasil", "Roraima", "BOA VISTA (RR)"])
         expect(par).to_contain_text("Base: BOA VISTA (RR) · referência mais próxima: " + ref_bv["rotulo"] + ", a ")
-        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", "Desfazer: abrir BOA VISTA (RR)")
         expect(area.get_by_test_id("analise-referencia-resumo")).to_contain_text("Municípios da seleção prévia → referência: ")
         expect(ligacoes).to_have_count(len(refs[boa_vista]))
         base_marcada = area.locator('[data-testid="analise-bolha"][data-base="true"]')
@@ -591,13 +608,21 @@ def main():
                                arg=[ref_bv["id"], nome_ref], timeout=30000)
         expect(mapa.get_by_test_id("mapa-ligacoes")).to_contain_text("um território da base ou um município marcado")
         shot("06c-base-e-referencia")
-        # O Desfazer volta um passo por vez: primeiro a vista (trocar para o mapa é um passo), depois o lugar (BOA VISTA), sem
-        # recalcular (a resposta dos 15 vem da memória).
+        # O Desfazer volta um passo por vez: primeiro a vista (trocar para o mapa é um passo), depois a marcação de BOA VISTA e a
+        # desmarcação de Roraima, sem recalcular (a resposta dos 15 vem da memória).
         calls = len(painel_calls)
         aperta(area.get_by_test_id("analise-desfazer"))
         expect(area).to_have_attribute("data-desenho", "grafico")
-        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", "Desfazer: abrir BOA VISTA (RR)")
-        aperta(area.get_by_test_id("analise-desfazer"))
+        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", re.compile("BOA VISTA"))
+        resumo_aba = area.get_by_test_id("analise-aba-territorios-resumo")
+        for _ in range(4):
+            if resumo_aba.inner_text() == "Roraima (15 municípios)":
+                break
+            aperta(area.get_by_test_id("analise-desfazer"))
+            page.wait_for_timeout(400)
+        expect(resumo_aba).to_have_text("Roraima (15 municípios)")
+        if area.get_attribute("data-aba") == "territorios":
+            aperta(territorios.get_by_test_id("analise-confirmar-selecao"))
         expect(area.locator('[data-testid="analise-bolha"][data-base="true"]')).to_have_count(15)
         aperta(area.get_by_test_id("analise-desenho-mapa"))
         desenhado(15, "quintis")
