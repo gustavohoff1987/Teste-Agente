@@ -873,3 +873,82 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 /* O foco da Análise Espacial (comando V22, seção 7): a base, a referência e a distância exata, com o controle que limpa o foco. */
 .analise-foco-espacial { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; padding: 6px 10px;
   border: 1px solid var(--cor-borda-convite); border-radius: 10px; background: var(--cor-realce-destaque); color: var(--cor-texto); font-size: 13px; }
+
+/* ------------------------------------------------------------------------------------------- ferramentas do comando V22 */
+/* O Detector de Sinais Territoriais (e, depois, o Simulador de Cenários): os botões na navegação principal, acima das abas, e o painel
+   da ferramenta no lugar do painel da aba. A intensidade do sinal sempre vem com o nome por extenso, nunca só pela cor. */
+.analise-ferramentas-novas { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.analise-ferramentas-novas-rotulo { color: var(--cor-texto-3); font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.analise-ferramentas-novas-motivo { color: var(--cor-texto-2); font-size: 12px; }
+.analise-ferramenta-nova { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px;
+  border: 1px solid var(--cor-borda-convite); border-radius: 999px; background: var(--cor-superficie); color: var(--cor-destaque-texto);
+  font-size: 14px; font-weight: 650; }
+.analise-ferramenta-nova:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--cor-realce-destaque); }
+.analise-ferramenta-nova[aria-pressed="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.analise-ferramenta-nova:disabled { opacity: .5; }
+.analise-ferramenta-painel { min-width: 0; padding: 16px; border: 1px solid var(--cor-borda-campo); border-top: 3px solid var(--cor-tinta);
+  border-radius: 16px; background: var(--cor-superficie); }
+.ferramenta { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ferramenta-cabecalho { display: flex; flex-direction: column; gap: 4px; }
+.ferramenta-aviso { margin: 0; padding: 8px 12px; border: 1px solid var(--cor-borda-convite); border-radius: 12px;
+  background: var(--cor-realce-destaque); color: var(--cor-texto); font-size: 13px; line-height: 1.5; }
+.ferramenta-exploratorio { margin: 0; padding: 8px 12px; border: 1px solid rgb(var(--tom-amber-300)); border-radius: 12px;
+  background: rgb(var(--tom-amber-50)); color: rgb(var(--tom-amber-900)); font-size: 13px; line-height: 1.5; }
+.ferramenta-controles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 12px; align-items: end; }
+.ferramenta-acoes, .ferramenta-detalhe-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ferramenta-apoio { color: var(--cor-texto-2); font-size: 12.5px; line-height: 1.45; }
+.ferramenta-resumo { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; color: var(--cor-texto); font-size: 13px; }
+.ferramenta-contagem strong { color: var(--cor-tinta); }
+.ferramenta-rolagem { min-width: 0; overflow-x: auto; }
+.analise-tabela.ferramenta-tabela { width: 100%; border-collapse: collapse; }
+.analise-tabela.ferramenta-tabela caption { padding: 0 0 6px; text-align: left; }
+.analise-tabela.ferramenta-tabela th, .analise-tabela.ferramenta-tabela td { white-space: normal; vertical-align: top; }
+.analise-tabela.ferramenta-tabela tbody th { color: var(--cor-tinta); font-size: 14px; font-weight: 650; letter-spacing: 0; text-transform: none; }
+.ferramenta-territorio { min-width: 190px; }
+.ferramenta-territorio .ferramenta-apoio { display: block; margin-left: 21px; font-weight: 400; }
+.ferramenta-abrir { display: inline-flex; align-items: flex-start; gap: 6px; min-height: 28px; color: var(--cor-tinta); font-weight: 650; text-align: left; }
+.ferramenta-abrir:hover { color: var(--cor-destaque-texto); }
+.ferramenta-trecho { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-bottom: 4px; }
+.ferramenta-trecho:last-child { margin-bottom: 0; }
+.ferramenta-intensidade { display: inline-block; padding: 0 8px; border: 1px solid transparent; border-radius: 999px; font-size: 12px;
+  font-weight: 650; line-height: 1.6; white-space: nowrap; }
+.ferramenta-intensidade-atencao { border-color: rgb(var(--tom-amber-300)); background: rgb(var(--tom-amber-50)); color: rgb(var(--tom-amber-900)); }
+.ferramenta-intensidade-alta { border-color: rgb(var(--tom-rose-600)); background: rgb(var(--tom-rose-50)); color: rgb(var(--tom-rose-800)); }
+.ferramenta-intensidade-critica { border-color: rgb(var(--tom-rose-800)); background: rgb(var(--tom-rose-800)); color: rgb(var(--tom-white)); }
+.ferramenta-registro { font-size: 13px; }
+.ferramenta-registro-verificar, .ferramenta-registro-descontinuidade { padding: 0 8px; border: 1px dashed var(--cor-borda-realce); border-radius: 999px;
+  color: var(--cor-texto); }
+.ferramenta-linha-detalhe > td { padding: 0 0 12px; background: var(--cor-superficie-suave); }
+.analise-tabela tbody tr.ferramenta-linha-detalhe:hover { background: var(--cor-superficie-suave); }
+.ferramenta-detalhe { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-left: 3px solid var(--cor-destaque); }
+.ferramenta-serie { margin: 0; max-width: 720px; }
+.ferramenta-serie-linha { fill: none; stroke: var(--grafico-tinta); stroke-width: 1.5; }
+.ferramenta-serie-eixo { stroke: var(--cor-borda-realce); stroke-width: 1; }
+.ferramenta-serie-fora { fill: var(--cor-realce); opacity: .6; }
+.ferramenta-serie-ponto { fill: var(--grafico-tinta); stroke: var(--cor-superficie); stroke-width: 1; }
+.ferramenta-serie-ponto-marcado { fill: var(--cor-superficie); stroke: var(--grafico-tinta); stroke-width: 2; }
+.ferramenta-serie-texto { fill: var(--cor-texto-2); font-size: 12px; }
+.ferramenta-fenomenos { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ferramenta-fenomeno { border: 1px solid var(--cor-borda-suave); border-radius: 12px; background: var(--cor-superficie); }
+.ferramenta-fenomeno-cabeca { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr); align-items: start; gap: 8px; width: 100%;
+  padding: 8px 10px; color: var(--cor-tinta); font-size: 14px; text-align: left; }
+.ferramenta-fenomeno-nome { display: flex; flex-direction: column; font-weight: 650; }
+.ferramenta-fenomeno-situacao { color: var(--cor-texto); }
+.ferramenta-fenomeno-corpo { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 16px; margin: 0;
+  padding: 4px 12px 12px 33px; }
+.ferramenta-fenomeno-corpo dt { color: var(--cor-texto-3); font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+.ferramenta-fenomeno-corpo dd { margin: 2px 0 0; color: var(--cor-texto); font-size: 13.5px; line-height: 1.5; }
+.ferramenta-parametros { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--cor-borda-campo); border-radius: 12px;
+  background: var(--cor-superficie-suave); }
+.ferramenta-parametros-grupo { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px 12px; margin: 0; padding: 8px 10px;
+  border: 1px solid var(--cor-borda-suave); border-radius: 10px; }
+.ferramenta-parametros-grupo legend { padding: 0 6px; color: var(--cor-tinta); font-size: 13px; font-weight: 650; }
+.ferramenta-paginas { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; }
+.ferramenta-metodo-corpo { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.ferramenta-notas { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; color: var(--cor-texto); font-size: 13px; line-height: 1.5; }
+@media (max-width: 699px) {
+  .analise-ferramenta-painel { padding: 12px 10px; }
+  .ferramenta-fenomeno-cabeca { grid-template-columns: auto minmax(0, 1fr); }
+  .ferramenta-fenomeno-situacao { grid-column: 2; }
+  .ferramenta-fenomeno-corpo { padding-left: 12px; }
+}

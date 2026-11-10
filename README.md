@@ -914,6 +914,17 @@ latitude e longitude no referencial confirmado); toda resposta da página única
 com cópias verificadas (desde 24/10/2026, individual quando há um território só, com o valor, a variação e a direção dela e a
 classe da tendência; com vários, sem faixas artificiais nem contagens zeradas); e as respostas grandes vão comprimidas (gzip).
 
+## Detector de Sinais Territoriais (comando V22)
+
+Na base do Brasil, o botão **Detector de Sinais**, na navegação principal, mostra a situação mais recente de cada território da
+seleção: a condição estrutural (poucos médicos ou nenhum), a trajetória (perda entre dois registros, afastamento do patamar
+anterior e declínio em junhos seguidos), o ritmo e a instabilidade e a qualidade do registro, com os detalhes e o histórico de
+sinais de cada um. O fato observado sempre aparece; a intensidade do sinal (atenção, alta, crítica) só existe com critério e
+comparação com municípios parecidos, tem limites provisórios e não é juízo de desassistência nem de prioridade (divergência
+aprovada da SPEC, só nesta ferramenta). Os cálculos são do motor (`POST /api/detector`), sem o provedor de IA. Regras, rota,
+estudo de calibração e limitações: [Docs/DETECTOR_DE_SINAIS.md](Docs/DETECTOR_DE_SINAIS.md); a referência metodológica é
+[Docs/DETECTOR_E_SIMULADOR_V2_2.md](Docs/DETECTOR_E_SIMULADOR_V2_2.md).
+
 ## Escopo e limitações do protótipo
 
 A interface é a página única de análise (22/10/2026): a Seleção de Territórios e o gráfico de bolhas com a Análise de Distribuição, a Análise Espacial, a Análise de Tendência e a Análise de Rotatividade e as funções da área de análise, guiado também pela conversa. O motor implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico, referência geográfica mais próxima, critérios combinados com rankings e faixas, e o contrato de representação (`metadata.representacao`).

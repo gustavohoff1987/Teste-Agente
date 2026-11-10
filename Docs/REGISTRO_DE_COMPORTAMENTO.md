@@ -35,6 +35,52 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-10 · Detector de Sinais Territoriais: o núcleo (fenômenos 1 a 7), com a intensidade do sinal como divergência aprovada
+- **Classificação (regra 1), pela leitura, antes de codar:** a etapa 3 do comando V22 (seção 9) cria uma ferramenta, uma rota e
+  textos novos: mudança de comportamento. *Escopo:* decorre do comando (seções 8, 9 e 11) e do Anexo A (seções 2.4, 4, 4.2 e 5).
+  *Compatibilidade:* um ponto contraria a SPEC e foi levado ao responsável na pausa 1: a **intensidade do sinal** (atenção, alta,
+  crítica) com limites pré-configurados, quando CFG-NOR (4.4.19) não traz critério normativo pré-configurado e o diálogo recusa
+  "crítico" sem critério. **Divergência aprovada pelo responsável em 10/11/2026 (decisão D-A), só no Detector:** as classes são
+  sinal analítico do indicador, com limites provisórios, nunca juízo de desassistência, de suficiência ou de prioridade; onde
+  falta comparação, não há classe; fora do Detector, o assistente continua recusando "crítico" sem critério. O restante não
+  contraria a SPEC: a desaceleração usa a própria função de CAP-TEN-01; os níveis não se somam (RQ-DAD-30); a soma de um conjunto
+  é rotulada como soma (RQ-REP-14); nada vai ao provedor de IA; nenhuma rota existente muda.
+- **Antes:** não existia Detector. Os fatos por território estavam nas análises (Distribuição, Tendência), sem a leitura de perda
+  entre registros, patamar, declínio ou qualidade do registro.
+- **Agora:**
+  - o botão **Detector de Sinais**, na linha "Ferramentas" da navegação principal (acima das abas), abre a ferramenta no lugar do
+    painel da aba e do desenho; ela usa a seleção em uso (municípios, estados como unidade e conjuntos) e só existe na base do
+    Brasil (com uma planilha, o botão fica desligado, com o motivo);
+  - a tela mostra a situação mais recente da janela (início e fim entre as competências reais), com a data do registro mais recente
+    à vista, numa tabela de 50 linhas por página: território; condição estrutural; trajetória; ritmo e instabilidade; qualidade do
+    registro; última observação; filtros por fenômeno, porte e nome; ordem por intensidade, nome ou número de médicos;
+  - os detalhes de cada território trazem a série observada (só os registros reais, com as marcas de registro), os seis fenômenos
+    do núcleo com sete campos (o que foi observado, qual critério, quanto difere do habitual, o que significa, o que não
+    significa, limitações do dado e qualidade do registro) e o histórico de sinais, em que cada data é avaliada só com o que era
+    conhecido nela;
+  - as regras são as da seção 4.2 do anexo: escala estrutural com a mais grave das duas últimas observações e o impacto 100/N;
+    declínio na série de junho (sinal observado, sem intensidade); desaceleração pela classe da Análise de Tendência nos 4
+    junhos (a repetição é exploratória); instabilidade descritiva; perda abrupta com o fato sempre à vista e o alerta só com
+    magnitude (arredondada para cima) e excepcionalidade por porte e intervalo de 5 ou 7 meses, contando empates, só com
+    transições anteriores e com o mínimo de 100 ou 1.000; afastamento de patamar com 15% por dois registros como atenção, alta com
+    a cauda de 1%, crítica não calibrável e descritivo abaixo de 20 médicos; descontinuidade de registro só para o pico que volta
+    e a quebra de fonte; a queda grande que persiste continua alertável, com "verificar registro";
+  - estados como unidade e conjuntos recebem os fatos e os indicadores descritivos, "sem classificação neste nível";
+  - a tela usa linguagem simples (decisão D-C): "sem classificação", com o motivo, e "limites provisórios"; os termos técnicos
+    ficam em "Qual critério", em "Como foi calculado" e nas exportações;
+  - os parâmetros podem ser trocados como **configuração personalizada — exploratória**, com "Voltar aos padrões";
+  - a tabela sai em CSV e o método em JSON, com a janela, as versões e a configuração;
+  - a rota nova `POST /api/detector` (tabela ou, com `detalhe`, um território) entra nas vagas das operações pesadas e na lista
+    das rotas com limite da tela; nada é registrado na sessão.
+- **Permanece:** as análises existentes, as rotas e os contratos de `/api/painel`; a recusa de "crítico" sem critério na
+  conversa; a base e o manifesto (só leitura); o provedor de IA fora dos cálculos.
+- **Motivo:** comando V22 do responsável (9/11/2026), Eixo II, etapa 3, com as decisões D-A e D-C de 10/11/2026.
+- **Documentação e testes:** [Detector de Sinais Territoriais](DETECTOR_DE_SINAIS.md) (a tela, a rota, as regras e o estudo de
+  calibração de 10/11/2026, com o modelo nulo); [área de análise](PAINEL_INTEGRADO_INTERFACE.md#ferramentas-do-comando-v22);
+  README. Testes: pytest (`test_detector.py`, com os casos da base versionada no job `dados-reais`), Node (`detector.test.mjs`) e
+  o roteiro `ui_detector.py`, registrado na suíte `base-versionada`. `scripts/calibrar_detector.py` refaz o estudo (fora do CI) e
+  `scripts/capturar_telas.py` ganhou as telas do Detector.
+
 ### 2026-11-10 · Textos da seleção mista, nomes sem sobreposição e a caixa da conversa compacta (conferência da pausa 1 do V22)
 - **Classificação (regra 1), pela leitura, antes de codar:** os dez ajustes vieram da conferência das capturas da etapa 2 pelo
   responsável (10/11/2026). Todos mudam o que a pessoa vê (textos, nomes no desenho, contadores e a caixa da conversa) e dois mudam

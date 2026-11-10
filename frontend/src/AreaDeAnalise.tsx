@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as EventoPonteiro,
   type ReactNode } from "react";
 import { ArrowLeftRight, ChartScatter, ChevronDown, Columns2, Crosshair, Database, Download, Filter, FilterX, GripVertical,
-  ListOrdered, LoaderCircle, Map as MapaIcone, Pause, Play, RefreshCw, Ruler, Scale, SlidersHorizontal, Undo, Upload, Wrench, X } from "lucide-react";
+  ListOrdered, LoaderCircle, Map as MapaIcone, Pause, Play, Radar, RefreshCw, Ruler, Scale, SlidersHorizontal, Undo, Upload, Wrench, X } from "lucide-react";
 import {
   ErroDoMotor, pedirCriterios, pedirLugar, pedirMapa, pedirPainel, type FonteDoMotor, type LugarOpcoes, type MapaOpcoes, type Pendencia,
   type PainelConjuntoPedido, type PainelItem, type PainelMunicipios, type PainelNivel, type PainelOpcoes, type PainelResposta,
@@ -25,7 +25,7 @@ import {
   montarOpcoes, profissionaisDe,
   apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
   pinturaDoMapa, prefixoDe, precisaQuintisDoMapa, resumoDoUniverso, ritmoDaJanela, ritmosDaBase, RITMOS_TENDENCIA,
-  rotulosEfetivos, salvarEstado, semSelecao, semTerritorios, separarItens, significadoDaClasse, tamanhoDoMapa, textoDaMarca, textoDoDesfazer, textoDoDesfeito,
+  rotulosEfetivos, salvarEstado, selecaoDasFerramentas, semSelecao, semTerritorios, separarItens, significadoDaClasse, tamanhoDoMapa, textoDaMarca, textoDoDesfazer, textoDoDesfeito,
   textoDoMetodo, textoDosTerritoriosBase, textoForaDoDesenho, textoInstrucaoGrupos, tituloDaAnalise, todosOs, umA, visaoEfetiva,
   type Aba, type Ajuste, type Apresentacao, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala,
   type ConsultaTerritorios, type DesfechoDoPedido, type EstadoSalvo, type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase,
@@ -52,6 +52,7 @@ import { useNarrow } from "./useNarrow";
 import EscolhaDosTerritorios from "./EscolhaDosTerritorios";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import IconeVassoura from "./IconeVassoura";
+import DetectorDeSinais from "./DetectorDeSinais";
 import "./analise.css";
 
 // Área de análise da página única (22/10/2026). Numa linha de abas (23/10/2026), que aparece só com os dados prontos
@@ -260,6 +261,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** Aba à vista: a Seleção de Territórios ou uma análise. A análise desenhada é a da definição (def.familia): a Seleção e a aba de
    * uma análise que não pode ser executada mostram a apresentação e o motivo, e o desenho continua com a última análise. */
   const [aba, setAba] = useState<Aba>("territorios");
+  // As ferramentas do comando V22 (o Detector de Sinais Territoriais; o Simulador de Cenários entra na etapa seguinte): abertas pela
+  // navegação principal, ao lado das abas, usam a seleção em uso e ficam no lugar do painel e do desenho da análise, que continua
+  // como estava ao voltar para uma aba.
+  const [ferramenta, setFerramenta] = useState<"detector" | null>(null);
+  // Uma aba que muda por outro caminho (a conversa, o Histórico, o Limpar seleção) volta a ser o que está à vista.
+  useEffect(() => { setFerramenta(null); }, [aba]);
   const [explicacaoPedida, setExplicacaoPedida] = useState<ExplicacaoPedida | null>(null);
   const [escala, setEscala] = useState<Escala>("linear");
   const [corte, setCorte] = useState<Corte | null>(null);
@@ -462,6 +469,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     } else setAviso((tipo === "brasil" ? "Dados do Brasil carregados." : "Planilha carregada.") + " " + TEXTO_SEM_SELECAO);
     setDef(inicial);
     setAba(semSelecao(inicial) ? "territorios" : inicial.familia);
+    setFerramenta(null);
   }, [fonte, pronto, chaveFonte]);
   // Competência e categoria que chegam depois da fonte.
   useEffect(() => { if (pronto && !def.competencia && periodos.length) setDef(atual => ({ ...atual, competencia: maisRecente(periodos) })); }, [pronto, periodos]);
@@ -527,6 +535,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setVistaEscolhida(lido.visual.vista ?? "grafico");
     setDef({ ...lido.definicao, ...unificarEscolha(escolhaDe(lido.definicao), arvore) });
     setAba(semTerritorios(lido.definicao) ? "territorios" : lido.definicao.familia);
+    setFerramenta(null);
     if (lido.resposta && lido.opcoes) {
       cache.current.set(lido.chave, lido.resposta);
       setResposta(lido.resposta);
@@ -757,6 +766,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     const abaDoPedido: Aba | null = pedido.pedido.familia && resultado.definicao.familia === pedido.pedido.familia ? pedido.pedido.familia
       : aba === "territorios" && !semSelecao(resultado.definicao) ? resultado.definicao.familia : null;
     if (abaDoPedido) setAba(abaDoPedido);
+    setFerramenta(null);  // o pedido da conversa é sobre o gráfico: a ferramenta aberta dá lugar a ele
     const base = resultado.definicao.base;
     if (resultado.definicao.nivel === "municipios" && base.estados.length === 1 && !base.ids.length) setAberto(base.estados[0]);
     if (emGrupos(resultado.definicao.nivel)) setAberto(null);
@@ -1008,6 +1018,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** Toda aba abre (23/10/2026): a Seleção de Territórios, e cada análise com a apresentação dela; a que não pode ser executada
    * com os dados mostra o motivo, e o desenho continua com a última análise. Trocar de aba é um passo do Desfazer. */
   function escolherAba(proxima: Aba) {
+    if (ferramenta) setFerramenta(null);  // a aba volta a ser o que está à vista
     if (proxima === aba) return;
     registrar("Abrir a " + (proxima === "territorios" ? NOME_SELECAO : NOMES_FAMILIAS[proxima]));
     if (proxima === "territorios") { setAba("territorios"); return; }
@@ -1242,6 +1253,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** Volta à Seleção de Territórios, a qualquer momento, com o foco na lista. */
   function irParaTerritorios() {
     setFerramentas(false);
+    setFerramenta(null);
     if (aba !== "territorios") registrar("Abrir a " + NOME_SELECAO);
     setAba("territorios");
     requestAnimationFrame(() => {
@@ -2146,6 +2158,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // A aba de uma análise que não pode ser executada com estes dados: a apresentação e o motivo, sem os ajustes.
   const dispDaAba = aba !== "territorios" ? disponivelDe(aba) : null;
   const motivoDaAba = fonte && dispDaAba && !dispDaAba.disponivel ? dispDaAba : null;
+  // A seleção em uso, no contrato das ferramentas (só a base do Brasil: médicos, registros de janeiro e junho de 2014 a 2024).
+  const selecaoParaFerramentas = useMemo(() => tipo === "brasil" && !semSelecao(def) ? selecaoDasFerramentas(def, grupoDe) : null,
+    [tipo, def.nivel, def.base, def.estados, def.conjuntos, grupoDe]);
+  const motivoDasFerramentas = tipo === "brasil" ? null
+    : "O Detector usa a base do Brasil (médicos, registros de janeiro e junho de 2014 a 2024); com uma planilha enviada, não está disponível.";
   const resumoDaSelecao = !fonte ? "Escolha os dados primeiro" : !pronto ? "Preparando os dados…"
     : semUnidades ? "Nenhum território selecionado"
     : resumoDoUniverso({ nivel: def.nivel, base: def.base, estados: def.estados, conjuntos: def.conjuntos.length, grupos, regioes, rotulos,
@@ -2195,7 +2212,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // Os atributos do pedido da conversa (05/11/2026): o último com desfecho, a situação dele e o resultado do motor em exibição (o id
   // guardado na sessão), para conferir a associação entre o comando e o que a área mostra.
   return <section id="area-de-analise" data-testid="area-de-analise" data-estado={estadoTela} data-familia={def.familia} data-nivel={def.nivel}
-    data-desenho={vistaExibida} data-aba={aba} data-pedido-da-conversa={ultimoDesfecho?.id ?? ""} data-desfecho={ultimoDesfecho?.situacao ?? ""}
+    data-desenho={vistaExibida} data-aba={aba} data-ferramenta={ferramenta ?? ""} data-pedido-da-conversa={ultimoDesfecho?.id ?? ""} data-desfecho={ultimoDesfecho?.situacao ?? ""}
     data-resultado={resposta?.sessao?.resultId ?? ""} aria-labelledby="analise-titulo" className="analise">
     {/* Desfazer e Limpar seleção (24/10/2026, segunda rodada): fixos no alto da área, lado a lado, em todas as abas, sem rolar. */}
     {pronto && <div data-testid="analise-controles-globais" role="toolbar" aria-label="Desfazer e limpar seleção"
@@ -2222,11 +2239,19 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         nomes (24/10/2026). O painel da aba escolhida, colado nela: na Seleção, a orientação curta e a escolha; nas análises,
         "Entenda esta análise" (recolhível), o motivo (quando não pode ser executada) e os ajustes. */}
     {pronto && <div className="analise-familias-bloco analise-com-ajustes">
+      {/* As ferramentas (comando V22): na navegação principal, acima das abas; usam a seleção em uso. */}
+      <div data-testid="analise-ferramentas-novas" role="group" aria-label="Ferramentas" className="analise-ferramentas-novas analise-nao-imprimir">
+        <span className="analise-ferramentas-novas-rotulo">Ferramentas</span>
+        <button type="button" data-testid="analise-ferramenta-detector" aria-pressed={ferramenta === "detector"} disabled={!!motivoDasFerramentas}
+          title={motivoDasFerramentas ?? "A situação mais recente de cada território da seleção, fenômeno a fenômeno"} className="analise-ferramenta-nova"
+          onClick={() => setFerramenta(atual => atual === "detector" ? null : "detector")}><Radar size={15} aria-hidden="true"/>Detector de Sinais</button>
+        {motivoDasFerramentas && <span data-testid="analise-ferramentas-motivo" className="analise-ferramentas-novas-motivo">{motivoDasFerramentas}</span>}
+      </div>
       <div role="tablist" aria-label="Seleção de territórios e análises" className="analise-familias analise-nao-imprimir">
         {ABAS.map((item, indice) => {
-          const ativa = aba === item;
+          const ativa = !ferramenta && aba === item;
           if (item === "territorios") return <button key={item} id={idDaAba(item)} type="button" role="tab" data-testid="analise-aba-territorios"
-            aria-selected={ativa} aria-controls="analise-aba-painel" tabIndex={ativa ? 0 : -1} className="analise-familia analise-aba-selecao"
+            aria-selected={ativa} aria-controls="analise-aba-painel" tabIndex={aba === item ? 0 : -1} className="analise-familia analise-aba-selecao"
             onClick={() => escolherAba(item)} onKeyDown={event => teclasAbas(event, indice)}>
             <span className="analise-familia-nome">{NOME_SELECAO}</span>
             <span data-testid="analise-aba-territorios-resumo" className="analise-familia-apoio">{resumoDaSelecao}</span>
@@ -2234,14 +2259,17 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           const disponivel = disponivelDe(item);
           return <button key={item} id={idDaAba(item)} type="button" role="tab" data-testid={"analise-familia-" + item}
             data-disponivel={disponivel.disponivel ? "true" : "false"} aria-selected={ativa} aria-controls="analise-aba-painel"
-            tabIndex={ativa ? 0 : -1} title={!disponivel.disponivel ? disponivel.motivo : undefined}
+            tabIndex={aba === item ? 0 : -1} title={!disponivel.disponivel ? disponivel.motivo : undefined}
             className={"analise-familia" + (!disponivel.disponivel ? " analise-familia-indisponivel" : "")}
             onClick={() => escolherAba(item)} onKeyDown={event => teclasAbas(event, indice)}>
             <span className="analise-familia-nome">{NOMES_FAMILIAS[item]}</span>
           </button>;
         })}
       </div>
-      <div role="tabpanel" id="analise-aba-painel" data-testid="analise-aba-painel" data-aba={aba} aria-labelledby={idDaAba(aba)}
+      {ferramenta === "detector" && fonteMotor && <div data-testid="analise-ferramenta-painel" data-ferramenta={ferramenta} className="analise-ferramenta-painel">
+        <DetectorDeSinais fonte={fonteMotor} selecao={selecaoParaFerramentas} resumoDaSelecao={resumoDaSelecao} onAlterarSelecao={irParaTerritorios}/>
+      </div>}
+      <div role="tabpanel" id="analise-aba-painel" data-testid="analise-aba-painel" data-aba={aba} aria-labelledby={idDaAba(aba)} hidden={!!ferramenta}
         className="analise-aba-painel analise-nao-imprimir">
         {naSelecao ? <>
           <div className="analise-selecao-intro">
@@ -2297,7 +2325,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       </div>
     </div>}
 
-    {pronto && <div data-testid="analise-resultados" hidden={naSelecao || espacialNosGrupos} className="analise-resultados">
+    {pronto && <div data-testid="analise-resultados" hidden={naSelecao || espacialNosGrupos || !!ferramenta} className="analise-resultados">
     <header className="analise-cabecalho">
       <h2 id="analise-titulo" tabIndex={-1} data-testid="analise-titulo" className="analise-titulo">{titulo}</h2>
       {!layoutTendencia && subtituloEResumo}

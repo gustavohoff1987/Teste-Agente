@@ -181,7 +181,44 @@ def capturar(url, saida, canal):
             bolha.click()
             expect(area.get_by_test_id("analise-foco-espacial")).to_be_visible(timeout=30000)
 
+        def detector_tabela():
+            # O Detector de Sinais Territoriais com a seleção mista em uso (municípios, conjuntos e estados como unidade).
+            area.get_by_test_id("analise-ferramenta-detector").click()
+            detector = area.get_by_test_id("detector")
+            expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
+            expect(detector.get_by_test_id("detector-linha").first).to_be_visible()
+
+        def detector_detalhe():
+            detector = area.get_by_test_id("detector")
+            detector.get_by_test_id("detector-abrir").first.click()
+            expect(detector.get_by_test_id("detector-detalhe")).to_be_visible(timeout=60000)
+            detector.get_by_test_id("detector-historico-botao").click()
+            expect(detector.get_by_test_id("detector-historico")).to_be_visible()
+
+        def detector_brasil():
+            # Todos os municípios do Brasil: a perda com alerta no último registro, com os detalhes do primeiro.
+            area.get_by_test_id("analise-limpar-selecao").click()
+            area.get_by_test_id("analise-aba-territorios").click()
+            grafico(lambda: territorios.get_by_test_id("analise-raiz-caixa").check())
+            area.get_by_test_id("analise-ferramenta-detector").click()
+            detector = area.get_by_test_id("detector")
+            expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
+            detector.get_by_test_id("detector-filtro-fenomeno").select_option("alerta_perda")
+            detector.get_by_test_id("detector-abrir").first.click()
+            expect(detector.get_by_test_id("detector-detalhe")).to_be_visible(timeout=60000)
+
+        def detector_parametros():
+            detector = area.get_by_test_id("detector")
+            detector.get_by_test_id("detector-abrir").first.click()  # fecha os detalhes
+            detector.get_by_test_id("detector-metodo-botao").click()
+            detector.get_by_test_id("detector-parametros-botao").click()
+            detector.get_by_test_id("detector-parametro-perda-alta_alfa").fill("5")
+            detector.get_by_test_id("detector-parametros-aplicar").click()
+            expect(detector.get_by_test_id("detector-exploratorio")).to_be_visible(timeout=180000)
+
         def estados_como_unidade():
+            if area.get_attribute("data-ferramenta"):
+                area.get_by_test_id("analise-ferramenta-" + area.get_attribute("data-ferramenta")).click()
             area.get_by_test_id("analise-limpar-selecao").click()
             area.get_by_test_id("analise-aba-territorios").click()
             grafico(lambda: territorios.get_by_test_id("analise-raiz-so-estados").click(), lambda o: o.get("nivel") == "estados")
@@ -253,7 +290,11 @@ def capturar(url, saida, canal):
         tela("10-dica-do-conjunto", dica_do_conjunto)
         tela("11-espacial-escolha-dos-territorios", espacial_escolha)
         tela("12-espacial-foco", espacial_foco)
+        tela("16-detector-selecao-mista", detector_tabela)
+        tela("17-detector-detalhe", detector_detalhe)
         tela("13-estados-como-unidade", estados_como_unidade)
+        tela("18-detector-brasil-alertas", detector_brasil)
+        tela("19-detector-parametros", detector_parametros)
         tela("14-historico", historico)
         tela("14b-nova-sessao", nova_sessao)
         tela("14c-planilha-colunas", colunas)

@@ -69,7 +69,9 @@ SUITES = {
         "roteiros": [("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_area_de_analise.py", {"ADT_BLOCK1_REAL": "1"}),
                      ("ui_mapa.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_execucao_conversa.py", {"ADT_BLOCK1_REAL": "1"}),
                      ("ui_responsivo.py", {}), ("ui_navegacao.py", {"ADT_BLOCK1_REAL": "1"}),
-                     ("ui_criterios.py", {"ADT_BLOCK1_REAL": "1"})],
+                     ("ui_criterios.py", {"ADT_BLOCK1_REAL": "1"}),
+                     # O Detector de Sinais Territoriais (comando V22, etapa 3): a tabela, os filtros, os detalhes e os parâmetros.
+                     ("ui_detector.py", {"ADT_BLOCK1_REAL": "1"})],
     },
     # Hospedagem (01/11/2026; Docs/implantacao/): as duas suítes rodam no job "conteiner" do CI.
     "sessao": {

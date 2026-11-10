@@ -249,6 +249,15 @@ Pedidos pelo responsável ao conferir as capturas da etapa 2; onde divergem, val
 - **Caixa da conversa minimizada:** compacta (o rosto, "Assistente" e o botão que a abre). No canto de sempre, o painel direito
   da Seleção e o painel lateral das análises terminam acima dela (a variável `--espaco-da-conversa`).
 
+### Ferramentas do comando V22
+
+Acima das abas, a linha "Ferramentas" (`analise-ferramentas-novas`) traz os botões das ferramentas do Eixo II do comando V22. Cada
+uma abre no lugar do painel da aba e do desenho da análise (`analise-ferramenta-painel`; `area-de-analise` leva `data-ferramenta`),
+usa a seleção em uso e fecha quando a pessoa escolhe uma aba, altera a seleção ou faz um pedido pela conversa. Só existem na base
+do Brasil; com uma planilha enviada, ficam desligadas, com o motivo (`analise-ferramentas-motivo`).
+
+- **Detector de Sinais** (`analise-ferramenta-detector`): [Detector de Sinais Territoriais](DETECTOR_DE_SINAIS.md).
+
 ### Até 09/11/2026: a seleção unificada, o Ver por e os modos (histórico)
 
 O que segue descreve a Seleção de 05 a 09/11/2026. O comando V22 substituiu o Ver por, os modos, os avisos coletivos, o botão

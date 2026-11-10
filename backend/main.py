@@ -59,6 +59,8 @@ import conversation_library
 import conversa_grafico
 import dialogo
 import painel
+import detector
+import series_brasil
 import conversa_gemini
 import contexto_conversa
 import definicoes
@@ -1974,6 +1976,24 @@ def integrated_panel_place(file: UploadFile | None = File(None), mapping: str = 
         return _PanelJSON(painel.lugar(sources, fields, requested, frame=None if sources is not None else frame))
     except ChoiceRequired as exc:
         return _panel_pending(exc)
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/detector")
+def territorial_signal_detector(file: UploadFile | None = File(None), options: str = Form("{}"), dataset: str = Form(""),
+                                scope: str = Form("municipal"), dataset_version: str = Form(""),
+                                context_revision: int = Form(0)):
+    """Detector de Sinais Territoriais (comando V22; Docs/DETECTOR_DE_SINAIS.md): a situação mais recente da janela para os
+    territórios da seleção (escala estrutural, declínio, desaceleração, instabilidade, perda abrupta e afastamento de patamar,
+    com a qualidade do registro) ou, com `detalhe`, a série, o histórico de sinais e os textos de um território. Só a base do
+    Brasil (médicos, 2014–2024). Só lê e calcula: nada é registrado na sessão, e nada vai ao provedor de IA."""
+    try:
+        if file is not None or dataset != "brazil":
+            raise ValueError(series_brasil.OFFICIAL_ONLY)
+        requested = json.loads(options)
+        _, _, sources = _dataset_do_pedido(None, "", "brazil", "municipal", "", dataset_version, with_sources=True)
+        return _PanelJSON(detector.compute(sources, requested))
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

@@ -3113,6 +3113,19 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
   return { definicao: proxima, abrir, selecao, mensagens, criterio: criterioPedido, vista };
 }
 
+/** A seleção em uso no contrato das ferramentas (o Detector de Sinais e o Simulador de Cenários; comando V22, seção 11): os
+ * municípios, os estados como unidade e os conjuntos, com os mesmos nomes do pedido do painel. No nível dos estados, só os estados
+ * como unidade e os conjuntos de estados. */
+export function selecaoDasFerramentas(def: Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">,
+  grupoDe: (id: string) => string = prefixoDe): { base?: { municipios: PainelMunicipios }; estados_unidade?: string[];
+    conjuntos?: { id: string; rotulo: string; membros: string[]; versao?: number }[] } {
+  const conjuntos = (def.nivel === "municipios" ? def.conjuntos : def.conjuntos.filter(conjuntoDeEstados))
+    .map(({ id, rotulo, membros, versao }) => ({ id, rotulo, membros, ...(versao ? { versao } : {}) }));
+  const estados = [...new Set(def.estados)].sort(comparar);
+  return { ...(def.nivel === "municipios" && !baseVazia(def.base) ? { base: { municipios: normalizarBase(def.base, grupoDe) } } : {}),
+    ...(estados.length && def.nivel !== "regioes" ? { estados_unidade: estados } : {}), ...(conjuntos.length ? { conjuntos } : {}) };
+}
+
 /** Contexto do gráfico para a estrutura da página e a conversa. */
 export function contextoDoGrafico(def: DefinicaoAnalise, idsNaTela: string[], titulo: string, grupoDe: (id: string) => string = prefixoDe,
   /** Com a Escolha dos territórios, os territórios que ficaram como referência mais próxima de algum item (da resposta). */

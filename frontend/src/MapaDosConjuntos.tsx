@@ -111,7 +111,10 @@ export default function MapaDosConjuntos(p: Props) {
       const forma = membros.length ? contornoComFolga(membros) : [];
       const topo = forma.reduce<[number, number] | null>((melhor, ponto) => !melhor || ponto[1] < melhor[1] ? ponto : melhor, null);
       const pe = forma.reduce<[number, number] | null>((melhor, ponto) => !melhor || ponto[1] > melhor[1] ? ponto : melhor, null);
-      return { ...conjunto, caminho: forma.length ? "M" + forma.map(([x, y]) => x.toFixed(1) + "," + y.toFixed(1)).join("L") + "Z" : "", topo, pe };
+      const leste = forma.reduce<[number, number] | null>((melhor, ponto) => !melhor || ponto[0] > melhor[0] ? ponto : melhor, null);
+      const oeste = forma.reduce<[number, number] | null>((melhor, ponto) => !melhor || ponto[0] < melhor[0] ? ponto : melhor, null);
+      return { ...conjunto, caminho: forma.length ? "M" + forma.map(([x, y]) => x.toFixed(1) + "," + y.toFixed(1)).join("L") + "Z" : "", topo, pe,
+        leste, oeste };
     });
     const barra = p.escalaKm && p.escalaKm > 0 ? Math.min(largura - 2 * MARGEM, p.escalaKm / KM_POR_GRAU * escala) : null;
     return { posicao, contornos, barra };
@@ -129,9 +132,10 @@ export default function MapaDosConjuntos(p: Props) {
   // 10/11/2026 (conferência das capturas), o nome de um conjunto também não cobre os pontos em destaque: ele fica acima do contorno
   // ou, sem lugar ali, abaixo dele; sem lugar nos dois, só na dica. Os nomes são desenhados por cima dos pontos, com um halo.
   const caixas: [number, number, number, number][] = [];
-  const caixaDe = (x: number, y: number, texto: string, ancora: "middle" | "start"): [number, number, number, number] => {
+  const caixaDe = (x: number, y: number, texto: string, ancora: "middle" | "start" | "end"): [number, number, number, number] => {
     const largo = texto.length * LETRA * 0.62;
-    return ancora === "middle" ? [x - largo / 2, y - LETRA, x + largo / 2, y + 3] : [x, y - LETRA, x + largo, y + 3];
+    return ancora === "middle" ? [x - largo / 2, y - LETRA, x + largo / 2, y + 3] : ancora === "end" ? [x - largo, y - LETRA, x, y + 3]
+      : [x, y - LETRA, x + largo, y + 3];
   };
   const cobreNome = (caixa: [number, number, number, number]) => caixas.some(c => caixa[0] < c[2] && caixa[2] > c[0] && caixa[1] < c[3] && caixa[3] > c[1]);
   const cabe = (x: number, y: number, texto: string, ancora: "middle" | "start") => {
@@ -144,18 +148,22 @@ export default function MapaDosConjuntos(p: Props) {
   const fortes = ordem.filter(id => papel(id) !== "fundo").map(id => desenho.posicao.get(id)!);
   const pontosCobertos = (caixa: [number, number, number, number]) => fortes.filter(([x, y]) => x >= caixa[0] - 3 && x <= caixa[2] + 3 &&
     y >= caixa[1] - 3 && y <= caixa[3] + 3).length;
-  const lugarDosNomes = new Map<string, [number, number]>();
+  const lugarDosNomes = new Map<string, [number, number, "middle" | "start" | "end"]>();
   for (const conjunto of desenho.contornos) {
-    if (!conjunto.caminho || !conjunto.topo || !conjunto.pe) continue;
-    const candidatos: [number, number][] = [
-      [dentroDaLargura(conjunto.topo[0], conjunto.nome, largura), Math.max(LETRA, conjunto.topo[1] - 3)],
-      [dentroDaLargura(conjunto.pe[0], conjunto.nome, largura), Math.min(altura - 20, conjunto.pe[1] + LETRA + 1)]];
-    const lugar = candidatos.find(([x, y]) => {
-      const caixa = caixaDe(x, y, conjunto.nome, "middle");
-      return !cobreNome(caixa) && pontosCobertos(caixa) === 0;
+    if (!conjunto.caminho || !conjunto.topo || !conjunto.pe || !conjunto.leste || !conjunto.oeste) continue;
+    const largo = conjunto.nome.length * LETRA * 0.62;
+    // Acima do contorno, abaixo dele, à direita e à esquerda (10/11/2026): o primeiro lugar em que o nome cabe inteiro no mapa.
+    const candidatos: [number, number, "middle" | "start" | "end"][] = [
+      [dentroDaLargura(conjunto.topo[0], conjunto.nome, largura), Math.max(LETRA, conjunto.topo[1] - 3), "middle"],
+      [dentroDaLargura(conjunto.pe[0], conjunto.nome, largura), Math.min(altura - 20, conjunto.pe[1] + LETRA + 1), "middle"],
+      [conjunto.leste[0] + 4, conjunto.leste[1] + 4, "start"], [conjunto.oeste[0] - 4, conjunto.oeste[1] + 4, "end"]];
+    const lugar = candidatos.find(([x, y, ancora]) => {
+      const caixa = caixaDe(x, y, conjunto.nome, ancora);
+      return caixa[0] >= 2 && caixa[2] <= largura - 2 && caixa[1] >= 0 && caixa[3] <= altura - 16 && !cobreNome(caixa) &&
+        pontosCobertos(caixa) === 0 && (ancora === "middle" || largo > 0);
     });
     if (!lugar) continue;
-    caixas.push(caixaDe(lugar[0], lugar[1], conjunto.nome, "middle"));
+    caixas.push(caixaDe(lugar[0], lugar[1], conjunto.nome, lugar[2]));
     lugarDosNomes.set(conjunto.id, lugar);
   }
   const nomeAvulso = (id: string) => p.nomeDe(id).replace(/\s*\([^()]*\)\s*$/, "");
@@ -186,7 +194,7 @@ export default function MapaDosConjuntos(p: Props) {
       {desenho.contornos.map(conjunto => {
         const lugar = lugarDosNomes.get(conjunto.id);
         return lugar ? <text key={"nome" + conjunto.id} data-testid="analise-mapa-nome-conjunto" data-id={conjunto.id} x={lugar[0]} y={lugar[1]}
-          textAnchor="middle" fontSize={LETRA} fontWeight={600} fill={cores.tinta} stroke={cores.superficie} strokeWidth={3}
+          textAnchor={lugar[2]} fontSize={LETRA} fontWeight={600} fill={cores.tinta} stroke={cores.superficie} strokeWidth={3}
           strokeLinejoin="round" paintOrder="stroke" pointerEvents="none">{conjunto.nome}</text> : null;
       })}
       {nomesAvulsos.map(id => {

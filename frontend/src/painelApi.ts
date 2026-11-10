@@ -983,6 +983,12 @@ export function normalizarCriterios(bruto: unknown): RespostaCriterios {
       distancia: distancia && texto(distancia.de) ? { de: texto(distancia.de)!, km: num(distancia.km) ?? 0 } : null,
       agrupar: agrupar ? { km: num(agrupar.km) ?? 0 } : null } };
 }
+/** Pedido de uma ferramenta do motor (o Detector de Sinais Territoriais e o Simulador de Cenários Territoriais, comando V22): o mesmo
+ * formulário, a mesma sessão e a mesma leitura de erros do painel. A normalização da resposta fica no modelo de cada ferramenta. */
+export async function pedirAoMotor(fonte: FonteDoMotor, rota: "/api/detector" | "/api/simulador", opcoes: object, signal?: AbortSignal): Promise<unknown> {
+  const response = await buscar(fonte.apiBase + rota, { method: "POST", body: formulario(fonte, opcoes, false), signal });
+  return lerResposta(response);
+}
 export async function pedirCriterios(fonte: FonteDoMotor, opcoes: CriteriosOpcoes, signal?: AbortSignal): Promise<RespostaCriterios> {
   const response = await buscar(fonte.apiBase + "/api/painel/criterios", { method: "POST", body: formulario(fonte, opcoes, true), signal });
   return normalizarCriterios(await lerResposta(response));
