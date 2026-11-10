@@ -613,9 +613,11 @@ def main():
         calls = len(painel_calls)
         aperta(area.get_by_test_id("analise-desfazer"))
         expect(area).to_have_attribute("data-desenho", "grafico")
-        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", re.compile("BOA VISTA"))
+        # Depois da vista, os passos do Desfazer são "abrir a Análise Espacial" (o Confirmar seleção), marcar BOA VISTA e
+        # desmarcar Roraima.
+        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", "Desfazer: abrir a Análise Espacial")
         resumo_aba = area.get_by_test_id("analise-aba-territorios-resumo")
-        for _ in range(4):
+        for _ in range(5):
             if resumo_aba.inner_text() == "Roraima (15 municípios)":
                 break
             aperta(area.get_by_test_id("analise-desfazer"))
