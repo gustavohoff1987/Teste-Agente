@@ -30,6 +30,18 @@ def source(extension="csv", rows=None):
     return buffer.getvalue()
 
 
+def test_competencias_na_ordem_da_data_real():
+    """Comando V22 (9/11/2026, item 4): as competências na ordem da data real (antes, na ordem do arquivo), sem repetir, nos
+    números pelo valor ("2014-6" antes de "2014-10"), na inspeção e no pré-exame."""
+    from semantic_bridge import ordem_cronologica
+    assert ordem_cronologica(["202306", "201806", "202101", "201806", "202301"]) == ["201806", "202101", "202301", "202306"]
+    assert ordem_cronologica(["2014-10", "2014-6", "2013-12"]) == ["2013-12", "2014-6", "2014-10"]
+    rows = [["Brasil", 2024, 1, "MEDICINA", 120], ["Brasil", 2023, 12, "MEDICINA", 100], ["Brasil", 2023, 6, "MEDICINA", 90]]
+    info = client.post("/api/inspect", files={"file": ("base.csv", source("csv", rows))}).json()
+    assert info["periods"] == ["202306", "202312", "202401"]
+    assert info["preflight"]["values"]["periods"] == ["202306", "202312", "202401"]
+
+
 @pytest.mark.parametrize("extension", ["csv", "xlsx"])
 def test_split_period_import_recognition_filter_and_temporal(extension):
     raw = source(extension)

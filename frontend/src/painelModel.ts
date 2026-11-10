@@ -433,6 +433,17 @@ export function lugarDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios;
   /** Os grupos de cima (07/11/2026): no nivel "regioes", eles são os itens, com o nome do grupo de cima. */
   regioes?: GrupoInfo[] }): Lugar {
   if (c.nivel === "regioes") return lugarDoUniverso({ ...c, nivel: "estados", grupos: c.regioes ?? [], rotulos: rotulosDaVista(c.rotulos, "regioes") });
+  // Estados como unidade junto com os municípios (comando V22): "nos municípios do Amazonas e no Pará (estado)".
+  if (c.nivel === "municipios" && c.estados?.length) {
+    const resto = lugarDoUniverso({ ...c, estados: [] });
+    const g = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+    const info = (id: string) => c.grupos.find(item => item.id === id);
+    const estados = c.estados.length <= 2 ? c.estados.map(id => emGrupo(info(id), id) + " (" + g.singular + ")").join(" e ")
+      : "em " + quantos(c.estados.length, g) + " como unidade";
+    const curtos = c.estados.length <= 2 ? emLista(c.estados.map(id => (info(id)?.nome || id) + " (" + g.singular + ")"))
+      : quantos(c.estados.length, g) + " como unidade";
+    return resto.lugar ? { lugar: resto.lugar + " e " + estados, curto: resto.curto + " e " + curtos } : { lugar: estados, curto: curtos };
+  }
   const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
   const origem = nomeDoTodo(c.brasil, c.rotulos);
   if (c.nivel === "brasil") return { lugar: "no Brasil", curto: "Brasil" };
@@ -492,12 +503,21 @@ export function resumoDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios
   const nenhum = (rotulo: Rotulo) => "Nenhum" + (fem(rotulo) ? "a " : " ") + rotulo.singular + " marcad" + (fem(rotulo) ? "a" : "o");
   const nome = (id: string) => c.grupos.find(item => item.id === id)?.nome || id;
   if (c.nivel === "brasil") return "Brasil (total nacional)";
+  const conjuntosDoNivel = c.conjuntos ? " e " + c.conjuntos + (c.conjuntos === 1 ? " conjunto" : " conjuntos") : "";
   if (c.nivel === "estados") {
-    if (!c.estados.length) return nenhum(grupo);
-    if (c.estados.length >= c.grupos.length) return textoTodosOsGrupos(c.rotulos, c.grupos.length);
-    return c.estados.length <= 3 ? emLista(c.estados.map(nome)) : quantos(c.estados.length, grupo);
+    // Comando V22: só conjuntos de estados, ou estados como unidade com conjuntos de estados.
+    if (!c.estados.length) return c.conjuntos ? maiuscula(conjuntosDoNivel.slice(3)) : nenhum(grupo);
+    if (c.estados.length >= c.grupos.length) return textoTodosOsGrupos(c.rotulos, c.grupos.length) + conjuntosDoNivel;
+    return (c.estados.length <= 3 ? emLista(c.estados.map(nome)) : quantos(c.estados.length, grupo)) + conjuntosDoNivel;
   }
-  if (c.base.todos) return maiuscula(todosOs(unidade)) + (c.total ? " (" + inteiro.format(c.total) + ")" : "");
+  // Com estados como unidade junto com os municípios (comando V22): "62 municípios do Amazonas e Pará (estado)".
+  if (c.estados.length) {
+    const estadosTexto = c.estados.length <= 2 ? emLista(c.estados.map(id => nome(id) + " (" + grupo.singular + ")"))
+      : quantos(c.estados.length, grupo) + " como unidade";
+    const resto = resumoDoUniverso({ ...c, estados: [] });
+    return baseVazia(c.base) && !c.conjuntos ? estadosTexto : resto + " e " + estadosTexto;
+  }
+  if (c.base.todos) return maiuscula(todosOs(unidade)) + (c.total ? " (" + inteiro.format(c.total) + ")" : "") + conjuntosDoNivel;
   const avulsas = c.base.ids.filter(id => !c.base.estados.includes(c.grupoDe(id)));
   const gruposDasAvulsas = [...new Set(avulsas.map(c.grupoDe))].filter(Boolean);
   const n = unidadesNoUniverso(c.base, c.grupos, c.total, c.grupoDe);
@@ -644,6 +664,22 @@ export function baseComUnidades(base: PainelMunicipios, ids: string[], c: Contex
   }
   return atual;
 }
+
+/** Comando V22, seção 6: o nome do conjunto com a lista nominal de todos os integrantes ("Conjunto C (MARABA, PARAUAPEBAS,
+ * CANAA DOS CARAJAS) — PA"); com todos do mesmo estado, a sigla sai de cada nome e vai uma vez no fim. Vale nas dicas das bolhas,
+ * dos pontos e dos contornos (Distribuição, Espacial, prévia e ferramentas novas). */
+export function descricaoDoConjunto(rotulo: string, membros: string[], nomeDe: (id: string) => string): string {
+  const nomes = membros.map(nomeDe);
+  const siglas = new Set(nomes.map(nome => /\(([A-Z]{2})\)$/.exec(nome)?.[1] ?? ""));
+  const umEstado = siglas.size === 1 && !siglas.has("") ? [...siglas][0] : null;
+  const lista = umEstado ? nomes.map(nome => nome.replace(/\s*\([A-Z]{2}\)$/, "")) : nomes;
+  return rotulo + " (" + lista.join(", ") + ")" + (umEstado ? " — " + umEstado : "");
+}
+/** A agregação do conjunto em palavras (comando V22): a soma das contagens municipais ou, num conjunto de estados, das estaduais;
+ * nunca pessoas únicas. */
+export const textoDaAgregacao = (deEstados: boolean) => deEstados
+  ? "contagem: soma das contagens estaduais dos componentes (quem atua em mais de um estado conta em cada um)"
+  : "contagem: soma das contagens dos componentes";
 
 /** O limite de conjuntos de uma análise, dito quando um conjunto novo não cabe (o painel e a conversa); desde 07/11/2026 (item 8 do
  * comando de 07/11/2026), com "conjunto" e "agrupar" (antes, "grupos" e "agregar"). */
@@ -1767,18 +1803,22 @@ export function montarDica(item: PainelItem, contexto: ContextoDica): Dica {
     if (!r.avaliavel && r.motivo) notas.push(r.motivo);
   }
   notas.push(...avisosDe(item));
-  if (conjunto) {
-    notas.push(NOTA_SOMA);
-    const membros = (item.membros || []).map(id => contexto.nomes.get(id) || id);
-    if (membros.length) notas.push("Membros: " + membros.join(", ") + ".");
-  }
+  const deEstados = conjunto && (item.nivelDosMembros === "estados" || (item.membros ?? []).every(id => id.startsWith("uf:")));
+  if (conjunto) notas.push(deEstados ? "Soma das contagens estaduais dos componentes (médicos únicos de cada estado): quem atua em mais de um " +
+    "estado conta em cada um; não é o número de médicos diferentes do conjunto. A população é a soma dos estados." : NOTA_SOMA);
   if (item.referencia) notas.push("Membro da referência da distância.");
   const unidade = contexto.rotulos.unidade, grupoRotulo = contexto.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
   const n = grupo ? contexto.unidadesDoGrupo?.(item.id) ?? null : null;
+  // Comando V22, seção 6: o conjunto com a lista nominal de todos os integrantes no título ("Conjunto C (MARABA, PARAUAPEBAS) — PA") e
+  // a agregação dita; o estado como unidade com "(estado)" e a fonte estadual.
+  const membros = item.membros ?? [];
   return {
-    titulo: item.rotulo,
-    subtitulo: conjunto ? "Conjunto de " + unidade.plural + " · " + textoDaContagem(item.contagem)
-      : [maiuscula(grupo ? grupoRotulo.singular : unidade.singular), grupo ? "" : item.uf || ""].filter(Boolean).join(" · "),
+    titulo: conjunto && membros.length ? descricaoDoConjunto(item.rotulo, membros, id => contexto.nomes.get(id) || id)
+      : grupo ? item.rotulo.replace(/\s*\([A-Z]{2}\)$/, "") + " (" + grupoRotulo.singular + ")" : item.rotulo,
+    subtitulo: conjunto ? "Conjunto de " + (deEstados ? grupoRotulo.plural + " como unidade" : unidade.plural) + " · " + textoDaAgregacao(deEstados)
+      : grupo ? maiuscula(grupoRotulo.singular) + " como unidade · " + (contexto.rotulos.grupo?.singular === "estado" && unidade.singular === "município"
+        ? "fonte estadual (médicos únicos no estado)" : "pel" + artigo(unidade, true) + " " + unidade.plural + " del" + (fem(grupoRotulo) ? "a" : "e"))
+        : [maiuscula(unidade.singular), item.uf || ""].filter(Boolean).join(" · "),
     linhas, notas: [...new Set(notas)],
     acao: grupo ? (n !== null ? textoVerUnidades(contexto.rotulos, n) : "Ver " + artigo(unidade, true) + " " + unidade.plural)
       : item.tipo === "municipio" && contexto.abrirUnidade ? "Abrir " + item.rotulo : null,
@@ -1859,6 +1899,9 @@ export type DefinicaoAnalise = {
   /** Intervalo da Série temporal (24/10/2026): as competências escolhidas, em ordem; vazio = a extensão inteira da base (do
    * primeiro ao último período que ela tem, lidos dos dados a cada pedido). */
   serie?: string[];
+  /** A seleção no formato do comando V22 (9/11/2026): `estados` são sempre os estados como unidade ("Só o estado"), à parte da
+   * `base` (os municípios marcados), sem se sobrepor a ela. Uma definição de antes (sem o campo) é convertida ao ser lida. */
+  selecaoV22?: boolean;
 };
 /** Estado inicial da análise: em qualquer fonte, nenhum território marcado (23/10/2026); a área espera a escolha na Seleção de
  * Territórios ou na conversa. Na planilha sem população, o indicador começa na quantidade (o motor recusa a densidade sem
@@ -1871,7 +1914,7 @@ export function definicaoInicial(p: { tipo: "brasil" | "arquivo" | null; periodo
     nivel: "municipios", base: { ...BASE_VAZIA }, estados: [], competencia: maisRecente(p.periodos),
     categoria: p.categoria, conjuntos: [], consulta: null, faixasDistancia: [],
     janela: [], visao: "classes", agrupar: { tipo: "nenhum", faixas: [] }, condicoes: [], ordenar: null, comparar: [], rotatividade: null,
-    premissas: p.tipo === "arquivo" ? { ...(p.premissas ?? {}) } : {}, serie: [] };
+    premissas: p.tipo === "arquivo" ? { ...(p.premissas ?? {}) } : {}, serie: [], selecaoV22: true };
 }
 /** O período com que a Análise de Tendência abre (24/10/2026, pedido do responsável, no lugar de "sem ritmo padrão"): o anual,
  * quando a base tem 4 períodos anuais até a competência mais recente; senão, o único ritmo que a base tem (RQ-GOV-14: um só valor
@@ -2072,7 +2115,9 @@ export const escreverValorDoFiltro = (valor: number | null) => valor === null ? 
 export type TrechoDaFrase = { texto: string; incompleta: boolean };
 export type ContextoDaFrase = { rotulos: RotulosTerritoriais; brasil: boolean; grupos: GrupoInfo[]; nomes: Map<string, string>;
   /** A seleção em uso está vazia: o lado que parte dela fica incompleto (06/11/2026). */
-  selecaoVazia?: boolean };
+  selecaoVazia?: boolean;
+  /** A seleção em uso tem conjuntos (comando V22, seção 6): a base que parte dela é de territórios, não só de unidades. */
+  selecaoComConjuntos?: boolean };
 const NOMES_NA_FRASE = 3;
 /** "MANAUS (AM), TEFE (AM), BELEM (PA) e mais 2". */
 function nomesNaFrase(ids: string[], nomes: Map<string, string>): string {
@@ -2107,7 +2152,9 @@ function filtrosNaFrase(filtros: FiltroDaConsulta[]): string[] {
 function fraseDaBase(lado: LadoDaConsulta, c: ContextoDaFrase): string {
   if (lado.escolha.modo === "marcados") return nomesNaFrase(lado.escolha.municipios, c.nomes);
   const indicadores = filtrosNaFrase(lado.filtros);
-  return maiuscula(c.rotulos.unidade.plural) + " " + deOnde(lado.partir_de, c) + (indicadores.length ? " com " + emLista(indicadores) : "");
+  // Com conjuntos na seleção prévia, a base é de territórios (unidades e conjuntos), não só de unidades.
+  const quem = lado.partir_de.tipo === "selecao_previa" && c.selecaoComConjuntos ? "Territórios" : maiuscula(c.rotulos.unidade.plural);
+  return quem + " " + deOnde(lado.partir_de, c) + (indicadores.length ? " com " + emLista(indicadores) : "");
 }
 /** O recorte da referência conforme a base, na frase: "do mesmo estado" (numa planilha, "da mesma província"), "da mesma região";
  * com `em`, "no mesmo estado", "na mesma região". Null quando a referência não depende de cada território da base. */
@@ -2236,7 +2283,8 @@ export const UNIDADES_DO_CORTE: Record<PainelAtributo, { unidade: string; dica: 
 /** Nada escolhido no nível em análise: municípios sem nenhum marcado nem conjunto, ou estados sem nenhum marcado. O Brasil é
  * uma unidade só: escolher o nível já o seleciona. */
 export const semSelecao = (def: Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">) =>
-  def.nivel === "brasil" ? false : emGrupos(def.nivel) ? !def.estados.length : baseVazia(def.base) && !def.conjuntos.length;
+  def.nivel === "brasil" ? false : emGrupos(def.nivel) ? !def.estados.length && !def.conjuntos.some(conjuntoDeEstados)
+    : baseVazia(def.base) && !def.conjuntos.length && !def.estados.length;
 /** A Análise Espacial com a Escolha dos territórios calculada (27/10/2026). Desde 06/11/2026 (item 4.1 do comando), a base dela é
  * sempre a seleção em uso; até essa data, a base podia vir da consulta (o país, uma região, um estado...), e a análise continuava
  * sem territórios selecionados. */
@@ -2320,13 +2368,14 @@ export function regioesPossiveis(base: PainelMunicipios, c: ContextoDaArvore): s
 /** Uma mudança na árvore: a escolha nova, normalizada. A unidade de análise continua quando a escolha nova ainda a permite (os
  * estados, com os estados inteiros que ficaram; o Brasil, com o Brasil inteiro); senão, volta aos municípios. */
 export function escolhaDaArvore<E extends EscolhaDaSelecao>(atual: E, novaBase: PainelMunicipios, c: ContextoDaArvore): E {
-  const base = normalizarArvore(novaBase, c);
-  const possiveis = unidadesPossiveis(base, c);
-  if (atual.nivel === "brasil" && possiveis.brasil) return { ...atual, base };
-  if (atual.nivel === "estados" && possiveis.estados?.length) return { ...atual, base, estados: possiveis.estados };
-  const regioes = atual.nivel === "regioes" ? regioesPossiveis(base, c) : null;
-  if (regioes?.length) return { ...atual, base, estados: regioes };
-  return { ...atual, base, nivel: "municipios" };
+  // Desde o comando V22 (9/11/2026), a árvore marca só municípios: os estados como unidade ficam à parte (`estados`), e os
+  // municípios deles não entram (estão bloqueados na árvore). Os grupos de cima como unidade (numa planilha) saem quando a pessoa
+  // marca municípios, porque não se misturam com outros níveis.
+  const deCima = atual.nivel === "regioes";
+  const estados = deCima ? [] : atual.estados;
+  const base = baseSemOsEstados(normalizarArvore(novaBase, c), estados, c);
+  const proxima = { ...atual, base, estados, nivel: deCima ? "municipios" as PainelNivel : atual.nivel };
+  return { ...proxima, nivel: nivelDaSelecao(proxima) };
 }
 
 /** A unidade de análise escolhida: os municípios, sempre; os estados ou o Brasil, quando a escolha permite (sem nada marcado, todos
@@ -2364,13 +2413,88 @@ export function motivoDaUnidade(nivel: "estados" | "brasil" | "regioes", rotulos
  * estados como unidades, a árvore marca esses estados inteiros; com o Brasil, o Brasil inteiro; nos municípios, a escolha
  * normalizada. Assim, a árvore mostra sempre o que está na análise. */
 export function unificarEscolha<E extends EscolhaDaSelecao>(escolha: E, c: ContextoDaArvore): E {
+  // Comando V22: os estados como unidade ficam à parte da base; a árvore mostra os municípios marcados e, nos estados, o "Só o
+  // estado" ligado. O Brasil como unidade (de antes de 06/11/2026) vira todos os estados como unidade.
   if (!c.grupos.length) return escolha;
-  if (escolha.nivel === "brasil") return { ...escolha, base: { ...BRASIL_INTEIRO } };
-  if (escolha.nivel === "estados")
-    return { ...escolha, base: normalizarArvore({ todos: false, estados: [...escolha.estados], ids: [] }, c) };
-  if (escolha.nivel === "regioes")
-    return { ...escolha, base: normalizarArvore({ todos: false, estados: escolha.estados.flatMap(regiao => gruposDaRegiao(regiao, c)), ids: [] }, c) };
-  return { ...escolha, base: normalizarArvore(escolha.base, c) };
+  if (escolha.nivel === "brasil") return { ...escolha, nivel: "estados", base: { ...BASE_VAZIA }, estados: c.grupos.map(grupo => grupo.id) };
+  if (escolha.nivel === "regioes") return { ...escolha, base: { ...BASE_VAZIA } };
+  const base = baseSemOsEstados(normalizarArvore(escolha.base, c), escolha.estados, c);
+  const proxima = { ...escolha, base };
+  return { ...proxima, nivel: nivelDaSelecao(proxima) };
+}
+
+// ================================================================================================ estados como unidade (V22)
+// Comando V22 (9/11/2026), decisão 3 e seção 2: na árvore, cada estado tem "Só o estado", que põe o estado na seleção como uma
+// unidade (uma bolha, com a fonte estadual); os municípios dele saem da seleção e ficam bloqueados enquanto o estado estiver como
+// unidade. As regiões e o Brasil têm "Só os estados". A seleção pode reunir estados como unidade, municípios e conjuntos; o motor
+// calcula cada nível à parte (estados_unidade), e as medidas de posição não misturam os níveis. Nenhum nível é somado a outro
+// (RQ-DAD-30).
+/** Um conjunto de estados como unidade: os membros são "uf:<prefixo>" (soma das fontes estaduais). */
+export const conjuntoDeEstados = (conjunto: Pick<PainelConjuntoPedido, "membros">) =>
+  conjunto.membros.length > 0 && conjunto.membros.every(id => id.startsWith("uf:"));
+export const idDoEstado = (grupo: string) => "uf:" + grupo;
+export const grupoDoIdDoEstado = (id: string) => id.startsWith("uf:") ? id.slice(3) : "";
+/** O nível que vai ao motor: só estados como unidade (e conjuntos de estados) é o nível estados; com municípios ou conjuntos de
+ * municípios, o nível municipios (com os estados como unidade em `estados_unidade`). Os grupos de cima de uma planilha (regioes)
+ * continuam um nível à parte, sem mistura. */
+export function nivelDaSelecao(s: Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">): PainelNivel {
+  if (s.nivel === "regioes" && s.estados.length && baseVazia(s.base) && !s.conjuntos.length) return "regioes";
+  if (!baseVazia(s.base) || s.conjuntos.some(conjunto => !conjuntoDeEstados(conjunto))) return "municipios";
+  return s.estados.length || s.conjuntos.some(conjuntoDeEstados) ? "estados" : "municipios";
+}
+/** A base sem os municípios dos estados como unidade: eles não entram junto com o estado (RQ-DAD-30). */
+export function baseSemOsEstados(base: PainelMunicipios, estados: string[], c: Pick<ContextoDaArvore, "grupos" | "grupoDe">): PainelMunicipios {
+  if (!estados.length || baseVazia(base)) return base;
+  const fora = new Set(estados);
+  if (base.todos) return { todos: false, estados: c.grupos.map(grupo => grupo.id).filter(grupo => !fora.has(grupo)).sort(comparar), ids: [] };
+  return { todos: false, estados: base.estados.filter(grupo => !fora.has(grupo)), ids: base.ids.filter(id => !fora.has(c.grupoDe(id))) };
+}
+/** Os conjuntos de municípios com membros nos estados: enquanto existirem, esses estados não entram como unidade (o conjunto seria
+ * somado ao estado). */
+export const conjuntosComMembrosNos = (conjuntos: PainelConjuntoPedido[], grupos: string[], grupoDe: (id: string) => string) =>
+  conjuntos.filter(conjunto => !conjuntoDeEstados(conjunto) && conjunto.membros.some(id => grupos.includes(grupoDe(id))));
+/** "Só o estado" (ou "Só os estados", com vários): os estados entram como unidade, e os municípios deles saem da seleção, num só
+ * passo do Desfazer. Os grupos de cima como unidade saem (não se misturam). */
+export function ativarEstados<E extends EscolhaDaSelecao>(atual: E, grupos: string[], c: Pick<ContextoDaArvore, "grupos" | "grupoDe">): E {
+  const deCima = atual.nivel === "regioes";
+  const estados = [...new Set([...(deCima ? [] : atual.estados), ...grupos])].sort(comparar);
+  const proxima = { ...atual, nivel: deCima ? "municipios" as PainelNivel : atual.nivel, base: baseSemOsEstados(atual.base, grupos, c), estados };
+  return { ...proxima, nivel: nivelDaSelecao(proxima) };
+}
+/** Desativar "Só o estado": o estado sai da seleção, e os municípios dele ficam livres, sem nenhum marcado. Os conjuntos de estados
+ * com ele continuam (eles são territórios à parte). */
+export function desativarEstados<E extends EscolhaDaSelecao>(atual: E, grupos: string[]): E {
+  const fora = new Set(grupos);
+  const proxima = { ...atual, estados: atual.estados.filter(grupo => !fora.has(grupo)) };
+  return { ...proxima, nivel: nivelDaSelecao(proxima) };
+}
+/** Os grupos de cima como unidade (numa planilha com dois níveis): "Só a zona" põe a zona como uma unidade; não se mistura com
+ * outros níveis, e a seleção passa a ser só os grupos de cima marcados assim. */
+export function ativarRegioes<E extends EscolhaDaSelecao>(atual: E, regioes: string[]): E {
+  const antes = atual.nivel === "regioes" ? atual.estados : [];
+  return { ...atual, nivel: "regioes", base: { ...BASE_VAZIA }, conjuntos: [], estados: [...new Set([...antes, ...regioes])].sort(comparar) };
+}
+export function desativarRegioes<E extends EscolhaDaSelecao>(atual: E, regioes: string[]): E {
+  if (atual.nivel !== "regioes") return atual;
+  const estados = atual.estados.filter(regiao => !regioes.includes(regiao));
+  return estados.length ? { ...atual, estados } : { ...atual, nivel: "municipios", estados: [] };
+}
+/** O que fica fora da Análise de Rotatividade numa seleção mista (comando V22, seção 2): os estados como unidade e os conjuntos de
+ * estados, que a rotatividade não acompanha (ela segue pessoas em cada unidade). Os nomes, para o aviso da tela. */
+export function foraDaRotatividade(def: Pick<DefinicaoAnalise, "nivel" | "estados" | "conjuntos">, nomeDoGrupo: (id: string) => string,
+  grupo: Rotulo): string[] {
+  if (def.nivel !== "municipios") return [];
+  return [...def.estados.map(id => nomeDoGrupo(id) + " (" + grupo.singular + ")"),
+    ...def.conjuntos.filter(conjuntoDeEstados).map(conjunto => conjunto.rotulo + " (conjunto de " + grupo.plural + ")")];
+}
+/** Os estados como unidade que estão na seleção (num nível de grupos de cima, nenhum). */
+export const estadosComoUnidade = (s: Pick<DefinicaoAnalise, "nivel" | "estados">) => s.nivel === "regioes" ? [] : s.estados;
+/** Uma definição de antes do comando V22 no formato novo: no nível estados, os estados eram unidades e a base repetia os municípios
+ * deles; nos municípios, `estados` podia trazer a lista de uma vista anterior. */
+export function selecaoNoFormatoV22<E extends EscolhaDaSelecao & { selecaoV22?: boolean }>(e: E): E {
+  if (e.selecaoV22) return e;
+  if (e.nivel === "estados" || e.nivel === "regioes" || e.nivel === "brasil") return { ...e, base: { ...BASE_VAZIA }, selecaoV22: true };
+  return { ...e, estados: [], selecaoV22: true };
 }
 
 /** Os grupos marcados só em parte (com exclusões ou com algumas unidades), para a tela dizer que eles não têm total individualizado:
@@ -2487,6 +2611,8 @@ export function lugarDaTrilha(def: Pick<DefinicaoAnalise, "nivel" | "base" | "es
     return def.estados.length ? fim("selecao", [todo, selecao]) : fim("nenhum", [todo]);
   }
   const n = normalizarArvore(def.base, c.arvore);
+  // Estados como unidade junto com municípios ou conjuntos (comando V22): uma seleção com níveis diferentes, "Brasil › Seleção".
+  if (def.nivel === "municipios" && def.estados.length && (!baseVazia(n) || def.conjuntos.length)) return fim("selecao", [todo, selecao]);
   // A seleção por critérios (07/11/2026, item 6 do comando): "Brasil › Seleção: densidade abaixo de 0,5 em jun/2024 (89)".
   if (regraConfere(c.regra, def)) return fim("selecao", [todo, { ...selecao, rotulo: NOME_DA_SELECAO + ": " + textoDaRegra(c.regra!) }]);
   if (n.todos) return fim("todo", [todo]);
@@ -2688,7 +2814,12 @@ export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (
   const varios = def.nivel !== "brasil";
   if (def.nivel === "municipios") {
     opcoes.base = { municipios: normalizarBase(def.base, grupoDe) };
-    if (def.conjuntos.length) opcoes.conjuntos = def.conjuntos.map(({ id, rotulo, membros }) => ({ id, rotulo, membros }));
+    // Na rotatividade (pessoas acompanhadas em cada unidade), os estados como unidade e os conjuntos de estados ficam fora do pedido,
+    // e a tela diz isso (comando V22, seção 2: foraDaRotatividade).
+    const conjuntosDoPedido = familia === "rotatividade" ? def.conjuntos.filter(conjunto => !conjuntoDeEstados(conjunto)) : def.conjuntos;
+    if (conjuntosDoPedido.length) opcoes.conjuntos = conjuntosDoPedido.map(({ id, rotulo, membros }) => ({ id, rotulo, membros }));
+    // Os estados como unidade junto com os municípios (comando V22): o motor calcula cada nível à parte.
+    if (def.estados.length && familia !== "rotatividade") opcoes.estados_unidade = [...new Set(def.estados)].sort(comparar);
     // A Escolha dos territórios (27/10/2026): `base` continua indo como a seleção prévia, lida pela consulta.
     if (familia === "espacial" && def.consulta) {
       opcoes.consulta = consultaParaOMotor(def.consulta);
@@ -2700,6 +2831,9 @@ export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (
     const todos = c.todosOsEstados ?? [];
     const escolhidos = todos.length ? normalizarEstados(def.estados, todos) : [...new Set(def.estados)].sort(comparar);
     if (!todos.length || escolhidos.length < todos.length) opcoes.estados = escolhidos;
+    // Os conjuntos de estados (comando V22), pela soma das fontes estaduais.
+    const deEstados = def.nivel === "estados" ? def.conjuntos.filter(conjuntoDeEstados) : [];
+    if (deEstados.length) opcoes.conjuntos = deEstados.map(({ id, rotulo, membros }) => ({ id, rotulo, membros }));
   }
   // Entre a Tendência e a Trajetória, a visão é só estado visual: com quatro competências ou mais, a tendência vai junto e a troca
   // não pede nada novo. A Série temporal pede os valores do intervalo dela (`serie`), sem a tendência nem a variação.
@@ -2791,7 +2925,9 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
   /** A base do Brasil, com o país como unidade (nível Brasil). */
   temBrasil?: boolean;
   /** Os municípios de cada estado (a Escolha dos territórios pedida que muda a seleção nomeia a de antes na referência). */
-  unidadesDoGrupo?: (grupo: string) => string[] }): ResultadoPedido {
+  unidadesDoGrupo?: (grupo: string) => string[];
+  /** Os grupos de um grupo de cima (numa planilha com dois níveis), para "mostre as comunas" depois das zonas. */
+  gruposDaRegiao?: (regiao: string) => string[] }): ResultadoPedido {
   let proxima: DefinicaoAnalise = { ...def };
   const mensagens: string[] = [];
   let abrir: FuncaoPainel | null = null, selecao: string[] | null = null;
@@ -2801,20 +2937,28 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     const m = pedido.municipios;
     const base = { todos: m.todos === true, estados: Array.isArray(m.estados) ? m.estados.filter((e): e is string => typeof e === "string") : [],
       ids: Array.isArray(m.ids) ? m.ids.filter((i): i is string => typeof i === "string") : [] };
-    proxima = { ...proxima, nivel: "municipios", base: normalizarBase(base, c.grupoDe) };
+    // Comando V22: os municípios pedidos substituem a seleção, também os estados como unidade de antes.
+    proxima = { ...proxima, nivel: "municipios", base: normalizarBase(base, c.grupoDe), estados: [] };
   }
   if (pedido.nivel === "estados") {
-    if (c.temGrupos) proxima = { ...proxima, nivel: "estados", estados: c.todosOsEstados?.length ? [...c.todosOsEstados] : proxima.estados };
+    // Desde o comando V22, os estados como unidade ficam à parte da base ("Só os estados" do Brasil).
+    if (c.temGrupos) proxima = { ...proxima, nivel: "estados", base: { ...BASE_VAZIA },
+      estados: c.todosOsEstados?.length ? [...c.todosOsEstados] : proxima.estados };
     else mensagens.push("Esta fonte não tem a visão por grupos.");
   } else if (pedido.nivel === "brasil") {
-    // O todo deixou de ser unidade de análise (06/11/2026): o pedido do Brasil leva ao todo, vendo por estado (a faixa e a linha do
-    // todo trazem os números do Brasil).
-    if (c.temBrasil) proxima = { ...proxima, nivel: "estados", base: { todos: true, estados: [], ids: [] },
+    // O todo deixou de ser unidade de análise (06/11/2026): o pedido do Brasil leva ao todo, com todos os estados como unidade (a
+    // faixa e a linha do todo trazem os números do Brasil).
+    if (c.temBrasil) proxima = { ...proxima, nivel: "estados", base: { ...BASE_VAZIA },
       estados: c.todosOsEstados?.length ? [...c.todosOsEstados] : proxima.estados };
     else mensagens.push("O Brasil existe só nos dados do Brasil.");
   } else if (pedido.nivel === "regioes") {
-    if (c.todasAsRegioes?.length) proxima = { ...proxima, nivel: "regioes", estados: [...c.todasAsRegioes] };
+    if (c.todasAsRegioes?.length) proxima = { ...proxima, nivel: "regioes", base: { ...BASE_VAZIA }, estados: [...c.todasAsRegioes] };
     else mensagens.push("Esta fonte não tem um nível de grupo acima dos grupos.");
+  } else if (pedido.nivel === "municipios" && emGrupos(proxima.nivel)) {
+    // "Mostre os municípios" com estados como unidade: os municípios desses estados, inteiros, no lugar deles.
+    const grupos = proxima.nivel === "regioes" ? proxima.estados.flatMap(regiao => c.gruposDaRegiao?.(regiao) ?? []) : [...proxima.estados];
+    proxima = { ...proxima, nivel: "municipios", base: baseVazia(proxima.base) && grupos.length ? { todos: false, estados: grupos, ids: [] }
+      : proxima.base, estados: [] };
   } else if (pedido.nivel === "municipios") proxima.nivel = "municipios";
   if (typeof pedido.competencia === "string") {
     if (periodos.has(pedido.competencia)) proxima.competencia = pedido.competencia;
@@ -2911,7 +3055,7 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     } else if (proxima.conjuntos.length >= MAX_CONJUNTOS) mensagens.push(TEXTO_MAX_GRUPOS);
     else if (selecao) mensagens.push("Para agrupar, escolha pelo menos duas unidades.");
     // A agregação escolhida sem nomes (numa alternativa da conversa) abria a gaveta Juntar, que saiu: a resposta diz o caminho.
-    else mensagens.push("Para agrupar, use Agrupar territórios, na Seleção de Territórios, ou diga os nomes no pedido.");
+    else mensagens.push("Para agrupar, use Agrupar territórios selecionados, na Seleção de Territórios, ou diga os nomes no pedido.");
   } else if (pedido.funcao === "exportar") abrir = "exportar";
   else if (pedido.funcao === "ordenar") abrir = "ordenar";
   else if (pedido.funcao === "condicoes") abrir = "condicoes";
@@ -3014,14 +3158,15 @@ export function lerEstadoSalvo(estado: EstadoSalvo | null | undefined): (Definic
   const naSelecao = lidaConsulta ? consultaNaSelecao(lidaConsulta, lida.base, { todosOsEstados: [], unidadesDoGrupo: () => [] }) : null;
   const consulta = naSelecao ? naSelecao.consulta : null;
   const mudouABase = !!lidaConsulta && !baseEhASelecao(lidaConsulta.base);
-  const def: DefinicaoAnalise = { ...resto, estados: Array.isArray(lida.estados) ? lida.estados.filter(id => typeof id === "string") : [],
+  const def: DefinicaoAnalise = selecaoNoFormatoV22({ ...resto, estados: Array.isArray(lida.estados) ? lida.estados.filter(id => typeof id === "string") : [],
     serie: Array.isArray(lida.serie) ? lida.serie.filter(c => typeof c === "string") : [], consulta,
-    ...(naSelecao?.selecao ? { base: naSelecao.selecao, nivel: "municipios" as const, conjuntos: [] } : {}) };
+    ...(naSelecao?.selecao ? { base: naSelecao.selecao, nivel: "municipios" as const, conjuntos: [] } : {}) });
   // O Brasil como unidade saiu em 06/11/2026 (o todo é a referência fixa): um estado guardado com ele reabre no todo, vendo por
   // estado, com a lista dos estados preenchida pela área (unificarEscolha) e sem a resposta de antes (o pedido é outro).
   if (def.nivel === "brasil")
     return { versao: 1, chave: "", familia: salvo.familia && FAMILIAS_VALIDAS.has(salvo.familia) ? salvo.familia : "distribuicao",
-      opcoes: null, definicao: { ...def, nivel: "estados", base: { todos: true, estados: [], ids: [] } },
+      // Comando V22: o nível "brasil" fica para unificarEscolha, que o troca por todos os estados como unidade.
+      opcoes: null, definicao: { ...def, nivel: "brasil", base: { ...BASE_VAZIA } },
       visual: { escala: salvo.visual?.escala === "logaritmica" ? "logaritmica" : "linear", corte: null, selecionados: [] }, resposta: null };
   const resposta = mudouABase ? null : estado!.resposta as PainelResposta | null;
   const vista = salvo.visual?.vista, corContinua = salvo.visual?.corContinua;
@@ -3405,7 +3550,7 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
     "Com vári" + (f ? "as " : "os ") + territorios + ", você pode dividi-l" + (f ? "as" : "os") + " em grupos do mesmo tamanho " +
       "(quartis, quintis ou decis) ou em faixas de " +
       "valores e usar as Ferramentas: Régua, Condições, Ordenar, Comparar e Exportar. Para somar " + territorios + " num grupo, use " +
-      "Agrupar territórios, na Seleção. No mapa, os pontos aparecem em 5 grupos iguais (quintis) do indicador."] };
+      "Agrupar territórios selecionados, na Seleção. No mapa, os pontos aparecem em 5 grupos iguais (quintis) do indicador."] };
   if (aba === "espacial") return { titulo: NOMES_FAMILIAS.espacial, paragrafos: [
     "Mede a distância em linha reta entre cada " + unidade.singular + " da base e a referência mais próxima " + (fem(unidade) ? "dela" : "dele") +
       ". A base é sempre a seleção em uso, a da trilha e da Seleção de Territórios, com filtros por densidade, população ou " +

@@ -363,13 +363,15 @@ test('conjunto rotulado como soma das contagens dos componentes, com possível d
   assert.equal(M.textoDaContagem(conjunto.contagem), 'soma das contagens dos componentes, com possível dupla contagem');
   const dica = M.montarDica(conjunto, {indicador: 'densidade', competencia: '202406', competenciaInicial: '202306', distancia: true,
     variacao: true, tendencia: false, nomes: new Map([['code:130420', 'TEFE (AM)'], ['code:130340', 'PARINTINS (AM)']]), rotulos: BR});
-  assert.equal(dica.subtitulo, 'Conjunto de municípios · soma das contagens dos componentes, com possível dupla contagem');
+  // Comando V22, seção 6 (muda de propósito): o título lista todos os integrantes, e o subtítulo diz a agregação.
+  assert.equal(dica.titulo, 'Interior (TEFE, PARINTINS) — AM');
+  assert.equal(dica.subtitulo, 'Conjunto de municípios · contagem: soma das contagens dos componentes');
   assert.ok(dica.notas.some(nota => nota.includes('possível dupla contagem')));
   // A ressalva do comando de 05/11/2026 na dica do conjunto, que mostra um total somado.
   assert.ok(dica.notas.some(nota => nota.includes(M.RESSALVA_DA_SOMA)));
   assert.equal(M.RESSALVA_DA_SOMA, 'O total corresponde à soma dos quantitativos dos territórios selecionados. Profissionais que ' +
     'atuam em mais de um território podem ser contabilizados mais de uma vez.');
-  assert.ok(dica.notas.includes('Membros: TEFE (AM), PARINTINS (AM).'));
+  assert.ok(!dica.notas.some(nota => nota.startsWith('Membros:')), 'os integrantes estão no título');
   assert.deepEqual(dica.linhas.find(linha => linha.rotulo.startsWith('Variação da densidade')),
     {rotulo: 'Variação da densidade desde 06/2023 (aumento)', valor: '+214,29%'});
   assert.deepEqual(dica.linhas.find(linha => linha.rotulo === 'Distância (membro mais distante)'), {rotulo: 'Distância (membro mais distante)', valor: '523,14 km'});
@@ -393,11 +395,13 @@ test('estados em bolhas: a dica mostra a ação de ver os municípios do estado'
   const amazonas = {...ITENS[1], id: 'uf:13', tipo: 'estado', rotulo: 'Amazonas (AM)', uf: 'AM'};
   const dica = M.montarDica(amazonas, {indicador: 'densidade', competencia: '202406', competenciaInicial: null, distancia: false, variacao: false,
     tendencia: false, nomes: new Map(), rotulos: BR, unidadesDoGrupo: id => id === 'uf:13' ? 62 : null});
-  assert.equal(dica.subtitulo, 'Estado');
+  // Comando V22, seção 6 (muda de propósito): o estado como unidade, com "(estado)" e a fonte estadual.
+  assert.equal(dica.titulo, 'Amazonas (estado)');
+  assert.equal(dica.subtitulo, 'Estado como unidade · fonte estadual (médicos únicos no estado)');
   assert.equal(dica.acao, 'Ver os 62 municípios');
   const provincia = M.montarDica(amazonas, {indicador: 'densidade', competencia: '202406', competenciaInicial: null, distancia: false, variacao: false,
     tendencia: false, nomes: new Map(), rotulos: DISTRITOS, unidadesDoGrupo: () => 12});
-  assert.equal(provincia.subtitulo, 'Província');
+  assert.equal(provincia.subtitulo, 'Província como unidade · pelos distritos dela');
   assert.equal(provincia.acao, 'Ver os 12 distritos');
 });
 
@@ -673,7 +677,8 @@ test('pedido ao motor com as chaves do contrato: nível e indicador em todo pedi
   assert.deepEqual(M.definicaoInicial({tipo: 'arquivo', periodos: ['2024'], categoria: 'ENFERMAGEM', temGrupos: false}).base,
     {todos: false, estados: [], ids: []});
   assert.deepEqual(inicial.base, {todos: false, estados: [], ids: []});
-  const am = {nivel: 'municipios', base: {todos: false, estados: ['13'], ids: []}};
+  // Nos municípios, sem estados como unidade (comando V22: `estados` passou a ser só os estados como unidade).
+  const am = {nivel: 'municipios', base: {todos: false, estados: ['13'], ids: []}, estados: []};
   const base = {nivel: 'municipios', indicador: 'densidade', base: {municipios: {todos: false, estados: ['13'], ids: []}}};
   assert.deepEqual(M.montarOpcoes(definicao(am), 'distribuicao'), {competencia: '202406', categoria: 'MEDICINA', ...base});
   assert.deepEqual(M.montarOpcoes(definicao({...am, agrupar: {tipo: 'quartis', faixas: []}}), 'distribuicao'),
@@ -716,10 +721,25 @@ test('pedido ao motor com as chaves do contrato: nível e indicador em todo pedi
   const conjunto = {id: 'c1', rotulo: 'Interior', membros: ['code:130420', 'code:130340']};
   assert.deepEqual(M.montarOpcoes(definicao({...am, conjuntos: [conjunto]}), 'distribuicao').conjuntos, [conjunto]);
   assert.equal(M.montarOpcoes(definicao({conjuntos: [conjunto]}), 'distribuicao').conjuntos, undefined);
+  // Comando V22: estados como unidade junto com os municípios vão em estados_unidade (o motor calcula cada nível à parte); um conjunto
+  // de estados vai no nível estados, e com municípios, junto com os conjuntos de municípios.
+  assert.deepEqual(M.montarOpcoes(definicao({...am, estados: ['35', '15']}), 'distribuicao').estados_unidade, ['15', '35']);
+  const deEstados = {id: 'c2', rotulo: 'Sul', membros: ['uf:41', 'uf:42']};
+  assert.deepEqual(M.montarOpcoes(definicao({estados: ['35'], conjuntos: [deEstados]}), 'distribuicao', M.prefixoDe, TODOS_OS_ESTADOS).conjuntos, [deEstados]);
+  assert.deepEqual(M.montarOpcoes(definicao({...am, conjuntos: [conjunto, deEstados]}), 'distribuicao').conjuntos, [conjunto, deEstados]);
+  // Na rotatividade, os estados como unidade e os conjuntos de estados ficam fora do pedido, e a tela diz quais (foraDaRotatividade).
+  const rotacao = definicao({...am, familia: 'rotatividade', rotatividade: {inicial: '202306', final: '202406'}, estados: ['15'],
+    conjuntos: [conjunto, deEstados]});
+  const pedidoDaRotacao = M.montarOpcoes(rotacao, 'rotatividade');
+  assert.equal(pedidoDaRotacao.estados_unidade, undefined);
+  assert.deepEqual(pedidoDaRotacao.conjuntos, [conjunto]);
+  assert.deepEqual(M.foraDaRotatividade(rotacao, id => ({15: 'Pará'})[id] ?? id, {singular: 'estado', plural: 'estados'}),
+    ['Pará (estado)', 'Sul (conjunto de estados)']);
+  assert.deepEqual(M.foraDaRotatividade(definicao({estados: ['15']}), id => id, {singular: 'estado', plural: 'estados'}), []);
 });
 
 test('o que falta para pedir e o que a família espera; a família calculada enquanto isso', () => {
-  const vazio = definicao({nivel: 'municipios'});
+  const vazio = definicao({nivel: 'municipios', estados: []});
   assert.equal(M.bloqueioDoPedido(vazio, {fonte: 'brasil', rotulos: BR}), 'Selecione os territórios que deseja analisar.');
   assert.equal(M.bloqueioDoPedido(vazio, {fonte: 'arquivo', rotulos: DISTRITOS}), 'Selecione os territórios que deseja analisar.');
   assert.equal(M.bloqueioDoPedido(vazio, {fonte: null, rotulos: BR}), 'Escolha os dados para começar.');
@@ -729,7 +749,8 @@ test('o que falta para pedir e o que a família espera; a família calculada enq
   assert.equal(M.bloqueioDoPedido(definicao({nivel: 'brasil', estados: []}), {fonte: 'brasil', rotulos: BR}), null);
   assert.equal(M.semSelecao(definicao({nivel: 'municipios', conjuntos: [{id: 'c1', rotulo: 'A', membros: ['x', 'y']}]})), false);
   const ok = {disponivel: true, motivo: '', pendente: false, enviarDados: false};
-  const am = {nivel: 'municipios', base: {todos: false, estados: ['13'], ids: []}};
+  // Nos municípios, sem estados como unidade (comando V22: `estados` passou a ser só os estados como unidade).
+  const am = {nivel: 'municipios', base: {todos: false, estados: ['13'], ids: []}, estados: []};
   assert.equal(M.avisoDaFamilia(definicao({...am, familia: 'tendencia'}), ok),
     'Escolha o período da tendência, anual ou semestral: a análise usa os últimos 4 períodos.');
   assert.equal(M.avisoDaFamilia(definicao({...am, familia: 'tendencia', janela: ['202306', '202406']}), ok),
@@ -804,7 +825,8 @@ test('comando da conversa aplicado ao gráfico: cada campo validado; o que não 
   // Brasil como unidade e guardava a escolha dos outros níveis). Fora da base do Brasil, a mensagem, e nada muda.
   const noTodo = M.aplicarPedido(para.definicao, {nivel: 'brasil'}, {...c, temBrasil: true, todosOsEstados: ['13', '15', '35']});
   assert.equal(noTodo.definicao.nivel, 'estados');
-  assert.deepEqual(noTodo.definicao.base, {todos: true, estados: [], ids: []});
+  // Comando V22 (muda de propósito): todos os estados como unidade, à parte da base, que fica vazia.
+  assert.deepEqual(noTodo.definicao.base, {todos: false, estados: [], ids: []});
   assert.deepEqual(noTodo.definicao.estados, ['13', '15', '35']);
   assert.deepEqual(noTodo.mensagens, []);
   const semBrasil = M.aplicarPedido(para.definicao, {nivel: 'brasil'}, c);
@@ -869,7 +891,7 @@ test('comando da conversa aplicado ao gráfico: cada campo validado; o que não 
   // A agregação sem nomes (uma alternativa escolhida na conversa) abria a gaveta Juntar, que saiu: a resposta diz o caminho, e
   // nada muda. Sem lugar para um grupo novo, o limite é dito.
   const semNomes = M.aplicarPedido(def, {funcao: 'juntar'}, c);
-  assert.ok(semNomes.mensagens.includes('Para agrupar, use Agrupar territórios, na Seleção de Territórios, ou diga os nomes no pedido.'),
+  assert.ok(semNomes.mensagens.includes('Para agrupar, use Agrupar territórios selecionados, na Seleção de Territórios, ou diga os nomes no pedido.'),
     semNomes.mensagens);
   assert.deepEqual([semNomes.definicao.conjuntos, semNomes.abrir], [[], null]);
   const cheios = Array.from({length: M.MAX_CONJUNTOS}, (_, i) => ({id: 'c' + (i + 1), rotulo: 'G' + (i + 1), membros: ['code:130260', 'code:130420']}));

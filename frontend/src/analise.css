@@ -794,3 +794,62 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-mapa-conjuntos { margin: 0; }
 .analise-mapa-conjuntos-esmaecido svg { opacity: 0.45; }
 .analise-mapa-conjuntos-legenda { margin-top: 2px; color: var(--cor-texto-apoio); font-size: 12px; }
+
+/* Seleção de Territórios do comando V22 (9/11/2026, seções 2 e 3): a árvore em linhas compactas, Brasil → região → estado →
+   município, com a seta (abre e fecha) separada da caixa (marca os descendentes) e "Só o estado"; a lista de um estado rola por dentro,
+   para a próxima linha continuar perto; os municípios de um estado como unidade ficam esmaecidos e bloqueados. À direita, o mapa de
+   prévia, a lista e as três ações. Modo claro e escuro pelas mesmas variáveis; alvos de toque de 32 a 40 px. */
+.analise-no-lista { display: flex; min-width: 0; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.analise-no { min-width: 0; border-radius: 10px; }
+.analise-no-raiz { padding: 2px 4px; border: 1px solid var(--cor-borda-campo); background: var(--cor-superficie-suave); }
+.analise-no-raiz[data-marcado="true"] { border-color: var(--cor-destaque); }
+.analise-no-linha { display: flex; min-width: 0; align-items: center; gap: 4px; }
+.analise-no-filhos { margin: 2px 0 4px 18px; padding-left: 8px; border-left: 1px solid var(--cor-borda-campo); }
+.analise-no-seta { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: var(--cor-destaque-texto); cursor: pointer; }
+.analise-no-seta:hover { background: var(--cor-realce-destaque); }
+.analise-no-seta-icone { transition: transform .15s ease; }
+.analise-no-seta[aria-expanded="true"] .analise-no-seta-icone { transform: rotate(90deg); }
+.analise-caixa.analise-no-caixa { flex: 1 1 auto; min-width: 0; min-height: 34px; }
+.analise-caixa.analise-no-caixa input { width: 17px; height: 17px; }
+.analise-no-texto { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+.analise-no-nome { color: var(--cor-tinta); font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.analise-no-contagem { color: var(--cor-texto-2); font-size: 12px; line-height: 1.35; }
+.analise-no-acoes { display: inline-flex; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.analise-no-grupo[data-situacao="inteiro"] > .analise-no-linha .analise-no-nome,
+.analise-no-regiao[data-situacao="inteiro"] > .analise-no-linha .analise-no-nome { color: var(--cor-destaque-texto); }
+.analise-no-grupo[data-unidade="true"] > .analise-no-linha { border-radius: 10px; background: var(--cor-realce-destaque); }
+.analise-no-aberto > .analise-no-linha { border-radius: 10px; box-shadow: inset 0 0 0 1px var(--cor-borda-convite); }
+.analise-no-unidades { max-height: 18rem; overflow-y: auto; padding: 2px; border: 1px solid var(--cor-borda-suave); border-radius: 8px;
+  background: var(--cor-superficie); }
+.analise-so-estado { flex-shrink: 0; min-height: 32px; padding: 3px 10px; border: 1px solid var(--cor-borda-controle); border-radius: 999px;
+  background: var(--cor-superficie); color: var(--cor-destaque-texto); font-size: 12px; font-weight: 650; white-space: nowrap; cursor: pointer; }
+.analise-so-estado:hover { border-color: var(--cor-borda-realce); }
+.analise-so-estado[aria-pressed="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.analise-caixa.analise-caixa-bloqueada { color: var(--cor-texto-desligado); opacity: .6; cursor: not-allowed; }
+.analise-caixa.analise-caixa-bloqueada:hover { background: transparent; }
+.analise-mapa-selecao { min-height: 60px; }
+.analise-mapa-selecao .analise-mapa-conjuntos svg { width: 100%; }
+.analise-selecao-acoes { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; border-top: 1px solid var(--cor-borda-suave); }
+.analise-selecao-acoes > button { display: inline-flex; align-items: center; gap: 6px; }
+.analise-selecionado-estado { border-color: var(--cor-borda-convite); }
+.analise-conjunto-membros { margin-top: 2px; font-size: 12px; }
+.analise-conjunto-membros > summary { color: var(--cor-destaque-texto); cursor: pointer; }
+.analise-territorios[data-acao="criterios"] .analise-selecionados, .analise-territorios[data-acao="agrupar"] .analise-selecionados {
+  max-height: none; }
+@media (max-width: 479px) {
+  .analise-no-linha { flex-wrap: wrap; }
+  .analise-no-acoes { width: 100%; padding-left: 44px; justify-content: flex-start; }
+  .analise-no-filhos { margin-left: 8px; }
+}
+/* Alvos de toque de 40 px nas telas estreitas e no toque: a seta, a caixa da linha e "Só o estado". */
+@media (max-width: 699px), (pointer: coarse) {
+  .analise-no-seta { width: 40px; height: 40px; }
+  .analise-caixa.analise-no-caixa { min-height: 40px; }
+  .analise-so-estado { min-height: 40px; }
+}
+/* A dica de um conjunto lista todos os integrantes no título (comando V22, seção 6): com muitos, o título rola por dentro. */
+.analise-dica > strong { max-height: 7.5em; overflow-y: auto; overflow-wrap: anywhere; }
+/* O foco da Análise Espacial (comando V22, seção 7): a base, a referência e a distância exata, com o controle que limpa o foco. */
+.analise-foco-espacial { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; padding: 6px 10px;
+  border: 1px solid var(--cor-borda-convite); border-radius: 10px; background: var(--cor-realce-destaque); color: var(--cor-texto); font-size: 13px; }

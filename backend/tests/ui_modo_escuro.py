@@ -4,10 +4,11 @@ Com o navegador no escuro (contexto do Playwright com color_scheme="dark"), conf
 luminância relativa do WCAG):
 - o aviso de privacidade, a página, o cabeçalho com o banner, a abertura com as duas entradas dos dados, a janela de envio com o
   modelo de planilha e a conversa flutuante com fundo escuro e texto claro, a 4,5:1 ou mais do fundo;
-- a base carregada sem seleção (as abas, a Seleção de Territórios com os níveis, a busca e o que entra na análise; desde a segunda
-  rodada de 24/10/2026, Desfazer (o "Voltar" até 25/10/2026) e Limpar seleção no alto, o aviso da mudança coletiva e o "Voltar aos
-  estados" preenchido), os estados (E1), com a trilha e a faixa do lugar (06/11/2026: os números do Brasil e o Ver por)
-  escuras e legíveis, e o Amazonas (E2), marcado na lista de territórios, com "Entenda esta análise": o fundo da área e do gráfico escuros, o título, o subtítulo, os rótulos dos eixos e o aviso (âmbar) com contraste
+- a base carregada sem seleção (as abas, a Seleção de Territórios com a árvore do comando V22 — a raiz Brasil com "Só os estados",
+  as regiões, a linha do Amazonas com a seta, a contagem e "Só o estado" —, a busca e o painel da direita, com as três ações;
+  desde a segunda rodada de 24/10/2026, Desfazer (o "Voltar" até 25/10/2026) e Limpar seleção no alto, e o botão que fecha a
+  lista do estado), os estados (E1), com a trilha e a faixa do lugar (06/11/2026: os números do Brasil; sem o Ver por desde o
+  comando V22) escuras e legíveis, e o Amazonas (E2), marcado na lista de territórios, com "Entenda esta análise": o fundo da área e do gráfico escuros, o título, o subtítulo, os rótulos dos eixos e o aviso (âmbar) com contraste
   de texto; as bolhas na série única do escuro (#1ba3b5), com o anel na superfície escura (#1a1a19), e o eixo no tom do escuro;
 - a dica da bolha, o painel de uma função, os Detalhes e o diálogo de Nova sessão, todos escuros e legíveis;
 - o mapa (botão analise-desenho-mapa): com os pontos do motor, a superfície escura no canvas, as cores do escuro no gancho de
@@ -31,7 +32,7 @@ import re
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline
+from ui_support import URL, linha_do_estado, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 AM = "13"  # prefixo IBGE do Amazonas
@@ -224,26 +225,34 @@ def main():
         escuro(area.get_by_test_id("analise-aba-painel"), "painel da aba")
         legivel(area.get_by_test_id("analise-apresentacao").locator("p").first, "orientação da Seleção")
         escuro(territorios, "lista de territórios")
-        # A seleção unificada (05/11/2026): a árvore (a raiz Brasil e os estados) e, no que está na análise, a unidade de análise.
-        legivel(territorios.get_by_test_id("analise-nivel-municipios"), "unidade escolhida (Municípios)")
-        legivel(territorios.get_by_test_id("analise-nivel-estados"), "unidade Estados")
+        # A árvore do comando V22 (9/11/2026; muda de propósito esta conferência, que via a unidade de análise da seleção unificada de
+        # 05/11/2026): a raiz Brasil, com a caixa e "Só os estados", e as regiões.
         legivel(territorios.get_by_test_id("analise-raiz"), "raiz da árvore (Brasil)")
+        legivel(territorios.get_by_test_id("analise-raiz-so-estados"), "Só os estados, na linha do Brasil")
+        legivel(territorios.get_by_test_id("analise-raiz-universo"), "universo da base (5.570 municípios | 27 UFs)")
+        legivel(territorios.locator('[data-testid="analise-regiao"][data-id="1"]').get_by_test_id("analise-regiao-contagem"),
+                "contagem da Região Norte")
         legivel(territorios.get_by_test_id("analise-territorios-instrucao"), "orientação da árvore")
         legivel(territorios.get_by_test_id("analise-busca"), "busca no alto")
         escuro(territorios.get_by_test_id("analise-selecionados"), "o que entra na análise")
         legivel(territorios.get_by_test_id("analise-selecionados-resumo"), "resumo do que entra na análise")
-        # Sem nada marcado, a unidade Estados é o atalho de todos os estados como unidades.
-        estados = respond(lambda: aperta(territorios.get_by_test_id("analise-nivel-estados")))
+        # "Só os estados", na linha do Brasil: todos os estados como unidades (o botão, pressionado, legível no escuro).
+        so_estados = territorios.get_by_test_id("analise-raiz-so-estados")
+        estados = respond(lambda: aperta(so_estados))
+        expect(so_estados).to_have_attribute("aria-pressed", "true")
+        legivel(so_estados, "Só os estados, pressionado")
         # Desfazer e Limpar seleção (24/10/2026, segunda rodada; o Desfazer era "Voltar" até 25/10/2026): no alto da área, com fundo
-        # escuro e os nomes legíveis; o aviso da mudança coletiva ("Para desfazer, use o botão Desfazer, no alto.") junto do que está
-        # marcado, também legível.
+        # escuro e os nomes legíveis. O aviso da mudança coletiva saiu no comando V22 (seção 3); as três ações do painel da
+        # direita, legíveis.
         controles = area.get_by_test_id("analise-controles-globais")
         escuro(controles, "Desfazer e Limpar seleção, no alto")
         legivel(controles.get_by_test_id("analise-desfazer"), "Desfazer")
         legivel(controles.get_by_test_id("analise-limpar-selecao"), "Limpar seleção (vassoura)")
-        legivel(territorios.get_by_test_id("analise-selecao-aviso"), "aviso da mudança coletiva, com o caminho do Desfazer")
-        legivel(territorios.get_by_test_id("analise-ver-analise"), "Ver a análise")
-        aperta(territorios.get_by_test_id("analise-ver-analise"))
+        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_count(0)
+        legivel(territorios.get_by_test_id("analise-confirmar-selecao"), "Confirmar seleção")
+        legivel(territorios.get_by_test_id("analise-aplicar-criterios"), "Aplicar critérios de seleção")
+        legivel(territorios.get_by_test_id("analise-agrupar-selecionados"), "Agrupar territórios selecionados")
+        aperta(territorios.get_by_test_id("analise-confirmar-selecao"))
         expect(area).to_have_attribute("data-estado", "E1")
         assert estados["itens"], "o motor devolveu os estados"
         grafico = area.get_by_test_id("analise-grafico")
@@ -261,25 +270,23 @@ def main():
         expect(numero).to_be_visible(timeout=60000)
         legivel(numero.locator("strong"), "número da faixa (profissionais)")
         legivel(numero.locator("dt"), "nome do número da faixa")
-        legivel(faixa.get_by_test_id("analise-ver-por-estados"), "Ver por Estado (escolhido)")
-        legivel(faixa.get_by_test_id("analise-ver-por-municipios"), "Ver por Município")
+        expect(faixa.locator('[data-testid^="analise-ver-por"]')).to_have_count(0)  # sem o Ver por desde o comando V22
         shot("03-estados")
 
         # 4. O Amazonas marcado na lista de territórios (E2): fundo da área e do gráfico escuros, textos legíveis, a paleta do escuro.
         aperta(area.get_by_test_id("analise-aba-territorios"))
-        # Os estados como unidades marcaram o Brasil inteiro na árvore: desmarcar a raiz tira tudo (e a unidade volta aos
-        # municípios); o Amazonas entra sozinho.
+        # Os estados como unidades (comando V22): "Só os estados" de novo tira todos, e os municípios ficam livres, sem nenhum
+        # marcado; o Amazonas entra sozinho, pela caixa da linha dele, na Região Norte aberta pela seta.
+        aperta(so_estados)
+        expect(so_estados).to_have_attribute("aria-pressed", "false")
         raiz = territorios.get_by_test_id("analise-raiz-caixa")
-        expect(raiz).to_be_checked()
-        raiz.focus()
-        raiz.press("Space")
         expect(raiz).not_to_be_checked()
-        expect(territorios.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
-        linha_am = territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]')
+        linha_am = linha_do_estado(territorios, AM)
         expect(linha_am).to_contain_text("Amazonas")
         escuro(territorios, "lista de territórios")
-        legivel(linha_am.get_by_test_id("analise-grupo-ver"), "Municípios (o botão que abre a lista do estado)")
+        legivel(linha_am.get_by_test_id("analise-grupo-ver"), "a seta que abre a lista do estado")
         legivel(linha_am.get_by_test_id("analise-grupo-contagem"), "contagem do estado")
+        legivel(linha_am.get_by_test_id("analise-grupo-so-estado"), "Só o estado")
         # A lista do estado abre no lugar, com o botão que a fecha, legível no escuro; ele só fecha a lista.
         aperta(linha_am.get_by_test_id("analise-grupo-ver"))
         legivel(territorios.get_by_test_id("analise-grupo-voltar"), "Fechar a lista do estado")
@@ -293,7 +300,7 @@ def main():
             caixa_am.focus()
             caixa_am.press("Space")
         am = respond(marca_am)
-        aperta(territorios.get_by_test_id("analise-ver-analise"))
+        aperta(territorios.get_by_test_id("analise-confirmar-selecao"))
         expect(area).to_have_attribute("data-estado", "E2")
         assert all(item["tipo"] == "municipio" for item in am["itens"])
         com_valor = sorted(item["id"] for item in am["itens"] if item.get("densidade") is not None)

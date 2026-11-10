@@ -39,9 +39,12 @@ VISTAS = {"grafico": "gráfico de bolhas", "mapa": "mapa", "lado": "gráfico e m
 FUNCIONALIDADES = (
     "Dados: “Dados do Brasil” (médicos por município, estado e Brasil, com população) ou “Enviar meus dados” (CSV, XLS ou "
     "XLSX, com o painel Colunas para as escolhas que faltam).",
-    "Seleção de Territórios: escolhe os territórios analisados (estados, municípios, Brasil); vale para todas as análises. "
-    "Nela, Agrupar territórios junta unidades num conjunto (também de estados diferentes), que vira um território da análise: a "
-    "soma das contagens dos membros, com possível dupla contagem; por escolha da pessoa, o conjunto fica no lugar dos membros.",
+    "Seleção de Territórios: escolhe os territórios analisados na árvore Brasil, região, estado e município (a seta abre, a "
+    "caixa marca os municípios); “Só o estado” põe o estado como uma unidade, com a fonte estadual, e “Só os estados” faz isso "
+    "com todos os estados de uma região ou do Brasil; vale para todas as análises. À direita, o mapa da seleção, a lista e três "
+    "ações: Confirmar seleção (vai à análise aberta), Aplicar critérios de seleção e Agrupar territórios selecionados (por escolha "
+    "livre ou por proximidade, só com os selecionados): o conjunto vira um território da análise, com a soma das contagens dos "
+    "membros e possível dupla contagem.",
     "Análise de Distribuição: o indicador de cada território numa competência, em bolhas (tamanho = população) ou no mapa; "
     "grupos por posição (quartis, quintis, decis) e a mudança entre duas competências.",
     "Análise Espacial: a distância geográfica direta (em linha reta) de cada município da base até a referência mais próxima, "

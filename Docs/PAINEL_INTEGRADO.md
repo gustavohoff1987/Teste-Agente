@@ -401,9 +401,10 @@ Chaves estritas: além das do contrato de 21/10, só estas (desconhecida → 422
 |---|---|
 | `nivel` | Obrigatória: `"municipios"`, `"estados"`, desde 24/10/2026, `"brasil"` e, desde 07/11/2026, `"regioes"` (o nível de grupo de cima de uma planilha com o papel `grupo_territorial_superior` e a hierarquia consistente: cada valor da coluna de cima vira um item, `tipo: "estado"`, `id: "uf:<valor>"`, com os valores pelas unidades dele, nunca pela soma dos grupos, e as mesmas regras do nível estados de uma planilha; `estados` leva os escolhidos; sem a coluna → 422 "Sem a coluna do nível acima d… (papel grupo_territorial_superior), …"; hierarquia inconsistente → 422 com o motivo; base do Brasil → 422 "O nível regioes existe só nas planilhas com dois níveis de grupo; …"). `brasil` só na base do Brasil (planilha → 422 "O nível Brasil existe só na base do Brasil, …"). `estados` na base do Brasil e, desde 07/11/2026 (item 1 do comando de 06/11/2026), numa planilha com a coluna-mãe (o papel `grupo_territorial`): cada grupo vira um item (`tipo: "estado"`, `id: "uf:<valor>"`, `rotulo`: o valor, `uf: null`), com os valores pelas unidades dele — com o identificador individual em todas as linhas, as pessoas únicas (`contagem: "UNIDADES_DISTINTAS"`); senão, a soma (`contagem: "SOMA_DOS_COMPONENTES"`, `limitacoes: ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"]`, também no topo), a decisão "Soma automática". A Tendência e a Série do nível vêm das mesmas somas em cada competência; `estados` leva os valores (ou os ids "uf:"), e o desconhecido → 422 "… inexistentes na planilha". Planilha sem a coluna-mãe → 422 "Sem a coluna d… (papel grupo_territorial), não há nível acima …". |
 | `estados` | Só no nível estados (24/10/2026): os estados escolhidos, pelos prefixos IBGE (`["29", "42"]`) ou pelos ids (`"uf:29"`), sem repetir; os itens vêm na ordem do código. Sem a lista, todos os estados da fonte estadual, como antes. Fora do nível estados → 422 "A lista estados vale só no nível estados: …"; lista vazia ou repetida → 422 "Estados inválidos: …"; estado sem registro → 422 "Estado sem registro na fonte estadual: …". |
+| `estados_unidade` | Desde 09/11/2026 (comando V22, decisão 3), só no nível municípios: os estados como unidade junto com os municípios e os conjuntos da `base` (na base do Brasil, os prefixos IBGE ou os ids `"uf:"`; numa planilha com a coluna-mãe, os valores do grupo), sem repetir (seção "Níveis na mesma seleção"). Fora do nível municípios → 422 "estados_unidade vale só com nivel "municipios": …"; repetido → 422 "Estados como unidade inválidos: …"; sem registro → 422 "Estado sem registro: …"; um município de um estado que está como unidade (ou num conjunto de estados) → 422 "… estão na seleção junto com o estado inteiro (como unidade ou num conjunto de estados): …"; sem municípios nem conjuntos de municípios → 422 com o caminho (o nível estados). |
 | `indicador` | Obrigatória: `"densidade"` ou `"quantidade"`, o indicador do gráfico. Vale para `grupos`, `grupos_mapa`, `faixas`, `tendencia`, `comparar` e para `ordenar` com `variacao`. Densidade sem população na planilha → 422 "A planilha não tem coluna de população associada: …". |
 | `base` | Como no contrato de 21/10, só no nível municípios. Na planilha, `estados` traz os valores do grupo (coluna `grupo_territorial`) e `ids` os identificadores das unidades. |
-| `conjuntos`, `referencia` | Como no contrato de 21/10, só no nível municípios. O território de referência por elegibilidade (24 a 26/10/2026) saiu: o pedido com `relacao`, `delimitacao` ou `condicao` recebe 422 com o caminho novo (seção "Escolha dos territórios"). |
+| `conjuntos`, `referencia` | Como no contrato de 21/10, só no nível municípios. Desde 09/11/2026 (comando V22, seção 5), `conjuntos` também traz **conjuntos de estados** (todos os membros `"uf:<prefixo>"`, ou os prefixos, dois ou mais estados da fonte estadual): no nível estados, junto com os estados escolhidos (ou só eles, com `estados: []`), e no nível municípios, junto com os municípios (seção "Níveis na mesma seleção"). Um conjunto de estados é a soma das contagens estaduais de médicos únicos e das populações dos estados (`contagem: "SOMA_DOS_COMPONENTES"`, `nivel_dos_membros: "estados"`, a nota `NOTE_STATES_SUM` e `SOMA_COM_POSSIVEL_DUPLA_CONTAGEM`: quem atua em mais de um estado conta em cada um); nunca o total do Brasil. Um conjunto que mistura estados e municípios → 422 "O conjunto … mistura estados e municípios: um conjunto reúne territórios do mesmo nível."; no nível estados, membros que não são estados → 422 "Conjunto …: sem registro na fonte estadual (…). Um conjunto reúne territórios do mesmo nível: …"; numa planilha, conjuntos de grupos → 422 "Conjuntos de … não estão disponíveis numa planilha; use Agrupar territórios selecionados com …". O território de referência por elegibilidade (24 a 26/10/2026) saiu: o pedido com `relacao`, `delimitacao` ou `condicao` recebe 422 com o caminho novo (seção "Escolha dos territórios"). |
 | `consulta` | Desde 27/10/2026, a **Escolha dos territórios** da análise espacial (seção "Escolha dos territórios"), só no nível municípios e sem `referencia`: a base e a referência em três etapas e a distância até a referência mais próxima. |
 | `competencia_inicial` | Como no contrato de 21/10 (visão Trajetória, antes chamada Mudança, CAP-TMP-01), em todos os níveis. |
 | `tendencia` | `{"competencias": [...]}`: a janela, de 2 a 80 competências distintas e existentes, em qualquer ordem (o motor ordena). Com menos de quatro, o motor devolve o bloqueio (`BLQ-MET`, série insuficiente). |
@@ -419,9 +420,10 @@ Chaves estritas: além das do contrato de 21/10, só estas (desconhecida → 422
 | `premissas` | Só nas planilhas (seção "Planilhas enviadas"); na base do Brasil → 422 "Na base do Brasil, as premissas vêm do perfil oficial: …". |
 | `rotulos` | Só nas planilhas; na base do Brasil → 422 "Na base do Brasil, os rótulos são fixos …". Desde 07/11/2026 (item 1 do comando de 06/11/2026), também `todo`: `{"nome", "artigo"}`, o nome do todo dado no painel Colunas (até 60 caracteres) e o artigo que ele pede (`""`, `"o"`, `"a"`, `"os"` ou `"as"`); outro artigo, nome que não seja texto ou sem `nome` → 422. Sem nome, não há todo, e os textos dizem "toda a base". |
 
-No nível `estados`, `base`, `conjuntos`, `referencia`, `consulta`, `faixas_distancia`, `rotatividade`, a condição e a ordenação por
+No nível `estados`, `base`, `referencia`, `consulta`, `faixas_distancia`, `rotatividade`, a condição e a ordenação por
 `distancia_km` são recusados com o motivo (estados não têm um ponto único; a base vale só para municípios; os estados
-escolhidos vão em `estados`).
+escolhidos vão em `estados`). Desde 09/11/2026 (comando V22), `conjuntos` de estados entram (acima); até então, "Conjuntos de
+estados não estão disponíveis no gráfico".
 
 No nível `brasil` (24/10/2026), pela matriz da decisão D3, valem os valores (densidade e quantidade), a mudança
 (`competencia_inicial`) e a tendência (`tendencia`): `base`, `conjuntos`, `referencia`, `consulta`, `faixas_distancia` e `rotatividade` são
@@ -464,6 +466,39 @@ campos `null`, nos dois modos de referência):
   (possível dupla contagem).").
 - **As notas e a memória:** as notas de cada bloco dizem como os conjuntos entram ("Os conjuntos entram nas condições como
   territórios a mais, …"). A chave da memória (`_reaproveitar`) leva os conjuntos (o id, o nome e os membros).
+
+### Níveis na mesma seleção (comando V22)
+
+Desde 09/11/2026 (comando V22, decisão 3 e seção 2): a seleção pode reunir estados como unidade (`estados_unidade`), municípios
+(`base`) e conjuntos — de municípios e de estados — num só pedido do nível municípios (`painel._compute_niveis`). O motor calcula
+cada nível pelo caminho dele, com as mesmas funções de sempre: os municípios e os conjuntos de municípios como no pedido só deles;
+os estados como no nível estados (a contagem estadual de médicos únicos; numa planilha, os grupos pelas unidades deles) e os
+conjuntos de estados pela soma das fontes estaduais. Depois, junta as respostas, sem recalcular nenhum número
+(`painel._juntar_niveis`):
+- **`itens`:** os municípios e os conjuntos de municípios primeiro, depois os estados e os conjuntos de estados.
+- **`niveis`:** `["municipios", "estados"]`. **`por_nivel`:** os blocos de cada nível (`grupos`, `grupos_mapa`, `faixas`,
+  `condicoes`, `ordenacao`, `ordem_do_indicador`, `tendencia`, `contexto`, `notas`…), com `itens_de` (a posição do primeiro item
+  do nível em `itens`) e `itens_quantos`. No topo, os blocos do nível municipal, como sempre: um cliente que não conhece
+  `por_nivel` lê os municípios como antes.
+- **Medidas de posição:** quantis, ordenação, grupos por posição e faixas ficam dentro de cada nível, nunca misturando estados e
+  municípios (RQ-DAD-30). Com um só estado como unidade, os grupos por posição ficam só nos municípios.
+- **`comparar`:** só entre itens do mesmo nível; misturar → 422 "A comparação põe lado a lado territórios do mesmo nível: …".
+- **`limitacoes`** traz `NIVEIS_TERRITORIAIS_DIFERENTES`; as notas trocam "Estados e municípios não aparecem juntos no mesmo
+  gráfico …" pela nota dos níveis ("Estados como unidade e municípios na mesma análise (comando V22): cada nível vem da própria
+  fonte … e nunca é somado ao outro; …"). A chave de execução é a das duas respostas.
+- **`resumo`:** a frase de cada nível, uma depois da outra, com os caminhos levados à resposta inteira e as contagens por nível
+  (`resumo.contagens` com `municipios` e `estados`), conferida como sempre (`resumo_painel.summary_por_nivel`).
+- **Análise Espacial** (`referencia` ou `consulta`): a distância é medida de cada município (CAP-ESP-02), e os estados como
+  unidade e os conjuntos de estados ficam de fora, em **`fora_da_analise`** (`[{"id", "rotulo", "tipo", "motivo"}]`, com o motivo
+  "Fora da Análise Espacial: o estado como unidade não tem um ponto único, …"), com a nota de quantos ficaram de fora; os itens são
+  os da resposta municipal.
+- **Rotatividade:** a interface não manda os estados como unidade nem os conjuntos de estados (a rotatividade acompanha pessoas em
+  cada unidade) e diz quais ficaram de fora.
+- **Conversa:** os fatos de ordem e os extremos que a conversa lê (`_conversation_units`) são os do primeiro nível.
+
+As competências devolvidas por `/api/inspect` (`periods` e `preflight.values.periods`) vêm na ordem da data real desde
+09/11/2026 (comando V22, seção 4; `semantic_bridge.ordem_cronologica`: os números pelo valor, "2014-6" antes de "2014-10"); antes,
+na ordem do arquivo.
 
 ### Resposta 200 da página única
 

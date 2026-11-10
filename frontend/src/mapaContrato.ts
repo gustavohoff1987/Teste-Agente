@@ -90,6 +90,10 @@ export type MapaProps = {
   /** Clique ou Enter: o que a bolha faz (desde 06/11/2026: no estado, desce até ele; na unidade, abre o lugar dela; com a
    * Comparar aberta, marca e desmarca). A área decide. */
   onAlternar: (id: string) => void;
+  /** Foco da Análise Espacial (comando V22, seção 7): a base em foco destaca a ligação dela até a referência (as demais ligações
+   * esmaecem, sem sumir); tocar ou Enter numa base com ligação foca nela, no mapa e no gráfico. */
+  foco?: string | null;
+  onFocar?: (id: string) => void;
   /** A nota dos pontos (mapa-nota), quando não é a da sede municipal: vendo por estado, a do ponto de desenho do motor. */
   nota?: string | null;
   carregando: boolean;

@@ -17,9 +17,10 @@ import {
   dentroDosFiltros, destaqueDaAnalise, escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, gradienteDaVariacao, grupoDaUnidade,
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
   competenciaPorExtenso, limiteDaVariacao, limparEscolha, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
-  escolhaDaArvore, escolhaDaUnidade, gruposParciais, motivoDaUnidade, unificarEscolha, type ContextoDaArvore,
+  escolhaDaArvore, gruposParciais, unificarEscolha, type ContextoDaArvore, ativarEstados, desativarEstados, ativarRegioes, desativarRegioes,
+  conjuntosComMembrosNos, conjuntoDeEstados, nivelDaSelecao, baseSemOsEstados, unidadeMarcada, foraDaRotatividade,
   MAX_CONJUNTOS, REGIOES_DO_BRASIL, RESSALVA_DA_SOMA, TEXTO_MAX_GRUPOS, competenciaAbreviada, contagemPorTipo, emGrupos, gruposDaRegiao, regioesDaFonte, rotulosDaVista, type GrupoInfo,
-  regraConfere, textoDaRegra, quantos, criteriosDasCondicoes, type RegraDaSelecao, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
+  regraConfere, textoDaRegra, quantos, criteriosDasCondicoes, type RegraDaSelecao, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, textoDaReferencia, textoEspacialNosGrupos,
   textoVerUnidadesDosGrupos, type ParteDaTrilha,
   montarOpcoes, profissionaisDe,
   apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
@@ -36,7 +37,8 @@ import PainelSeries, { LegendaDaSerie, MAX_SERIES, Velocidades, type SerieDeRefe
 import PainelSetas, { LegendaDoQuadro } from "./PainelSetas";
 import PainelRotatividade from "./PainelRotatividade";
 import PainelRuler from "./PainelRuler";
-import PainelTerritorios, { type ModoDaSelecao } from "./PainelTerritorios";
+import PainelTerritorios, { type AcaoDaSelecao } from "./PainelTerritorios";
+import AgruparSelecionados, { type ConjuntoPorProximidade } from "./AgruparSelecionados";
 import SelecionarPorCriterios, { type PedidoDosCriterios, type UsoDosCriterios } from "./SelecionarPorCriterios";
 import PainelAbrangencia from "./PainelAbrangencia";
 import FaixaDoLugar, { Trilha } from "./FaixaDoLugar";
@@ -255,7 +257,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** Desfazer (24/10/2026, segunda rodada): os passos da interação, o mais recente no fim. */
   const [passos, setPassos] = useState<PassoDaInteracao<EstadoDaInteracao>[]>([]);
   /** O que a última mudança coletiva da Seleção fez ("Municípios da Bahia desmarcados."), mostrado junto do que está marcado. */
-  const [avisoSelecao, setAvisoSelecao] = useState<string | null>(null);
   /** Aba à vista: a Seleção de Territórios ou uma análise. A análise desenhada é a da definição (def.familia): a Seleção e a aba de
    * uma análise que não pode ser executada mostram a apresentação e o motivo, e o desenho continua com a última análise. */
   const [aba, setAba] = useState<Aba>("territorios");
@@ -361,7 +362,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setDef(e.def); setAba(e.aba); setAberto(e.aberto); setVistaEscolhida(e.vista); setEscala(e.escala); setCorte(e.corte);
     setSelecionados(e.selecionados); setFiltroClasse(e.filtroClasse); setSoAtende(e.soAtende);
     if (painel === "referencia" && e.def.familia !== "espacial") setPainel(null);
-    setVista("final"); setFase("parado"); setAvisoSelecao(null);
+    setVista("final"); setFase("parado");
     setAviso(textoDoDesfeito(passo));
   }
   const passoADesfazer = passos[passos.length - 1] ?? null;
@@ -380,8 +381,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** O mapa numa definição (a da tela ou a que resulta de um pedido da conversa). */
   const mapaDe = (d: DefinicaoAnalise) => disponibilidadeDoMapa({ fonte: tipo, temCoordenadas, nivel: d.nivel,
     series: d.nivel === "municipios" && d.familia === "tendencia" && visaoEfetiva(d) === "series", rotatividade: d.familia === "rotatividade", rotulos });
+  // Os nomes dos territórios: as unidades do catálogo, os itens da resposta e, para os conjuntos de estados (comando V22), os
+  // estados pelo id "uf:".
   const nomes = useMemo(() => new Map<string, string>([...municipios.map(item => [item.id, nomeDaUnidade(item)] as [string, string]),
-    ...(resposta?.itens || []).map(item => [item.id, item.rotulo] as [string, string])]), [municipios, resposta]);
+    ...grupos.map(grupo => ["uf:" + grupo.id, grupo.nome] as [string, string]),
+    ...(resposta?.itens || []).map(item => [item.id, item.rotulo] as [string, string])]), [municipios, grupos, resposta]);
   /** Grupo da lista de uma bolha de grupo (estado) do motor. */
   // No nível de cima (07/11/2026), a bolha é um grupo de cima, com as unidades dos grupos dele.
   const gruposDaBolha = resposta?.nivel === "regioes" ? regioes : grupos;
@@ -398,22 +402,20 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     regra: def.regra }), [def.nivel, def.base, def.estados, def.conjuntos, def.regra, arvore, tipo, nomes, comBolhasDeGrupo, rotulos]);
   // A regra da seleção por critérios em uso (07/11/2026, item 6 do comando): vale enquanto a seleção for a que ela produziu.
   const regraEmUso = regraConfere(def.regra, def) ? def.regra! : null;
-  // O grupo de cima no "Ver por" (07/11/2026): com os grupos de cima da árvore e o nível no motor (a hierarquia consistente).
+  // Os grupos de cima de uma planilha com dois níveis (07/11/2026): com a hierarquia consistente, eles podem entrar como unidade
+  // ("Só a zona", na árvore). O "Ver por" saiu (comando V22, decisão 3): o estado como unidade é escolhido na própria árvore.
   const comRegioes = comBolhasDeGrupo && regioes.length > 0 && (disponibilidade?.regioes?.disponivel ?? true);
-  const verPor = useMemo(() => opcoesVerPor(lugar, def, { arvore, comNiveis: comBolhasDeGrupo, rotulos, comRegioes }),
-    [lugar, def.base, arvore, comBolhasDeGrupo, rotulos, comRegioes]);
   const [numerosDoLugar, setNumerosDoLugar] = useState<{ chave: string; base: string; dados: RespostaLugar } | null>(null);
   // O painel "Selecionar por critérios" (07/11/2026): fechado (null), aberto vazio, com a regra a reaplicar ou com o pedido da
   // conversa (com a prévia ao abrir; `n` conta os pedidos, para o mesmo pedido repetido abrir de novo).
   const [criterios, setCriterios] = useState<{ inicial: RegraDaSelecao["pedido"] | null; previa?: boolean; n?: number;
     aviso?: string } | null>(null);
-  // O modo da Seleção (07/11/2026, item 1 do comando de 07/11/2026): "Marcar na lista" (padrão), "Por critérios" ou "Agrupar
-  // territórios". A conversa, as Condições e "Reaplicar em outra competência" abrem "Por critérios" preenchido (item 1.5).
-  const [modoSelecao, setModoSelecao] = useState<ModoDaSelecao>("lista");
-  const escolherModoDaSelecao = (modo: ModoDaSelecao) => {
-    if (modo === "criterios" && !criterios) setCriterios({ inicial: null });
-    setModoSelecao(modo);
-  };
+  // A ação aberta no painel direito da Seleção (comando V22, seção 3): a lista dos selecionados (padrão), "Aplicar critérios de
+  // seleção" ou "Agrupar territórios selecionados"; a árvore continua à vista. A conversa, as Condições e "Reaplicar em outra
+  // competência" abrem os critérios preenchidos.
+  const [acaoSelecao, setAcaoSelecao] = useState<AcaoDaSelecao>("lista");
+  // O agrupamento aberto: um conjunto novo ou o conjunto em edição (✎); `km`, a distância de um pedido que veio dos critérios.
+  const [agrupamento, setAgrupamento] = useState<{ n: number; editando?: { id: string; grupo: GrupoAgregado } | null; km?: number | null } | null>(null);
   const [carregandoLugar, setCarregandoLugar] = useState(false);
   const [erroLugar, setErroLugar] = useState<{ chave: string; mensagem: string } | null>(null);
   const cacheLugar = useRef(new Map<string, RespostaLugar>());
@@ -427,7 +429,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   useEffect(() => {
     if (!fonte) {
       if (iniciado.current) { iniciado.current = ""; cache.current.clear(); cacheMapa.current.clear(); setResposta(null); setCalculado(null); setErro(null);
-        setDadosDoMapa(null); setErroMapa(null); reiniciarVisual(); setPassos([]); pendente.current = null; setAvisoSelecao(null);
+        setDadosDoMapa(null); setErroMapa(null); reiniciarVisual(); setPassos([]); pendente.current = null;
         setDef(definicaoInicial({ tipo: null, periodos, categoria: props.categoria, temGrupos: false })); }
       return;
     }
@@ -440,7 +442,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     let inicial = definicaoInicial({ tipo, periodos, categoria: props.categoria, temGrupos: grupos.length > 0, temPopulacao,
       premissas: premissasDaFonte });
     // Outra fonte, outro histórico: o Desfazer não volta a uma seleção de outra base.
-    setPassos([]); pendente.current = null; setAvisoSelecao(null);
+    setPassos([]); pendente.current = null;
     const pendentePedido = pedidoPendente.current ?? (pedido && pedido.id !== ultimoPedido.current ? pedido : null);
     if (pendentePedido) {
       pedidoPendente.current = null;
@@ -659,6 +661,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // um controle troca para as bolhas. Estado visual: nada é recalculado.
   const estreita = useNarrow();
   const [vistaDosGrupos, setVistaDosGrupos] = useState<"lista" | "bolhas">("lista");
+  // O foco da Análise Espacial (comando V22, seção 7): a base em foco, com a referência dela, a ligação e a distância exata; as
+  // demais relações esmaecem. Estado visual: nada é pedido ao motor nem recalculado.
+  const [focoEspacial, setFocoEspacial] = useState<string | null>(null);
+  // As regiões abertas na árvore da Seleção (comando V22): guardadas aqui, porque a aba desmonta o painel.
+  const [regioesAbertas, setRegioesAbertas] = useState<string[]>([]);
   const renders = useRef(0);
   renders.current += 1;
   const visto = useRef("");
@@ -698,7 +705,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (criteriosDoChat) {
       setAba("territorios");
       setCriterios(atual => ({ inicial: criteriosDoChat, previa: true, n: (atual?.n ?? 0) + 1 }));
-      setModoSelecao("criterios");
+      setAcaoSelecao("criterios");
       iniciarExecucao(pedido.id, [], { mudou: true, mapa: false, semCalculo: true });
       return;
     }
@@ -724,7 +731,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     }
     const resultado = aplicarPedido(def, pedido.pedido, { periodos, nomes, temGrupos: comBolhasDeGrupo, disponivel: disponivelDe, grupoDe, mapa: mapaDe,
       todosOsEstados: idsDosGrupos, temBrasil: todoPorGrupo, unidadesDoGrupo: arvore.unidadesDoGrupo,
-      todasAsRegioes: comRegioes ? idsDasRegioes : [] });
+      todasAsRegioes: comRegioes ? idsDasRegioes : [], gruposDaRegiao: regiao => gruposDaRegiao(regiao, arvore) });
     if (!temPopulacao && pedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
     // A árvore mostra o que está na análise (05/11/2026): os estados ou o Brasil pedidos ficam marcados nela.
     resultado.definicao = { ...resultado.definicao, ...unificarEscolha(escolhaDe(resultado.definicao), arvore) };
@@ -826,7 +833,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const competenciaDoMapa = resposta?.competencia || def.competencia;
   const categoriaDoMapa = resposta?.categoria || def.categoria;
   // Vendo por estado, o pedido do mapa leva `grupos`: o ponto de desenho de cada estado, do motor (06/11/2026).
-  const gruposNoMapa = tipo === "brasil" && def.nivel === "estados";
+  // Os pontos de desenho dos estados também com os estados como unidade junto dos municípios (comando V22): cada estado da seleção
+  // fica no ponto dele, e os conjuntos de estados contornam os estados membros.
+  const gruposNoMapa = tipo === "brasil" && (def.nivel === "estados" || (def.nivel === "municipios" &&
+    (def.estados.length > 0 || def.conjuntos.some(conjuntoDeEstados))));
   const chaveMapa = fonte && competenciaDoMapa ? chaveFonte + "::" + JSON.stringify([competenciaDoMapa, categoriaDoMapa, tipo === "arquivo" ? def.premissas : {},
     gruposNoMapa]) : "";
   const dadosAtuais = dadosDoMapa?.dados ?? null;
@@ -834,6 +844,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // Vendo por estado (06/11/2026): os pontos de desenho dos estados entram no mapa junto das sedes (que ficam de fundo); a nota e os
   // nomes do mapa falam dos estados.
   const estadosNoMapa = resposta?.nivel === "estados" && !!dadosAtuais?.grupos;
+  // Níveis na mesma seleção (comando V22): os estados da resposta entram no mapa, cada um no ponto de desenho dele; os nomes e a nota
+  // continuam os dos municípios.
+  const estadosJuntosNoMapa = !estadosNoMapa && !!resposta?.niveis?.includes("estados") && !!dadosAtuais?.grupos;
   const erroDoMapa = erroMapa && erroMapa.chave === chaveMapa ? erroMapa : null;
   const semCoordenada = useMemo(() => mapaNaTela && dadosConferem && dadosAtuais
     ? new Map(dadosAtuais.semCoordenada.map(item => [item.id, item.motivo] as [string, string])) : null, [mapaNaTela, dadosConferem, dadosAtuais]);
@@ -861,9 +874,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       .sort((a, b) => Number(marcadas.has(b.base.id)) - Number(marcadas.has(a.base.id))).slice(0, MAX_LIGACOES);
   }, [pares, visiveis, selecao]);
   // Destaque da análise (26/10/2026): com a comparação em exibição, só os comparados ficam inteiros no gráfico de bolhas. As demais
-  // bolhas esmaecem.
-  const destaque = useMemo(() => destaqueDaAnalise(def.comparar, new Set((resposta?.itens || []).map(item => item.id))),
-    [def.comparar, resposta]);
+  // bolhas esmaecem. Com o foco da Análise Espacial (comando V22), a base em foco e a referência dela.
+  const parDoFoco = focoEspacial && distanciaNaTela ? pares.find(par => par.base.id === focoEspacial) ?? null : null;
+  useEffect(() => { if (focoEspacial && !parDoFoco) setFocoEspacial(null); }, [focoEspacial, parDoFoco]);
+  const destaque = useMemo(() => parDoFoco ? [parDoFoco.base.id, ...parDoFoco.referencias.map(ref => ref.id)]
+    : destaqueDaAnalise(def.comparar, new Set((resposta?.itens || []).map(item => item.id))), [def.comparar, resposta, parDoFoco]);
   const limiteVariacao = useMemo(() => resposta ? limiteDaVariacao(resposta, indicador, plotaveis) : 0, [resposta, indicador, plotaveis]);
   const totalGrupos = resposta?.grupos ? ({ quartis: 4, quintis: 5, decis: 10 } as Record<string, number>)[resposta.grupos.tipo] ?? resposta.grupos.contagens.length : 0;
   const totalFaixas = resposta?.faixas ? Math.max(resposta.faixas.rotulos.length, resposta.faixas.contagens.length) : 0;
@@ -935,7 +950,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
 
   // Os mini mapas da Seleção (07/11/2026, item 7 do comando de 07/11/2026) usam as mesmas coordenadas do mapa: pedidas também com a
   // Seleção em "Por critérios" ou "Agrupar territórios", ou com conjuntos na seleção ("Ver os conjuntos no mapa").
-  const querMapaNaSelecao = aba === "territorios" && (modoSelecao !== "lista" || def.conjuntos.length > 0);
+  const querMapaNaSelecao = aba === "territorios";
   const querMapa = !!fonteMotor && !!chaveMapa && mapa.disponivel && (mapaNaTela || querMapaNaSelecao ||
     (resposta?.nivel === "municipios" && plotaveis.length > 0));
   useEffect(() => {
@@ -1012,52 +1027,53 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   }
   /** Mudança feita na Seleção de Territórios: o nível em análise e a escolha de cada nível. Cada uma é um passo do Desfazer; a
    * coletiva (muitos de uma vez) também aparece por escrito junto do que está marcado. */
-  function mudarEscolha(parte: Partial<Escolha>, rotulo: string, coletiva = false) {
+  function mudarEscolha(parte: Partial<Escolha>, rotulo: string) {
     registrar(rotulo);
-    if (parte.nivel && parte.nivel !== def.nivel) setSelecionados([]);
-    trocarEscolha({ ...escolhaDe(def), ...parte });
+    const proxima = { ...escolhaDe(def), ...parte };
+    if (nivelDaSelecao(proxima) !== def.nivel) setSelecionados([]);
+    trocarEscolha(proxima);
     setCorte(null);
-    setAvisoSelecao(coletiva ? rotulo : null);
   }
-  /** A escolha nova, com a comparação só enquanto os itens dela continuam na análise. */
+  /** A escolha nova, com o nível que ela pede (comando V22: só estados como unidade é o nível estados; com municípios, o nível
+   * municipios, com os estados à parte) e a comparação só enquanto os itens dela continuam na análise. */
   function trocarEscolha(escolha: Escolha) {
-    mudar({ ...escolha, comparar: comparacaoQueContinua(def, escolha, grupoDe) });
+    const proxima = { ...escolha, nivel: nivelDaSelecao(escolha) };
+    mudar({ ...proxima, comparar: comparacaoQueContinua(def, proxima, grupoDe) });
   }
-  /** A unidade de análise (05/11/2026; antes, o nível da Seleção de Territórios): cada ponto é um município, um estado ou o Brasil.
-   * Os estados como unidades valem com estados inteiros na árvore; o Brasil, com o Brasil inteiro (sem nada marcado, os dois são
-   * atalhos para todos os estados e para o Brasil inteiro). Um passo do Desfazer. */
-  function escolherNivel(nivel: PainelNivel) {
-    // No nível de cima (07/11/2026), o grupo de cima no lugar do grupo ("Ver por zona").
-    const grupo = rotulosDaVista(rotulos, nivel).grupo ?? ROTULOS_GENERICOS.grupo!;
-    const nova = escolhaDaUnidade(escolhaDe(def), nivel, arvore);
-    if (!nova) { setAviso(motivoDaUnidade(nivel === "brasil" ? "brasil" : nivel === "regioes" ? "regioes" : "estados", rotulos, tipo === "brasil")); return; }
-    const nome = nivel === "brasil" ? "Brasil" : emGrupos(nivel) ? grupo.plural : rotulos.unidade.plural;
-    // Sem nada marcado, os estados e o Brasil são atalhos que marcam tudo: uma mudança coletiva, dita junto do que está marcado.
-    const marcouTudo = nivel !== "municipios" && baseVazia(def.base);
-    const f = generoDe(grupo) === "f";
-    mudarEscolha(nova, marcouTudo ? (nivel === "brasil" ? "Brasil inteiro marcado, como uma unidade."
-      : maiuscula(todosOs(grupo)) + " marcad" + (f ? "as" : "os") + ", como unidades.") : "Trocar a unidade de análise para " + nome, marcouTudo);
-    setAviso(emGrupos(nivel)
-      ? "Ver por " + grupo.singular + ": cada ponto é " + (generoDe(grupo) === "f" ? "uma " : "um ") + grupo.singular + " inteir" + (generoDe(grupo) === "f" ? "a" : "o") +
-        (tipo === "brasil" ? ", com a contagem estadual de médicos únicos."
-          // Numa planilha (07/11/2026), cada grupo vem das unidades dele; a nota do gráfico diz como (pessoas únicas ou a soma).
-          : ", pel" + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " del" + (generoDe(grupo) === "f" ? "a" : "e") + ".")
-      : "Ver por " + rotulos.unidade.singular + ": cada ponto é " + (generoDe(rotulos.unidade) === "f" ? "uma " : "um ") + rotulos.unidade.singular + ".");
-    if (nivel === "municipios") pedirOQueFalta();
+  /** "Ver os municípios destes estados" (a Análise Espacial com só estados como unidade): os municípios deles, inteiros, no lugar
+   * deles. Um passo do Desfazer. */
+  function verUnidadesDosEstados() {
+    if (!def.estados.length) return;
+    const grupos = def.nivel === "regioes" ? def.estados.flatMap(regiao => gruposDaRegiao(regiao, arvore)) : def.estados;
+    mudarEscolha({ nivel: "municipios", base: normalizarArvore({ todos: false, estados: [...grupos], ids: [] }, arvore), estados: [],
+      conjuntos: def.conjuntos.filter(conjunto => !conjuntoDeEstados(conjunto)) },
+    "Ver " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " " + (grupos.length === 1 ? "de " + (grupos.find(Boolean) ?? "") : "destes " +
+      (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural));
+    pedirOQueFalta();
   }
-  /** Uma mudança na árvore da Seleção de Territórios (05/11/2026): a escolha nova, com as equivalências completas reconhecidas; a
-   * unidade de análise continua quando a escolha ainda a permite, e senão volta aos municípios, com o aviso. */
-  function mudarArvore(base: PainelMunicipios, acao: string, coletiva = false) {
-    let nova = escolhaDaArvore(escolhaDe(def), base, arvore);
-    // Chegar ao todo (06/11/2026): a análise vê por estado, o nível abaixo do Brasil na trilha; o "Ver por" troca para município.
-    // Numa planilha, marcar o todo continua mostrando as unidades; os grupos aparecem pelo "Ver por" (07/11/2026).
-    const chegouAoTodo = todoPorGrupo && nova.base.todos && !normalizarArvore(def.base, arvore).todos;
-    if (chegouAoTodo && nova.nivel === "municipios") nova = { ...nova, nivel: "estados", estados: [...idsDosGrupos] };
-    mudarEscolha(nova, acao, coletiva);
-    if (chegouAoTodo) setAviso(nomeDoTodo(tipo === "brasil", rotulos) + " inteiro: ver por " + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular +
-      ". Para ver " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + ", use o Ver por.");
-    else if (nova.nivel !== def.nivel) setAviso("A seleção mudou e não tem mais só estados inteiros: cada ponto da análise volta a ser " +
-      (generoDe(rotulos.unidade) === "f" ? "uma " : "um ") + rotulos.unidade.singular + ".");
+  /** Uma mudança na árvore da Seleção de Territórios: a escolha nova, normalizada (comando V22: os estados como unidade ficam à
+   * parte, e os municípios deles não entram). Marcar o Brasil marca os municípios (os estados que estão como unidade continuam). */
+  function mudarArvore(base: PainelMunicipios, acao: string) {
+    mudarEscolha(escolhaDaArvore(escolhaDe(def), base, arvore), acao);
+  }
+  /** "Só o estado" e "Só os estados" (comando V22, decisão 3): os estados entram na seleção como unidade, e os municípios deles saem,
+   * num só passo do Desfazer; desligar tira o estado e deixa os municípios livres, sem nenhum marcado. Um conjunto de municípios com
+   * membros no estado impede, com o aviso (o conjunto seria somado ao estado). */
+  function estadosComoUnidade(gruposPedidos: string[], ativar: boolean, acao: string) {
+    if (ativar) {
+      const comMembros = conjuntosComMembrosNos(def.conjuntos, gruposPedidos, grupoDe);
+      if (comMembros.length) {
+        setAviso("Não foi possível pôr como unidade: " + comMembros.map(conjunto => conjunto.rotulo).join(", ") + " tem membros " +
+          (gruposPedidos.length === 1 ? "nesse " : "nesses ") + (gruposPedidos.length === 1 ? (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular
+            : (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural) + ". Desfaça o conjunto antes (o estado inteiro não é somado aos municípios dele).");
+        return;
+      }
+      mudarEscolha(ativarEstados(escolhaDe(def), gruposPedidos, arvore), acao);
+    } else mudarEscolha(desativarEstados(escolhaDe(def), gruposPedidos), acao);
+  }
+  /** "Só a zona", numa planilha com dois níveis: o grupo de cima como unidade, sozinho (não se mistura com outros níveis). */
+  function regioesComoUnidade(regioesPedidas: string[], ativar: boolean, acao: string) {
+    mudarEscolha(ativar ? ativarRegioes(escolhaDe(def), regioesPedidas) : desativarRegioes(escolhaDe(def), regioesPedidas), acao);
   }
   /** Limpar seleção (24/10/2026, controle global, no alto): desde 05/11/2026, com a seleção unificada, tira a seleção inteira (a
    * árvore, os estados como unidades, o Brasil inteiro e os conjuntos; limparEscolha), e a unidade volta aos municípios, sem apagar a
@@ -1070,7 +1086,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     registrar("Limpar seleção");
     trocarEscolha(selecaoLimpa);
     setSelecionados([]); setCorte(null); setSoAtende(false); setFiltroClasse(null);
-    setAvisoSelecao("Seleção limpa.");
     setAviso("Seleção limpa: nenhum território na análise. A base de dados continua carregada. Para desfazer, use o botão Desfazer.");
   }
   /** Navegação que troca o que está na análise (abrir um estado pela bolha, o atalho do mapa): um passo do Desfazer. */
@@ -1087,37 +1102,34 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // "Usar como seleção" ou "Usar cada conjunto como um território" muda a análise (um passo do Desfazer). A regra fica com a seleção que
   // ela produziu: a trilha, o método e os Detalhes a mostram enquanto a seleção for a dela.
   function usarCriterios(previa: RespostaCriterios, pedido: RegraDaSelecao["pedido"], uso: UsoDosCriterios) {
-    const comGrupos = uso.conjuntos;
-    const grupos = comGrupos ? previa.grupos ?? [] : [];
-    // Junto com a seleção atual (item 5.2), os conjuntos novos se somam aos que já existem, e as unidades às já marcadas; no lugar
-    // dela (o padrão), o resultado substitui tudo, como antes.
-    const existentes = uso.junto ? def.conjuntos : [];
-    if (existentes.length + grupos.length > MAX_CONJUNTOS) { setAviso(TEXTO_MAX_GRUPOS); return; }
-    // Os sem conjunto entram como unidades, se a pessoa quiser (item 5.3).
-    const ids = comGrupos ? (uso.levarSemConjunto ? [...(previa.isolados ?? []), ...(previa.semPosicao ?? [])] : []) : previa.ids;
-    let base = uso.junto ? baseComUnidades(def.base, ids, contextoDaBase) : normalizarArvore({ todos: false, estados: [], ids }, arvore);
-    let lista: PainelConjuntoPedido[] = [...existentes];
-    for (const grupo of grupos) {
-      const novo = novoConjunto(lista, grupo.membros, uso.nomes[grupo.id] || grupo.rotulo);
-      // Os membros que estavam na seleção saem dela: o conjunto fica no lugar deles e os devolve ao ser desfeito.
-      const retirados = uso.junto ? membrosNaSelecao(base, novo.membros, grupoDe) : [...novo.membros];
-      if (uso.junto && retirados.length) base = baseSemUnidades(base, retirados, contextoDaBase);
-      lista = [...lista, { ...novo, substitui: true, retirados }];
-    }
-    const conjuntos = lista;
-    // "Usar como seleção": a regra dos critérios ("densidade abaixo de 0,5"); com os conjuntos, também o agrupamento. A regra só fica
-    // com a seleção quando o resultado entra no lugar dela (junto, a seleção não é só o que a regra produziu).
-    const texto = comGrupos ? previa.regra.textoAgrupado ?? previa.regra.texto : previa.regra.texto;
-    const regra: RegraDaSelecao | null = uso.junto ? null : { texto, competencia: previa.competencia, total: previa.atendem, base,
-      conjuntos: conjuntos.map(conjunto => ({ id: conjunto.id, membros: [...conjunto.membros] })), pedido };
+    // Comando V22 (seção 4): o resultado entra no lugar da seleção atual (o padrão: os estados como unidade e os conjuntos de antes
+    // saem, como dito no rodapé) ou junto com ela; junto, os municípios de um estado como unidade e os membros de um conjunto da
+    // seleção não entram, e o aviso diz quantos ficaram de fora e por quê. Os conjuntos por proximidade saíram daqui (seção 5).
+    const membrosDeConjuntos = new Set(def.conjuntos.flatMap(conjunto => conjunto.membros));
+    const unidadesDosEstados = new Set(uso.junto ? def.estados : []);
+    const doEstado = uso.junto ? previa.ids.filter(id => unidadesDosEstados.has(grupoDe(id))) : [];
+    const doConjunto = uso.junto ? previa.ids.filter(id => !unidadesDosEstados.has(grupoDe(id)) && membrosDeConjuntos.has(id)) : [];
+    const fora = new Set([...doEstado, ...doConjunto]);
+    const ids = previa.ids.filter(id => !fora.has(id));
+    const base = uso.junto ? baseSemOsEstados(baseComUnidades(def.base, ids, contextoDaBase), def.estados, arvore)
+      : normalizarArvore({ todos: false, estados: [], ids }, arvore);
+    const texto = previa.regra.texto;
+    const regra: RegraDaSelecao | null = uso.junto ? null : { texto, competencia: previa.competencia, total: previa.atendem, base, conjuntos: [],
+      pedido: { ...pedido, agrupar: null } };
     registrar("Selecionar por critérios: " + texto);
-    mudar({ nivel: "municipios", base, estados: [], conjuntos, comparar: [], regra: regra ?? undefined, competencia: previa.competencia });
-    setSelecionados([]); setCorte(null); setCriterios(null); setModoSelecao("lista");
+    mudar({ nivel: "municipios", base, estados: uso.junto ? def.estados : [], conjuntos: uso.junto ? def.conjuntos : [], comparar: [],
+      regra: regra ?? undefined, competencia: previa.competencia });
+    setSelecionados([]); setCorte(null); setCriterios(null);
     const emPalavras = texto + " em " + competenciaAbreviada(previa.competencia);
-    setAvisoSelecao(comGrupos ? quantos(grupos.length, { singular: "conjunto", plural: "conjuntos" }) +
-      (ids.length ? " e " + quantos(ids.length, rotulos.unidade) : "") + (uso.junto ? " entraram junto com a seleção" : " na análise") + ": " +
-      (regra ? textoDaRegra(regra) : emPalavras) + "."
-      : (uso.junto ? "Entraram junto com a seleção os que atendem: " + emPalavras : "Seleção por critérios: " + textoDaRegra(regra!)) + ".");
+    const deFora = [doEstado.length ? quantos(doEstado.length, rotulos.unidade) + " de estado que já está como unidade" : "",
+      doConjunto.length ? quantos(doConjunto.length, rotulos.unidade) + " que já estão num conjunto" : ""].filter(Boolean);
+    setAviso((uso.junto ? "Entraram junto com a seleção os que atendem: " + emPalavras : "Seleção por critérios: " + textoDaRegra(regra!)) + "." +
+      (deFora.length ? " Ficaram de fora " + deFora.join(" e ") + " (não são somados duas vezes)." : ""));
+    // Um pedido com agrupamento (da conversa ou de uma regra de antes): depois de usar como seleção, o agrupamento por proximidade
+    // abre com a distância pedida, sobre a seleção nova.
+    const kmPedido = (pedido.agrupar as { km?: unknown } | null)?.km;
+    if (typeof kmPedido === "number" && kmPedido > 0) { setAgrupamento(atual => ({ n: (atual?.n ?? 0) + 1, km: kmPedido })); setAcaoSelecao("agrupar"); }
+    else setAcaoSelecao("lista");
     pedirOQueFalta();
   }
 
@@ -1131,8 +1143,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setCriterios(atual => ({ inicial: convertido.pedido, previa: true, n: (atual?.n ?? 0) + 1,
       aviso: convertido.semDistancia ? "A distância até a referência ficou nas Condições: aqui, a distância é até " +
         (generoDe(rotulos.unidade) === "f" ? "uma " : "um ") + rotulos.unidade.singular + " (“a até … km de”)." : undefined }));
-    setModoSelecao("criterios");
-    setAviso("As condições foram para “Por critérios”, na Seleção, com a prévia; nada mudou na análise.");
+    setAcaoSelecao("criterios");
+    setAviso("As condições foram para “Aplicar critérios de seleção”, na Seleção, com a prévia; nada mudou na análise.");
   }
 
   function abrirGrupoDaBolha(id: string) {
@@ -1141,7 +1153,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (resposta?.nivel === "regioes") {
       // A bolha de um grupo de cima (07/11/2026): as unidades dos grupos dele, vendo por unidade.
       const nome = regioes.find(item => item.id === grupo)?.nome ?? grupo;
-      navegar({ nivel: "municipios", base: { todos: false, estados: gruposDaRegiao(grupo, arvore), ids: [] } },
+      navegar({ nivel: "municipios", base: { todos: false, estados: gruposDaRegiao(grupo, arvore), ids: [] }, estados: [], conjuntos: [] },
         "Abrir " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " de " + nome);
       setAberto(null);
       setAviso("Mostrando " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " de " + nome + ". Para voltar, toque em " +
@@ -1150,7 +1162,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       return;
     }
     const info = grupos.find(item => item.id === grupo);
-    navegar({ nivel: "municipios", base: { todos: false, estados: [grupo], ids: [] } },
+    navegar({ nivel: "municipios", base: { todos: false, estados: [grupo], ids: [] }, estados: [],
+      conjuntos: def.conjuntos.filter(conjunto => !conjuntoDeEstados(conjunto)) },
       "Abrir " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " de " + (info ? info.nome : grupo));
     setAberto(grupo);
     // Voltar é pela trilha (06/11/2026, G4): o Desfazer continua desfazendo ações, mas não é o caminho para mudar de nível.
@@ -1162,7 +1175,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
    * território. Um passo do Desfazer. */
   function abrirUnidade(id: string) {
     const nome = nomes.get(id) || id;
-    navegar({ nivel: "municipios", base: { todos: false, estados: [], ids: [id] }, conjuntos: [] }, "Abrir " + nome);
+    navegar({ nivel: "municipios", base: { todos: false, estados: [], ids: [id] }, estados: [], conjuntos: [] }, "Abrir " + nome);
     const grupo = grupoDe(id);
     setAberto(grupo || null);
     setAviso("Mostrando " + nome + ". Para voltar, toque " + (grupo ? "no nome do " + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular +
@@ -1174,10 +1187,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   function irNaTrilha(parte: ParteDaTrilha) {
     const grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
     if (parte.chave === "todo") {
-      navegar(todoPorGrupo ? { nivel: "estados", base: { todos: true, estados: [], ids: [] }, estados: [...idsDosGrupos], conjuntos: [] }
+      // O todo na base do Brasil: todos os estados como unidade ("Só os estados" do Brasil; comando V22); numa planilha, as unidades.
+      navegar(todoPorGrupo ? { nivel: "estados", base: { todos: false, estados: [], ids: [] }, estados: [...idsDosGrupos], conjuntos: [] }
         : { nivel: "municipios", base: { todos: true, estados: [], ids: [] }, estados: [], conjuntos: [] }, "Ir para " + parte.rotulo + " na trilha");
       setAberto(null);
-      setAviso(parte.rotulo + (todoPorGrupo ? ": ver por " + grupo.singular + "." : ": " + todosOs(rotulos.unidade) + "."));
+      setAviso(parte.rotulo + (todoPorGrupo ? ": " + todosOs(grupo) + " como unidade." : ": " + todosOs(rotulos.unidade) + "."));
     } else if (parte.chave === "regiao" && parte.id) {
       // O grupo de cima (07/11/2026): as unidades dos grupos dele, vendo por unidade (o "Ver por" oferece os grupos dele).
       navegar({ nivel: "municipios", base: { todos: false, estados: gruposDaRegiao(parte.id, arvore), ids: [] }, estados: [], conjuntos: [] },
@@ -1228,7 +1242,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const coordenadasDaSelecao = mapa.disponivel && dadosConferem ? dadosAtuais?.pontos ?? null : null;
   // As regiões na árvore da base do Brasil (item 3): os estados pelo primeiro dígito do código do IBGE.
   const secoesDoBrasil = useMemo(() => tipo === "brasil" && grupos.length ? {
-    regioes: REGIOES_DO_BRASIL.map(({ id, nome }) => ({ id, nome, sigla: "", rotuloGrupo: "",
+    regioes: ["1", "2", "5", "3", "4"].map(id => REGIOES_DO_BRASIL.find(regiao => regiao.id === id)!).map(({ id, nome }) => ({ id, nome, sigla: "", rotuloGrupo: "",
       unidades: grupos.filter(grupo => grupo.id.charAt(0) === id).reduce((soma, grupo) => soma + (grupo.unidades || 0), 0) })),
     regiaoDoGrupo: (grupo: string) => grupo.charAt(0) } : null, [tipo, grupos]);
   /** A extensão de ponta a ponta de um conjunto à mão (item 7.8), medida pelo motor: a mesma rota da prévia, na seleção dos membros. */
@@ -1244,18 +1258,64 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       densidade: number | null }])), [resposta]);
   const contextoDaBase = { grupoDe, unidadesDoGrupo: arvore.unidadesDoGrupo, todosOsGrupos: idsDosGrupos,
     todasAsUnidades: municipios.map(item => item.id) };
+  // Os candidatos do agrupamento (comando V22, seção 5): só os municípios selecionados individualmente (e, ao editar um conjunto, os
+  // membros dele) e os estados como unidade.
+  const selecionadosIndividualmente = useMemo(() => def.nivel === "regioes" ? [] : municipios.filter(item => !item.selection_reason &&
+    unidadeMarcada(def.base, item.id, grupoDaUnidade(item))), [municipios, def.base, def.nivel]);
+  const motivoDoAgrupar = selecionadosIndividualmente.length + def.estados.length < 2 && !def.conjuntos.length
+    ? "Selecione ao menos dois territórios para agrupar." : null;
+  function editarConjunto(id: string) {
+    const conjunto = def.conjuntos.find(item => item.id === id);
+    if (!conjunto) return;
+    setAgrupamento(atual => ({ n: (atual?.n ?? 0) + 1, editando: { id, grupo: { rotulo: conjunto.rotulo, membros: [...conjunto.membros],
+      substitui: !!conjunto.substitui } } }));
+    setAcaoSelecao("agrupar");
+  }
+  const fecharAcao = () => { setAcaoSelecao("lista"); setAgrupamento(null); };
   function criarGrupo(grupo: GrupoAgregado) {
     if (grupo.membros.length < 2) return;
     if (def.conjuntos.length >= MAX_CONJUNTOS) { setAviso(TEXTO_MAX_GRUPOS); return; }
     const novo = novoConjunto(def.conjuntos, grupo.membros, grupo.rotulo);
+    registrar("Agrupar " + novo.rotulo);
+    // Um conjunto de estados como unidade (comando V22, seção 5): os estados dele saem da lista dos estados como unidade, se ele fica
+    // no lugar deles, e a soma é a das fontes estaduais.
+    if (conjuntoDeEstados(novo)) {
+      const grupos = novo.membros.map(id => id.slice(3));
+      const retirados = grupo.substitui ? grupos.filter(id => def.estados.includes(id)) : [];
+      // Os municípios dos estados do conjunto não ficam na seleção (o estado inteiro já está na análise, dentro do conjunto).
+      trocarEscolha({ ...escolhaDe(def), base: baseSemOsEstados(def.base, grupos, arvore), estados: def.estados.filter(id => !retirados.includes(id)),
+        conjuntos: [...def.conjuntos, { ...novo, substitui: grupo.substitui, retirados: retirados.map(id => "uf:" + id), versao: 1 }] });
+      setAviso("Conjunto " + novo.rotulo + " criado: a bolha mostra a soma das contagens estaduais dos " + grupos.length + " estados.");
+      setAcaoSelecao("lista"); setAgrupamento(null);
+      return;
+    }
     // Com o grupo no lugar dos membros, saem da seleção os que estavam nela; o grupo guarda quais, para devolver só esses.
     const retirados = grupo.substitui ? membrosNaSelecao(def.base, novo.membros, grupoDe) : [];
-    const conjunto = { ...novo, substitui: grupo.substitui, retirados };
-    registrar("Agrupar " + conjunto.rotulo);
+    const conjunto = { ...novo, substitui: grupo.substitui, retirados, versao: 1 };
     const base = retirados.length ? baseSemUnidades(def.base, retirados, contextoDaBase) : def.base;
-    trocarEscolha({ ...escolhaDe(def), nivel: "municipios", base, conjuntos: [...def.conjuntos, conjunto] });
+    trocarEscolha({ ...escolhaDe(def), base, conjuntos: [...def.conjuntos, conjunto] });
     setAviso("Conjunto " + conjunto.rotulo + " criado" + (grupo.substitui ? ", no lugar dos membros" : "") +
       ": a bolha mostra a soma das contagens dos componentes.");
+    setAcaoSelecao("lista"); setAgrupamento(null);
+  }
+  /** "Por proximidade" (comando V22, seção 5): cada conjunto do motor entra no lugar dos membros, que saem da seleção; os sem
+   * conjunto continuam selecionados, cada um como território individual. Um passo do Desfazer. */
+  function usarProximidade(lista: ConjuntoPorProximidade[], km: number) {
+    if (!lista.length) return;
+    if (def.conjuntos.length + lista.length > MAX_CONJUNTOS) { setAviso(TEXTO_MAX_GRUPOS); return; }
+    registrar("Agrupar por proximidade (a até " + formatarNumero(km) + " km)");
+    let base = def.base;
+    let conjuntos = [...def.conjuntos];
+    for (const item of lista) {
+      const novo = novoConjunto(conjuntos, item.membros, item.rotulo);
+      const retirados = membrosNaSelecao(base, novo.membros, grupoDe);
+      base = retirados.length ? baseSemUnidades(base, retirados, contextoDaBase) : base;
+      conjuntos = [...conjuntos, { ...novo, substitui: true, retirados, versao: 1 }];
+    }
+    trocarEscolha({ ...escolhaDe(def), base, conjuntos });
+    setAviso(quantos(lista.length, { singular: "conjunto", plural: "conjuntos" }) + " por proximidade (a até " + formatarNumero(km) +
+      " km entre os membros) no lugar dos membros; os demais continuam selecionados individualmente.");
+    setAcaoSelecao("lista"); setAgrupamento(null);
   }
   function salvarGrupo(id: string, grupo: GrupoAgregado) {
     const antigo = def.conjuntos.find(item => item.id === id);
@@ -1266,14 +1326,24 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     const membros = [...new Set(grupo.membros)];
     const retirados = grupo.substitui ? membrosNaSelecao(devolvida, membros, grupoDe) : [];
     const base = retirados.length ? baseSemUnidades(devolvida, retirados, contextoDaBase) : devolvida;
-    trocarEscolha({ ...escolhaDe(def), nivel: "municipios", base, conjuntos: def.conjuntos.map(item => item.id === id
-      ? { id, rotulo: grupo.rotulo.trim().slice(0, 120) || antigo.rotulo, membros, substitui: grupo.substitui, retirados } : item) });
+    // A versão da composição sobe a cada edição (comando V22, seção 5): o id fica, e o que foi calculado antes não muda em silêncio.
+    trocarEscolha({ ...escolhaDe(def), base, conjuntos: def.conjuntos.map(item => item.id === id
+      ? { id, rotulo: grupo.rotulo.trim().slice(0, 120) || antigo.rotulo, membros, substitui: grupo.substitui, retirados,
+        versao: (antigo.versao ?? 1) + 1 } : item) });
+    setAcaoSelecao("lista"); setAgrupamento(null);
   }
   function desfazerConjunto(id: string) {
     const conjunto = def.conjuntos.find(item => item.id === id);
     registrar("Desfazer o conjunto " + (conjunto?.rotulo ?? id));
     const devolver = conjunto?.substitui ? conjunto.retirados ?? conjunto.membros : [];
-    const base = devolver.length ? baseComUnidades(def.base, devolver, contextoDaBase) : def.base;
+    // Um conjunto de estados devolve os estados dele como unidade (os que saíram da lista quando ele foi criado).
+    if (conjunto && conjuntoDeEstados(conjunto)) {
+      const estados = [...new Set([...def.estados, ...devolver.map(item => item.slice(3))])];
+      trocarEscolha({ ...escolhaDe(def), estados, conjuntos: def.conjuntos.filter(item => item.id !== id) });
+      setSelecionados(atual => atual.filter(item => item !== id));
+      return;
+    }
+    const base = devolver.length ? baseSemOsEstados(baseComUnidades(def.base, devolver, contextoDaBase), def.estados, arvore) : def.base;
     trocarEscolha({ ...escolhaDe(def), base, conjuntos: def.conjuntos.filter(item => item.id !== id) });
     setSelecionados(atual => atual.filter(item => item !== id));
   }
@@ -1341,7 +1411,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** Atalho dos estados: os municípios dos estados escolhidos (ou de todos), já no mapa (um passo do Desfazer). */
   function verUnidadesNoMapa() {
     const alguns = def.estados.length > 0 && def.estados.length < grupos.length;
-    navegar({ nivel: "municipios", base: alguns ? { todos: false, estados: [...def.estados], ids: [] } : { todos: true, estados: [], ids: [] } },
+    navegar({ nivel: "municipios", base: alguns ? { todos: false, estados: [...def.estados], ids: [] } : { todos: true, estados: [], ids: [] },
+      estados: [], conjuntos: def.conjuntos.filter(conjunto => !conjuntoDeEstados(conjunto)) },
       "Ver " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " no mapa");
     setAberto(null);
     setMotivoVistaAberto(false);
@@ -1350,6 +1421,46 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       " no mapa. Para voltar " + (generoDe(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!) === "f" ? "às " : "aos ") +
       (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural + ", use Desfazer, no alto.");
     pedirOQueFalta();
+  }
+  // O painel aberto à direita da Seleção (comando V22, seção 3): os critérios ou o agrupamento, no lugar da lista; a árvore fica à vista.
+  const painelDaAcaoDaSelecao = acaoSelecao === "criterios" && fonteMotor ? <SelecionarPorCriterios
+      key={JSON.stringify(criterios?.inicial ?? null) + ":" + (criterios?.n ?? 0)} aviso={criterios?.aviso} fonte={fonteMotor} rotulos={rotulos}
+      nomeDoTodo={nomeDoTodo(tipo !== "arquivo", rotulos)} unidades={municipios} competencia={def.competencia} periodos={periodos}
+      categoria={def.categoria} premissas={tipo === "arquivo" ? def.premissas : undefined}
+      grupos={grupos} regioes={secoesDoBrasil?.regioes ?? regioes} regiaoDoGrupo={secoesDoBrasil?.regiaoDoGrupo ?? (regioes.length ? arvore.regiaoDoGrupo : undefined)}
+      marcados={{ base: def.nivel === "municipios" && !baseVazia(def.base) ? normalizarBase(def.base, grupoDe) : null,
+        grupos: def.nivel === "estados" ? def.estados : [], vendoPorGrupo: def.nivel === "estados" }}
+      inicial={(criterios?.inicial ?? null) as PedidoDosCriterios | null} coordenadas={coordenadasDaSelecao}
+      conjuntosNaAnalise={def.conjuntos.map(conjunto => ({ id: conjunto.id, rotulo: conjunto.rotulo }))}
+      algoNaAnalise={!semSelecao(def)}
+      naSelecao={{ estados: def.nivel === "regioes" ? [] : def.estados, membrosDeConjuntos: def.conjuntos.flatMap(conjunto => conjunto.membros),
+        conjuntos: def.conjuntos.length, grupoDe }}
+      onUsar={(previa, pedidoDosCriterios, uso) => usarCriterios(previa, pedidoDosCriterios, uso)}
+      onCancelar={() => { setCriterios(null); setAcaoSelecao("lista"); }}/>
+    : acaoSelecao === "agrupar" && agrupamento ? <AgruparSelecionados key={"agrupar:" + agrupamento.n} fonte={fonteMotor} rotulos={rotulos}
+      brasil={tipo === "brasil"} grupos={grupos}
+      unidades={agrupamento.editando ? [...selecionadosIndividualmente, ...municipios.filter(item => agrupamento.editando!.grupo.membros.includes(item.id) &&
+        !selecionadosIndividualmente.includes(item))] : selecionadosIndividualmente}
+      estados={def.nivel === "regioes" ? [] : def.estados} base={normalizarBase(def.base, grupoDe)} competencia={def.competencia}
+      categoria={def.categoria} premissas={tipo === "arquivo" ? def.premissas : undefined}
+      conjuntosNaAnalise={def.conjuntos.map(conjunto => ({ id: conjunto.id, rotulo: conjunto.rotulo }))} coordenadas={coordenadasDaSelecao}
+      medirExtensao={medirExtensao} editando={agrupamento.editando ?? null} kmInicial={agrupamento.km ?? null}
+      onCriar={criarGrupo} onSalvar={salvarGrupo} onUsarProximidade={usarProximidade} onCancelar={fecharAcao}/> : null;
+  /** Foca uma base da Análise Espacial (comando V22, seção 7); a mesma base de novo limpa o foco. Vem do gráfico e do mapa. */
+  function focarBase(id: string) {
+    setFocoEspacial(atual => atual === id ? null : id);
+  }
+  /** "MARABA (PA) → referência mais próxima: ITUPIRANGA (PA) · 47,93 km (distância geodésica do motor: 47,9312… km)". */
+  const foraDaRotacao = useMemo(() => foraDaRotatividade(def, id => grupos.find(item => item.id === id)?.nome ?? id,
+    rotulos.grupo ?? ROTULOS_GENERICOS.grupo!), [def.nivel, def.estados, def.conjuntos, grupos, rotulos]);
+  function textoDoFoco(par: (typeof pares)[number]): string {
+    const item = resposta?.itens.find(atual => atual.id === par.base.id);
+    const distancia = item?.distancia_km ?? null;
+    const exata = distancia === null ? "" : String(distancia).replace(".", ",");
+    return par.base.rotulo + " → " + (par.referencias.length > 1 ? "referências mais próximas (empate): " : "referência mais próxima: ") +
+      (par.referencias.map(ref => ref.rotulo).join(", ") || "nenhuma") + (distancia === null ? " · distância não avaliável"
+        : " · " + formatarNumero(distancia) + " km (distância geodésica do motor, em linha reta: " + exata + " km)") +
+      (item?.tipo === "conjunto" && item.membroDaReferencia ? " · pelo membro mais próximo, " + item.membroDaReferencia.rotulo : "") + ".";
   }
   /** Limpar filtros (a função das análises, 24/10/2026): a régua, as condições, a ordenação, a comparação, o filtro da classe e os
    * itens marcados no desenho; a seleção de territórios e os ajustes da análise continuam. Desfazer devolve os filtros. */
@@ -1517,7 +1628,26 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         { chave: "demais", cor: paleta.neutra, texto: "Demais", contagem: null });
     }
     if (!itensLegenda.length) return null;
+    // Estados como unidade junto com os municípios (comando V22, seção 2): cada nível tem os próprios grupos, posições e contagens; a
+    // legenda separa os dois, com os números de cada nível (do motor, em `por_nivel`).
+    const dosEstados = resposta.porNivel?.estados ?? null;
+    const grupoDaLegenda = (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural;
+    const textoDosEstados = !dosEstados ? null : camadaFinal === "grupos" && dosEstados.grupos
+      ? maiuscula(grupoDaLegenda) + " como unidade, nos grupos próprios: " + dosEstados.grupos.rotulos.map((rotulo, i) => rotulo + " · " +
+        formatarNumero(dosEstados.grupos!.contagens[i] ?? 0, true)).join("; ") + "."
+      : camadaFinal === "grupos" ? maiuscula(grupoDaLegenda) + " como unidade: sem grupos por posição (são menos de dois)."
+        : camadaFinal === "condicoes" && dosEstados.condicoes ? maiuscula(grupoDaLegenda) + " como unidade: atendem · " +
+          formatarNumero(dosEstados.condicoes.contagens.ATENDE ?? 0, true) + "; não atendem · " + formatarNumero(dosEstados.condicoes.contagens.NAO_ATENDE ?? 0, true) +
+          (dosEstados.condicoes.contagens.NAO_AVALIAVEL ? "; sem dado · " + formatarNumero(dosEstados.condicoes.contagens.NAO_AVALIAVEL, true) : "") + "."
+          : camadaFinal === "faixas" && dosEstados.faixas ? maiuscula(grupoDaLegenda) + " como unidade: " + dosEstados.faixas.rotulos.map((rotulo, i) =>
+            rotulo + " · " + formatarNumero(dosEstados.faixas!.contagens[i] ?? 0, true)).join("; ") + "."
+            : camadaFinal === "classes" && dosEstados.tendencia ? maiuscula(grupoDaLegenda) + " como unidade: " + (["CRESCIMENTO", "DECLINIO", "NENHUMA"] as const)
+              .map(familia => NOMES_FAMILIA_TENDENCIA[familia] + " · " + formatarNumero(dosEstados.tendencia!.familias[familia] ?? 0, true)).join("; ") + "."
+              : camadaFinal === "ordem" ? maiuscula(grupoDaLegenda) + " como unidade: posições próprias, sem misturar com " + artigo(rotulos.unidade, true) + " " +
+                rotulos.unidade.plural + "." : null;
     return <ul data-testid={id("analise-legenda-cor")} data-camada={camadaFinal} className="flex flex-col gap-1" aria-label="Legenda das cores">
+      {dosEstados && <li data-testid={id("analise-legenda-nivel-unidades")} className="leading-4 font-semibold">{maiuscula(rotulos.unidade.plural)}
+        {" "}(e conjuntos de {rotulos.unidade.plural}):</li>}
       {itensLegenda.map(item => <li key={item.chave} data-testid={id("analise-legenda-cor-item")} data-chave={item.chave} data-contagem={item.contagem ?? ""}
         data-conjuntos={item.porTipo ? item.porTipo.conjuntos ?? 0 : ""} className="flex items-center gap-1.5">
         <span className="analise-amostra-bolha" style={item.vazada ? amostraVazada : { background: item.cor ?? paleta.bolha }} aria-hidden="true"/>
@@ -1525,6 +1655,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           {item.porTipo && !!item.porTipo.conjuntos && " (" + contagemPorTipo(item.porTipo.unidades, item.porTipo.conjuntos, unidade) + ")"}</span>
       </li>)}
       {camadaFinal === "grupos" && totalGrupos > 5 && <li className="leading-4">Nos decis, só as linhas de corte: mais de cinco tons não se distinguem.</li>}
+      {textoDosEstados && <li data-testid={id("analise-legenda-nivel-estados")} className="leading-4">{textoDosEstados} Cada nível tem a própria
+        fonte e as próprias medidas de posição: nenhuma mistura {artigo(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!, true)} {grupoDaLegenda} e{" "}
+        {artigo(rotulos.unidade, true)} {rotulos.unidade.plural}.</li>}
     </ul>;
   };
   const legendaCor = legendaDaCor(true);
@@ -1604,7 +1737,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // Mapa (MapaProps do contrato): todas as unidades em análise, sem os estados, também as que o gráfico deixa de fora por falta do
   // valor que as posiciona (25/10/2026: sem distância até a referência, sem o indicador ou sem a coorte, cada uma no lugar dela, com a
   // pintura da camada ou vazada); a régua e os filtros esmaecem (decisão de 23/10).
-  const itensDoMapa = useMemo(() => resposta ? itensParaOMapa(resposta.itens, estadosNoMapa) : [], [resposta, estadosNoMapa]);
+  const itensDoMapa = useMemo(() => resposta ? itensParaOMapa(resposta.itens, estadosNoMapa || estadosJuntosNoMapa) : [],
+    [resposta, estadosNoMapa, estadosJuntosNoMapa]);
   const dentroDoMapa = useMemo(() => new Set(itensDoMapa.filter(item => dentroDosFiltros(item, filtrosVisuais)).map(item => item.id)),
     [itensDoMapa, filtrosVisuais]);
   const corDoMapa = useMemo(() => corContinuaDoMapa({ rotatividade: rotatividadeNaTela, indicador, dominios: resposta?.dominios ?? {} }),
@@ -1660,8 +1794,15 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     else if (item?.tipo === "municipio" && !marcando) abrirUnidade(id);
     else alternar(id);
   }
-  const dadosNoMapa = useMemo(() => dadosAtuais && estadosNoMapa ? { ...dadosAtuais, pontos: new Map([...dadosAtuais.pontos, ...dadosAtuais.grupos!]) }
-    : dadosAtuais, [dadosAtuais, estadosNoMapa]);
+  const dadosNoMapa = useMemo(() => {
+    if (!dadosAtuais || !dadosAtuais.grupos) return dadosAtuais;
+    if (estadosNoMapa) return { ...dadosAtuais, pontos: new Map([...dadosAtuais.pontos, ...dadosAtuais.grupos]) };
+    if (!estadosJuntosNoMapa || !resposta) return dadosAtuais;
+    // Só os estados da seleção: os demais pontos de desenho não viram fundo (o fundo são as sedes).
+    const naResposta = new Set(resposta.itens.filter(item => item.tipo === "estado").map(item => item.id));
+    const membros = new Set(resposta.itens.flatMap(item => item.tipo === "conjunto" ? item.membros ?? [] : []).filter(id => id.startsWith("uf:")));
+    return { ...dadosAtuais, pontos: new Map([...dadosAtuais.pontos, ...[...dadosAtuais.grupos].filter(([id]) => naResposta.has(id) || membros.has(id))]) };
+  }, [dadosAtuais, estadosNoMapa, estadosJuntosNoMapa, resposta]);
   // A escala muda só o desenho ("como ver"): fica na barra junto da vista, só quando se aplica (no gráfico, fora da rotatividade
   // e da Série temporal). Linear por padrão; a logarítmica só por escolha e com valores positivos. O mapa não tem escala própria:
   // a cor contínua da rotatividade vai de 0 a 100%.
@@ -1677,6 +1818,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     nota: estadosNoMapa ? dadosAtuais?.notaDosGrupos ?? null : null,
     brasil: tipo === "brasil", referenciaPorItem,
     ativoExterno: lado ? ativoCruzado : null, onAtivo: lado ? setAtivoCruzado : undefined, onAlternar: tocarNoDesenho,
+    // O foco da Análise Espacial (comando V22, seção 7), o mesmo do gráfico: os dois ficam sincronizados.
+    foco: parDoFoco ? parDoFoco.base.id : null, onFocar: distanciaNaTela && pares.length && !marcando ? focarBase : undefined,
     carregando: carregando || carregandoMapa || !dadosConferem,
   } : null;
   const convite = !!resposta && vistaExibida === "grafico" && mapa.disponivel && (exibicao.condicoes || distanciaNaTela);
@@ -1757,6 +1900,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     // Com o mapa disponível, a dica da bolha mostra o mapinha ("onde fica?"); no lado a lado, o destaque é cruzado com o mapa.
     return <PainelChart resposta={resposta} itens={visiveis} todos={plotaveis} indicador={indicador} escala={escala} distancia={distanciaNaTela}
       cometa={cometa} trajetoria={cometa} porItem={referenciaPorItem} pares={paresLigados} destaque={realceNaTela.length ? realceNaTela : destaque}
+      foco={parDoFoco ? parDoFoco.base.id : null} onFocar={distanciaNaTela && pares.length ? focarBase : undefined}
       realce={realceNaTela} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares}
       nomes={nomes} carregando={carregando}
       rotuloDistancia={rotuloDistancia} rotulos={rotulos} contextoBrasil={contextoBrasil} cortes={cortes} corte={corteAtivo(corte, dominio) ? corte : null}
@@ -1877,7 +2021,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       </div>;
       case "referencia": {
         // A Escolha dos territórios (27/10/2026): a frase-resumo da consulta calculada e o botão que abre a janela.
-        const frase = def.consulta ? textoDaFraseDaConsulta(fraseDaConsulta(def.consulta, { rotulos, brasil: tipo === "brasil", grupos, nomes }))
+        const frase = def.consulta ? textoDaFraseDaConsulta(fraseDaConsulta(def.consulta, { rotulos, brasil: tipo === "brasil", grupos, nomes,
+          selecaoComConjuntos: def.conjuntos.some(conjunto => !conjuntoDeEstados(conjunto)) }))
           : "nenhuma ainda";
         return <div key={qual} data-ajuste={qual} className="flex flex-wrap items-end gap-1.5">
           <span className="analise-rotulo-campo">Territórios
@@ -2087,37 +2232,27 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             <h3 className="sr-only">{NOME_SELECAO}</h3>
             <TextoDaApresentacao aba={aba} apresentacao={apresentacaoDaAba(aba, { rotulos, brasil: tipo === "brasil", comGrupos: grupos.length > 0 })}/>
           </div>
-          <PainelTerritorios rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} regioes={regioes} regiaoDoGrupo={regioes.length ? arvore.regiaoDoGrupo : undefined} comNiveis={comBolhasDeGrupo} verPor={verPor} unidades={municipios}
-            secoesDaArvore={secoesDoBrasil} modo={modoSelecao} onModo={escolherModoDaSelecao} coordenadas={coordenadasDaSelecao} medirExtensao={medirExtensao}
-            total={totalDeUnidades} nivel={def.nivel} base={def.base} estados={def.estados} conjuntos={def.conjuntos} aberto={aberto}
-            aviso={avisoSelecao} verAnalise={"Ver a " + NOMES_FAMILIAS[def.familia]} totais={totaisNaSelecao}
-            onUnidade={escolherNivel} onBase={mudarArvore}
-            onAbrir={abrirLista} onDesfazerConjunto={desfazerConjunto} onCriarGrupo={criarGrupo} onSalvarGrupo={salvarGrupo}
+          <PainelTerritorios rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} unidades={municipios} total={totalDeUnidades}
+            nivel={def.nivel} base={def.base} estados={def.estados} conjuntos={def.conjuntos} aberto={aberto} onAbrir={abrirLista}
+            secoesDaArvore={secoesDoBrasil ?? (regioes.length ? { regioes, regiaoDoGrupo: arvore.regiaoDoGrupo! } : null)}
+            regioesComoUnidade={tipo === "arquivo" && comRegioes} onRegioesComoUnidade={regioesComoUnidade}
+            regioesAbertas={regioesAbertas} onRegioesAbertas={setRegioesAbertas}
+            coordenadas={coordenadasDaSelecao} totais={totaisNaSelecao} onBase={mudarArvore} onEstadosComoUnidade={estadosComoUnidade}
+            onDesfazerConjunto={desfazerConjunto} onEditarConjunto={editarConjunto}
             valoresDosConjuntos={valoresDosConjuntos} profissionais={profissionaisDe(def.categoria)}
-            criterios={fonteMotor ? { painel: criterios ? <SelecionarPorCriterios key={JSON.stringify(criterios.inicial ?? null) + ":" + (criterios.n ?? 0)}
-                aviso={criterios.aviso} fonte={fonteMotor} rotulos={rotulos}
-                nomeDoTodo={nomeDoTodo(tipo !== "arquivo", rotulos)} unidades={municipios} competencia={def.competencia} periodos={periodos}
-                categoria={def.categoria} premissas={tipo === "arquivo" ? def.premissas : undefined}
-                grupos={grupos} regioes={secoesDoBrasil?.regioes ?? regioes} regiaoDoGrupo={secoesDoBrasil?.regiaoDoGrupo ?? (regioes.length ? arvore.regiaoDoGrupo : undefined)}
-                marcados={{ base: def.nivel === "municipios" && !semSelecao(def) ? normalizarBase(def.base, grupoDe) : null,
-                  grupos: def.nivel === "estados" ? def.estados : [], vendoPorGrupo: def.nivel === "estados" }}
-                lugar={lugar.tipo === "grupo" && lugar.grupo ? { tipo: "estados", ids: [lugar.grupo] }
-                  : lugar.tipo === "regiao" && lugar.regiao ? { tipo: "regioes", ids: [lugar.regiao] } : null}
-                inicial={criterios.inicial as PedidoDosCriterios | null} coordenadas={coordenadasDaSelecao}
-                conjuntosNaAnalise={def.conjuntos.map(conjunto => ({ id: conjunto.id, rotulo: conjunto.rotulo }))}
-                algoNaAnalise={!semSelecao(def) || def.conjuntos.length > 0}
-                onUsar={(previa, pedido, uso) => usarCriterios(previa, pedido, uso)}
-                onMarcarNaLista={() => setModoSelecao("lista")}
-                onCancelar={() => { setCriterios(null); setModoSelecao("lista"); }}/> : null } : null}
+            acao={acaoSelecao} painelDaAcao={painelDaAcaoDaSelecao} analiseAberta={NOMES_FAMILIAS[def.familia]}
+            onConfirmar={() => escolherAba(def.familia)}
+            onCriterios={fonteMotor ? () => { setCriterios(atual => atual ?? { inicial: null }); setAcaoSelecao("criterios"); } : undefined}
+            onAgrupar={() => { setAgrupamento(atual => ({ n: (atual?.n ?? 0) + 1 })); setAcaoSelecao("agrupar"); }}
+            motivoDoAgrupar={motivoDoAgrupar}
             regra={regraEmUso ? { texto: textoDaRegra(regraEmUso), onReaplicar: () => {
               setCriterios(atual => ({ inicial: regraEmUso.pedido, n: (atual?.n ?? 0) + 1 }));
-              setModoSelecao("criterios");
-            } } : null}
-            onVerAnalise={() => escolherAba(def.familia)}/>
+              setAcaoSelecao("criterios");
+            } } : null}/>
         </> : <>
           {/* A faixa fixa do lugar em uso (06/11/2026, item 2.2): no alto de todas as abas de análise; no nível da unidade, o cartão. */}
           {!!tipo && <FaixaDoLugar lugar={lugar} numeros={numerosNaFaixa} carregando={carregandoLugar} erro={erroNaFaixa}
-            categoria={def.categoria} rotulos={rotulos} resumo={resumoDaSelecao} verPor={verPor} nivel={def.nivel} onVerPor={escolherNivel}
+            categoria={def.categoria} rotulos={rotulos} resumo={resumoDaSelecao} verPor={[]} nivel={def.nivel} onVerPor={() => undefined}
             unidade={unidadeDoLugar} distancia={distanciaDaUnidade}/>}
           <EntendaEstaAnalise key={aba} aba={aba} pedida={explicacaoPedida}
             apresentacao={apresentacaoDaAba(aba, { rotulos, brasil: tipo === "brasil", comGrupos: grupos.length > 0 })}/>
@@ -2132,7 +2267,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           {espacialNosGrupos && <div data-testid="analise-espacial-grupos" role="status" className="analise-espacial-grupos">
             <p className="analise-espacial-grupos-texto">{textoEspacialNosGrupos(rotulos)}</p>
             <button type="button" data-testid="analise-espacial-ver-unidades" className="analise-botao-primario"
-              onClick={() => escolherNivel("municipios")}>{textoVerUnidadesDosGrupos(rotulos)}</button>
+              onClick={verUnidadesDosEstados}>{textoVerUnidadesDosGrupos(rotulos)}</button>
           </div>}
           {!motivoDaAba && !espacialNosGrupos && <div data-testid="analise-ajustes" data-familia={def.familia} className="analise-ajustes">
             {ajustes.map(ajuste)}
@@ -2240,6 +2375,24 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
                 Mudar a escolha dos territórios</button></span></p>}
           {foraDoGrafico && <p data-testid="analise-fora-do-grafico" role="status" className="analise-aviso-familia">
             <ChartScatter size={14} aria-hidden="true"/><span>{foraDoGrafico}</span></p>}
+          {/* O foco da Análise Espacial (comando V22, seção 7): a base, a referência, a distância geodésica do motor (em precisão
+              integral, sem recalcular) e o controle que limpa o foco. */}
+          {parDoFoco && <div data-testid="analise-foco-espacial" role="status" className="analise-foco-espacial">
+            <Crosshair size={14} aria-hidden="true"/>
+            <span>{textoDoFoco(parDoFoco)}</span>
+            <button type="button" data-testid="analise-foco-limpar" className="analise-link" onClick={() => setFocoEspacial(null)}>Limpar o foco</button>
+          </div>}
+          {/* Os territórios que esta análise não mede (comando V22, seção 2): quais e por quê. */}
+          {!!resposta?.foraDaAnalise?.length && !semUnidades && <p data-testid="analise-fora-da-analise" role="status" className="analise-aviso-familia">
+            <ChartScatter size={14} aria-hidden="true"/><span>Fora desta análise: {resposta.foraDaAnalise.map(item => item.tipo === "estado"
+              ? item.rotulo.replace(/\s*\([A-Z]{2}\)$/, "") + " (" + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular + ")" : item.rotulo).join(", ")}.{" "}
+              {resposta.foraDaAnalise[0].motivo.replace(/^Fora da Análise Espacial: /, "")}</span></p>}
+          {/* Na rotatividade, os estados como unidade e os conjuntos de estados não entram no pedido (comando V22, seção 2): quais e
+              por quê. */}
+          {def.familia === "rotatividade" && foraDaRotacao.length > 0 && !semUnidades && <p data-testid="analise-fora-da-rotatividade" role="status"
+            className="analise-aviso-familia"><ChartScatter size={14} aria-hidden="true"/><span>Fora desta análise: {foraDaRotacao.join(", ")}. A
+            rotatividade acompanha pessoas em cada {rotulos.unidade.singular}; {(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural} como
+            unidade não entram.</span></p>}
           {/* Base e referência (25/10/2026): cada território da base, a referência mais próxima dele e a distância do motor, à vista no
               gráfico e no mapa. Sem nenhuma referência entre vários, o aviso acima já diz o motivo. */}
           {distanciaNaTela && basesDaReferencia.length > 0 && !semUnidades && (pares.length < 2 || pares.some(par => par.referencias.length > 0)) &&

@@ -122,7 +122,9 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
   }, [chaveDoPedido]);
 
   const pendencias = pendenciasDaConsulta(rascunho, p.rotulos, { selecaoVazia: p.selecaoVazia });
+  const conjuntosDaBase = (p.conjuntos ?? []).filter(conjunto => !conjunto.membros.every(id => id.startsWith("uf:")));
   const frase = fraseDaConsulta(rascunho, { rotulos: p.rotulos, brasil: p.brasil, grupos: p.grupos, nomes: nomesConhecidos(),
+    selecaoComConjuntos: conjuntosDaBase.length > 0,
     selecaoVazia: p.selecaoVazia });
   const primeiraFalta = LADOS.map(lado => pendencias[lado].length ? textoDaPendencia(lado, pendencias[lado][0]) : null).find(Boolean) ?? null;
   const mudou = !mesmaConsulta(rascunho, p.aplicada);
@@ -187,11 +189,15 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
 
   const contagem = (valor: number | null | undefined, sufixo = "") => valor === null || valor === undefined
     ? (carregando ? "Contando…" : "—") : quantos(valor, unidade) + sufixo;
+  // A base com conjuntos (comando V22, seção 6): "3 conjuntos" ou "2 conjuntos e 4 territórios individuais", nunca "0 municípios".
+  const contagemDaBase = (valor: number | null | undefined) => valor === null || valor === undefined || !conjuntosDaBase.length ? contagem(valor)
+    : quantos(conjuntosDaBase.length, { singular: "conjunto", plural: "conjuntos" }) + (valor ? " e " + quantos(valor,
+      { singular: "território individual", plural: "territórios individuais" }) : "");
   // Na Referência, o conjunto é dito como candidatos (27/10/2026): só o mais próximo de cada território da base fica como referência.
   const statusDaAba = (lado: Lado) => {
     if (pendencias[lado].length) return "incompleta";
     const final = resposta?.[lado].contagens.final;
-    return final === null || final === undefined ? "…" : lado === "base" ? quantos(final, unidade) : quantosCandidatos(final, unidade);
+    return final === null || final === undefined ? "…" : lado === "base" ? contagemDaBase(final) : quantosCandidatos(final, unidade);
   };
   const previaDoLado = (lado: Lado) => {
     const previa = resposta?.[lado].previa;
@@ -275,7 +281,7 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
         <p className="territorios-contagem" data-testid="territorios-base-contagem-partir">{contagem(contagens?.partirDe)}</p>
       </fieldset>
       {filtrosDo("base")}
-      <p className="territorios-contagem" data-testid="territorios-base-contagem-final">{contagem(contagens?.final)}</p>
+      <p className="territorios-contagem" data-testid="territorios-base-contagem-final">{contagemDaBase(contagens?.final)}</p>
       <p className="territorios-previa" data-testid="territorios-base-previa">{previaDoLado("base")}</p>
     </div>;
   };

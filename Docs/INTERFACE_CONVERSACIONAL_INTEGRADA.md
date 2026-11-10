@@ -57,8 +57,9 @@ geográfica complementar e os rótulos fixos município/municípios e estado/est
 o catálogo de municípios para a busca. Desde 23/10/2026, a base abre **sem territórios escolhidos**: a área abre a Seleção
 de Territórios e espera; nada é pedido ao motor até a escolha. Antes, ela abria nos 27 estados. Desde 05/11/2026, a Seleção
 é uma árvore única (o Brasil, os estados inteiros ou em parte e os municípios); desde 06/11/2026, o Brasil é a referência fixa
-de toda análise (não mais uma unidade de análise), com a trilha do lugar em uso e o "Ver por" Estado ou Município (ver o
-documento da área).
+de toda análise (não mais uma unidade de análise), com a trilha do lugar em uso; de 06 a 09/11/2026, com o "Ver por" Estado ou
+Município, e, desde o comando V22, com o estado como unidade na própria árvore ("Só o estado") e as três ações da Seleção
+(Confirmar seleção, Aplicar critérios de seleção e Agrupar territórios selecionados; ver o documento da área).
 
 ### Planilha enviada: o painel "Colunas"
 

@@ -414,33 +414,34 @@ def test_selecionar_por_criterios_pela_conversa_abre_o_painel_preenchido():
     # O pedido do comando: sem verbo, com o agrupamento "a até 200 km uns dos outros".
     comando = pedir("municípios com menos de 0,5 médico por mil habitantes a até 200 km uns dos outros")
     assert comando["painel"] == criterios(densidade, agrupar={"km": 200}), comando
-    # Desde 07/11/2026 (itens 4.4, 8 e 9.1 do comando de 07/11/2026; mudam de propósito estas respostas): o modo “Por critérios”,
-    # os conjuntos todos a até X km entre si e os botões “Usar como seleção” e “Usar cada conjunto como um território”.
-    assert comando["reply"] == ("Abri “Por critérios”, na Seleção, com densidade abaixo de 0,5 em todo o país, agrupando os que "
-                                "ficam a até 200 km entre si. A prévia, no painel, mostra quantos atendem e os conjuntos; nada "
-                                "muda na análise até você escolher “Usar como seleção” ou “Usar cada conjunto como um "
-                                "território”.")
+    # Desde o comando V22 (9/11/2026, seções 4 e 5; mudam de propósito estas respostas): “Aplicar critérios de seleção”, e o
+    # agrupamento por proximidade em “Agrupar territórios selecionados”, depois de usar como seleção.
+    assert comando["reply"] == ("Abri “Aplicar critérios de seleção”, na Seleção, com densidade abaixo de 0,5 em todo o país, "
+                                "agrupando os que ficam a até 200 km entre si. A prévia, no painel, mostra quantos atendem; nada "
+                                "muda na análise até você escolher “Usar como seleção”; depois, “Agrupar territórios "
+                                "selecionados” abre por proximidade, com essa distância.")
     # "cluster" com o critério e a distância da pessoa: o mesmo agrupamento por regra, sem a palavra na resposta.
     cluster = pedir("clusters de municípios com densidade abaixo de 0,5 a até 200 km uns dos outros")
     assert cluster["painel"] == comando["painel"] and cluster["reply"] == comando["reply"]
     # Selecionar sem agrupar, num estado citado: onde procurar é o estado.
     amazonas = pedir("selecione os municípios do Amazonas com densidade abaixo de 0,5")
     assert amazonas["painel"] == criterios(densidade, partir_de={"tipo": "ufs", "ufs": ["13"]}), amazonas
-    assert amazonas["reply"] == ("Abri “Por critérios”, na Seleção, com densidade abaixo de 0,5 (onde procurar: Amazonas). A "
-                                 "prévia, no painel, mostra quantos atendem; nada muda na análise até você escolher “Usar como "
-                                 "seleção”.")
+    assert amazonas["reply"] == ("Abri “Aplicar critérios de seleção”, na Seleção, com densidade abaixo de 0,5 (onde procurar: "
+                                 "Amazonas). A prévia, no painel, mostra quantos atendem; nada muda na análise até você escolher "
+                                 "“Usar como seleção”.")
     # A distância até um município (TPL-11), com outro critério.
     manaus = pedir("selecione os municípios com densidade abaixo de 1 a até 300 km de Manaus")
     assert manaus["painel"] == criterios([{"indicador": "densidade", "operador": "<", "valor": 1}],
                                          distancia={"de": "code:130260", "km": 300}), manaus
-    assert manaus["reply"].startswith("Abri “Por critérios”, na Seleção, com densidade abaixo de 1 e a até 300 km de "
-                                      "MANAUS (AM) em todo o país.")
+    assert manaus["reply"].startswith("Abri “Aplicar critérios de seleção”, na Seleção, com densidade abaixo de 1 e a até "
+                                      "300 km de MANAUS (AM) em todo o país.")
     # Só a distância, sem critério de valor (item 9.1): os municípios de onde procurar, agrupados.
     para = pedir("agrupe os municípios do Pará a até 50 km entre si")
     assert para["painel"] == criterios([], partir_de={"tipo": "ufs", "ufs": ["15"]}, agrupar={"km": 50}), para
-    assert para["reply"] == ("Abri “Por critérios”, na Seleção, com todos os municípios (onde procurar: Pará), agrupando os que "
-                             "ficam a até 50 km entre si. A prévia, no painel, mostra quantos atendem e os conjuntos; nada muda "
-                             "na análise até você escolher “Usar como seleção” ou “Usar cada conjunto como um território”.")
+    assert para["reply"] == ("Abri “Aplicar critérios de seleção”, na Seleção, com todos os municípios (onde procurar: Pará), "
+                             "agrupando os que ficam a até 50 km entre si. A prévia, no painel, mostra quantos atendem; nada muda "
+                             "na análise até você escolher “Usar como seleção”; depois, “Agrupar territórios selecionados” abre "
+                             "por proximidade, com essa distância.")
     # Faltando a distância ou o critério, a pergunta, sem sugerir valor; nada muda.
     assert pedir("faça clusters dos municípios com densidade abaixo de 0,5") == {
         "handled": True, "executed": False, "clarification": "Para agrupar por proximidade, diga a distância máxima entre os "

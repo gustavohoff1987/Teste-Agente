@@ -1084,16 +1084,36 @@ test('seleção unificada (05/11/2026): equivalências completas, unidades de an
   assert.deepEqual(M.escolhaDaUnidade(escolha('municipios', base()), 'estados', c), escolha('estados', base([], [], true), ['13', '15', '35']));
   assert.deepEqual(M.escolhaDaUnidade(escolha('municipios', base()), 'brasil', c), escolha('brasil', base([], [], true)));
   assert.deepEqual(M.escolhaDaUnidade(escolha('estados', base(['13']), ['13']), 'municipios', c), escolha('municipios', base(['13']), ['13']));
-  // Uma mudança na árvore: a unidade continua quando ainda vale; senão, volta aos municípios.
-  assert.deepEqual(M.escolhaDaArvore(escolha('estados', base(['13', '15']), ['13', '15']), base(['13']), c), escolha('estados', base(['13']), ['13']));
-  assert.deepEqual(M.escolhaDaArvore(escolha('estados', base(['13']), ['13']), base([], ['code:130001', 'code:130002']), c),
-    escolha('municipios', base([], ['code:130001', 'code:130002']), ['13']));
-  assert.deepEqual(M.escolhaDaArvore(escolha('brasil', base([], [], true)), base(['13', '15']), c), escolha('municipios', base(['13', '15'])));
-  assert.deepEqual(M.escolhaDaArvore(escolha('brasil', base([], [], true)), base(['13', '15', '35']), c), escolha('brasil', base([], [], true)));
-  // A escolha de fora da árvore (a conversa, o Histórico): a árvore marca o que está na análise.
-  assert.deepEqual(M.unificarEscolha(escolha('estados', base(['35'], ['code:130001']), ['13', '15']), c), escolha('estados', base(['13', '15']), ['13', '15']));
-  assert.deepEqual(M.unificarEscolha(escolha('brasil', base(['13'])), c), escolha('brasil', base([], [], true)));
+  // Comando V22 (9/11/2026; antes, a unidade de análise do "Ver por" com estados inteiros na árvore): a árvore marca só municípios, e
+  // os estados como unidade ("Só o estado") ficam à parte, em `estados`, sem se sobrepor à base; o nível sai da seleção.
+  assert.deepEqual(M.escolhaDaArvore(escolha('estados', base(), ['13', '15']), base(['35']), c), escolha('municipios', base(['35']), ['13', '15']));
+  assert.deepEqual(M.escolhaDaArvore(escolha('estados', base(), ['13']), base([], ['code:130001', 'code:150001']), c),
+    escolha('municipios', base([], ['code:150001']), ['13']), 'os municípios do estado como unidade não entram');
+  assert.deepEqual(M.escolhaDaArvore(escolha('municipios', base(['35'])), base(['13', '15']), c), escolha('municipios', base(['13', '15'])));
+  assert.deepEqual(M.escolhaDaArvore(escolha('municipios', base(), ['13']), base([], [], true), c), escolha('municipios', base(['15', '35']), ['13']),
+    'marcar o todo marca os municípios dos estados que não estão como unidade');
+  // "Só o estado": o estado entra como unidade e os municípios dele saem (num só passo); desativar tira o estado, sem marcar nada.
+  assert.deepEqual(M.ativarEstados(escolha('municipios', base(['13'], ['code:150001'])), ['13'], c), escolha('municipios', base([], ['code:150001']), ['13']));
+  assert.deepEqual(M.ativarEstados(escolha('municipios', base(['13'])), ['13'], c), escolha('estados', base(), ['13']));
+  assert.deepEqual(M.ativarEstados(escolha('municipios', base([], [], true)), ['13', '15', '35'], c), escolha('estados', base(), ['13', '15', '35']),
+    '"Só os estados" do Brasil');
+  assert.deepEqual(M.desativarEstados(escolha('estados', base(), ['13']), ['13']), escolha('municipios', base(), []));
+  assert.deepEqual(M.desativarEstados(escolha('municipios', base([], ['code:150001']), ['13']), ['13']), escolha('municipios', base([], ['code:150001'])));
+  // O nível do pedido: só estados como unidade é o nível estados; com municípios (ou conjuntos de municípios), municipios.
+  assert.equal(M.nivelDaSelecao(escolha('municipios', base(), ['13'])), 'estados');
+  assert.equal(M.nivelDaSelecao(escolha('estados', base(['15']), ['13'])), 'municipios');
+  assert.equal(M.nivelDaSelecao({nivel: 'estados', base: base(), estados: [], conjuntos: [{id: 'c1', rotulo: 'A', membros: ['uf:13', 'uf:15']}]}), 'estados');
+  assert.equal(M.nivelDaSelecao({nivel: 'estados', base: base(), estados: ['35'], conjuntos: [{id: 'c1', rotulo: 'A', membros: ['code:130001', 'code:130002']}]}),
+    'municipios');
+  // Um conjunto de municípios com membros no estado impede o estado como unidade (seria somado a ele).
+  assert.deepEqual(M.conjuntosComMembrosNos([{id: 'c1', rotulo: 'A', membros: ['code:130001', 'code:150001']}], ['15'], c.grupoDe).map(item => item.id), ['c1']);
+  // A escolha de fora da árvore (a conversa, o Histórico), no formato do comando V22.
+  assert.deepEqual(M.unificarEscolha(escolha('estados', base(['35'], ['code:130001']), ['13', '15']), c), escolha('municipios', base(['35']), ['13', '15']));
+  assert.deepEqual(M.unificarEscolha(escolha('brasil', base(['13'])), c), escolha('estados', base(), ['13', '15', '35']));
   assert.deepEqual(M.unificarEscolha(escolha('municipios', base(['13', '15', '35'])), c), escolha('municipios', base([], [], true)));
+  // Uma definição de antes do comando V22: nos estados, a base repetia os municípios deles; nos municípios, `estados` podia sobrar.
+  assert.deepEqual(M.selecaoNoFormatoV22(escolha('estados', base(['13', '15']), ['13', '15'])), {...escolha('estados', base(), ['13', '15']), selecaoV22: true});
+  assert.deepEqual(M.selecaoNoFormatoV22(escolha('municipios', base(['13']), ['13'])), {...escolha('municipios', base(['13'])), selecaoV22: true});
   // Os estados marcados em parte não têm total individualizado: a tela diz quais, com quantos de quantos.
   assert.deepEqual(M.gruposParciais(base(['15'], ['code:130001']), c), [{id: '13', nome: 'Estado 13', marcadas: 1, total: 3}]);
   assert.deepEqual(M.gruposParciais(base([], [], true), c), []);
@@ -1333,13 +1353,14 @@ test('dois níveis de grupo: os grupos de cima, o Ver por "Região | Distrito | 
   assert.deepEqual(M.escolhaDaUnidade(escolhaDaTrilha('municipios', ['Braga', 'Porto']), 'regioes', arvore).estados, ['Norte']);
   assert.equal(M.escolhaDaUnidade(escolhaDaTrilha('municipios', ['Braga']), 'regioes', arvore), null);
   assert.equal(M.escolhaDaUnidade(escolhaDaTrilha('municipios'), 'regioes', {...arvore, regioes: undefined}), null);
-  // A árvore mostra o que está na análise: o Norte marca os distritos dele.
-  assert.deepEqual(M.unificarEscolha(escolhaDaTrilha('regioes', [], [], false, [], ['Norte']), arvore).base, {todos: false, estados: ['Braga', 'Porto'], ids: []});
-  // Trocar a árvore mantém o nível de cima enquanto as regiões continuam inteiras.
-  assert.deepEqual(M.escolhaDaArvore(escolhaDaTrilha('regioes', [], [], true, [], ['Alentejo', 'Norte']), {todos: false, estados: ['Braga', 'Porto'], ids: []},
-    arvore).estados, ['Norte']);
-  assert.equal(M.escolhaDaArvore(escolhaDaTrilha('regioes', [], [], true, [], ['Alentejo', 'Norte']), {todos: false, estados: ['Braga'], ids: []},
-    arvore).nivel, 'municipios');
+  // Comando V22: a região como unidade ("Só a região") fica à parte da árvore, que não repete os distritos dela; marcar na árvore tira
+  // as regiões como unidade (não se misturam com outros níveis).
+  const norte = M.unificarEscolha(escolhaDaTrilha('regioes', [], [], false, [], ['Norte']), arvore);
+  assert.deepEqual([norte.nivel, norte.base, norte.estados], ['regioes', {todos: false, estados: [], ids: []}, ['Norte']]);
+  const marcou = M.escolhaDaArvore(escolhaDaTrilha('regioes', [], [], false, [], ['Alentejo', 'Norte']), {todos: false, estados: ['Braga', 'Porto'], ids: []}, arvore);
+  assert.deepEqual([marcou.nivel, marcou.estados, marcou.base.estados], ['municipios', [], ['Braga', 'Porto']]);
+  assert.deepEqual(M.ativarRegioes(escolhaDaTrilha('municipios', ['Braga']), ['Norte']), escolhaDaTrilha('regioes', [], [], false, [], ['Norte']));
+  assert.deepEqual(M.desativarRegioes(escolhaDaTrilha('regioes', [], [], false, [], ['Norte']), ['Norte']), escolhaDaTrilha('municipios'));
   // A trilha e os textos no nível de cima: todas as regiões são o todo; o resumo e o lugar falam das regiões.
   assert.deepEqual(partes(M.lugarDaTrilha(escolhaDaTrilha('regioes', [], [], true, [], ['Alentejo', 'Norte']), trilha)), [['todo', 'Portugal', true]]);
   const resumo = estados => M.resumoDoUniverso({nivel: 'regioes', base: {todos: true, estados: [], ids: []}, estados, conjuntos: 0, grupos,
@@ -1488,14 +1509,16 @@ test('o todo deixa de ser unidade: o pedido do Brasil e o estado guardado com el
     disponivel: f => M.disponibilidadeDaFamilia(f, {fonte: 'brasil', nivel: 'municipios', disponibilidade: null, temIdentificador: false, rotulos: BR})};
   const brasil = M.aplicarPedido(definicao(), {nivel: 'brasil'}, c);
   assert.equal(brasil.definicao.nivel, 'estados');
-  assert.deepEqual(brasil.definicao.base, {todos: true, estados: [], ids: []});
+  // Comando V22: todos os estados como unidade, à parte da base (que fica vazia).
+  assert.deepEqual(brasil.definicao.base, {todos: false, estados: [], ids: []});
   assert.deepEqual(brasil.definicao.estados, ['13', '15', '35']);
   assert.deepEqual(brasil.mensagens, []);
   const salvo = M.salvarEstado('Brasil', {chave: 'k', familia: 'distribuicao', opcoes: {nivel: 'brasil'}, definicao: definicao({nivel: 'brasil'}),
     visual: {escala: 'linear', corte: null, selecionados: []}}, resposta({nivel: 'brasil'}));
   const lido = M.lerEstadoSalvo(salvo);
-  assert.equal(lido.definicao.nivel, 'estados');
-  assert.deepEqual(lido.definicao.base, {todos: true, estados: [], ids: []});
+  // O nível "brasil" fica para unificarEscolha (a área), que o troca por todos os estados como unidade (comando V22).
+  assert.equal(lido.definicao.nivel, 'brasil');
+  assert.deepEqual(lido.definicao.base, {todos: false, estados: [], ids: []});
   assert.equal(lido.resposta, null);  // o pedido é outro: a área calcula de novo
   assert.equal(lido.opcoes, null);
 });

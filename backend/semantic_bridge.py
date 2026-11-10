@@ -29,6 +29,19 @@ ROLE_NAMES = {
 from analysis_catalog import ENGINE_OPERATION_LABELS
 from request_memo import per_source
 OPERATIONS = tuple(ENGINE_OPERATION_LABELS)
+
+
+def _partes_da_data(valor: str):
+    """A chave da ordem pela data: os trechos numéricos como números ("2014-6" antes de "2014-10"), os demais como texto."""
+    return [(0, int(parte), "") if parte.isdigit() else (1, 0, parte.casefold())
+            for parte in re.findall(r"\d+|\D+", valor)]
+
+
+def ordem_cronologica(valores) -> list[str]:
+    """As competências na ordem da data real (comando V22, item 4: jan/2014, jun/2014, jan/2015 …), sem repetir; a mesma regra
+    de `chronological` (frontend/src/periods.ts), que compara os números pelo valor. Antes, as listas saíam na ordem do arquivo."""
+    vistos = list(dict.fromkeys(str(valor) for valor in valores))
+    return sorted(vistos, key=_partes_da_data)
 # Baseados nos grupos de cabeçalhos da CFG-VOC §4.4.9; os complementos
 # operacionais ficam explícitos e NÃO alteram a configuração normativa.
 EXACT = {
@@ -702,7 +715,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             "territory_choices": territory_choices, "selection_reason": selection_reason,
             "territorial_hierarchy": describe_hierarchy(original_frame, mapped, options.get("hierarchy_columns")),
             "multiplicity": multiplicity(frame, mapped, options),
-            "values": {"territories": values("territory"), "periods": values("period"),
+            "values": {"territories": values("territory"), "periods": ordem_cronologica(values("period")),
                        "categories": values("category")},
             "profile": {
                 "row_count": len(frame), "column_count": len(frame.columns),

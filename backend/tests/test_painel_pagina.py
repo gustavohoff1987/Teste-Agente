@@ -262,11 +262,15 @@ def test_states_level_uses_the_state_source_and_the_state_population(repo):
     assert any("população estadual incompleta, 4 de 5 municípios" in text and "(DENOMINADOR_AUSENTE)" in text
                for text in early["motivos"])
     assert any(note.startswith("Estados: contagem de médicos únicos da fonte estadual") for note in body["notas"])
-    # Estados não têm ponto único nem conjuntos no gráfico; a base vale só para municípios.
+    # Estados não têm ponto único; a base vale só para municípios. Desde o comando V22 (9/11/2026, seção 5; muda de propósito
+    # esta conferência, que recusava os conjuntos no nível estados), os conjuntos de estados entram (a soma das fontes
+    # estaduais; test_conjuntos_de_estados_somam_as_fontes_estaduais), e um conjunto de municípios no nível estados é recusado
+    # porque um conjunto reúne territórios do mesmo nível.
     states = {"nivel": "estados", "indicador": "densidade", "competencia": "202406"}
     refused(post(info, **states, base={"municipios": {"todos": True}}), "base vale só para municípios")
     refused(post(info, **states, referencia={"membros": [MANAUS]}), "estados não têm um ponto único")
-    refused(post(info, **states, conjuntos=[{"id": "c", "rotulo": "x", "membros": [MANAUS, TEFE]}]), "Conjuntos de estados")
+    refused(post(info, **states, conjuntos=[{"id": "c", "rotulo": "x", "membros": [MANAUS, TEFE]}]),
+            "Um conjunto reúne territórios do mesmo nível")
     refused(post(info, **states, faixas_distancia=[0, 100]), "não têm um ponto único")
     refused(post(info, **states, condicoes=[{"atributo": "distancia_km", "operador": ">", "valor": 1}]), "ponto único")
 
@@ -289,6 +293,88 @@ def test_states_level_with_the_chosen_states(repo):
     refused(post(info, **states, estados=["15", "15"]), "Estados inválidos")
     refused(post(info, **states, estados=["99"]), "Estado sem registro na fonte estadual: 99")
     refused(page(info, estados=["13"]), "A lista estados vale só no nível estados")
+
+
+def test_conjuntos_de_estados_somam_as_fontes_estaduais(repo):
+    """Comando V22 (9/11/2026, seção 5): no nível estados, um conjunto de estados (membros "uf:" ou os prefixos) é a soma das
+    contagens estaduais de médicos únicos e das populações dos estados, rotulada como soma, com a possível dupla contagem (quem
+    atua em mais de um estado conta em cada um); nunca o total do Brasil. Só com conjuntos, a lista dos estados pode vir vazia."""
+    info = inspection()
+    states = {"nivel": "estados", "indicador": "densidade", "competencia": "202406"}
+    todos = by_id(ok(post(info, **states)))
+    norte = {"id": "c1", "rotulo": "Norte junto", "membros": ["uf:13", "15"]}
+    body = ok(post(info, **states, estados=[], conjuntos=[norte]))
+    [conjunto] = body["itens"]
+    assert (conjunto["id"], conjunto["tipo"], conjunto["rotulo"], conjunto["membros"], conjunto["nivel_dos_membros"]) == (
+        "c1", "conjunto", "Norte junto", ["uf:13", "uf:15"], "estados")
+    assert conjunto["contagem"] == "SOMA_DOS_COMPONENTES"
+    assert conjunto["quantidade"] == todos["uf:13"]["quantidade"] + todos["uf:15"]["quantidade"] == 160
+    assert conjunto["populacao"] == todos["uf:13"]["populacao"] + todos["uf:15"]["populacao"] == 8100
+    assert conjunto["densidade"] == float(Fraction(160 * 1000, 8100))
+    assert "SOMA_COM_POSSIVEL_DUPLA_CONTAGEM" in body["limitacoes"] and painel.NOTE_STATES_SUM in body["notas"]
+    # Com os estados escolhidos: cada estado com o próprio valor (o mesmo do pedido sem o conjunto) e o conjunto à parte.
+    junto = by_id(ok(post(info, **states, estados=["13"], conjuntos=[norte])))
+    assert list(junto) == ["uf:13", "c1"]
+    assert [junto["uf:13"][key] for key in ("quantidade", "populacao", "densidade")] == [
+        todos["uf:13"][key] for key in ("quantidade", "populacao", "densidade")]
+    assert junto["c1"]["quantidade"] == 160
+    # Sem conjuntos, a lista vazia continua recusada; um conjunto precisa de dois estados da fonte estadual.
+    refused(post(info, **states, estados=[]), "Estados inválidos")
+    refused(post(info, **states, conjuntos=[{"id": "c", "rotulo": "x", "membros": ["uf:13"]}]), "pelo menos dois estados")
+    refused(post(info, **states, conjuntos=[{"id": "c", "rotulo": "x", "membros": ["uf:13", "uf:99"]}]),
+            "sem registro na fonte estadual (uf:99)")
+
+
+def test_estados_como_unidade_junto_com_municipios_cada_nivel_pelo_proprio_calculo(repo):
+    """Comando V22 (9/11/2026, decisão 3 e seção 2): com `estados_unidade`, a seleção reúne estados como unidade e municípios.
+    Cada nível vem do próprio cálculo — o estado pela fonte estadual, o município pela municipal — com os blocos de cada um em
+    `por_nivel` (a posição dos itens de cada nível), a frase de cada nível e nada somado nem comparado entre os níveis."""
+    info = inspection()
+    so_municipios = by_id(ok(page(info, base={"municipios": {"ids": [MANAUS, TEFE]}})))
+    so_estados = by_id(ok(post(info, nivel="estados", indicador="densidade", competencia="202406", estados=["15"])))
+    body = ok(page(info, base={"municipios": {"ids": [MANAUS, TEFE]}}, estados_unidade=["15"]))
+    assert [item["id"] for item in body["itens"]] == [*so_municipios, "uf:15"]
+    for key, item in by_id(body).items():
+        origem = so_estados if key == "uf:15" else so_municipios
+        assert [item[campo] for campo in ("tipo", "quantidade", "populacao", "densidade")] == [
+            origem[key][campo] for campo in ("tipo", "quantidade", "populacao", "densidade")], key
+    assert body["niveis"] == ["municipios", "estados"]
+    niveis = body["por_nivel"]
+    assert (niveis["municipios"]["itens_de"], niveis["municipios"]["itens_quantos"]) == (0, 2)
+    assert (niveis["estados"]["itens_de"], niveis["estados"]["itens_quantos"]) == (2, 1)
+    assert "NIVEIS_TERRITORIAIS_DIFERENTES" in body["limitacoes"]
+    assert painel.NOTE_SEPARADOS not in body["notas"]
+    assert any("na mesma análise (comando V22)" in note for note in body["notas"])
+    # A frase-resumo de cada nível, conferida pelo motor (resumo_painel.verify), com as contagens de cada um.
+    assert body["resumo"] is not None and set(body["resumo"]["contagens"]) == {"municipios", "estados"}
+    # Nunca juntos: o estado inteiro (como unidade ou num conjunto de estados) e os municípios dele. (O conjunto de estados junto
+    # com municípios de outro estado está em test_real_estados_como_unidade_e_conjunto_de_estados_com_municipios: o catálogo
+    # sintético só tem o Amazonas e o Pará.)
+    refused(page(info, base={"municipios": {"estados": ["13"]}}, estados_unidade=["13"]),
+            "estão na seleção junto com o estado inteiro")
+    refused(page(info, base={"municipios": {"ids": [MANAUS]}},
+                 conjuntos=[{"id": "c1", "rotulo": "x", "membros": ["uf:13", "uf:15"]}]), "estão na seleção junto com o estado")
+    refused(page(info, base={"municipios": {"ids": [MANAUS]}}, estados_unidade=["15"],
+                 conjuntos=[{"id": "c", "rotulo": "x", "membros": [TEFE, "uf:15"]}]), "mistura estados e municípios")
+    refused(page(info, base={"municipios": {"ids": [MANAUS, TEFE]}}, estados_unidade=["15"], comparar=[MANAUS, "uf:15"]),
+            "A comparação põe lado a lado territórios do mesmo nível")
+    refused(post(info, nivel="estados", indicador="densidade", competencia="202406", estados_unidade=["15"]),
+            "estados_unidade vale só com nivel")
+    refused(page(info, base={"municipios": {"ids": [MANAUS]}}, estados_unidade=["99"]), "Estado sem registro: 99")
+
+
+def test_estados_como_unidade_ficam_fora_da_analise_espacial_com_o_motivo(repo):
+    """Comando V22: a Análise Espacial mede a distância de cada município; os estados como unidade ficam de fora, com o motivo
+    em `fora_da_analise`, e os municípios seguem com a distância de sempre."""
+    info = inspection()
+    referencia = {"membros": [PARINTINS]}
+    so_municipios = by_id(ok(page(info, base={"municipios": {"ids": [MANAUS, TEFE]}}, referencia=referencia)))
+    body = ok(page(info, base={"municipios": {"ids": [MANAUS, TEFE]}}, estados_unidade=["15"], referencia=referencia))
+    assert all(item["tipo"] != "estado" for item in body["itens"])
+    assert {key: item["distancia_km"] for key, item in by_id(body).items()} == {
+        key: item["distancia_km"] for key, item in so_municipios.items()}
+    [fora] = body["fora_da_analise"]
+    assert (fora["id"], fora["tipo"]) == ("uf:15", "estado") and fora["motivo"].startswith("Fora da Análise Espacial")
 
 
 def test_complete_scopes_bring_the_individualized_counts_of_each_state_and_of_brazil(repo):
@@ -1826,6 +1912,29 @@ def test_real_states_match_the_state_level_of_the_density_analysis(real):
     chosen = ok(post(real, nivel="estados", indicador="densidade", competencia="202406", estados=["29", "42"]))
     assert [item["id"] for item in chosen["itens"]] == ["uf:29", "uf:42"]
     assert all(item == items[item["id"]] for item in chosen["itens"])
+
+
+def test_real_estados_como_unidade_e_conjunto_de_estados_com_municipios(real):
+    """Comando V22 (9/11/2026), base versionada: os municípios do Amazonas, o Pará como unidade e o conjunto do Maranhão com a
+    Bahia na mesma seleção. Cada nível vem do próprio cálculo: os municípios como no pedido só deles; o Pará, como no nível
+    estados; o conjunto, a soma das contagens estaduais dos dois (com a possível dupla contagem), nunca a dos municípios."""
+    opcoes = {"nivel": "municipios", "indicador": "densidade", "competencia": "202406", "base": {"municipios": {"estados": ["13"]}}}
+    so_municipios = by_id(ok(post(real, **opcoes)))
+    estados = by_id(ok(post(real, nivel="estados", indicador="densidade", competencia="202406")))
+    conjunto = {"id": "c1", "rotulo": "Maranhão e Bahia", "membros": ["uf:21", "uf:29"]}
+    body = ok(post(real, **opcoes, estados_unidade=["15"], conjuntos=[conjunto]))
+    itens = by_id(body)
+    assert list(itens) == [*so_municipios, "uf:15", "c1"]
+    assert all(itens[key]["densidade"] == item["densidade"] for key, item in so_municipios.items())
+    assert [itens["uf:15"][campo] for campo in ("quantidade", "populacao", "densidade")] == [
+        estados["uf:15"][campo] for campo in ("quantidade", "populacao", "densidade")]
+    soma = itens["c1"]
+    assert soma["nivel_dos_membros"] == "estados" and soma["contagem"] == "SOMA_DOS_COMPONENTES"
+    assert soma["quantidade"] == estados["uf:21"]["quantidade"] + estados["uf:29"]["quantidade"]
+    assert soma["populacao"] == estados["uf:21"]["populacao"] + estados["uf:29"]["populacao"]
+    assert body["niveis"] == ["municipios", "estados"] and "NIVEIS_TERRITORIAIS_DIFERENTES" in body["limitacoes"]
+    assert body["por_nivel"]["estados"]["itens_de"] == len(so_municipios)
+    assert body["resumo"] is not None
 
 
 def test_real_complete_scopes_use_the_state_and_national_sources(real):

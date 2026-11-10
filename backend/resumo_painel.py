@@ -290,7 +290,9 @@ def _spatial(c: Composer, body: dict, facts: dict):
         # Escolha dos territórios (27/10/2026): a referência mais próxima é de cada território; a frase copia a descrição
         # da referência da resposta.
         feminine = (body["rotulos"]["unidade"].get("genero") == "f") if body.get("rotulos") else False
-        c.text(" Distância em linha reta até a referência mais próxima de cada " + singular + " (" +
+        # Com conjuntos na base (comando V22, seção 6), cada território: a unidade ou o conjunto, pelo membro mais próximo.
+        cada = "território" if facts["contagens"]["conjuntos"] else singular
+        c.text(" Distância em linha reta até a referência mais próxima de cada " + cada + " (" +
                ("a mais próxima entre as " if feminine else "o mais próximo entre os ") + plural + " ") \
             .label("referencia", "texto").text("): ")
     else:
@@ -441,7 +443,7 @@ def _context(c: Composer, body: dict):
         .number("contexto", "brasil", "densidade", kind="PARAMETRO").text(" " + DENSITY_UNIT + ".")
 
 
-def compose(body: dict, facts: dict) -> Composer:
+def compose(body: dict, facts: dict, contexto: bool = True) -> Composer:
     """A frase de uma resposta da página única, na ordem das análises: itens e indicador (distribuição), grupos e faixas,
     mudança, análise espacial, tendência, condições, comparação, rotatividade, ressalvas (conjuntos e estados) e a linha de
     contexto do Brasil. Os grupos que pintam o mapa (`grupos_mapa`, pedidos pela tela junto com toda análise) não entram:
@@ -480,7 +482,8 @@ def compose(body: dict, facts: dict) -> Composer:
         note = _note_index(view, NOTE_STATES)
         if note is not None:
             c.text(" ").note(note)
-    _context(c, view)
+    if contexto:
+        _context(c, view)
     return c
 
 
@@ -526,6 +529,48 @@ def verify(body: dict) -> bool:
         return all(verify_segment(segment, body) for segment in segments)
     except (KeyError, IndexError, TypeError):
         return False
+
+
+def _caminho_do_nivel(caminho: list, nivel: str, de: int) -> list:
+    """O caminho de um segmento da frase de um nível na resposta inteira: os itens com o deslocamento do nível, os demais
+    blocos no `por_nivel` dele."""
+    if caminho and caminho[0] == "itens":
+        return ["itens", caminho[1] + de, *caminho[2:]]
+    return ["por_nivel", nivel, *caminho]
+
+
+def summary_por_nivel(body: dict, facts_of) -> dict | None:
+    """A frase de uma seleção com níveis diferentes (comando V22: estados como unidade e municípios): a frase de cada nível, na
+    ordem dos níveis, sobre os itens e os blocos dele (`por_nivel`), com os caminhos levados à resposta inteira; a linha de
+    contexto do Brasil sai uma vez, no fim. Nenhum valor de um nível é comparado com o de outro, e a frase inteira passa pela
+    mesma conferência (verify). `facts_of` conta os extremos e as contagens de um nível (painel.summary_facts)."""
+    niveis = body.get("niveis") or []
+    partes, segmentos, textos, contagens = [], [], [], {}
+    for posicao, nivel in enumerate(niveis):
+        bloco = body["por_nivel"][nivel]
+        de, quantos = bloco["itens_de"], bloco["itens_quantos"]
+        view = {**bloco, "itens": body["itens"][de:de + quantos]}
+        facts = facts_of(view)
+        bloco["resumo"] = {"contagens": facts["contagens"]}
+        composer = compose(view, facts, contexto=posicao == len(niveis) - 1)
+        deslocamento = len(segmentos)
+        for segmento in composer.segments:
+            segmentos.append({**segmento, "caminho": _caminho_do_nivel(segmento["caminho"], nivel, de)})
+        if partes:
+            partes.append({"texto": " "})
+        for parte in composer.parts:
+            if "segmento" in parte:
+                indice = parte["segmento"] + deslocamento
+                partes.append({**parte, "segmento": indice, "caminho": segmentos[indice]["caminho"]})
+            else:
+                partes.append(dict(parte))
+        textos.append(composer.sentence)
+        contagens[nivel] = facts["contagens"]
+    if not segmentos:
+        return None
+    out = {"versao": VERSION, "texto": " ".join(textos), "partes": partes, "segmentos": segmentos,
+           "contagens": contagens, "nota": NOTE}
+    return out if verify({**body, "resumo": out}) else None
 
 
 def summary(body: dict, facts: dict) -> dict | None:

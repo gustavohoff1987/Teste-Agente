@@ -1,18 +1,19 @@
 """Navegação por níveis (06/11/2026, comando do responsável, itens 2 e 3), com a base versionada (somente leitura).
 
 Confere, contra as respostas de /api/painel, /api/painel/lugar e /api/painel/mapa, os aceites do comando:
-- o todo como referência: o "Ver por" (Estado | Município) no lugar de "Cada ponto da análise é", sem o Brasil como unidade de
-  análise; a faixa fixa no alto das abas de análise com os números do Brasil (502.495 médicos, 212,6 milhões de habitantes, 2,36
-  por 1.000 e a variação da densidade desde jun/2021, cerca de +19,2%), iguais aos que o motor devolveu; vendo por estado, 27
-  pontos; por município, 5.570; a linha tracejada "Brasil 2,36" no gráfico;
+- o todo como referência: desde o comando V22 (decisão 3), sem o "Ver por": "Só os estados", na linha do Brasil da árvore, põe
+  os 27 estados como unidade, e a caixa do Brasil marca os 5.570 municípios; "Confirmar seleção" vai à análise aberta; sem o
+  Brasil como unidade de análise; a faixa fixa no alto das abas de análise com os números do Brasil (502.495 médicos, 212,6
+  milhões de habitantes, 2,36 por 1.000 e a variação da densidade desde jun/2021, cerca de +19,2%), iguais aos que o motor
+  devolveu; com os estados, 27 pontos; com os municípios, 5.570; a linha tracejada "Brasil 2,36" no gráfico;
 - a trilha, sempre à vista e igual em todas as abas: "Brasil" no todo; "Brasil › Pará" ao tocar no Pará (144 municípios, 10.307
   médicos, 1,19 por 1.000, com o Brasil como referência: "Pará 1,19 · Brasil 2,36", e a linha do estado no gráfico);
   "Brasil › Pará › MARABA (PA)" ao tocar em Marabá, com o cartão (472 médicos, 1,64, e as barras do município, do Pará e do
   Brasil); tocar em "Brasil" volta ao todo sem o Desfazer, e um Desfazer, depois, volta a Marabá;
 - a Série temporal de Marabá com as linhas de referência do Pará e do Brasil, tracejadas;
 - o mapa vendo por estado: 27 bolhas, nos pontos de desenho do servidor;
-- a Análise Espacial vendo por estado: só a mensagem "A Análise Espacial mede distâncias entre municípios." e o botão "Ver os
-  municípios destes estados", que troca o Ver por e abre a Escolha dos territórios;
+- a Análise Espacial com os estados como unidade: só a mensagem "A Análise Espacial mede distâncias entre municípios." e o
+  botão "Ver os municípios destes estados", que põe os municípios no lugar dos estados e abre a Escolha dos territórios;
 - a conversa que navega: "Mostre o Pará" leva a trilha a "Brasil › Pará", com os números do Pará na faixa;
 - a proteção (item 4.6): com o cálculo da seleção em uso retido, a aba diz "Esta análise ainda é do Pará: o cálculo da seleção
   em uso ainda não chegou.", com "Atualizar", e o desenho fica esmaecido; com a falha do cálculo, "… não deu certo.", e
@@ -26,14 +27,14 @@ Confere, contra as respostas de /api/painel, /api/painel/lugar e /api/painel/map
 - os grupos em tela estreita (item 7): a 360 px, nos modos claro e escuro, vendo por estado, a lista na ordem do motor, do DF
   (4,41) ao MA (1,13), com a linha "Brasil 2,36", sem textos sobrepostos; nas bolhas, os nomes só dos destaques (os 3 maiores e
   os 3 menores), sem rótulos sobrepostos, e a sigla do Pará junto da bolha;
-- Agrupar territórios (item 5; desde 07/11/2026, um dos modos da Seleção, com o vocabulário "conjunto"): o Juntar não aparece mais
-  nas Ferramentas das análises; na Seleção do Pará, os modos "Marcar na lista", "Por critérios" e "Agrupar territórios"; buscar
-  "Parau", marcar PARAUAPEBAS (PA) e MARABA (PA), o nome "Carajás" e "Criar conjunto": "Na análise" mostra "Pará · 142 de 144
-  municípios" e "Carajás · conjunto · 2 municípios · 894 médicos · 1,52 por mil", com a ressalva
-  da soma; no gráfico, Carajás fica no lugar das duas; a trilha continua "Brasil › Pará", e a busca da tabela dos Detalhes acha o
-  grupo. O ✎ renomeia e muda os membros (com MACAPA (AP), marcada na lista do Amapá, a trilha vai a "Brasil › Seleção"); o ×
-  desfaz o grupo, e só os membros que saíram da seleção voltam (o Pará inteiro; o Amapá não entra). Pela conversa, "agregue
-  Marabá e Parauapebas como Carajás" cria o mesmo grupo, com a confirmação conferida (o selo "conferido: está na tela").
+- Agrupar territórios (item 5; desde o comando V22, "Agrupar territórios selecionados", no painel direito da Seleção, só com
+  os selecionados): o Juntar não aparece nas Ferramentas das análises; na Seleção do Pará, sem os modos de antes, a escolha
+  livre: buscar "Parau", marcar PARAUAPEBAS (PA) e MARABA (PA), o nome "Carajás" e "Criar conjunto": a lista mostra "Pará · 142
+  de 144 municípios" e "Carajás · conjunto · 2 municípios · 894 médicos · 1,52 por mil", com a ressalva da soma; no gráfico,
+  Carajás fica no lugar das duas; a trilha continua "Brasil › Pará", e a busca da tabela dos Detalhes acha o grupo. O ✎ renomeia
+  e muda os membros, só entre os selecionados (a MACAPA (AP), fora da seleção, não aparece na busca); o × desfaz o grupo, e os
+  membros que saíram da seleção voltam (o Pará inteiro). Pela conversa, "agregue Marabá e Parauapebas como Carajás" cria o
+  mesmo grupo, com a confirmação conferida (o selo "conferido: está na tela").
 Nada é calculado na tela: os números vêm do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA. Tira capturas em
 .local/ui-validation (navegacao-*.png).
 """
@@ -174,26 +175,24 @@ def main():
         if chat.count() and chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
             chat.get_by_test_id("painel-chat-minimizar").click()
 
-        # 1. A base do Brasil, sem nada escolhido: o Ver por (Estado | Município), sem o Brasil como opção; a trilha começa no
+        # 1. A base do Brasil, sem nada escolhido. Desde o comando V22 (decisão 3; muda de propósito este trecho, que conferia o Ver
+        # por de 06/11/2026), sem o Ver por: "Só os estados" na linha do Brasil põe os estados como unidade. A trilha começa no
         # Brasil, ainda sem lugar atual.
         area.get_by_test_id("analise-fonte-brasil").click()
         expect(area.get_by_test_id("analise-aba-territorios")).to_have_attribute("aria-selected", "true", timeout=180000)
-        ver_por = territorios.get_by_test_id("analise-nivel")
-        expect(ver_por).to_be_visible()
-        expect(territorios).to_contain_text("Ver por")
+        expect(territorios.get_by_test_id("analise-nivel")).to_have_count(0)
+        expect(territorios).not_to_contain_text("Ver por")
         expect(territorios).not_to_contain_text("Cada ponto da análise é")
-        expect(territorios.get_by_test_id("analise-nivel-brasil")).to_have_count(0)
-        expect(ver_por.get_by_role("radio")).to_have_count(2)
-        expect(ver_por.get_by_test_id("analise-nivel-estados")).to_contain_text("Estado")
-        expect(ver_por.get_by_test_id("analise-nivel-municipios")).to_contain_text("Município")
+        so_estados = territorios.get_by_test_id("analise-raiz-so-estados")
+        expect(so_estados).to_have_text("Só os estados")
         expect(partes).to_have_text(["Brasil"])
         expect(atual).to_have_count(0)
 
-        # 2. O todo: Ver por Estado marca todos os estados; a faixa traz os números do Brasil, prontos no motor (a fonte nacional),
-        # na competência da análise, com a variação da densidade desde o primeiro dos últimos 4 junhos.
+        # 2. O todo: "Só os estados" põe todos os estados como unidade; a faixa traz os números do Brasil, prontos no motor (a fonte
+        # nacional), na competência da análise, com a variação da densidade desde o primeiro dos últimos 4 junhos.
         estados_e_opcoes = []
         corpo, opcoes_lugar = numeros_do_lugar(
-            lambda: estados_e_opcoes.append(ok(lambda: aperta(territorios.get_by_test_id("analise-nivel-estados")))),
+            lambda: estados_e_opcoes.append(ok(lambda: aperta(so_estados))),
             lambda o: "grupo" not in o)
         estados, sent = estados_e_opcoes[0]
         lugar_todo = corpo["todo"]
@@ -206,7 +205,7 @@ def main():
         assert 19.15 <= variacao < 19.25, variacao
         itens_estado = [item for item in estados["itens"] if item["tipo"] == "estado"]
         assert len(itens_estado) == 27 == len(estados["itens"]), len(estados["itens"])
-        aperta(territorios.get_by_test_id("analise-ver-analise"))
+        aperta(territorios.get_by_test_id("analise-confirmar-selecao"))  # decisão 4: vai à análise aberta
         expect(area).to_have_attribute("data-aba", "distribuicao")
         expect(area.locator(ESTADOS)).to_have_count(27, timeout=60000)
         expect(partes).to_have_text(["Brasil"])
@@ -221,8 +220,7 @@ def main():
         expect(numero("variacao")).to_have_attribute("data-valor", js(variacao))
         expect(numero("variacao")).to_contain_text("Desde jun/2021")
         expect(numero("variacao")).to_contain_text(re.compile(r"\+19,\d+%"))
-        expect(faixa.get_by_test_id("analise-ver-por-estados")).to_have_attribute("aria-checked", "true")
-        expect(faixa.get_by_test_id("analise-ver-por")).to_contain_text("Município")
+        expect(faixa.locator('[data-testid^="analise-ver-por"]')).to_have_count(0)
         # A linha do todo no gráfico: tracejada, com o nome e o valor do motor.
         linha_brasil = area.get_by_test_id("analise-contexto-brasil")
         expect(linha_brasil).to_have_attribute("data-rotulo", "Brasil 2,36")
@@ -243,19 +241,27 @@ def main():
         aperta(area.get_by_test_id("analise-desenho-grafico"))
         expect(area).to_have_attribute("data-desenho", "grafico")
 
-        # 4. Ver por Município: os 5.570 municípios do Brasil; a faixa continua a do Brasil (os mesmos números, sem novo pedido).
-        # Ver por Estado de novo: os 27, da memória da tela.
+        # 4. Os 5.570 municípios do Brasil: na Seleção, desligar "Só os estados" e marcar a caixa do Brasil (desde o comando V22, ela
+        # marca os municípios); a faixa continua a do Brasil (os mesmos números, sem novo pedido). "Só os estados" de novo: os 27, da
+        # memória da tela.
         lugares_antes = len(lugares)
-        brasil, sent = ok(lambda: aperta(faixa.get_by_test_id("analise-ver-por-municipios")))
-        assert sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        aperta(so_estados)
+        expect(so_estados).to_have_attribute("aria-pressed", "false")
+        brasil, sent = ok(lambda: marca(territorios.get_by_test_id("analise-raiz-caixa")))
+        assert sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}} and sent["nivel"] == "municipios", sent
         assert len([item for item in brasil["itens"] if item["tipo"] == "municipio"]) == 5570, len(brasil["itens"])
         expect(partes).to_have_text(["Brasil"])
+        aperta(territorios.get_by_test_id("analise-confirmar-selecao"))
         expect(faixa).to_have_attribute("data-lugar", "todo")
         confere_numeros(lugar_todo)
-        aperta(faixa.get_by_test_id("analise-ver-por-estados"))
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        aperta(so_estados)
+        expect(so_estados).to_have_attribute("aria-pressed", "true")
+        aperta(territorios.get_by_test_id("analise-confirmar-selecao"))
         expect(area.locator(ESTADOS)).to_have_count(27, timeout=60000)
         page.wait_for_timeout(500)
-        assert len(lugares) == lugares_antes, "os números do Brasil não mudam com o Ver por"
+        assert len(lugares) == lugares_antes, "os números do Brasil não mudam com o nível dos pontos"
 
         # 5. Tocar no Pará: os 144 municípios dele; a trilha "Brasil › Pará"; a faixa com os números do Pará (a contagem estadual
         # de médicos únicos, pronta na fonte) e o Brasil como referência; no gráfico, a linha do Pará junto da do Brasil. Voltar é
@@ -350,8 +356,8 @@ def main():
         aperta(trilha.locator('[data-testid="analise-trilha-parte"][data-chave="todo"]'))
         expect(area.locator(ESTADOS)).to_have_count(27, timeout=60000)
 
-        # 9. A Análise Espacial vendo por estado: só a mensagem e o botão; sem gráfico, ajustes nem a Escolha dos territórios. O
-        # botão troca o Ver por para município e abre a Escolha dos territórios.
+        # 9. A Análise Espacial com só estados como unidade: só a mensagem e o botão; sem gráfico, ajustes nem a Escolha dos
+        # territórios. O botão põe os municípios desses estados no lugar deles e abre a Escolha dos territórios.
         aperta(area.get_by_test_id("analise-familia-espacial"))
         expect(area).to_have_attribute("data-aba", "espacial")
         espacial = area.get_by_test_id("analise-espacial-grupos")
@@ -365,7 +371,7 @@ def main():
         shot("06-espacial-estados")
         aperta(botao)
         expect(area.get_by_test_id("analise-painel")).to_have_attribute("data-painel", "referencia", timeout=30000)
-        expect(faixa.get_by_test_id("analise-ver-por-municipios")).to_have_attribute("aria-checked", "true")
+        expect(faixa).to_have_attribute("data-lugar", "todo")
         expect(area.get_by_test_id("analise-espacial-grupos")).to_have_count(0)
         fecha()
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
@@ -533,7 +539,7 @@ def main():
             expect(territorios_c).to_be_visible(timeout=180000)
             with celular.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST",
                                          timeout=180000) as evento:
-                botao = territorios_c.get_by_test_id("analise-nivel-estados")
+                botao = territorios_c.get_by_test_id("analise-raiz-so-estados")
                 botao.scroll_into_view_if_needed()
                 botao.focus()
                 botao.press("Enter")
@@ -541,7 +547,7 @@ def main():
             ordem_motor = evento.value.json()["ordem_do_indicador"]["itens"]
             ordem_c = [entrada["id"] for entrada in ordem_motor]
             posicoes = {entrada["id"]: entrada["posicao"] for entrada in ordem_motor}
-            territorios_c.get_by_test_id("analise-ver-analise").click()
+            territorios_c.get_by_test_id("analise-confirmar-selecao").click()
             lista = area_c.get_by_test_id("analise-lista-grupos")
             expect(lista).to_be_visible(timeout=60000)
             expect(area_c.get_by_test_id("analise-grupos-lista")).to_have_attribute("aria-pressed", "true")
@@ -599,14 +605,13 @@ def main():
         assert len(ids_pa) == 144 and {PARAUAPEBAS, MARABA} <= ids_pa, len(ids_pa)
         aperta(area.get_by_test_id("analise-aba-territorios"))
         expect(area).to_have_attribute("data-aba", "territorios")
-        # Desde 07/11/2026 (item 1 do comando de 07/11/2026; muda de propósito esta conferência, que via os botões Buscar, Agregar
-        # territórios e Selecionar por critérios), uma ferramenta por vez: os modos no alto da coluna, "Marcar na lista" de início.
-        modos = territorios.get_by_test_id("analise-selecao-modos")
-        expect(modos.get_by_role("radio")).to_have_text(["Marcar na lista", "Por critérios", "Agrupar territórios"])
-        expect(modos.get_by_test_id("analise-modo-lista")).to_have_attribute("aria-checked", "true")
-        aperta(modos.get_by_test_id("analise-modo-agrupar"))
+        # Desde o comando V22 (seções 3 e 5; muda de propósito esta conferência, que via os modos da coluna da esquerda): sem os
+        # modos; "Agrupar territórios selecionados", no painel direito, por escolha livre, só com os selecionados (o Pará inteiro).
+        expect(territorios.get_by_test_id("analise-selecao-modos")).to_have_count(0)
+        aperta(territorios.get_by_test_id("analise-agrupar-selecionados"))
+        expect(territorios.get_by_test_id("analise-agrupar")).to_have_attribute("data-modo", "livre")
         agregar = territorios.get_by_test_id("analise-agregar")
-        expect(territorios.get_by_test_id("analise-modo-lista-conteudo")).to_be_hidden()
+        expect(territorios.get_by_test_id("analise-arvore")).to_be_visible()
         expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Conjunto A")
         expect(agregar.get_by_test_id("analise-agregar-substitui")).to_be_checked()
         busca_grupo = agregar.get_by_test_id("analise-agregar-busca")
@@ -657,28 +662,34 @@ def main():
         expect(area.get_by_test_id("analise-tabela-sem-resultado")).to_be_visible()
         busca_tabela.fill("")
         shot("16-carajas-no-grafico")
-        # O ✎: o nome e os membros (MACAPA (AP), marcada na lista do Amapá); com membros de estados diferentes, a trilha vai a
-        # "Brasil › Seleção". O Pará continua sem os dois primeiros; a Macapá, que não estava na seleção, não sai de lugar nenhum.
+        # O ✎: o nome e os membros, só entre os selecionados (comando V22, seção 5: agrupar não traz territórios de fora; a Macapá,
+        # fora da seleção, não é candidata). Um terceiro município do Pará entra e sai da seleção individual; a versão da composição
+        # sobe, e o id fica.
         aperta(area.get_by_test_id("analise-aba-territorios"))
         aperta(territorios.get_by_test_id("analise-selecionado-conjunto-editar"))
         expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Carajás")
         expect(agregar.get_by_test_id("analise-agregar-membro")).to_have_count(2)
-        agregar.get_by_test_id("analise-agregar-grupo").select_option("16")
-        marca(agregar.locator('[data-testid="analise-agregar-unidade"][data-id="' + MACAPA + '"] input'))
-        agregar.get_by_test_id("analise-agregar-nome").fill("Carajás e Macapá")
+        agregar.get_by_test_id("analise-agregar-busca").fill("Macapa")
+        expect(agregar.locator('[data-testid="analise-agregar-resultado"][data-id="' + MACAPA + '"]')).to_have_count(0)
+        expect(agregar.get_by_test_id("analise-agregar-resultado")).to_have_count(0)
+        agregar.get_by_test_id("analise-agregar-busca").fill("")
+        agregar.get_by_test_id("analise-agregar-grupo").select_option(PA)
+        terceiro = agregar.locator('[data-testid="analise-agregar-unidade"]:not([data-id="' + PARAUAPEBAS + '"]):not([data-id="' + MARABA + '"])').first
+        id_terceiro = terceiro.get_attribute("data-id")
+        marca(terceiro.locator("input"))
+        agregar.get_by_test_id("analise-agregar-nome").fill("Carajás e vizinho")
         expect(agregar.get_by_test_id("analise-agregar-criar")).to_have_text("Salvar conjunto")
         editado, sent = ok(lambda: aperta(agregar.get_by_test_id("analise-agregar-criar")))
-        assert sent["conjuntos"] == [{"id": "c1", "rotulo": "Carajás e Macapá", "membros": [PARAUAPEBAS, MARABA, MACAPA]}], sent
-        assert set(sent["base"]["municipios"]["ids"]) == ids_pa - {PARAUAPEBAS, MARABA}, "a seleção é a mesma"
-        expect(partes).to_have_text(["Brasil", "Seleção"])
-        expect(texto_do_grupo).to_contain_text("Carajás e Macapá · conjunto · 3 municípios")
-        # O ×: o grupo se desfaz, e só os membros que saíram da seleção voltam (o Pará inteiro; o Amapá não entra). A escolha
-        # volta a ser a do Pará inteiro, já calculada: a tela pode reaproveitar a resposta guardada, sem novo pedido.
-        aperta(territorios.get_by_role("button", name="Desfazer o conjunto Carajás e Macapá", exact=True))
+        assert sent["conjuntos"] == [{"id": "c1", "rotulo": "Carajás e vizinho", "membros": [PARAUAPEBAS, MARABA, id_terceiro]}], sent
+        assert set(sent["base"]["municipios"]["ids"]) == ids_pa - {PARAUAPEBAS, MARABA, id_terceiro}, "o terceiro sai da seleção individual"
+        expect(partes).to_have_text(["Brasil", "Pará"])
+        expect(texto_do_grupo).to_contain_text("Carajás e vizinho · conjunto · 3 municípios")
+        # O ×: o grupo se desfaz, e os membros que saíram da seleção voltam (o Pará inteiro). A escolha volta a ser a do Pará
+        # inteiro, já calculada: a tela pode reaproveitar a resposta guardada, sem novo pedido.
+        aperta(territorios.get_by_role("button", name="Desfazer o conjunto Carajás e vizinho", exact=True))
         expect(territorios.get_by_test_id("analise-selecionado-conjunto")).to_have_count(0)
         expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + PA + '"]')).to_contain_text(
             "Pará · todos os 144")
-        expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="16"]')).to_have_count(0)
         expect(partes).to_have_text(["Brasil", "Pará"])
         # Pela conversa, o mesmo grupo, com a confirmação conferida (item 4): a resposta só se dá por concluída com o resultado em
         # tela.
@@ -709,8 +720,8 @@ def main():
         assert not falhas, falhas
         assert not chamadas_llm, chamadas_llm
         browser.close()
-    print("NAVEGACAO PASS: o todo como referência (502.495 médicos, 212,6 milhões, 2,36), Ver por estado (27) e município "
-          "(5.570), trilha Brasil › Pará › MARABA (PA), cartão (472, 1,64), volta pela trilha, Série com as referências, mapa dos "
+    print("NAVEGACAO PASS: o todo como referência (502.495 médicos, 212,6 milhões, 2,36), Só os estados (27) e a caixa do Brasil "
+          "(5.570 municípios), trilha Brasil › Pará › MARABA (PA), cartão (472, 1,64), volta pela trilha, Série com as referências, mapa dos "
           "estados (27), Análise Espacial por estado, a conversa que move a trilha (Mostre o Pará) e a proteção (Esta análise ainda é "
           "do Pará, com Atualizar), a pergunta que não é comando (Marabá: 472, 1,64, cerca de 140 km; Abrir e Ir para), os estados "
           "em tela estreita (a lista na ordem do motor, do DF ao MA, e nas bolhas só os destaques) e Agregar territórios (Carajás: "

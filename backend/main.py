@@ -1372,9 +1372,12 @@ def inspect(file: UploadFile | None = File(None), sheet: str = Form(""),
         mapping = suggested_mapping(frame)
         suggestions = suggested_columns(profiles)
         def available(role):
+            # As competências na ordem da data real (comando V22, item 4); antes, na ordem do arquivo, com jun/2018, jan/2021 e
+            # jan/2023 depois de jun/2023 na base do Brasil. Os demais papéis continuam na ordem em que aparecem.
             col = mapping.get(role)
-            return frame[col].dropna().astype(str).unique().tolist()[:80] if col else []
-        from semantic_bridge import category_from_count_header
+            valores = frame[col].dropna().astype(str).unique().tolist() if col else []
+            return (ordem_cronologica(valores) if role == "period" else valores)[:80]
+        from semantic_bridge import category_from_count_header, ordem_cronologica
         profile = curated_profile(frame, mapping)
         count_columns = [mapping["count"]] if mapping.get("count") else suggestions.get("count", [])
         levels = None
@@ -1830,8 +1833,10 @@ def _attach_panel_summary(body: dict) -> None:
     /api/analyze, uma falha nunca derruba a resposta: registrada no log, o campo é omitido. Só para a interface; nada
     dela vai ao provedor de IA."""
     try:
-        from resumo_painel import summary
-        resumo = summary(body, painel.summary_facts(body))
+        from resumo_painel import summary, summary_por_nivel
+        # Com estados como unidade e municípios na mesma seleção (comando V22), a frase de cada nível, sobre os itens dele.
+        resumo = summary_por_nivel(body, painel.summary_facts) if body.get("por_nivel") else \
+            summary(body, painel.summary_facts(body))
     except Exception:  # noqa: BLE001 — registrada no log; o gráfico, a tabela e as exportações seguem disponíveis
         logging.getLogger(__name__).exception("Falha ao compor a frase-resumo do gráfico")
         resumo = None

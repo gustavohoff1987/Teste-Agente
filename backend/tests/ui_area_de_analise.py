@@ -62,7 +62,7 @@ import re
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, form_field, is_post, offline, open_chat, send
+from ui_support import URL, abrir_regiao, form_field, is_post, linha_do_estado, offline, open_chat, send
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 MANAUS, TEFE, PARINTINS = "code:130260", "code:130420", "code:130340"
@@ -335,7 +335,7 @@ def main():
         busca = territorios.get_by_test_id("analise-busca")
         expect(busca).to_be_visible()
         expect(busca).to_have_attribute("placeholder", "Buscar município ou estado")
-        assert busca.bounding_box()["y"] < territorios.get_by_test_id("analise-grupo").first.bounding_box()["y"], "a busca no alto da Seleção"
+        assert busca.bounding_box()["y"] < territorios.get_by_test_id("analise-arvore").bounding_box()["y"], "a busca no alto da Seleção"
         # Duas áreas lado a lado (24/10/2026, segunda rodada): à esquerda, a busca no alto e a lista; à direita, sempre à vista, o
         # que entra na análise (vazio, com a orientação). Cada uma com cerca de metade da largura.
         lista_esquerda = territorios.get_by_test_id("analise-territorios-lista")
@@ -345,14 +345,15 @@ def main():
         assert abs(caixa_e["y"] - caixa_d["y"]) < 8, ("as duas áreas começam na mesma altura", caixa_e, caixa_d)
         assert min(caixa_e["width"], caixa_d["width"]) >= 0.4 * largura_sel, ("cada área com cerca de metade", caixa_e, caixa_d, largura_sel)
         expect(lista_esquerda.get_by_test_id("analise-busca")).to_be_visible()
-        expect(direita.get_by_test_id("analise-selecionados-itens")).to_contain_text("Nenhum município marcado ainda")
-        # O Ver por (06/11/2026, no lugar de "Cada ponto da análise é"): o estado e o município; o Brasil deixou de ser opção (o
-        # todo é a referência fixa de toda análise). A trilha, no alto, começa no Brasil, ainda sem nada escolhido.
-        expect(territorios.get_by_test_id("analise-nivel")).to_be_visible()
-        for nivel, rotulo in (("estados", "Estado"), ("municipios", "Município")):
-            expect(territorios.get_by_test_id("analise-nivel-" + nivel)).to_contain_text(rotulo)
-        expect(territorios.get_by_test_id("analise-nivel-brasil")).to_have_count(0)
-        expect(territorios.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
+        expect(direita.get_by_test_id("analise-selecionados-itens")).to_contain_text("Nenhum território selecionado ainda")
+        # Desde o comando V22 (9/11/2026, decisão 3; muda de propósito este trecho, que conferia o Ver por de 06/11/2026), o estado
+        # como unidade é escolhido na árvore: "Só o estado" em cada estado e "Só os estados" no Brasil e nas regiões. À direita, o
+        # mapa da seleção, a lista e as três ações, com "Confirmar seleção" desligado enquanto nada está escolhido. A trilha, no
+        # alto, começa no Brasil, ainda sem nada escolhido.
+        expect(territorios.get_by_test_id("analise-nivel")).to_have_count(0)
+        expect(territorios.get_by_test_id("analise-raiz-so-estados")).to_have_text("Só os estados")
+        expect(direita.get_by_test_id("analise-confirmar-selecao")).to_be_disabled()
+        expect(direita.get_by_test_id("analise-ver-analise")).to_have_count(0)
         trilha = area.get_by_test_id("analise-trilha")
         expect(trilha.get_by_test_id("analise-trilha-parte")).to_have_text(["Brasil"])
         expect(trilha.locator('[aria-current="location"]')).to_have_count(0)
@@ -420,29 +421,31 @@ def main():
         expect(area).to_have_attribute("data-aba", "territorios")
         page.wait_for_timeout(400)
         assert not painel_calls, "abrir as abas sem territórios (e desfazer) não pede nada ao motor"
-        # Os estados como unidades (05/11/2026, a seleção unificada): sem nada marcado, a unidade de análise Estados é o atalho de
-        # todos os estados como unidades, e a árvore marca o Brasil inteiro (cada estado inteiro).
-        estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-nivel-estados")))
-        expect(territorios.get_by_test_id("analise-nivel-estados")).to_have_attribute("aria-checked", "true")
+        # Os estados como unidade (comando V22, decisão 3; antes, o Ver por Estado): "Só os estados", na linha do Brasil, põe todos
+        # os estados na seleção como unidade, cada um numa bolha, com a fonte estadual; a caixa do Brasil, que marca os municípios,
+        # fica desligada (todos os estados estão como unidade).
+        estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-raiz-so-estados")))
+        expect(territorios.get_by_test_id("analise-raiz-so-estados")).to_have_attribute("aria-pressed", "true")
         expect(busca).to_have_attribute("placeholder", "Buscar município ou estado")
         # nivel e indicador vão em todo pedido (sem nivel, o motor responde no formato de 21/10); com todos, sem a lista.
         # Vendo por estado, o mapa existe (06/11/2026): o pedido leva os quintis do mapa, como nos municípios.
         assert sent.get("nivel") == "estados" and set(sent) == {"competencia", "categoria", "nivel", "indicador", "grupos_mapa"}, sent
         assert sent["grupos_mapa"] == {"tipo": "quintis"}, sent
         assert sent.get("indicador") == "densidade", sent
-        expect(territorios.get_by_test_id("analise-raiz-caixa")).to_be_checked()
+        expect(territorios.get_by_test_id("analise-raiz-caixa")).to_be_disabled()
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text(re.compile(r"Todos os estados \(\d+\)"))
-        expect(territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]').get_by_test_id("analise-grupo-todos")).to_be_checked()
-        # Marcar muitos de uma vez fica dito junto do que está marcado, com o caminho para desfazer (o Desfazer do alto).
-        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text(
-            "Todos os estados marcados, como unidades. Para desfazer, use o botão Desfazer, no alto.")
-        expect(desfazer).to_have_attribute("title", "Desfazer: todos os estados marcados, como unidades")
+        expect(linha_do_estado(territorios, AM)).to_have_attribute("data-unidade", "true")
+        expect(linha_do_estado(territorios, AM).get_by_test_id("analise-grupo-todos")).to_be_disabled()
+        # Os avisos de mudança coletiva saíram (seção 3 do comando V22): o Desfazer, no alto, diz o que desfaz.
+        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_count(0)
+        expect(desfazer).to_have_attribute("title", "Desfazer: só os estados do Brasil")
         expect(limpar).to_be_enabled()
         expect(limpar).to_have_attribute("title", "Tira os territórios em análise; os dados carregados continuam.")
         expect(area).to_have_attribute("data-estado", "E1")
         itens_estado = [item for item in estados["itens"] if item["tipo"] == "estado"]
         assert itens_estado and all(item["tipo"] == "estado" for item in estados["itens"]), "estados e municípios nunca juntos"
-        aperta(territorios.get_by_test_id("analise-ver-analise"))
+        # "Confirmar seleção" (decisão 4; no lugar de "Ver a Análise de Distribuição") leva à análise aberta.
+        aperta(territorios.get_by_test_id("analise-confirmar-selecao"))
         expect(area).to_have_attribute("data-aba", "distribuicao")
         expect(area.get_by_test_id("analise-resultados")).to_be_visible()
         drawn(esperados(estados))
@@ -496,12 +499,12 @@ def main():
         expect(mapa_botao).not_to_have_attribute("aria-disabled", "true")
         expect(desenho.get_by_test_id("analise-desenho-lado")).to_have_count(0)
         expect(area.get_by_test_id("analise-desenho-motivo")).to_have_count(0)
-        # No todo, a trilha mostra o Brasil, a parte atual; a faixa do lugar, no alto da aba, traz o Ver por.
+        # No todo, a trilha mostra o Brasil, a parte atual; a faixa do lugar, no alto da aba, sem o Ver por (comando V22).
         expect(trilha.get_by_test_id("analise-trilha-parte")).to_have_text(["Brasil"])
         expect(trilha.locator('[aria-current="location"]')).to_have_text("Brasil")
         faixa = area.get_by_test_id("analise-faixa")
         expect(faixa).to_have_attribute("data-lugar", "todo")
-        expect(faixa.get_by_test_id("analise-ver-por-estados")).to_have_attribute("aria-checked", "true")
+        expect(faixa.locator('[data-testid^="analise-ver-por"]')).to_have_count(0)
         # A bolha do estado sob o mouse e em foco mostra a ação "Ver os municípios".
         amazonas = next(item for item in itens_estado if "Amazonas" in item["rotulo"])
         bolha_am = area.locator('[data-testid="analise-bolha"][data-id="' + amazonas["id"] + '"]')
@@ -631,14 +634,13 @@ def main():
         expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
         expect(area.get_by_test_id("analise-resumo")).to_have_text("")  # a região da frase fica, vazia
         assert all(not caixa.is_checked() for caixa in lista_am.locator("input[type=checkbox]").all())
-        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text(
-            "Municípios do Amazonas desmarcados. Para desfazer, use o botão Desfazer, no alto.")
+        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_count(0)  # sem o aviso coletivo (comando V22)
         page.wait_for_timeout(400)
         assert len(painel_calls) == calls, "sem unidades marcadas, nada é pedido ao motor"
         aperta(desfazer)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(texto_restantes)
         expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_count(0)
-        expect(aviso).to_have_text("Desfeito: municípios do Amazonas desmarcados.")
+        expect(aviso).to_have_text("Desfeito: desmarcar municípios do Amazonas.")
         aperta(lista_am.get_by_test_id("analise-desmarcar-todos"))
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         # A busca, no alto: pelo código, marca um município sem abrir lista nenhuma; o resumo diz qual, e a lista da direita mostra
@@ -667,7 +669,7 @@ def main():
         _, sent = ok(lambda: marca(lista_am.locator('[data-testid="analise-unidade"][data-id="' + MANAUS + '"] input')))
         assert sent["base"]["municipios"] == {"todos": False, "estados": [], "ids": [MANAUS]}, sent
         aperta(territorios.get_by_test_id("analise-grupo-voltar"))
-        linha_sp = territorios.locator('[data-testid="analise-grupo"][data-id="35"]')
+        linha_sp = linha_do_estado(territorios, "35")  # o Sudeste aberto pela seta, sem mudar a seleção
         calls = len(painel_calls)
         aperta(linha_sp.get_by_test_id("analise-grupo-ver"))
         lista_sp = territorios.locator('[data-testid="analise-grupo"][data-id="35"]').get_by_test_id("analise-grupo-unidades")
@@ -727,7 +729,7 @@ def main():
         fonte_antes = page.get_by_test_id("current-source").inner_text()
         aperta(limpar)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
-        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text("Seleção limpa. Para desfazer, use o botão Desfazer, no alto.")
+        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_count(0)
         expect(aviso).to_have_text("Seleção limpa: nenhum território na análise. A base de dados continua carregada. Para desfazer, use o botão Desfazer.")
         expect(territorios.get_by_test_id("analise-raiz-caixa")).not_to_be_checked()
         expect(linha_am).to_have_attribute("data-aberto", "true")
@@ -1634,7 +1636,10 @@ def main():
         # a busca, as etiquetas, o nome ("Conjunto A", item 8.2) e "O conjunto fica no lugar dos membros" (marcada).
         expect(area.get_by_test_id("analise-funcao-juntar")).to_have_count(0)
         aba_selecao()
-        aperta(territorios.get_by_test_id("analise-modo-agrupar"))
+        # Desde o comando V22 (seção 5), "Agrupar territórios selecionados", no painel direito, por escolha livre: só os
+        # selecionados (o Amazonas inteiro) entram.
+        aperta(territorios.get_by_test_id("analise-agrupar-selecionados"))
+        expect(territorios.get_by_test_id("analise-agrupar")).to_have_attribute("data-modo", "livre")
         agregar = territorios.get_by_test_id("analise-agregar")
         expect(agregar).to_be_visible()
         expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Conjunto A")
@@ -1716,15 +1721,13 @@ def main():
             aba_selecao()
             if territorios.get_by_test_id("analise-grupo-voltar").count():
                 aperta(territorios.get_by_test_id("analise-grupo-voltar"))
-            # O Brasil inteiro pela raiz da árvore (05/11/2026, a seleção unificada): todos os municípios, com o total nacional da
-            # fonte nacional nos totais individualizados (não a soma dos municípios).
-            expect(territorios.get_by_test_id("analise-raiz")).to_contain_text("todos os 5.570 municípios, em 27 estados")
-            # Chegar ao todo (06/11/2026): a análise vê por estado; o Ver por troca para município.
-            _, sent = ok(lambda: marca(territorios.get_by_test_id("analise-raiz-caixa")))
-            assert sent.get("nivel") == "estados" and "base" not in sent and "estados" not in sent, sent
-            expect(territorios.get_by_test_id("analise-nivel-estados")).to_have_attribute("aria-checked", "true")
-            brasil, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-nivel-municipios")))
-            assert sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
+            # O Brasil inteiro pela raiz da árvore: todos os municípios, com o total nacional da fonte nacional nos totais
+            # individualizados (não a soma dos municípios). Desde o comando V22 (seção 2; muda de propósito: de 06/11/2026 até então,
+            # chegar ao todo levava a ver por estado), a caixa do Brasil marca os municípios; os estados como unidade são "Só os
+            # estados". O resumo do universo só aparece quando corresponde à base carregada.
+            expect(territorios.get_by_test_id("analise-raiz-universo")).to_have_text("5.570 municípios | 27 UFs")
+            brasil, sent = ok(lambda: marca(territorios.get_by_test_id("analise-raiz-caixa")))
+            assert sent.get("nivel") == "municipios" and sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
             assert brasil["contexto"]["brasil_completo"] is True and brasil["contexto"]["estados"] == [], brasil["contexto"]
             total_br = territorios.get_by_test_id("analise-abrangencia").locator('[data-id="br"]')
             expect(total_br).to_have_attribute("data-fonte", "nacional")
@@ -1773,24 +1776,20 @@ def main():
             page.mouse.move(2, 2)
             shot("11-brasil-leve")
 
-        # 15. O todo é a referência fixa (06/11/2026; de 24/10 a 06/11/2026, o Brasil como unidade): o Ver por oferece só o estado
-        # e o município, nunca o Brasil; com o Brasil inteiro, Estado | Município; com um estado inteiro, uma opção só, e o controle
-        # não aparece. O Limpar seleção tira tudo, e a trilha volta ao começo.
+        # 15. O todo é a referência fixa (06/11/2026); desde o comando V22, sem o Ver por: o Brasil inteiro pela caixa da raiz, a
+        # trilha no Brasil, e o Limpar seleção tira tudo, com a trilha de volta ao começo.
         aba_selecao()
-        expect(territorios.get_by_test_id("analise-nivel-brasil")).to_have_count(0)
+        expect(territorios.get_by_test_id("analise-nivel")).to_have_count(0)
         if not territorios.get_by_test_id("analise-raiz-caixa").is_checked():
             ok(lambda: marca(territorios.get_by_test_id("analise-raiz-caixa")))
         expect(territorios.get_by_test_id("analise-raiz-caixa")).to_be_checked()
-        for nivel, rotulo in (("estados", "Estado"), ("municipios", "Município")):
-            expect(territorios.get_by_test_id("analise-nivel-" + nivel)).to_contain_text(rotulo)
         expect(trilha.locator('[aria-current="location"]')).to_have_text("Brasil")
         expect(limpar).to_be_enabled()
         aperta(limpar)
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum município marcado")
-        expect(territorios.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
         expect(trilha.locator('[aria-current="location"]')).to_have_count(0)
-        # O Amazonas inteiro (a resposta pode vir da memória da tela, sem novo pedido): "Brasil › Amazonas", sem o Ver por.
-        marca(territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]').get_by_test_id("analise-grupo-todos"))
+        # O Amazonas inteiro (a resposta pode vir da memória da tela, sem novo pedido): "Brasil › Amazonas".
+        marca(linha_do_estado(territorios, AM).get_by_test_id("analise-grupo-todos"))
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text(re.compile(r"Amazonas \(\d+ municípios\)"))
         expect(territorios.get_by_test_id("analise-nivel")).to_have_count(0)
         expect(trilha.get_by_test_id("analise-trilha-parte")).to_have_text(["Brasil", "Amazonas"])

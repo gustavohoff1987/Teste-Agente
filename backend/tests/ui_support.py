@@ -46,6 +46,22 @@ def responder_uma_vez(page, padrao, **resposta):
     return feito
 
 
+def abrir_regiao(territorios, regiao):
+    """A árvore da Seleção do comando V22 (9/11/2026): as regiões (ou os grupos de cima de uma planilha) começam recolhidas; abre
+    a seção pela seta, que não muda a seleção, e devolve a linha dela."""
+    linha = territorios.locator('[data-testid="analise-regiao"][data-id="' + regiao + '"]')
+    if linha.get_attribute("data-aberta") != "true":
+        linha.get_by_test_id("analise-regiao-ver").click()
+    expect(linha).to_have_attribute("data-aberta", "true")
+    return linha
+
+
+def linha_do_estado(territorios, prefixo):
+    """A linha de um estado na árvore da base do Brasil, com a região dele aberta (a região é o primeiro dígito do código)."""
+    abrir_regiao(territorios, prefixo[0])
+    return territorios.locator('[data-testid="analise-grupo"][data-id="' + prefixo + '"]')
+
+
 def accept_privacy(page):
     page.get_by_role("button", name="Li e concordo", exact=True).click()
 

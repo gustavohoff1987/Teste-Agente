@@ -74,9 +74,9 @@ from request_memo import per_source
 from semantic_bridge import (ROLE_NAMES, ROLES, coordinate_roles, premise_reason, role_established, territories_stable,
                              verified_separator)
 from temporal_change import evolution_notes, window as series_window
-from territorial_levels import (MAX_IDS, METODOS, NOTE_STATE_POPULATION, NOTE_STATES, ROTATION, Abrangencia, Parts,
-                                _codes_text, human_period, municipal_index, national_reference, parse as parse_scope,
-                                state_part, state_source, thousands, uf_label)
+from territorial_levels import (MAX_IDS, METODOS, NOTE_STATE_POPULATION, NOTE_STATES, NOTE_STATES_SUM, ROTATION,
+                                Abrangencia, Parts, _codes_text, human_period, municipal_index, national_reference,
+                                parse as parse_scope, state_part, state_source, thousands, uf_label)
 from territorial_selection import REGIONS, STATES, territory_catalog, texts
 from trend import METHOD_VERSION as TREND_METHOD, classify, classify_frame, stage_block, summarize, time_unit
 
@@ -100,7 +100,7 @@ SPATIAL_ROLES = frozenset(("latitude", "longitude"))
 PANEL_KEYS = frozenset(("competencia", "competencia_inicial", "categoria", "base", "conjuntos", "referencia"))
 PAGE_ONLY = frozenset(("nivel", "indicador", "faixas_distancia", "tendencia", "grupos", "grupos_mapa", "faixas",
                        "condicoes", "ordenar", "comparar", "rotatividade", "premissas", "rotulos", "estados", "serie",
-                       "consulta", "total_informado"))
+                       "consulta", "total_informado", "estados_unidade"))
 PAGE_KEYS = PANEL_KEYS | PAGE_ONLY
 REFERENCE_KEYS = frozenset(("competencia", "categoria", "universo", "criterio", "premissas", "rotulos"))
 ATTRIBUTES = {"densidade": "densidade", "quantidade": "quantidade", "populacao": "população"}
@@ -2790,6 +2790,8 @@ def _state_series(ctx, res, window):
     densidade, a população do estado em cada competência (lacuna quando incompleta). Devolve também o quadro da fonte
     estadual, para a chave de execução."""
     estados = tuple(key[3:] for key in res.universe)
+    if not estados:  # só conjuntos de estados (comando V22): as séries saem de _state_set_series
+        return pd.DataFrame(columns=SERIES_COLUMNS), pd.DataFrame(columns=SERIES_COLUMNS)
     data = state_part(ctx.sources, {"period_filters": list(window), "category_filter": ctx.category}, True,
                       Abrangencia(False, estados, False, (), ()), ctx.index, Parts())
     if data.empty:
@@ -2808,6 +2810,10 @@ def _trend_block(ctx, res, window):
         frame, data = _state_series(ctx, res, window) if ctx.brazil else _serie_dos_grupos(ctx, res, window)
         frames.append(data)
         series = _trend_series(frame, metric, positions)
+        if ctx.brazil and res.sets:  # os conjuntos de estados (comando V22), pela soma das fontes estaduais
+            frame, incomparability, rows = _state_set_series(ctx, res, window)
+            frames += rows
+            series = {**series, **_trend_series(frame, metric, positions, incomparability)}
     elif ctx.nivel == "brasil":
         frame = _brazil_series(ctx, window)
         frames.append(frame)
@@ -2911,6 +2917,10 @@ def _series(ctx, res, window, by_id):
         frame, data = _state_series(ctx, res, window) if ctx.brazil else _serie_dos_grupos(ctx, res, window)
         frames.append(data)
         observed = _observed_values(frame, metric)[1]
+        if ctx.brazil and res.sets:  # os conjuntos de estados (comando V22)
+            frame, incomparable, rows = _state_set_series(ctx, res, window)
+            frames += rows
+            observed.update(_observed_values(frame, metric)[1])
     elif ctx.nivel == "brasil":
         frame = _brazil_series(ctx, window)
         frames.append(frame)
@@ -3278,7 +3288,8 @@ def _page_normalized(ctx, spec, normalized):
 STATE_REFUSALS = {
     "base": "No nível estados, os estados escolhidos vão em estados (sem a lista, todos os da fonte estadual): base vale "
             "só para municípios.",
-    "conjuntos": "Conjuntos de estados não estão disponíveis no gráfico; marque municípios para formar conjuntos.",
+    # Desde o comando V22 (9/11/2026, seção 5), os conjuntos de estados entram no nível estados, pela soma das fontes estaduais
+    # (_state_set_item); antes, "Conjuntos de estados não estão disponíveis no gráfico".
     "referencia": "Não se aplica: estados não têm um ponto único. Para usar a distância, mostre os municípios.",
     "consulta": "Não se aplica: a Escolha dos territórios mede a distância de cada município; mostre os municípios.",
     "faixas_distancia": "Não se aplica: estados não têm um ponto único; as faixas de distância valem para municípios.",
@@ -3384,6 +3395,131 @@ def _state_notes(ctx, final, initial):
                      "(BASE_ZERO).")
         notes += premise_notes(ctx.settings, "temporal", ctx.mapping)
     return _dedupe(notes)
+
+
+def _state_sets(raw, ctx, keys):
+    """Conjuntos de estados (comando V22, seção 5: conjuntos reúnem territórios do mesmo nível): id, rótulo e ao menos dois
+    estados da fonte estadual ("uf:<prefixo>", ou o prefixo), sem repetir. Os membros podem estar fora da lista `estados`."""
+    if raw is None or raw == []:
+        return []
+    if not isinstance(raw, list) or len(raw) > MAX_SETS:
+        raise ValueError("Conjuntos inválidos: envie uma lista de até " + str(MAX_SETS) + " conjuntos.")
+    known, out, seen = set(keys), [], set()
+    for item in raw:
+        if not isinstance(item, dict) or set(item) - {"id", "rotulo", "membros"}:
+            raise ValueError("Conjunto inválido: use {\"id\", \"rotulo\", \"membros\"}.")
+        key, label, members = item.get("id"), item.get("rotulo"), item.get("membros")
+        if not isinstance(key, str) or not SET_ID.fullmatch(key) or key in seen:
+            raise ValueError("Identificador de conjunto inválido ou repetido: use até 64 letras, números, _ ou -.")
+        if not isinstance(label, str) or not label.strip() or len(label) > MAX_LABEL:
+            raise ValueError("Rótulo do conjunto " + key + " inválido: use um texto de até " + str(MAX_LABEL) +
+                             " caracteres.")
+        if (not isinstance(members, list) or len(members) < 2 or any(not isinstance(value, str) for value in members)
+                or len(set(members)) != len(members)):
+            raise ValueError("O conjunto " + key + " precisa de pelo menos dois estados, sem repetir.")
+        wanted = [value if value.startswith("uf:") else "uf:" + value for value in members]
+        unknown = [original for original, value in zip(members, wanted) if value not in known]
+        if unknown:
+            raise ValueError("Conjunto " + key + ": sem registro na fonte estadual (" +
+                             ", ".join(value[:24] for value in unknown[:5]) + "). Um conjunto reúne territórios do "
+                             "mesmo nível: só estados ou só municípios.")
+        seen.add(key)
+        out.append({"id": key, "rotulo": label.strip(), "membros": sorted(wanted)})
+    return out
+
+
+def _state_sum(measures, members):
+    """A soma das fontes estaduais dos membros com registro (comando V22): contagens estaduais somadas (quem atua em mais de um
+    estado conta em cada um) e, só com a população de todos, a soma das populações (cada estado uma vez; os estados não se
+    sobrepõem). Nada é estimado: sem a população de algum membro, a densidade do conjunto fica não avaliável."""
+    present = [key for key in members if key in measures.records and _present(measures.records[key]["valores"]["quantidade"])]
+    if not present:
+        return None, present
+    values = [measures.records[key]["valores"] for key in present]
+    quantity = sum(_num(value["quantidade"]) for value in values)
+    populations = [_num(value["populacao"]) for value in values]
+    population = sum(populations) if all(value is not None for value in populations) else None
+    density = None
+    if population:
+        density = float(Fraction(quantity * 1000, population))
+    return {"valores": {"populacao": population, "quantidade": quantity, "densidade": density}}, present
+
+
+def _state_set_item(ctx, spec, final, initial, changes):
+    """Um conjunto de estados (comando V22): a soma das contagens estaduais de médicos únicos e das populações dos estados,
+    rotulada como soma (NOTE_STATES_SUM, possível dupla contagem entre estados); nunca o total do Brasil nem pessoas únicas."""
+    members = spec["membros"]
+    record, present = _state_sum(final, members)
+    motives = []
+    if record is None:
+        motives.append("Nenhum estado do conjunto tem registro em " + human_period(final.period) + " na fonte estadual "
+                       "(SEM_REGISTRO_OBSERVADO)")
+    elif len(present) < len(members):
+        outside = [uf_label(key[3:]) for key in members if key not in present]
+        motives.append("Agregado parcial em " + human_period(final.period) + ": " + str(len(present)) + " de " +
+                       str(len(members)) + " estados com registro; fora: " + ", ".join(outside) +
+                       "; o valor não representa o conjunto completo (AGREGADO_PARCIAL)")
+    values = record["valores"] if record is not None else {}
+    if record is not None and values["densidade"] is None:
+        motives.append("Densidade não avaliável em " + human_period(final.period) + ": população estadual incompleta em "
+                       "algum membro; a população não é estimada (DENOMINADOR_AUSENTE)")
+    item = {"id": spec["id"], "tipo": "conjunto", "rotulo": spec["rotulo"], "membros": list(members),
+            "nivel_dos_membros": "estados", "populacao": _num(values.get("populacao")),
+            "quantidade": _num(values.get("quantidade")), "densidade": _num(values.get("densidade")),
+            "contagem": "SOMA_DOS_COMPONENTES", "distancia_km": None, "distancia_km_max": None}
+    inicial, variation, variation_ok = _empty3(), _empty3(), None
+    if initial is not None:
+        variation_ok = False
+        record0, before = _state_sum(initial, members)
+        if record0 is not None:
+            inicial = _values3(record0)
+        if record is None:
+            pass
+        elif record0 is None:
+            motives.append(_no_initial(initial.period))
+        elif set(before) != set(present):
+            motives.append("Variação não avaliável: os estados com registro mudam entre " + human_period(initial.period) +
+                           " (" + str(len(before)) + ") e " + human_period(final.period) + " (" + str(len(present)) +
+                           "); cada valor vale isoladamente (INCOMPARABILIDADE)")
+        else:
+            variation, variation_ok, why, exact = _percentages(ctx, record0, record)
+            motives += why
+            changes[spec["id"]] = exact
+    item.update({"inicial": inicial, "variacao_percentual": variation,
+                 "avaliavel": {"densidade": item["densidade"] is not None, "distancia": None, "variacao": variation_ok},
+                 "motivos": motives, "referencia": False})
+    return item
+
+
+def _state_set_series(ctx, res, window):
+    """Os conjuntos de estados em cada competência da janela (Tendência e Série temporal): a soma das fontes estaduais dos
+    membros (_state_sum), com os membros com registro em cada competência; com membros diferentes na janela, a tendência não é
+    avaliável (INCOMPARABILIDADE, CAP-AGR-01 e F-05b)."""
+    members = sorted({key for spec in res.sets for key in spec["membros"]})
+    out, incomparability, frames = [], {}, []
+    if not members:
+        return pd.DataFrame(columns=SERIES_COLUMNS), incomparability, frames
+    for period in window:
+        measures = _state_measures(ctx, period, members)
+        frames.append(measures.rows)
+        for spec in res.sets:
+            record, present = _state_sum(measures, spec["membros"])
+            if record is None:
+                continue
+            incomparability.setdefault(spec["id"], {})[period] = tuple(present)
+            values = record["valores"]
+            out.append({"territory": spec["id"], "period": period, "category": ctx.category,
+                        "quantity": values["quantidade"], "population": values["populacao"],
+                        "density": values["densidade"]})
+    motivos = {}
+    for key, support in incomparability.items():
+        if len(set(support.values())) > 1:
+            motivos[(key, ctx.category)] = ("os estados com registro mudam na janela (" + ", ".join(
+                human_period(period) + ": " + str(len(keys)) for period, keys in support.items()) + ")")
+    frame = pd.DataFrame(out, columns=SERIES_COLUMNS)
+    for column in ("quantity", "population", "density"):
+        frame[column] = pd.to_numeric(frame[column], errors="coerce").astype(float)
+    return frame, motivos, frames
 
 
 def _engine_rows(ctx):
@@ -3507,8 +3643,9 @@ def _compute_grupos_da_planilha(ctx, options, spec) -> dict:
     refusals = {
         "base": "No nível d" + group.g("os", "as") + " " + group.plural + ", " + group.g("os", "as") + " escolhid" +
                 group.g("os", "as") + " vão em estados: base vale só para " + unit.plural + ".",
-        # Desde 07/11/2026 (item 8.1 do comando de 07/11/2026), "Conjuntos" e "Agrupar territórios" (antes, "Grupos" e "Agregar").
-        "conjuntos": "Conjuntos de " + group.plural + " não estão disponíveis no gráfico; use Agrupar territórios com " +
+        # Desde 07/11/2026 (item 8.1 do comando de 07/11/2026), "Conjuntos" e "Agrupar territórios" (antes, "Grupos" e "Agregar");
+        # desde o comando V22, o botão é "Agrupar territórios selecionados".
+        "conjuntos": "Conjuntos de " + group.plural + " não estão disponíveis no gráfico; use Agrupar territórios selecionados com " +
                      unit.plural + ".",
         "referencia": _sem_ponto_unico(ctx.labels), "consulta": _sem_ponto_unico(ctx.labels),
         "faixas_distancia": _sem_ponto_unico(ctx.labels),
@@ -3571,23 +3708,36 @@ def _compute_states(ctx, options, spec) -> dict:
     state, prefixes, reason = state_source(ctx.sources)
     if state is None:
         raise ValueError(reason)
-    keys = _state_choice(options.get("estados"), ["uf:" + prefix for prefix in sorted(prefixes & set(ctx.index.by_uf))])
-    final = _state_measures(ctx, ctx.period, keys)
-    initial = _state_measures(ctx, initial_period, keys) if initial_period else None
+    todos = ["uf:" + prefix for prefix in sorted(prefixes & set(ctx.index.by_uf))]
+    sets = _state_sets(options.get("conjuntos"), ctx, todos)
+    # Só com conjuntos (comando V22), a lista dos estados pode vir vazia: o gráfico tem só os conjuntos de estados.
+    keys = [] if sets and options.get("estados") == [] else _state_choice(options.get("estados"), todos)
+    medidos = sorted(set(keys) | {key for spec_ in sets for key in spec_["membros"]})
+    final = _state_measures(ctx, ctx.period, medidos)
+    initial = _state_measures(ctx, initial_period, medidos) if initial_period else None
     changes = {}
     items = [_state_item(ctx, key, final, initial, changes) for key in keys]
-    res = Result(keys, [], None, final, initial, None, items, _engine_rows(ctx), changes=changes)
+    items += [_state_set_item(ctx, spec_, final, initial, changes) for spec_ in sets]
+    res = Result(keys, sets, None, final, initial, None, items, _engine_rows(ctx), changes=changes)
     res.methods.update({"estado": METODOS["estado"], "populacao_estadual": METODOS["populacao_estadual"]})
     limitations = ["UNIDADES_NAO_AVALIAVEIS"] if any(
         flag is False for item in items for flag in item["avaliavel"].values()) else []
+    notes = _state_notes(ctx, final, initial)
+    if sets:
+        limitations += ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"]
+        notes.append(NOTE_STATES_SUM)
+        if any(item.get("motivos") and "AGREGADO_PARCIAL" in " ".join(item["motivos"]) for item in items
+               if item["tipo"] == "conjunto"):
+            limitations.append("AGREGADO_PARCIAL")
     body = {"competencia": ctx.period, "competencia_inicial": initial_period, "categoria": ctx.category,
             "versao_base": (ctx.frame.attrs.get("source") or {}).get("version"), "chave_execucao": None,
-            "referencia": None, "itens": items, "dominios": _domains(items), "notas": _state_notes(ctx, final, initial),
+            "referencia": None, "itens": items, "dominios": _domains(items), "notas": _dedupe(notes),
             "limitacoes": limitations}
     _page_extras(ctx, spec, body, res)
     body["ordem_do_indicador"] = _indicator_order(ctx, res)
     normalized = _page_normalized(ctx, spec, {"competencia": ctx.period, "competencia_inicial": initial_period,
-                                              "categoria": ctx.category, "estados": keys})
+                                              "categoria": ctx.category, "estados": keys,
+                                              **({"conjuntos": sets} if sets else {})})
     body["chave_execucao"] = _execution_key(ctx, final, initial, normalized, None, res.methods, res.frames, res.digests)
     return body
 
@@ -3718,6 +3868,194 @@ def _compute_brazil(ctx, options, spec) -> dict:
     return body
 
 
+# --------------------------------------------------------------------------------------------- níveis na mesma seleção (V22)
+# Comando V22 (9/11/2026), decisão 3 e seção 2: a seleção pode reunir estados como unidade ("Só o estado", na árvore),
+# municípios e conjuntos. O motor calcula cada nível pelo caminho dele — os municípios e os conjuntos de municípios, como sempre;
+# os estados pela fonte estadual (numa planilha, os grupos pelas unidades deles) e os conjuntos de estados pela soma das fontes
+# estaduais — e junta as respostas: as medidas de posição (quantis, ordenação) ficam dentro de cada nível, com os blocos de cada um
+# em `por_nivel`, e nenhum valor de um nível é somado ou comparado ao de outro (RQ-DAD-30; a SPEC pede preservar "níveis
+# territoriais diferentes" na apresentação). A Análise Espacial mede a distância de cada município: os estados ficam de fora, com
+# o motivo, em `fora_da_analise`.
+NIVEIS_JUNTOS = "NIVEIS_TERRITORIAIS_DIFERENTES"
+NOTE_SEPARADOS = "Estados e municípios não aparecem juntos no mesmo gráfico nem são somados entre si."
+POR_NIVEL_FORA = ("itens", "resumo", "sessao")
+
+
+def _nota_dos_niveis(ctx) -> str:
+    unit, group = ctx.labels.unidade, ctx.labels.grupo or PADRAO.grupo
+    return (group.Plural + " como unidade e " + unit.plural + " na mesma análise (comando V22): cada nível vem da própria fonte" +
+            (" (o estado, a contagem estadual de médicos únicos; o município, a fonte municipal)" if ctx.brazil else "") +
+            " e nunca é somado ao outro; quantis, ordenação e grupos por posição são calculados dentro de cada nível, com a "
+            "própria legenda (RQ-DAD-30).")
+
+
+def _com_conjunto_de_estados(options) -> bool:
+    """Um conjunto de estados (membros "uf:") no pedido do nível municipios: a seleção mistura os níveis (comando V22)."""
+    conjuntos = options.get("conjuntos")
+    return isinstance(conjuntos, list) and any(
+        isinstance(item, dict) and isinstance(item.get("membros"), list) and item["membros"] and
+        all(isinstance(m, str) and m.startswith("uf:") for m in item["membros"]) for item in conjuntos)
+
+
+def _estados_como_unidade(ctx, raw):
+    """Os estados como unidade de uma seleção mista (`estados_unidade`): na base do Brasil, os prefixos IBGE da fonte estadual
+    (ou os ids "uf:"); numa planilha com a coluna-mãe, os valores do grupo. Sem repetir, na ordem do código (ou do nome)."""
+    group = ctx.labels.grupo or PADRAO.grupo
+    if ctx.brazil:
+        state, prefixes, reason = state_source(ctx.sources)
+        if state is None:
+            raise ValueError(reason)
+        todos = ["uf:" + prefix for prefix in sorted(prefixes & set(ctx.index.by_uf))]
+    elif ctx.group_column:
+        todos = ["uf:" + value for value in sorted({value for value in ctx.groups.values() if value})]
+    else:
+        raise ValueError("Sem a coluna d" + group.g("o", "a") + " " + group.singular + " (papel grupo_territorial), não há " +
+                         group.plural + " como unidade.")
+    if raw is None or raw == []:  # só conjuntos de estados junto com os municípios
+        return [], todos
+    if (not isinstance(raw, list) or len(set(raw)) != len(raw) or
+            any(not isinstance(value, str) for value in raw)):
+        raise ValueError(group.Plural + " como unidade inválid" + group.g("os", "as") + ": envie em estados_unidade a lista "
+                         "sem repetir, por exemplo [\"15\", \"29\"].")
+    wanted = {value if value.startswith("uf:") else "uf:" + value for value in raw}
+    unknown = sorted(wanted - set(todos))
+    if unknown:
+        raise ValueError(group.Singular + " sem registro: " + ", ".join(key[3:][:40] for key in unknown[:5]) + ".")
+    return [key for key in todos if key in wanted], todos
+
+
+def _nome_do_estado(ctx, key) -> str:
+    return uf_label(key[3:]) if ctx.brazil else key[3:]
+
+
+def _grupo_da_unidade(ctx, key):
+    """O estado (ou o grupo da planilha) de um município da seleção, para conferir a sobreposição com os estados como unidade."""
+    if ctx.brazil:
+        code = ctx.catalog[key]["code"]
+        return code[:2]
+    return ctx.groups.get(key)
+
+
+def _compute_niveis(sources, mapping, options, frame, ctx, spec) -> dict:
+    """POST /api/painel com estados como unidade e municípios (ou conjuntos) na mesma seleção (comando V22)."""
+    unit, group = ctx.labels.unidade, ctx.labels.grupo or PADRAO.grupo
+    if ctx.nivel != "municipios":
+        raise ValueError("estados_unidade vale só com nivel \"municipios\": a seleção que reúne " + group.plural +
+                         " como unidade e " + unit.plural + ". Só com " + group.plural + ", use o nível estados.")
+    estados, todos = _estados_como_unidade(ctx, options.get("estados_unidade"))
+    conjuntos = options.get("conjuntos") or []
+    if not isinstance(conjuntos, list):
+        raise ValueError("Conjuntos inválidos: envie uma lista de até " + str(MAX_SETS) + " conjuntos.")
+
+    def de_estados(item):
+        membros = item.get("membros") if isinstance(item, dict) else None
+        return isinstance(membros, list) and bool(membros) and all(isinstance(m, str) and m.startswith("uf:") for m in membros)
+    dos_estados = [item for item in conjuntos if de_estados(item)]
+    das_unidades = [item for item in conjuntos if not de_estados(item)]
+    for item in das_unidades:
+        if isinstance(item, dict) and any(isinstance(m, str) and m.startswith("uf:") for m in item.get("membros") or []):
+            raise ValueError("O conjunto " + str(item.get("id")) + " mistura " + group.plural + " e " + unit.plural + ": um "
+                             "conjunto reúne territórios do mesmo nível.")
+    if dos_estados and not ctx.brazil:
+        raise ValueError("Conjuntos de " + group.plural + " não estão disponíveis numa planilha; use Agrupar territórios selecionados com " +
+                         unit.plural + ".")
+    base = _universe(options.get("base"), ctx, unit.g("os", "as") + " " + unit.plural + " base", allow_empty=True)
+    membros = [key for item in das_unidades if isinstance(item, dict) for key in (item.get("membros") or [])
+               if isinstance(key, str) and key in ctx.catalog]
+    # O estado inteiro (como unidade ou dentro de um conjunto de estados) e os municípios dele não ficam juntos na seleção.
+    unidades = {key[3:] for key in estados} | {value[3:] for item in dos_estados for value in item.get("membros") or []
+                                              if isinstance(value, str)}
+    sobrepostos = sorted({_grupo_da_unidade(ctx, key) for key in list(base) + membros} & unidades)
+    if sobrepostos:
+        nomes = _join([_nome_do_estado(ctx, "uf:" + value) for value in sobrepostos[:5]])
+        raise ValueError(unit.Plural + " de " + nomes + " estão na seleção junto com " + group.g("o", "a") + " " +
+                         group.singular + " inteir" + group.g("o", "a") + " (como unidade ou num conjunto de " + group.plural +
+                         "): " + group.g("o", "a") + " " + group.singular + " já está na análise e não é somad" +
+                         group.g("o", "a") + " a " + unit.g("eles", "elas") + " (RQ-DAD-30). Tire " + unit.g("os", "as") +
+                         " " + unit.plural + " ou desative \"Só " + group.g("o", "a") + " " + group.singular + "\".")
+    if not base and not das_unidades:
+        raise ValueError("Sem " + unit.plural + " nem conjuntos na seleção, " + group.g("os", "as") + " " + group.plural +
+                         " como unidade vão no nível estados (estados e conjuntos).")
+    ids_dos_estados = set(estados) | {item.get("id") for item in dos_estados}
+    comparar = options.get("comparar") or []
+    if isinstance(comparar, list) and comparar:
+        nos_estados = [value for value in comparar if value in ids_dos_estados]
+        if nos_estados and len(nos_estados) != len(comparar):
+            raise ValueError("A comparação põe lado a lado territórios do mesmo nível: escolha só " + group.plural +
+                             " (e conjuntos de " + group.plural + ") ou só " + unit.plural + " (e conjuntos de " +
+                             unit.plural + ") (RQ-DAD-30).")
+    else:
+        nos_estados = []
+    municipais = {key: value for key, value in options.items() if key != "estados_unidade"}
+    if das_unidades:
+        municipais["conjuntos"] = das_unidades
+    else:
+        municipais.pop("conjuntos", None)
+    if nos_estados:
+        municipais.pop("comparar", None)
+    corpo = compute(sources, mapping, municipais, frame)
+    espacial = options.get("consulta") is not None or options.get("referencia") not in (None, {})
+    if espacial:
+        # A Análise Espacial mede cada município (CAP-ESP-02): os estados como unidade ficam de fora, com o motivo.
+        motivo = ("Fora da Análise Espacial: " + group.g("o", "a") + " " + group.singular + " como unidade não tem um ponto "
+                  "único, e a distância é medida de cada " + unit.singular + ".")
+        corpo["fora_da_analise"] = ([{"id": key, "rotulo": _nome_do_estado(ctx, key), "tipo": "estado", "motivo": motivo}
+                                     for key in estados] +
+                                    [{"id": item.get("id"), "rotulo": item.get("rotulo"), "tipo": "conjunto",
+                                      "motivo": motivo} for item in dos_estados])
+        corpo["notas"] = _dedupe(corpo["notas"] + ["Ficaram fora da Análise Espacial " + str(len(corpo["fora_da_analise"])) +
+                                                   " territórios do nível d" + group.g("os", "as") + " " + group.plural +
+                                                   ": a distância é medida de cada " + unit.singular + "."])
+        return corpo
+    proprios = {key: options[key] for key in ("indicador", "competencia", "categoria", "competencia_inicial", "tendencia",
+                                              "serie", "grupos", "grupos_mapa", "faixas", "condicoes", "ordenar",
+                                              "premissas", "rotulos", "total_informado") if key in options}
+    if spec["condicoes"] and any(spec["condicoes"]["nodes"][own]["atributo"] == "distancia"
+                                 for own in spec["condicoes"]["leaves"]):
+        proprios.pop("condicoes", None)
+    if spec["ordenar"] and spec["ordenar"]["atributo"] == "distancia_km":
+        proprios.pop("ordenar", None)
+    if len(estados) < 2:  # os grupos por posição pedem ao menos dois do nível; com um só, ficam só nos municípios
+        proprios.pop("grupos", None)
+        proprios.pop("grupos_mapa", None)
+    if not estados and spec["ordenar"] is None:
+        proprios.pop("ordenar", None)
+    dos_grupos = {**proprios, "nivel": "estados", "estados": [key[3:] for key in estados]}
+    if dos_estados:
+        dos_grupos["conjuntos"] = dos_estados
+    if nos_estados:
+        dos_grupos["comparar"] = nos_estados
+    outro = compute(sources, mapping, dos_grupos, frame)
+    return _juntar_niveis(ctx, corpo, outro)
+
+
+def _juntar_niveis(ctx, corpo, outro) -> dict:
+    """A resposta de uma seleção mista: os itens dos dois níveis (os municípios e os conjuntos de municípios primeiro), os blocos
+    do nível municipal no topo, como sempre, e os de cada nível em `por_nivel` (com a posição dos itens de cada um), para a
+    legenda e a frase de cada nível. Nada é recalculado: cada número vem do cálculo do próprio nível."""
+    n = len(corpo["itens"])
+    itens = corpo["itens"] + outro["itens"]
+    body = {key: value for key, value in corpo.items() if key != "itens"}
+    body["itens"] = itens
+    dominios = _domains(itens)
+    for key in ("tendencia", "serie"):
+        spans = [parte["dominios"].get(key) for parte in (corpo, outro) if parte["dominios"].get(key)]
+        if any(key in parte["dominios"] for parte in (corpo, outro)):
+            dominios[key] = [min(span[0] for span in spans), max(span[1] for span in spans)] if spans else None
+    body["dominios"] = dominios
+
+    def parte_de(resposta, de):
+        return {**{key: value for key, value in resposta.items() if key not in POR_NIVEL_FORA},
+                "itens_de": de, "itens_quantos": len(resposta["itens"])}
+    body["niveis"] = ["municipios", "estados"]
+    body["por_nivel"] = {"municipios": parte_de(corpo, 0), "estados": parte_de(outro, n)}
+    body["notas"] = _dedupe([note for note in corpo["notas"] + outro["notas"] if note != NOTE_SEPARADOS] +
+                            [_nota_dos_niveis(ctx)])
+    body["limitacoes"] = _dedupe(corpo["limitacoes"] + outro["limitacoes"] + [NIVEIS_JUNTOS])
+    body["chave_execucao"] = hashlib.sha256(json.dumps([corpo["chave_execucao"], outro["chave_execucao"]]).encode()).hexdigest()
+    return body
+
+
 # --------------------------------------------------------------------------------------------- rotas
 def compute(sources, mapping, options, frame=None) -> dict:
     """POST /api/painel: municípios base (ou unidades da planilha, ou estados), conjuntos e referência numa competência,
@@ -3727,6 +4065,9 @@ def compute(sources, mapping, options, frame=None) -> dict:
         raise ValueError(OFFICIAL_ONLY)
     ctx = context(sources, mapping, options, PAGE_KEYS if page else PANEL_KEYS, frame=frame, page=page)
     spec = _page_spec(ctx, options) if page else None
+    # Estados como unidade junto com municípios (V22); fora do nível municipios, _compute_niveis recusa estados_unidade.
+    if page and (options.get("estados_unidade") not in (None, []) or (ctx.nivel == "municipios" and _com_conjunto_de_estados(options))):
+        return _compute_niveis(sources, mapping, options, frame, ctx, spec)
     if page and ctx.nivel == "estados" and ctx.brazil:
         return _compute_states(ctx, options, spec)
     if page and ctx.nivel in ("estados", "regioes"):
@@ -4301,7 +4642,7 @@ def conversation_facts(body) -> dict:
     e quantas não têm. Desde 08/11/2026, os conjuntos entram na ordem, cada um pelo valor dele (CONVERSATION_TYPES; antes,
     ficavam de fora), e a resposta mostra a marca e a ressalva da soma."""
     items = body["itens"]
-    units = [index for index, item in enumerate(items) if item["tipo"] in CONVERSATION_TYPES]
+    units = _conversation_units(body)
     order = {}
     for attribute in CONVERSATION_ATTRIBUTES:
         present = _conversation_values(body, attribute, units)
@@ -4314,6 +4655,15 @@ def conversation_facts(body) -> dict:
                             "menor": [index for value, index in present if value == lowest],
                             "com_valor": len(present), "sem_valor": len(units) - len(present)}
     return {"unidades": units, "ordem": order}
+
+
+def _conversation_units(body) -> list:
+    """As posições dos itens que entram nas ordens da conversa. Com estados como unidade e municípios na mesma seleção (comando
+    V22), só o primeiro nível (os municípios e os conjuntos de municípios): a ordem é uma medida de posição e não mistura os
+    níveis; os estados como unidade têm a própria ordem na tela."""
+    items = body["itens"]
+    limit = body["por_nivel"]["estados"]["itens_de"] if body.get("por_nivel") else len(items)
+    return [index for index, item in enumerate(items[:limit]) if item["tipo"] in CONVERSATION_TYPES]
 
 
 def _conversation_values(body, attribute, units) -> list:
@@ -4337,7 +4687,7 @@ def conversation_top(body, attribute: str, highest: bool, count: int) -> list[in
     import bisect
     if attribute not in CONVERSATION_ATTRIBUTES or count < 1:
         return []
-    units = [index for index, item in enumerate(body["itens"]) if item["tipo"] in CONVERSATION_TYPES]
+    units = _conversation_units(body)
     present = _conversation_values(body, attribute, units)
     ordered = sorted(value for value, _ in present)
     def place(value):

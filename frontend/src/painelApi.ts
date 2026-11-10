@@ -32,7 +32,8 @@ export type PainelCriterio = { atributo: PainelAtributo; ordem: PainelOrdem };
  * membros, que saíram da seleção; desfazê-lo os devolve. */
 /** Um conjunto (CAP-AGR-01). `substitui` e `retirados` são da tela e não vão ao motor (montarOpcoes): o grupo fica no lugar dos
  * membros, e `retirados` são os membros que estavam na seleção e saíram dela (os únicos que voltam ao desfazer o grupo). */
-export type PainelConjuntoPedido = { id: string; rotulo: string; membros: string[]; substitui?: boolean; retirados?: string[] };
+/** `versao` (comando V22, seção 5): a versão da composição, que sobe a cada edição do conjunto (o id fica). Só da tela. */
+export type PainelConjuntoPedido = { id: string; rotulo: string; membros: string[]; substitui?: boolean; retirados?: string[]; versao?: number };
 /** Um membro: referência município; dois ou mais: conjunto de referência (distância até o membro mais próximo). O critério só
  * registra a origem (CAP-REF-01); com o universo da lista, a origem cita a posição exata vista pela pessoa. É a forma que a
  * conversa usa ("use Manaus como referência"). */
@@ -57,6 +58,9 @@ export type PainelOpcoes = {
   base?: PainelUniverso;
   /** Nível estados: os estados escolhidos (prefixos IBGE); sem a lista, todos (24/10/2026). */
   estados?: string[];
+  /** Os estados como unidade junto com os municípios (comando V22, decisão 3: "Só o estado", na árvore): no nível municipios, os
+   * prefixos dos estados que entram como uma bolha cada, com a fonte estadual; o motor calcula cada nível à parte (`por_nivel`). */
+  estados_unidade?: string[];
   conjuntos?: PainelConjuntoPedido[];
   referencia?: PainelReferenciaPedido;
   /** A Escolha dos territórios (27/10/2026): com ela, `base` é a seleção prévia, e os itens são os da base da consulta. */
@@ -135,6 +139,8 @@ export type PainelItem = {
   grupoTerritorial?: string | null;
   /** Conjunto: identificadores das unidades agregadas, na ordem do pedido. */
   membros?: string[];
+  /** Conjunto de estados (comando V22): "estados" quando os membros são estados como unidade (soma das fontes estaduais). */
+  nivelDosMembros?: "estados";
   populacao: number | null;
   quantidade: number | null;
   /** Profissionais por 1.000 habitantes, em precisão integral (a tela arredonda só para exibir). */
@@ -254,6 +260,13 @@ export type PainelResposta = {
    * para o menor, com as posições de CAP-SUB-02 (empates na mesma posição; os não avaliáveis no fim, sem posição). A lista da
    * tela estreita e os destaques das bolhas seguem esta ordem; a tela não ordena. null fora do nível dos estados. */
   ordemDoIndicador: { atributo: string; itens: { id: string; posicao: number | null }[] } | null;
+  /** Seleção com níveis diferentes (comando V22): os níveis na ordem dos itens (["municipios", "estados"]) e, de cada um, a resposta
+   * do próprio nível (os itens dele e os blocos: grupos por posição, ordenação, condições, faixas, tendência), para as legendas e as
+   * contagens de cada nível; null com um nível só. Nenhuma medida de posição mistura os níveis. */
+  niveis: PainelNivel[] | null;
+  porNivel: Partial<Record<"municipios" | "estados", PainelResposta>> | null;
+  /** Os territórios que a análise não mede, com o motivo (comando V22: na Análise Espacial, os estados como unidade). */
+  foraDaAnalise: { id: string; rotulo: string; tipo: string; motivo: string }[];
 };
 
 /** Pendência de premissa (ChoiceRequired): o motor pede uma escolha (referencial, formato de número…) antes de calcular. */
@@ -461,6 +474,7 @@ function itemDe(bruto: unknown): PainelItem | null {
   return {
     id, tipo, rotulo: texto(o.rotulo) ?? id, uf: texto(o.uf), grupoTerritorial: texto(o.grupo_territorial),
     membros: Array.isArray(o.membros) ? o.membros.filter((m): m is string => typeof m === "string") : undefined,
+    ...(o.nivel_dos_membros === "estados" ? { nivelDosMembros: "estados" as const } : {}),
     populacao: num(o.populacao), quantidade: num(o.quantidade), densidade: num(o.densidade),
     contagem: texto(o.contagem) ?? undefined,
     distancia_km: num(o.distancia_km), distancia_km_max: num(o.distancia_km_max),
@@ -677,6 +691,10 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
   const o = objeto(bruto);
   if (!o || !Array.isArray(o.itens)) throw new ErroDoMotor("A resposta do cálculo não segue o contrato (itens ausentes).", 200, null);
   const itens = o.itens.map(itemDe).filter((item): item is PainelItem => !!item);
+  // Com estados como unidade junto com os municípios (comando V22, seção 6), o estado leva "(estado)" no nome: "Pará (estado)".
+  const singularDoGrupo = rotulosDe(o.rotulos)?.grupo?.singular ?? "estado";
+  if (Array.isArray(o.niveis) && o.niveis.length > 1)
+    for (const item of itens) if (item.tipo === "estado") item.rotulo = item.rotulo.replace(/\s*\([A-Z]{2}\)$/, "") + " (" + singularDoGrupo + ")";
   const tendencia = objeto(o.tendencia);
   const janelaBruta = tendencia ? (Array.isArray(tendencia.janela) ? tendencia.janela : lista(objeto(tendencia.janela)?.competencias)
     .concat(lista(objeto(tendencia.janela)?.periodos))) : [];
@@ -752,7 +770,24 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
     indicador: o.indicador === "densidade" || o.indicador === "quantidade" ? o.indicador : null,
     resumo: resumoDe(o.resumo),
     ordemDoIndicador: ordemDoIndicadorDe(o.ordem_do_indicador),
+    ...niveisDe(o),
+    foraDaAnalise: lista(o.fora_da_analise).map(objeto).filter((f): f is Record<string, unknown> => !!f && !!texto(f.id)).map(f => ({
+      id: texto(f.id)!, rotulo: texto(f.rotulo) ?? texto(f.id)!, tipo: texto(f.tipo) ?? "", motivo: texto(f.motivo) ?? "" })),
   };
+}
+
+/** Os níveis de uma seleção mista (comando V22): cada um como uma resposta própria, com os itens dele (pela posição em `itens`). */
+function niveisDe(o: Record<string, unknown>): Pick<PainelResposta, "niveis" | "porNivel"> {
+  const porNivel = objeto(o.por_nivel), niveis = lista(o.niveis).filter((n): n is "municipios" | "estados" => n === "municipios" || n === "estados");
+  if (!porNivel || !niveis.length || !Array.isArray(o.itens)) return { niveis: null, porNivel: null };
+  const saida: Partial<Record<"municipios" | "estados", PainelResposta>> = {};
+  for (const nivel of niveis) {
+    const bloco = objeto(porNivel[nivel]);
+    const de = num(bloco?.itens_de), quantos = num(bloco?.itens_quantos);
+    if (!bloco || de === null || quantos === null) continue;
+    saida[nivel] = normalizarResposta({ ...bloco, itens: o.itens.slice(de, de + quantos) }, nivel);
+  }
+  return { niveis, porNivel: saida };
 }
 
 /** `ordem_do_indicador` do motor nos tipos da tela; sem a forma esperada (ou na resposta de antes), null. */

@@ -23,7 +23,7 @@ import os
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline
+from ui_support import URL, abrir_regiao, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 AM, PA = "13", "15"
@@ -155,23 +155,28 @@ def main():
                 chat.get_by_test_id("painel-chat-minimizar").click()
             sem_transbordar("abertura")
 
-            # 2. A Seleção unificada: a raiz e os estados com o nome inteiro, os alvos de toque e nada passando da largura.
+            # 2. A Seleção do comando V22 (9/11/2026): a árvore Brasil → região → estado → município, com o resumo do universo na
+            # linha do Brasil e as regiões recolhidas (abertas pela seta); os estados com o nome inteiro, os alvos de toque e nada
+            # passando da largura.
             toca(area.get_by_test_id("analise-fonte-brasil"))
             territorios = area.get_by_test_id("analise-territorios")
             expect(territorios).to_be_visible(timeout=180000)
-            expect(territorios.get_by_test_id("analise-raiz")).to_contain_text("todos os 5.570 municípios")
+            expect(territorios.get_by_test_id("analise-raiz-universo")).to_have_text("5.570 municípios | 27 UFs")
+            expect(territorios.locator('[data-testid="analise-regiao"]')).to_have_count(5)
             sem_transbordar("Seleção de Territórios")
+            for regiao in ("1", "2", "5", "3", "4"):
+                abrir_regiao(territorios, regiao)
             linhas = territorios.locator('[data-testid="analise-grupo"]')
             expect(linhas).to_have_count(27)
-            medidas = linhas.evaluate_all("""els => els.map(e => { const n = e.querySelector('.analise-grupo-nome');
-              const v = e.querySelector('[data-testid=analise-grupo-ver]'), c = e.querySelector('.analise-grupo-caixa');
+            medidas = linhas.evaluate_all("""els => els.map(e => { const n = e.querySelector('.analise-no-nome');
+              const v = e.querySelector('[data-testid=analise-grupo-ver]'), c = e.querySelector('.analise-no-caixa');
               return { id: e.dataset.id, nome: n.textContent, cortado: n.scrollWidth > n.clientWidth + 1, largura: n.getBoundingClientRect().width,
                 ver: [v.getBoundingClientRect().width, v.getBoundingClientRect().height], caixa: c.getBoundingClientRect().height }; })""")
             for medida in medidas:
                 assert not medida["cortado"] and medida["largura"] >= 60, (nome, "nome do estado cortado ou espremido", medida)
                 if movel:
                     assert min(medida["ver"]) >= 39.5 and medida["caixa"] >= 39.5, (nome, "alvo de toque menor que 40 px", medida)
-            legivel(territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"] .analise-grupo-nome'), "nome do estado")
+            legivel(territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"] .analise-no-nome'), "nome do estado")
             legivel(territorios.get_by_test_id("analise-territorios-instrucao"), "orientação da árvore")
             # O Amazonas inteiro e um município do Pará: a combinação, com o Pará em parte.
             painel(lambda: marca(territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]').get_by_test_id("analise-grupo-todos")))
@@ -189,16 +194,19 @@ def main():
             legivel(totais.locator('[data-id="uf:' + AM + '"]'), "total individualizado do estado")
             sem_transbordar("Seleção com o Pará aberto")
             if largura >= 1440:
-                # A disposição de referência no computador: a árvore e o que está na análise lado a lado; os estados em colunas.
+                # A disposição de referência no computador: a árvore e o painel dos selecionados lado a lado. Desde o comando V22
+                # (seção 3; muda de propósito esta conferência, que via os estados em colunas), a árvore, com os estados recuados
+                # sob a região deles.
                 lista = territorios.get_by_test_id("analise-territorios-lista").bounding_box()
                 lado = territorios.get_by_test_id("analise-selecionados").bounding_box()
                 assert lista["x"] + lista["width"] <= lado["x"] + 1 and abs(lista["y"] - lado["y"]) < 8, (nome, lista, lado)
-                colunas = {round(caixa["x"]) for caixa in linhas.evaluate_all("els => els.map(e => e.getBoundingClientRect().toJSON())")}
-                assert len(colunas) >= 2, (nome, "os estados em colunas", colunas)
+                x_regiao = territorios.locator('[data-testid="analise-regiao"][data-id="1"]').bounding_box()["x"]
+                recuos = {round(caixa["x"]) for caixa in linhas.evaluate_all("els => els.map(e => e.getBoundingClientRect().toJSON())")}
+                assert len(recuos) == 1 and min(recuos) > x_regiao + 8, (nome, "os estados recuados sob a região", recuos, x_regiao)
             page.screenshot(path=str(OUTPUT / ("responsivo-" + nome + "-selecao.png")))
 
             # 3. A análise: a legenda sem textos sobrepostos, a dica dentro da janela e os totais no alto do resultado.
-            toca(territorios.get_by_test_id("analise-ver-analise"))
+            toca(territorios.get_by_test_id("analise-confirmar-selecao"))
             expect(area).to_have_attribute("data-aba", "distribuicao")
             expect(area.locator(BOLHAS).first).to_be_visible(timeout=60000)
             page.wait_for_timeout(800)  # transições do gráfico

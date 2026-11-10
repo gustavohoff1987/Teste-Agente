@@ -1679,7 +1679,8 @@ SUGESTOES = {
                     "cada competência, sem classificação.",
     "politica": "O que posso fazer é mostrar os números e as análises disponíveis para apoiar a sua decisão.",
     "correlacao": "Posso pôr os territórios lado a lado, ordenar por um atributo, aplicar condições ou, com os critérios e a "
-                  "distância ditos por você, formar conjuntos por proximidade (Por critérios, na Seleção).",
+                  "distância ditos por você, formar conjuntos por proximidade (Aplicar critérios de seleção e Agrupar territórios "
+                  "selecionados, na Seleção).",
     "projecao": "Posso mostrar o que já aconteceu: a tendência dos últimos 4 períodos ou a série temporal completa.",
     "pessoas": "As análises usam só contagens agregadas por território.",
     "fontes_externas": "As análises usam só os dados em uso nesta sessão.",

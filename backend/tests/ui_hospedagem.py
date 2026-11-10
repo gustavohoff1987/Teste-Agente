@@ -72,9 +72,9 @@ def main():
             aperta(area.get_by_test_id("analise-fonte-brasil"))
         assert inspecao.value.status == 200 and inspecao.value.json()["catalog"]["integridade"] == "verificada"
         expect(page.get_by_test_id("current-source")).to_be_visible(timeout=60000)
-        # Os estados como unidades (05/11/2026, a seleção unificada): sem nada marcado, a unidade Estados marca todos e pede o gráfico.
+        # Os estados como unidades: desde o comando V22, "Só os estados", na linha do Brasil, põe todos e pede o gráfico.
         with page.expect_response(lambda r: r.url == API + "api/painel", timeout=120000) as painel:
-            aperta(area.get_by_test_id("analise-nivel-estados"))
+            aperta(area.get_by_test_id("analise-raiz-so-estados"))
         assert painel.value.status == 200, painel.value.text()[:500]
         assert painel.value.request.headers.get("x-adt-session"), "o gráfico leva a sessão, com a pré-verificação"
         assert len([item for item in painel.value.json()["itens"] if item.get("tipo") == "estado"]) == 27

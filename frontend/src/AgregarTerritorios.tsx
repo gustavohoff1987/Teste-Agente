@@ -34,6 +34,8 @@ type Props = {
   medirExtensao?: (membros: string[], signal: AbortSignal) => Promise<number | null>;
   onCriar: (grupo: GrupoAgregado) => void;
   onCancelar: () => void;
+  /** O título da janela; null quando ela vem dentro de "Agrupar territórios selecionados" (comando V22), que já tem o dele. */
+  titulo?: string | null;
 };
 
 const sem = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -103,8 +105,9 @@ export default function AgregarTerritorios(p: Props) {
       <span>{nomeDaUnidade(item)}{nomeGrupo && <span className="analise-agregar-grupo-do-item"> · {nomeGrupo}</span>}</span>
     </label>;
   };
-  return <section data-testid="analise-agregar" aria-labelledby="analise-agregar-titulo" className="analise-agregar">
-    <h4 id="analise-agregar-titulo" className="analise-agregar-titulo">{editando ? "Editar o conjunto" : "Agrupar territórios"}</h4>
+  return <section data-testid="analise-agregar" aria-labelledby={p.titulo !== null ? "analise-agregar-titulo" : undefined}
+    aria-label={p.titulo === null ? "Formar um conjunto" : undefined} className="analise-agregar">
+    {p.titulo !== null && <h4 id="analise-agregar-titulo" className="analise-agregar-titulo">{p.titulo ?? (editando ? "Editar o conjunto" : "Agrupar territórios")}</h4>}
     <div className="analise-criterios-alto">
       <p data-testid="analise-agregar-resumo" className="analise-criterios-resumo" aria-live="polite">{resumo}{mudanca ? " · " + mudanca : ""}</p>
       {p.coordenadas && <MapaDosConjuntos coordenadas={p.coordenadas} fundo={fundo} conjuntos={[{ id: "novo", nome: nome.trim() || p.sugestao, membros }]}

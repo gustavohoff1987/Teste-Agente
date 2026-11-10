@@ -237,20 +237,41 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
       return i === undefined ? null : [pr.x[i] * e + ox, pr.y[i] * e + oy, RAIO_FUNDO * 1.6];
     };
 
-    // 4. Ligações ilustrativas (não são trajeto): dos selecionados até a referência mais próxima indicada pelo motor.
+    // 4. Ligações ilustrativas (não são trajeto): dos selecionados até a referência mais próxima indicada pelo motor. Com o foco da
+    //    Análise Espacial (comando V22, seção 7), as demais ligações esmaecem e a da base em foco fica mais forte, com anéis na base e
+    //    na referência dela.
     if (segRef.current.length) {
-      ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = paleta.tinta2;
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      for (const segmento of segRef.current) {
-        const a = posicaoDe(segmento.de), z = posicaoDe(segmento.para);
-        if (!a || !z) continue;
-        ctx.moveTo(a[0], a[1]);
-        ctx.lineTo(z[0], z[1]);
+      const foco = props.foco ?? null;
+      const tracar = (lista: typeof segRef.current, largura: number, alfa: number) => {
+        if (!lista.length) return;
+        ctx.globalAlpha = alfa;
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = paleta.tinta2;
+        ctx.lineWidth = largura;
+        ctx.beginPath();
+        for (const segmento of lista) {
+          const a = posicaoDe(segmento.de), z = posicaoDe(segmento.para);
+          if (!a || !z) continue;
+          ctx.moveTo(a[0], a[1]);
+          ctx.lineTo(z[0], z[1]);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      };
+      const doFoco = foco ? segRef.current.filter(segmento => segmento.de === foco) : [];
+      tracar(foco ? segRef.current.filter(segmento => segmento.de !== foco) : segRef.current, 1.4, foco ? 0.18 : 1);
+      if (doFoco.length) {
+        tracar(doFoco, 2.8, 1);
+        ctx.strokeStyle = paleta.tinta;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        for (const id of [foco!, ...doFoco.map(segmento => segmento.para)]) {
+          const pos = posicaoDe(id);
+          if (pos) circulo(ctx, pos[0], pos[1], pos[2] + 4);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
-      ctx.setLineDash([]);
     }
 
     // 5. Conjuntos (07/11/2026, item 7.10 do comando de 07/11/2026; antes, o mesmo anel escuro em todos os membros): cada conjunto com o
@@ -560,7 +581,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
       if (k === undefined || cena.pontos[k].esmaecido) definirAtivo(null);
     }
     agendar();
-  }, [cena, selecionados, segmentos, p.referencias, p.ativoExterno, p.extraDoRotulo, p.contextoBrasil, p.dicaDe, agendar, definirAtivo]);
+  }, [cena, selecionados, segmentos, p.referencias, p.ativoExterno, p.foco, p.extraDoRotulo, p.contextoBrasil, p.dicaDe, agendar, definirAtivo]);
 
   // Troca do esquema de cor: o canvas é redesenhado já no commit, sem esperar o próximo quadro. No começo da impressão, a troca
   // para o claro chega síncrona (flushSync, em useEsquemaDeCor), e o mapa vai claro para a página impressa.
@@ -642,6 +663,8 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
       }
       const id = cenaRef.current.pontos[i].id;
       definirAtivo({ id, origem: toque ? "toque" : "mouse" });
+      // Uma base com ligação, na Análise Espacial (comando V22, seção 7): o foco, sincronizado com o gráfico.
+      if (atual.current.onFocar && segRef.current.some(segmento => segmento.de === id)) { atual.current.onFocar(id); return; }
       atual.current.onAlternar(id);
     };
     const sair = (evento: PointerEvent) => {
@@ -721,8 +744,10 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     else if (evento.key === "0" || evento.key === "Home") verTudo();
     else if (evento.key === "Enter" || evento.key === " ") {
       const a = ativo.current, k = a ? c.porId.get(a.id) : undefined;
-      if (a && k !== undefined && !c.pontos[k].esmaecido) atual.current.onAlternar(a.id);
-      else focarPonto(pontoCentral());
+      if (a && k !== undefined && !c.pontos[k].esmaecido) {
+        if (atual.current.onFocar && segRef.current.some(segmento => segmento.de === a.id)) atual.current.onFocar(a.id);
+        else atual.current.onAlternar(a.id);
+      } else focarPonto(pontoCentral());
     } else if (evento.key === "Escape") definirAtivo(null);
     else return;
     evento.preventDefault();

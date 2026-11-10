@@ -9,7 +9,8 @@ executada com os dados; as análises mostram os ajustes delas no mesmo painel. H
 abaixo, os Detalhes. Desde a segunda rodada de 24/10/2026, **Desfazer** (até 25/10/2026, "Voltar") e **Limpar seleção** ficam
 fixos no alto da área, lado a lado, em todas as abas (seção "Desfazer e Limpar seleção"). Desde 06/11/2026, logo abaixo deles,
 a **trilha** do lugar em uso ("Brasil › Pará › MARABA (PA)"), igual em todas as abas, e, no alto de cada aba de análise, a
-**faixa do lugar**, com os números do todo ou do estado e o "Ver por" (seção "Navegação por níveis"). O desenho é o gráfico de bolhas e, desde 23/10/2026, também o mapa, como segunda vista da mesma análise
+**faixa do lugar**, com os números do todo ou do estado (seção "Navegação por níveis"; desde 09/11/2026, comando V22, sem o "Ver
+por": o estado como unidade fica na árvore da Seleção). O desenho é o gráfico de bolhas e, desde 23/10/2026, também o mapa, como segunda vista da mesma análise
 (Gráfico | Mapa | Lado a lado). No gráfico, o eixo Y é o indicador; o eixo X só aparece com a análise espacial. Este documento descreve a área de análise. O motor e as rotas
 (`/api/painel`, `/api/painel/referencias`, `/api/painel/mapa`, desde 27/10/2026, `/api/painel/territorios` e, desde 06/11/2026,
 `/api/painel/lugar`) estão em [Painel integrado de bolhas](PAINEL_INTEGRADO.md); a
@@ -17,10 +18,11 @@ estrutura da página (cabeçalho, fonte de dados, Histórico e conversa) fica no
 
 Código: `frontend/src/AreaDeAnalise.tsx` (a área e o estado), `PainelChart.tsx` (bolhas, dica e legendas), `MapaAnalise.tsx`
 (o mapa) e `transicaoVistas.ts` (a troca animada entre o gráfico e o mapa), montados pelo contrato de `mapaContrato.ts`,
-`PainelTerritorios.tsx` (Seleção de Territórios; desde 07/11/2026, os modos "Marcar na lista", "Por critérios", em
-`SelecionarPorCriterios.tsx`, e "Agrupar territórios", em `AgregarTerritorios.tsx`, com o mini mapa dos conjuntos de
-`MapaDosConjuntos.tsx`), `FaixaDoLugar.tsx` (desde 06/11/2026: a trilha, o "Ver por", a faixa do lugar
-e o cartão do território), `EscolhaDosTerritorios.tsx` (a janela Escolha dos territórios da Análise
+`PainelTerritorios.tsx` (Seleção de Territórios; desde 09/11/2026, comando V22, a árvore e o painel direito com o mapa da
+seleção e as três ações: "Aplicar critérios de seleção", em `SelecionarPorCriterios.tsx`, e "Agrupar territórios selecionados", em
+`AgruparSelecionados.tsx`, com a escolha livre de `AgregarTerritorios.tsx` e o mini mapa dos conjuntos de `MapaDosConjuntos.tsx`;
+de 07 a 09/11/2026, os modos "Marcar na lista", "Por critérios" e "Agrupar territórios"), `FaixaDoLugar.tsx` (desde 06/11/2026: a
+trilha, a faixa do lugar e o cartão do território; o "Ver por" dela saiu no comando V22), `EscolhaDosTerritorios.tsx` (a janela Escolha dos territórios da Análise
 Espacial), `PainelSeries.tsx` (visão Série temporal da tendência), `PainelSetas.tsx`
 (quadro de setas da tendência, na visão Tendência), `PainelRotatividade.tsx` (barras de
 100%), `PainelGavetas.tsx` (painéis das funções), `PainelRuler.tsx` (régua), `PainelDetalhes.tsx` (tabela, não avaliáveis e
@@ -123,6 +125,96 @@ análise mostra o resumo da seleção (`analise-selecao-resumo`) com "Alterar a 
 Seleção. A Escolha dos territórios da Análise Espacial (desde 06/11/2026, a referência e os filtros da base, sobre a seleção em
 uso; de 27/10 a 06/11/2026, a base e a referência, com a seleção como uma das opções de partida) e o período da Análise de
 Tendência continuam dentro de cada análise.
+
+### Seleção do comando V22 (09/11/2026)
+
+Comando V22 do responsável (9/11/2026, seções 2 a 7 e 11; decisões 3, 4 e 5): a árvore sempre à vista, o estado como unidade na
+própria árvore e, à direita, os territórios selecionados com o mapa da seleção e três ações. Onde diverge, esta seção substitui a
+descrição de 05 a 09/11/2026 que vem depois dela (marcada como histórico).
+
+- **A árvore** (`analise-arvore`): Brasil → região → estado → município, em linhas compactas. A linha do Brasil (`analise-raiz`)
+  tem a seta (`analise-raiz-ver`), a caixa (`analise-raiz-caixa`), o nome, o resumo do universo carregado
+  (`analise-raiz-universo`: "5.570 municípios | 27 UFs", contado da base carregada, nunca fixo; numa planilha, "16 comunas | 4
+  condados") e "Só os estados" (`analise-raiz-so-estados`). Abaixo, as regiões, na ordem Norte, Nordeste, Centro-Oeste, Sudeste e
+  Sul, recolhidas de início (`analise-regiao`, com `data-aberta` e `data-situacao`): a seta (`analise-regiao-ver`), a caixa
+  (`analise-regiao-todos`), o nome, as contagens ("7 UFs · 450 municípios", `analise-regiao-contagem`) e "Só os estados"
+  (`analise-regiao-so-estados`). Cada estado (`analise-grupo`, com `data-aberto`, `data-unidade` e `data-situacao` inteiro,
+  parcial, nenhum ou unidade) tem a seta (`analise-grupo-ver`), a caixa de três estados (`analise-grupo-todos`), o nome, a contagem
+  (`analise-grupo-contagem`) e "Só o estado" (`analise-grupo-so-estado`). A seta só abre e fecha, nas regiões e nos estados, de
+  forma independente, e recolher não muda a seleção (recolher uma região fecha também a lista aberta de um estado dela); as
+  regiões abertas continuam abertas ao voltar à Seleção; a caixa só marca, e marcar não abre. A lista dos municípios de um estado abre
+  abaixo da linha dele, numa caixa com rolagem própria, para a linha seguinte continuar perto. A orientação diz "A seta abre a
+  lista; a caixa marca os municípios. “Só o estado” põe o estado na seleção como uma unidade, com a fonte estadual."
+  (`analise-territorios-instrucao`). Até 699 px de largura e no toque, a seta, a caixa e "Só o estado" têm 40 px.
+- **O estado como unidade** (decisão 3): "Só o estado" põe o estado na seleção como uma unidade (uma bolha, com a contagem
+  estadual de médicos únicos), num só passo do Desfazer; os municípios dele que estavam marcados saem e, enquanto isso, ficam
+  esmaecidos e bloqueados (`data-bloqueada`, com o motivo no título e na lista do estado). Desligar tira o estado e deixa os
+  municípios livres, sem nenhum marcado. "Só os estados", nas linhas de região e do Brasil, põe como unidade todos os estados
+  daquele nível (de novo, tira todos). Marcar a caixa de uma região ou do Brasil marca os municípios dos estados que não estão como
+  unidade. Os municípios dos estados de um conjunto de estados também ficam bloqueados ("no conjunto …"). Com um conjunto de
+  municípios que tenha membros no estado, "Só o estado" avisa e não muda nada: o estado inteiro não é somado aos municípios dele
+  (RQ-DAD-30). Numa planilha com a coluna-mãe, "Só o condado" e "Só os condados" (os nomes da base) e, com o grupo de cima, "Só a
+  zona" (`analise-regiao-so-regiao`): a zona como uma unidade, que não se mistura com outros níveis.
+- **A busca** (`analise-busca`), acima da árvore: os estados encontrados (`analise-busca-grupo`) com as duas ações, a caixa (os
+  municípios) e "Só o estado"; os municípios, com a caixa.
+- **Territórios selecionados** (`analise-selecionados`, à direita): o resumo (`analise-selecionados-resumo`), o mapa da seleção
+  (`analise-mapa-selecao`: o mesmo mini mapa dos conjuntos, sem estado próprio; os territórios individuais em pontos cheios, cada
+  estado como unidade e cada conjunto num contorno tracejado com o nome, e os integrantes no título do contorno), a lista (os
+  estados com os municípios marcados, "Pará · 142 de 144 municípios", com as etiquetas, "Ver todos os N" e "Ver mais N estados" nas
+  listas grandes; os estados como unidade, "Pará (estado) · uma bolha, com a fonte estadual", `analise-selecionado-estado`, com o ×;
+  os conjuntos, `analise-selecionado-conjunto`, com "Ver os municípios" — a composição completa —, o ✎ e o ×), os totais
+  individualizados e as três ações (`analise-selecao-acoes`): **Confirmar seleção** (`analise-confirmar-selecao`; decisão 4: vai à
+  análise aberta; a seleção já vale na hora, com o Desfazer, e não existe seleção pendente), **Aplicar critérios de seleção**
+  (`analise-aplicar-criterios`) e **Agrupar territórios selecionados** (`analise-agrupar-selecionados`, com dois ou mais
+  territórios). Uma ação aberta ocupa o lugar do painel, com a árvore à vista; concluir ou cancelar volta à lista. Mapa, lista,
+  contadores, árvore e o que vai às análises são a mesma seleção.
+- **Aplicar critérios de seleção** (`analise-criterios`): os critérios de antes, sem o passo de agrupar, que passou ao
+  agrupamento. "Onde procurar" abre em o país todo (decisão 5; `analise-criterios-onde-todo`), com as regiões, os estados e os
+  marcados como opções. A competência dos critérios lista as competências na ordem da data (jan/2014, jun/2014, … jun/2024; o
+  motor também as devolve assim em `/api/inspect`, `periods` e `preflight.values.periods`). O resultado entra no lugar da seleção
+  atual (o padrão: os estados como unidade e os conjuntos de antes saem, como diz `analise-criterios-uso-texto`) ou junto com ela;
+  junto, os municípios de um estado como unidade e os membros de um conjunto da seleção não entram, e o aviso diz quantos ficaram de
+  fora e por quê. Um pedido da conversa com distância entre os membros ("… a até 200 km entre si") abre os critérios com "Depois,
+  agrupar por proximidade a até 200 km" (`analise-criterios-agrupar-depois`): usado o resultado, "Agrupar territórios
+  selecionados" abre por proximidade, com essa distância.
+- **Agrupar territórios selecionados** (`analise-agrupar`, com `data-modo`; `AgruparSelecionados.tsx`): "Por escolha livre"
+  (`analise-agrupar-livre`) e "Por proximidade" (`analise-agrupar-proximidade`). Na escolha livre, só os territórios selecionados
+  são candidatos (a janela de antes, `analise-agregar`: a busca, a lista de um estado, o mini mapa, o nome e "O conjunto fica no
+  lugar dos membros"); com estados como unidade, a escolha entre municípios e estados (`analise-agrupar-nivel-municipios` e
+  `analise-agrupar-nivel-estados`): um conjunto de estados soma as fontes estaduais e diz isso no rótulo ("soma das contagens
+  estaduais"). Por proximidade, a distância máxima entre os membros (`analise-agrupar-km`), com a prévia do motor sobre os
+  municípios selecionados (todos a até X km entre si, pela geodésica de sempre), os conjuntos com o nome editável e "Usar cada
+  conjunto como um território" (`analise-agrupar-usar`): cada conjunto entra no lugar dos membros, e os que ficaram sem conjunto
+  continuam selecionados, cada um como território individual (a pergunta "Levar também os N sem conjunto" saiu). Agrupar não traz
+  territórios de fora da seleção. Cada conjunto guarda o id estável, o nome, os membros, a versão da composição (que sobe a cada
+  edição) e quais membros saíram da seleção.
+- **Níveis na mesma seleção** (seção 2 do comando): estados como unidade, municípios e conjuntos juntos. O pedido vai no nível
+  municípios com `estados_unidade` ([Painel integrado](PAINEL_INTEGRADO.md#níveis-na-mesma-seleção-comando-v22)); o motor calcula
+  cada nível à parte, e a Distribuição mostra uma legenda por nível (`analise-legenda-nivel-unidades` e
+  `analise-legenda-nivel-estados`), os estados com "(estado)" no nome e grupos por posição, ordenação e quantis só dentro de cada
+  nível. Uma análise que não vale para um nível diz quais territórios ficaram de fora e por quê (`analise-fora-da-analise`; na
+  Análise Espacial, os estados como unidade, que não têm um ponto único). A trilha de uma seleção mista é "Brasil › Seleção"; no
+  mapa, cada estado como unidade fica no ponto de desenho dele.
+- **Dicas** (seção 6 do comando): a dica de um conjunto, no gráfico e no mapa, traz o nome e todos os integrantes ("Carajás
+  (MARABA, PARAUAPEBAS) — PA"; com muitos, o título rola por dentro) e "contagem: soma das contagens dos componentes" (num conjunto
+  de estados, "das contagens estaduais"); um estado como unidade, "(estado)" e "fonte estadual (médicos únicos no estado)".
+- **Análise Espacial** (seções 6 e 7 do comando): com conjuntos na base, a Escolha dos territórios conta "3 conjuntos" ou "2
+  conjuntos e 4 territórios individuais" (nunca "Base 0 municípios"), e a frase da base diz "Territórios da seleção prévia"; a
+  frase-resumo diz "de cada território". O foco: clique, toque ou Enter numa bolha da base destaca a base, a referência dela, a
+  ligação e a distância exata do motor e esmaece as demais relações sem apagá-las (`analise-foco-espacial`, com "Limpar o foco",
+  `analise-foco-limpar`); focar outra base troca o foco, e o mapa acompanha o gráfico (e o contrário).
+- **Saíram:** o "Ver por" (na Seleção e na faixa do lugar; `opcoesVerPor` ficou em `painelModel.ts`, sem uso na tela), os modos
+  "Marcar na lista", "Por critérios" e "Agrupar territórios" e o "Agrupar os marcados", os avisos coletivos ("Todos os municípios
+  da Região Norte desmarcados…", `analise-selecao-aviso`; o Desfazer continua no alto), o botão "Ver a Análise de Distribuição"
+  (`analise-ver-analise`) e o agrupamento por proximidade dentro dos critérios. Continuam como descritos abaixo: os totais
+  individualizados, o mini mapa dos conjuntos, a regra com a seleção ("Reaplicar em outra competência"), o conjunto (a soma do
+  motor, a ressalva, o ✎ e o ×, o mesmo nome em todo lugar), o toque nas bolhas (a bolha de um estado abre os municípios dele), a
+  abertura sem territórios e a seleção vazia.
+
+### Até 09/11/2026: a seleção unificada, o Ver por e os modos (histórico)
+
+O que segue descreve a Seleção de 05 a 09/11/2026. O comando V22 substituiu o Ver por, os modos, os avisos coletivos, o botão
+"Ver a …" e a pergunta dos sem conjunto (seção acima); o que não foi substituído continua valendo.
 
 **Seleção unificada** (05/11/2026, comando do responsável; no lugar dos três níveis separados de 24/10/2026, o Brasil, os estados
 e os municípios, um por vez, em que selecionar o Brasil mostrava uma unidade só e selecionar estados mostrava só os estados): um só
@@ -384,7 +476,8 @@ a página (sem rolar até eles), em todas as abas, com os dados prontos. Ao lado
 - **Desfazer** (`analise-desfazer`, a seta curva do desfazer, ↶, o ícone universal do Ctrl+Z): um desfazer sequencial de toda a
   interação na área. Até 25/10/2026, chamava-se "Voltar" (`analise-voltar`), com a seta ←; o nome e a seta pareciam levar ao
   começo da sessão, e o responsável pediu o nome e o símbolo do desfazer (25/10/2026). Cada ação reversível guarda o estado de antes: marcar ou desmarcar territórios (uma a uma, coletivas, o × da lista
-  da direita), trocar o Ver por, abrir e fechar a lista de um estado, abrir um estado ou um município pela bolha, ir a um
+  da direita), pôr ou tirar estados como unidade ("Só o estado" e "Só os estados", desde 09/11/2026; até então, trocar o Ver
+  por), abrir e fechar a lista de um estado, abrir um estado ou um município pela bolha, ir a um
   lugar pela trilha, o atalho do mapa, Limpar seleção, agrupar, editar e desfazer um conjunto, usar o resultado de "Por critérios", trocar de aba (também a ida à Seleção pelo "Alterar a seleção"), mudar
   um ajuste (o indicador, a categoria, a competência, os grupos e as faixas, o período, a visão, o intervalo da série, a
   Escolha dos territórios calculada), a régua, as condições, a ordenação, a comparação, o filtro da classe, "Mostrar só quem atende",
@@ -431,21 +524,21 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   move a trilha do mesmo jeito. Com dois níveis de grupo numa planilha (desde 07/11/2026, parte C2 do item 1), a trilha passa
   pelo grupo de cima (`data-chave="regiao"`): "Solária › Zona Serrana › Alto Vésper › Vesperina" (no comando, "Portugal › Norte
   › Braga › Barcelos"); a zona inteira, ou tudo dentro de uma zona só, é "Solária › Zona Serrana" (em parte, tocável, como o
-  grupo); tocar na zona leva às comunas dela, com o aviso "Zona Serrana: todas as comunas dela.", e o "Ver por" dentro da
-  zona tem o condado e a comuna; a faixa mostra os números da zona, pelas comunas (`POST /api/painel/lugar` com `regiao`), e o
+  grupo); tocar na zona leva às comunas dela, com o aviso "Zona Serrana: todas as comunas dela." (de 07 a 09/11/2026, o "Ver
+  por" dentro da zona tinha o condado e a comuna; desde o comando V22, "Só o condado" e "Só os condados" na árvore); a faixa mostra os números da zona, pelas comunas (`POST /api/painel/lugar` com `regiao`), e o
   todo como referência. Numa planilha, a trilha começa no nome do todo do painel Colunas ou, sem ele, em "Toda a base"
   (desde 07/11/2026; antes, "Toda a planilha"). Com a coluna-mãe, a trilha de uma planilha também passa pelo grupo ("Solária ›
   Norte", "Solária › Norte › comuna", desde 07/11/2026; antes, sem o grupo); tocar no todo leva a todas as unidades (na base do
   Brasil, ao todo vendo por estado), e o aviso diz "Solária: todas as comunas."
 - **A faixa do lugar** (`analise-faixa`, no alto de todas as abas de análise, com `data-lugar` e `data-grupo`): o nome do lugar,
-  a competência (no formato curto do resumo da fonte, "jun/2024") e o Ver por; no todo, os números do Brasil: profissionais (502.495 médicos em junho de 2024), a população em poucas
+  a competência (no formato curto do resumo da fonte, "jun/2024") e, de 06 a 09/11/2026, o Ver por; no todo, os números do Brasil: profissionais (502.495 médicos em junho de 2024), a população em poucas
   palavras ("212,6 milhões", com o número inteiro ao lado), a densidade por 1.000 habitantes (2,36) e a variação da densidade
   desde o primeiro dos últimos 4 períodos anuais até a competência da análise ("Desde jun/2021", a mesma janela com que a
   Tendência abre; sem 4 períodos anuais, a variação não aparece). Num estado, os números dele (o Pará: 10.307 médicos, 1,19) e,
   abaixo, o todo como referência ("Pará 1,19 · Brasil 2,36", `analise-faixa-referencia`); numa seleção livre, só a referência do
   todo, sem nenhuma soma. Os números vêm prontos do motor (`POST /api/painel/lugar`, [Painel integrado](PAINEL_INTEGRADO.md)):
   o Brasil pela fonte nacional (BR-POP-JUNHO-1) e o estado pela contagem estadual de médicos únicos (UF-CONTAGEM-ESTADUAL-1),
-  nunca a soma dos municípios; a variação é a do motor (CAP-TMP-01). Trocar o Ver por não os pede de novo. Cada número
+  nunca a soma dos municípios; a variação é a do motor (CAP-TMP-01). Pôr ou tirar os estados como unidade não os pede de novo. Cada número
   (`analise-faixa-numero`) leva `data-chave` e `data-valor` (o valor do motor, em precisão integral). Desde 07/11/2026 (item 1.4
   do comando), também numa planilha: o todo pelo nome (ou "Toda a base") e o grupo da coluna-mãe, com os números do motor pelas
   unidades e a linha `analise-faixa-origem` (`data-origem`) que diz de onde vem o total: "Total: pessoas únicas, pelo
@@ -468,7 +561,8 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
 - **Vendo por estado:** o mapa existe (cada estado é uma bolha no ponto de desenho calculado no servidor; seção "Vista do
   desenho" e [Mapa da página única](MAPA_DA_PAGINA_UNICA.md)); a Análise Espacial mostra só "A Análise Espacial mede distâncias
   entre municípios." e o botão "Ver os municípios destes estados" (`analise-espacial-grupos`, `analise-espacial-ver-unidades`),
-  que troca o Ver por para município e abre a Escolha dos territórios; o gráfico, o título e os ajustes não aparecem nessa aba.
+  que põe os municípios desses estados no lugar deles (desde o comando V22; antes, trocava o Ver por) e abre a Escolha dos
+  territórios; o gráfico, o título e os ajustes não aparecem nessa aba.
 - **Os estados em tela estreita** (06/11/2026, item 7 do comando; `ListaDosGrupos.tsx`): no celular (até 639 px, `useNarrow`),
   vendo por estado, a Distribuição mostra por padrão a lista ordenada (`analise-lista-grupos`): uma linha por estado
   (`analise-lista-grupo`, a linha inteira é o alvo do toque, 40 px), na ordem do motor (`ordem_do_indicador`, CAP-SUB-02, sem
@@ -1208,17 +1302,42 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
 
 - A conversa e o Histórico dependem da estrutura da página (frente B1); a área entrega o contexto, o estado salvo e aplica o
   pedido.
-- A Análise Espacial vendo por estado mostra só a mensagem e o botão que leva aos municípios (as distâncias são entre
-  municípios); a Tendência vale para os estados desde 24/10/2026.
+- A Análise Espacial com só estados como unidade mostra só a mensagem e o botão que leva aos municípios (as distâncias são entre
+  municípios); numa seleção mista (comando V22), os estados ficam de fora, com o motivo; a Tendência vale para os estados desde
+  24/10/2026.
 - O mapa vendo por estado mostra uma bolha por estado no ponto de desenho do servidor, sem limites oficiais nem ladrilhos
   (06/11/2026).
-- "Por critérios" (07/11/2026) está na Seleção, na conversa e nas Condições ("Usar como seleção"). A distância até a referência
-  das Condições não vai para o modo (lá, a distância é até um território).
+- "Aplicar critérios de seleção" (desde o comando V22; de 07 a 09/11/2026, "Por critérios") está na Seleção, na conversa e nas
+  Condições ("Usar como seleção"). A distância até a referência das Condições não vai para os critérios (lá, a distância é até um
+  território).
+- Os conjuntos de estados existem só na base do Brasil (a soma das fontes estaduais); numa planilha, os conjuntos são de unidades.
+  Na Análise de Rotatividade, os estados como unidade e os conjuntos de estados ficam de fora, com o aviso.
+- O Detector de Sinais Territoriais e o Simulador de Cenários Territoriais (Eixo II do comando V22) vêm nas etapas seguintes do
+  comando ([Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md); [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md)).
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
 
 ## Testes
 
+- **A Seleção do comando V22 (09/11/2026, Eixo I):**
+  - **pytest:** `test_painel_pagina.py` — os conjuntos de estados no nível estados (a soma das fontes estaduais, só com
+    conjuntos, junto com os estados escolhidos, as recusas), os estados como unidade junto com municípios (cada nível pelo próprio
+    cálculo, `niveis`, `por_nivel`, a nota e a limitação dos níveis, a frase de cada nível, as recusas: a sobreposição com o
+    estado inteiro, como unidade ou num conjunto de estados, o conjunto misto, a comparação entre níveis, `estados_unidade` fora
+    do nível municípios), a Análise Espacial com os estados em `fora_da_analise` e, com a base versionada, o Amazonas com o Pará
+    como unidade e o conjunto do Maranhão com a Bahia; `test_split_period.py`, as competências na ordem da data;
+    `test_conversa_grafico.py`, a resposta que abre "Aplicar critérios de seleção".
+  - **Node:** `areaDeAnalise.test.mjs` (a seleção V22: `escolhaDaArvore`, `ativarEstados`, `desativarEstados`, as regiões, o
+    formato salvo de antes, o resumo com os estados) e `painel.test.mjs` (as dicas com todos os integrantes e "(estado)",
+    `montarOpcoes` com `estados_unidade` e os conjuntos de estados, a rotatividade sem os estados, `foraDaRotatividade` e o
+    pedido da conversa).
+  - **Navegador:** mudam de propósito os roteiros que usavam o Ver por, os modos, o botão "Ver a …" e os avisos coletivos:
+    `ui_criterios.py` (os critérios pelo painel direito, onde procurar no país todo, as competências por data, o uso no lugar e
+    junto, o agrupamento por escolha livre e por proximidade só com os selecionados, sem a pergunta dos sem conjunto),
+    `ui_area_de_analise.py`, `ui_navegacao.py` (o todo por "Só os estados" e pela caixa do Brasil; a edição de Carajás só entre os
+    selecionados), `ui_planilha_ficticia.py` ("Só os condados" e "Só a zona"), `ui_modo_escuro.py`, `ui_mapa.py`,
+    `ui_pagina_unica.py`, `ui_responsivo.py` (as regiões abertas pela seta e os alvos de 40 px), `ui_conexao.py` e
+    `ui_hospedagem.py`; `ui_support.py` ganhou `abrir_regiao` e `linha_do_estado`.
 - **Os conjuntos nas comparações (comando de 08/11/2026):**
   - **pytest:**
     - `test_painel_pagina.py`: as condições, a ordenação, as faixas, as faixas de distância e as contagens da tendência com os

@@ -262,13 +262,18 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
 - **Selecionar por critérios** (07/11/2026, itens 6.5 e 6.9 do comando de 06/11/2026; decisão 4 do responsável): o pedido
   com os critérios da pessoa e o agrupamento "a até X km entre si" (também "uns dos outros": "municípios com menos de 0,5
   médico por mil habitantes a até 200 km uns dos outros"), ou com "selecione" e os critérios ("selecione os municípios do
-  Amazonas com densidade abaixo de 0,5"), abre o modo "Por critérios" da Seleção preenchido, com a prévia do motor (campo
+  Amazonas com densidade abaixo de 0,5"), abre "Aplicar critérios de seleção" (até 09/11/2026, o modo "Por critérios") da
+  Seleção preenchido, com a prévia do motor (campo
   `criterios` do `painel`: `{criterios: {partir_de, filtros, distancia?}, agrupar}`, os mesmos de `POST /api/painel/criterios`).
   Desde 07/11/2026 (itens 4.4, 8 e 9.1 do comando de 07/11/2026), a resposta fala em conjuntos todos a até X km entre si e nos
   botões novos ("Abri “Por critérios”, na Seleção, com densidade abaixo de 0,5 em todo o país, agrupando os que ficam a até 200
   km entre si. A prévia, no painel, mostra quantos atendem e os conjuntos; nada muda na análise até você escolher “Usar como
   seleção” ou “Usar cada conjunto como um território”."), sem números (a prévia é do motor, no painel); a análise só muda com
-  a escolha no painel. Com o agrupamento, o critério de valor é opcional: "agrupe os municípios do Pará a até 50 km entre si"
+  a escolha no painel. Desde 09/11/2026 (comando V22, seções 4 e 5), o agrupamento por proximidade saiu dos critérios e fica em
+  "Agrupar territórios selecionados", que abre com a distância depois de "Usar como seleção", e a resposta diz isso ("Abri
+  “Aplicar critérios de seleção”, na Seleção, com densidade abaixo de 0,5 em todo o país, agrupando os que ficam a até 200 km
+  entre si. A prévia, no painel, mostra quantos atendem; nada muda na análise até você escolher “Usar como seleção”; depois,
+  “Agrupar territórios selecionados” abre por proximidade, com essa distância."). Com o agrupamento, o critério de valor é opcional: "agrupe os municípios do Pará a até 50 km entre si"
   abre o modo com todos os municípios do Pará ("… com todos os municípios (onde procurar: Pará), agrupando …"). A pessoa diz
   tudo: faltando a distância do agrupamento, a conversa pergunta, sem sugerir valor ("Para agrupar por proximidade, diga a
   distância máxima entre os membros do conjunto, em km. Os valores são seus: nada é sugerido."); sem agrupamento, faltando o

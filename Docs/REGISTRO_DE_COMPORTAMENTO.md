@@ -35,6 +35,72 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-09 · A Seleção do comando V22: árvore, estado como unidade, painel direito e níveis juntos (Eixo I)
+- **Classificação (regra 1), pela leitura, antes de codar:** os itens das seções 2 a 7 e 11 do comando V22 foram classificados
+  de uma vez. Todos mudam comportamento (telas, textos, fluxos, contratos da API e remoções) e passam nos dois testes:
+  - *escopo:* decorrem do comando e das decisões 3, 4 e 5 do responsável (9/11/2026);
+  - *compatibilidade:* nenhum contraria a SPEC nem uma divergência aprovada:
+    - estados como unidade e municípios na mesma seleção preservam os níveis diferentes, cada um pela própria fonte e nunca
+      somado ao outro (RQ-DAD-30); quantis, ordenação e grupos por posição ficam dentro de cada nível (CAP-DIS-02, CAP-SUB-02);
+    - o conjunto reúne membros do mesmo nível (CAP-AGR-01); o conjunto de estados soma as fontes estaduais, rotulado como soma,
+      com a possível dupla contagem (RQ-REP-14 e a divergência aprovada "Soma automática");
+    - a remoção do "Ver por", dos modos e dos avisos coletivos e o "Confirmar seleção" são decisões do comando; o Desfazer
+      continua;
+    - as competências na ordem da data não contrariam nada (a função `chronological` da tela já ordenava assim).
+  - Surgiram na implementação e passam nos mesmos testes (seção 2 do comando): o mapa com os estados como unidade numa seleção
+    mista; o aviso dos estados que ficam fora da Rotatividade; os municípios de um estado dentro de um conjunto de estados
+    bloqueados como os do estado como unidade (o motor recusa os dois juntos); `estados_unidade` recusado fora do nível
+    municípios; os alvos de toque de 40 px na árvore; os textos que citavam "Agrupar territórios" passam a "Agrupar territórios
+    selecionados".
+- **Antes:**
+  - A Seleção tinha os modos "Marcar na lista", "Por critérios" e "Agrupar territórios" no alto da coluna da esquerda; a árvore
+    tinha a raiz Brasil ("todos os 5.570 municípios, em 27 estados") e as regiões abertas, com os estados em colunas; marcar o
+    Brasil inteiro levava a ver por estado.
+  - O "Ver por" (Estado | Município; numa planilha, Zona | Condado | Comuna) ficava à direita e na faixa do lugar; os estados
+    como unidade eram uma escolha do Ver por, nunca junto com municípios.
+  - Os avisos coletivos ("Todos os municípios da Região Norte marcados.") e o botão "Ver a Análise de Distribuição" ficavam à
+    direita, com "Agrupar os marcados" na lista.
+  - "Por critérios" procurava de início no lugar em uso e podia agrupar por proximidade, com "Usar cada conjunto como um
+    território" e a caixa "Levar também os N sem conjunto".
+  - Agrupar oferecia qualquer território da base; no nível estados, conjuntos eram recusados ("Conjuntos de estados não estão
+    disponíveis no gráfico").
+  - As competências de `/api/inspect` vinham na ordem do arquivo (na base do Brasil, jun/2018, jan/2021 e jan/2023 depois de
+    jun/2023).
+- **Agora:**
+  - A árvore Brasil → região → estado → município, em linhas compactas e recolhidas: a seta abre, a caixa marca (os municípios),
+    com a marcação parcial; a linha do Brasil traz "5.570 municípios | 27 UFs" (da base carregada).
+  - "Só o estado" põe o estado como unidade (uma bolha, com a fonte estadual) e esmaece e bloqueia os municípios dele, num passo do
+    Desfazer; "Só os estados" faz isso com todos os estados de uma região ou do Brasil; numa planilha, "Só o condado", "Só os
+    condados" e "Só a zona".
+  - À direita, "Territórios selecionados": o mapa da seleção, a lista (os territórios individuais, "Pará (estado)" e os conjuntos,
+    com a composição completa) e três ações: Confirmar seleção (vai à análise aberta), Aplicar critérios de seleção e Agrupar
+    territórios selecionados.
+  - Os critérios procuram de início no país todo, sem agrupar; o resultado entra no lugar da seleção (padrão) ou junto, e, junto,
+    o aviso diz quantos ficaram de fora e por quê.
+  - Agrupar, por escolha livre ou por proximidade, só com os selecionados; os não agrupados continuam individuais; um conjunto de
+    estados soma as fontes estaduais; cada conjunto guarda a versão da composição.
+  - Estados como unidade, municípios e conjuntos na mesma seleção: o pedido leva `estados_unidade`, e o motor responde com
+    `niveis`, `por_nivel` e, na Análise Espacial, `fora_da_analise`; a Distribuição mostra uma legenda por nível.
+  - A dica de um conjunto lista todos os integrantes; a Análise Espacial conta "2 conjuntos e 4 territórios individuais", diz
+    "Territórios da seleção prévia" e foca uma base (a referência, a ligação e a distância exata), esmaecendo as demais, com
+    "Limpar o foco".
+  - As competências de `/api/inspect` (`periods` e `preflight.values.periods`) vêm na ordem da data.
+- **Permanece:** os números do motor e as fórmulas (nada é calculado na tela); a soma dos conjuntos de municípios; a geodesia e
+  os conjuntos todos a até X km entre si; os totais individualizados; a trilha e a faixa do lugar; o toque nas bolhas; o
+  Desfazer e o Limpar seleção; o formato do pedido sem `estados_unidade`; a resposta de um pedido de um nível só; as análises
+  guardadas no Histórico (lidas no formato novo).
+- **Motivo:** comando V22 do responsável (9/11/2026), Eixo I, e as decisões 3, 4 e 5.
+- **Documentação e testes:** README; [área de análise](PAINEL_INTEGRADO_INTERFACE.md#seleção-do-comando-v22-09112026) (a seção
+  nova e a de 05 a 09/11/2026 marcada como histórico); [Painel integrado](PAINEL_INTEGRADO.md#níveis-na-mesma-seleção-comando-v22)
+  (`estados_unidade`, os conjuntos de estados, `niveis`, `por_nivel`, `fora_da_analise` e as competências por data);
+  [Mapa](MAPA_DA_PAGINA_UNICA.md), [Abrangência territorial](ABRANGENCIA_TERRITORIAL.md),
+  [Interface conversacional](INTERFACE_CONVERSACIONAL_INTEGRADA.md) e [Conversa no gráfico](CONVERSACAO_INCREMENTO_FN.md).
+  Testes: pytest (`test_painel_pagina.py`, `test_split_period.py`, `test_conversa_grafico.py`), Node (`areaDeAnalise.test.mjs` e
+  `painel.test.mjs`) e os roteiros de navegador que mudam de propósito (`ui_criterios.py`, `ui_area_de_analise.py`,
+  `ui_navegacao.py`, `ui_planilha_ficticia.py`, `ui_modo_escuro.py`, `ui_mapa.py`, `ui_pagina_unica.py`, `ui_responsivo.py`,
+  `ui_conexao.py` e `ui_hospedagem.py`), listados na seção "Testes" da área de análise. O teste pytest que esperava a recusa
+  dos conjuntos no nível estados muda de propósito: o defeito não estava no teste, o comportamento mudou pelo comando.
+
 ### 2026-11-08 · Os conjuntos entram nas comparações (comando de 08/11/2026)
 - **Classificação (regra 1), pela leitura, antes de codar:** os seis itens do comando foram classificados de uma vez. Todos mudam
   comportamento e passam nos dois testes:

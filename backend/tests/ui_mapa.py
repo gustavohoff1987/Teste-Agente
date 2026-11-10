@@ -1,10 +1,11 @@
 """Mapa da página única (23/10/2026), com a base versionada (somente leitura): a segunda vista do gráfico.
 
-Confere, contra as respostas de /api/painel e de /api/painel/mapa: vendo por estado (escolhido na Seleção de Territórios,
-porque a base abre sem seleção), o mapa com uma bolha por estado no ponto de desenho que o servidor calcula, a média das
-coordenadas das sedes dos municípios dele, com as sedes ao fundo e os quintis do motor (06/11/2026, item 3.2 do comando:
-divergência aprovada de RQ-REP-07 só para a bolha no centro, sem ladrilhos); o Ver por Município, que leva aos municípios do
-Brasil no mapa; os pontos do motor (sede municipal, IBGE) e o fundo com as demais unidades; sem a pergunta "Como pintar o mapa?"
+Confere, contra as respostas de /api/painel e de /api/painel/mapa: com os estados como unidade ("Só os estados", na Seleção de
+Territórios, porque a base abre sem seleção), o mapa com uma bolha por estado no ponto de desenho que o servidor calcula, a média
+das coordenadas das sedes dos municípios dele, com as sedes ao fundo e os quintis do motor (06/11/2026, item 3.2 do comando:
+divergência aprovada de RQ-REP-07 só para a bolha no centro, sem ladrilhos); os municípios do Brasil no mapa (desde o comando
+V22, pela caixa do Brasil na Seleção, no lugar do Ver por Município da faixa); os pontos do motor (sede municipal, IBGE) e o
+fundo com as demais unidades; sem a pergunta "Como pintar o mapa?"
 (retirada em 23/10/2026): sem cor própria da análise, os 5 grupos iguais (quintis) que o motor devolve junto com a análise
 (`grupos_mapa`), com a mesma contagem por cor e a legenda; o enquadramento inicial com contexto em volta dos pontos; os quintis do
 gráfico (Grupos) também no mapa; a régua que esmaece sem esconder, a seleção e a dica iguais às do gráfico, o zoom livre com o
@@ -24,7 +25,7 @@ from collections import Counter
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline
+from ui_support import URL, linha_do_estado, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 AM = "13"  # prefixo IBGE do Amazonas
@@ -187,8 +188,8 @@ def main():
         if chat.count() and chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
             chat.get_by_test_id("painel-chat-minimizar").click()
 
-        # 1. Estados (E1): a base abre sem seleção; os estados vêm da Seleção de Territórios (o Ver por Estado, sem nada marcado:
-        # todos os estados). Vendo por estado, o mapa existe desde 06/11/2026 (item 3.2 do comando; divergência aprovada de RQ-REP-07
+        # 1. Estados (E1): a base abre sem seleção; os estados vêm da Seleção de Territórios ("Só os estados", na linha do Brasil,
+        # desde o comando V22: todos os estados como unidade). Com os estados, o mapa existe desde 06/11/2026 (item 3.2 do comando; divergência aprovada de RQ-REP-07
         # só para isto): cada estado é uma bolha no ponto de desenho que o servidor calcula (a média das coordenadas das sedes dos
         # municípios dele, só para desenhar), com as sedes ao fundo; sem cor própria da análise, os 5 grupos iguais (quintis) que o
         # motor devolve junto com a análise. Nenhum ladrilho, nenhuma posição calculada na tela.
@@ -198,11 +199,12 @@ def main():
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         page.wait_for_timeout(500)
         assert not painel_calls and not mapa_calls, "sem territórios escolhidos, nada é pedido ao motor"
-        estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-nivel-estados")))
+        so_estados = territorios.get_by_test_id("analise-raiz-so-estados")
+        estados, sent = ok(lambda: aperta(so_estados))
         assert sent.get("nivel") == "estados" and sent.get("grupos_mapa") == {"tipo": "quintis"}, sent
         itens_estado = {item["id"] for item in estados["itens"] if item["tipo"] == "estado"}
         assert len(itens_estado) == 27 and all(item["tipo"] == "estado" for item in estados["itens"]), len(estados["itens"])
-        aperta(territorios.get_by_test_id("analise-ver-analise"))
+        aperta(territorios.get_by_test_id("analise-confirmar-selecao"))
         expect(area).to_have_attribute("data-aba", "distribuicao")
         expect(area).to_have_attribute("data-estado", "E1")
         expect(area).to_have_attribute("data-desenho", "grafico")
@@ -229,12 +231,17 @@ def main():
         expect(area.get_by_test_id("analise-escala")).to_have_count(0)
         shot("00-estados")
 
-        # 2. O Ver por Município (na faixa, no alto da aba) leva a todos os municípios do Brasil, ainda no mapa: os pontos do motor
-        # (sede municipal), o fundo e, sem cor própria da análise, os 5 grupos iguais (quintis) que o motor devolveu com a análise,
-        # sem pergunta. Os pontos dos municípios vêm num pedido sem os grupos.
-        ver_municipios = area.get_by_test_id("analise-faixa").get_by_test_id("analise-ver-por-municipios")
+        # 2. Todos os municípios do Brasil, ainda no mapa (desde o comando V22, decisão 3, sem o Ver por Município da faixa; muda
+        # de propósito este passo): na Seleção, "Só os estados" de novo tira os estados, e a caixa do Brasil marca os municípios;
+        # "Confirmar seleção" volta ao mapa: os pontos do motor (sede municipal), o fundo e, sem cor própria da análise, os 5 grupos
+        # iguais (quintis) que o motor devolveu com a análise, sem pergunta. Os pontos dos municípios vêm num pedido sem os grupos.
+        expect(area.get_by_test_id("analise-faixa").locator('[data-testid^="analise-ver-por"]')).to_have_count(0)
+        aperta(area.get_by_test_id("analise-aba-territorios"))
         with page.expect_response(lambda r: r.url.endswith("/api/painel/mapa") and r.request.method == "POST", timeout=180000) as evento:
-            brasil, sent = ok(lambda: aperta(ver_municipios))
+            aperta(so_estados)
+            expect(so_estados).to_have_attribute("aria-pressed", "false")
+            brasil, sent = ok(lambda: marca(territorios.get_by_test_id("analise-raiz-caixa")))
+        aperta(territorios.get_by_test_id("analise-confirmar-selecao"))
         assert sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
         assert sent.get("grupos_mapa") == {"tipo": "quintis"} and "grupos" not in sent, sent
         resposta_mapa = evento.value
@@ -266,7 +273,8 @@ def main():
         shot("01-brasil-quintis")
 
         # 3. Amazonas pela Seleção de Territórios (desmarcar o Brasil inteiro, na raiz da árvore, desde 05/11/2026, e marcar o
-        # Amazonas; abrir a lista de um estado só mostra a lista, desde 24/10/2026): o mapa abre afastado, com contexto em volta do
+        # Amazonas, na Região Norte aberta pela seta, desde o comando V22; abrir a lista de um estado só mostra a lista, desde
+        # 24/10/2026): o mapa abre afastado, com contexto em volta do
         # estado e o restante do Brasil ao fundo; os mesmos pontos (sem novo pedido ao endpoint do mapa) e os quintis do motor para
         # os municípios do estado.
         pedidos_mapa = len(mapa_calls)
@@ -274,11 +282,11 @@ def main():
         expect(territorios.get_by_test_id("analise-raiz-caixa")).to_be_checked()
         marca(territorios.get_by_test_id("analise-raiz-caixa"))
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
-        linha_am = territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]')
+        linha_am = linha_do_estado(territorios, AM)
         am, sent = ok(lambda: marca(linha_am.get_by_test_id("analise-grupo-todos")))
         assert sent["base"] == {"municipios": {"todos": False, "estados": [AM], "ids": []}}, sent
         assert sent.get("grupos_mapa") == {"tipo": "quintis"}, sent
-        aperta(territorios.get_by_test_id("analise-ver-analise"))
+        aperta(territorios.get_by_test_id("analise-confirmar-selecao"))
         expect(area).to_have_attribute("data-desenho", "mapa")
         desenhaveis_am = com_ponto(am, pontos_motor)
         estado = desenhado(len(desenhaveis_am), "quintis")
@@ -447,11 +455,11 @@ def main():
         rr, boa_vista = "14", "code:140010"
         aperta(area.get_by_test_id("analise-limpar-selecao"))
         aperta(area.get_by_test_id("analise-aba-territorios"))
-        linha_rr = territorios.locator('[data-testid="analise-grupo"][data-id="' + rr + '"]')
+        linha_rr = linha_do_estado(territorios, rr)
         ok(lambda: marca(linha_rr.get_by_test_id("analise-grupo-todos")))
         ids_rr = {item_id for item_id in pontos_motor if item_id.startswith("code:" + rr)}
         assert len(ids_rr) == 15, sorted(ids_rr)
-        aperta(territorios.get_by_test_id("analise-ver-analise"))
+        aperta(territorios.get_by_test_id("analise-confirmar-selecao"))
         expect(area).to_have_attribute("data-familia", "espacial")
         aperta(area.get_by_test_id("analise-referencia-escolher"))
         janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
@@ -628,7 +636,7 @@ def main():
         assert not llm_calls, llm_calls
         assert not failures, failures
         browser.close()
-    print("MAPA PASS: estados no mapa (27 bolhas nos pontos de desenho do motor), Ver por Município, pontos do motor e fundo, quintis do motor sem pergunta, enquadramento com "
+    print("MAPA PASS: estados no mapa (27 bolhas nos pontos de desenho do motor), os municípios do Brasil, pontos do motor e fundo, quintis do motor sem pergunta, enquadramento com "
           "contexto, quintis do gráfico, régua que esmaece, seleção e dica, zoom e mapinha, mapinha na dica do gráfico, convite das "
           "Condições, ligações da análise espacial, Roraima inteira no mapa (BOA VISTA sem referência no recorte, fora do gráfico com o "
           "aviso), legendas de tamanho na proporção exata, a base ligada às referências no gráfico e no mapa e a escolha direta, lado a lado, "

@@ -10,7 +10,8 @@ import { useEsquemaDeCor } from "./useEsquemaDeCor";
 // território aparece ao passar o mouse ou tocar. Cada conjunto se distingue pelo contorno e pelo nome, não só pela cor. No modo
 // "Agrupar territórios", tocar num ponto põe ou tira o território do conjunto (a lista continua sendo o caminho pelo teclado).
 
-export type ConjuntoNoMapa = { id: string; nome: string; membros: string[] };
+/** `descricao` (comando V22, seção 6): o texto da dica do contorno, com o nome e a lista de todos os integrantes. */
+export type ConjuntoNoMapa = { id: string; nome: string; membros: string[]; descricao?: string };
 
 type Props = {
   /** Coordenadas autorizadas (id → [latitude, longitude]), só para desenhar. */
@@ -34,6 +35,8 @@ type Props = {
   vazio?: string;
   largura?: number;
   altura?: number;
+  /** A legenda de baixo (comando V22: no mapa da seleção, a do que está selecionado). */
+  legenda?: string;
 };
 
 const MARGEM = 14;
@@ -122,7 +125,7 @@ export default function MapaDosConjuntos(p: Props) {
       <rect x={0.5} y={0.5} width={largura - 1} height={altura - 1} rx={6} fill={cores.superficie} stroke={cores.borda}/>
       {desenho.contornos.map(conjunto => conjunto.caminho && <g key={conjunto.id}>
         <path data-testid="analise-mapa-contorno" data-id={conjunto.id} data-nome={conjunto.nome} d={conjunto.caminho} fill={cores.tinta}
-          fillOpacity={0.04} stroke={cores.tinta} strokeWidth={1.2} strokeDasharray="4 3"><title>{conjunto.nome}</title></path>
+          fillOpacity={0.04} stroke={cores.tinta} strokeWidth={1.2} strokeDasharray="4 3"><title>{conjunto.descricao ?? conjunto.nome}</title></path>
         {conjunto.topo && <text data-testid="analise-mapa-nome-conjunto" x={conjunto.topo[0]} y={Math.max(LETRA, conjunto.topo[1] - 3)}
           textAnchor="middle" fontSize={LETRA} fontWeight={600} fill={cores.tinta}>{conjunto.nome}</text>}
       </g>)}
@@ -146,6 +149,6 @@ export default function MapaDosConjuntos(p: Props) {
         <text x={MARGEM} y={altura - 13} fontSize={LETRA} fill={cores.tinta}>{(p.escalaKm ?? 0).toLocaleString("pt-BR")} km</text>
       </g>}
     </svg>
-    <figcaption className="analise-mapa-conjuntos-legenda">tracejado: conjunto · vazados: sem conjunto</figcaption>
+    <figcaption className="analise-mapa-conjuntos-legenda">{p.legenda ?? "tracejado: conjunto · vazados: sem conjunto"}</figcaption>
   </figure>;
 }

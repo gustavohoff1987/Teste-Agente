@@ -156,7 +156,10 @@ sedes dos seus municípios, só para desenhar…"). Cada estado é uma bolha, co
 cor própria da análise, os quintis do motor entre os 27 estados); as sedes dos municípios ficam ao fundo, dando o formato do
 país. Tocar num estado abre os municípios dele, como no gráfico. Numa planilha, os grupos não têm ponto de desenho: o motor
 recusa `grupos` ("Os pontos de desenho dos grupos existem só na base do Brasil, com os estados."), e a área desliga a vista
-"Mapa" vendo pelos grupos, com o motivo e o atalho para as unidades.
+"Mapa" vendo pelos grupos, com o motivo e o atalho para as unidades. Desde 09/11/2026 (comando V22), com estados como unidade
+junto com municípios na mesma seleção (ou um conjunto de estados), a área também pede os pontos com `grupos: true`: cada estado
+da seleção fica no ponto de desenho dele (os demais pontos de desenho não entram), um conjunto de estados contorna os estados
+membros, e as sedes dos demais municípios ficam ao fundo.
 
 ## Onde o mapa não se aplica
 - **Planilha sem latitude e longitude** (ou sem referencial autorizado): sem geometria autorizada, não há mapa (RQ-REP-07); a
@@ -267,9 +270,10 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
   quintis e quando o pedido os leva; desde 25/10/2026, as unidades do mapa (todas as em análise, também as que o gráfico deixa
   de fora), os filtros que esmaecem nele e a cor única vazada sem o valor do indicador.
 - Navegador: `backend/tests/ui_mapa.py`, na suíte `base-versionada` (job `ui-block1`), confere o mapa contra as respostas de
-  `/api/painel` e de `/api/painel/mapa`: vendo por estado (escolhido na Seleção pelo Ver por Estado, que, sem nada marcado, marca
-  todos; a base abre sem seleção), desde 06/11/2026, as 27 bolhas nos pontos de desenho do motor (o pedido com `grupos: true`, as
-  sedes ao fundo, a nota do método e os quintis dos estados); pelo Ver por Município, todos os municípios do Brasil, com os pontos
+  `/api/painel` e de `/api/painel/mapa`: com os estados como unidade (desde o comando V22, "Só os estados", na linha do Brasil
+  da Seleção; antes, o Ver por Estado; a base abre sem seleção), desde 06/11/2026, as 27 bolhas nos pontos de desenho do motor (o
+  pedido com `grupos: true`, as sedes ao fundo, a nota do método e os quintis dos estados); pela caixa do Brasil, na Seleção
+  (antes, o Ver por Município), todos os municípios do Brasil, com os pontos
   do motor (sem os grupos), o fundo e os quintis do motor sem pergunta (a mesma contagem por cor que o motor devolveu por grupo e a legenda com as contagens); o Amazonas (desde
   24/10/2026, marcado pela caixa do estado na Seleção, porque abrir a lista de um estado só mostra a lista) com os pontos já guardados, os
   quintis dele e o enquadramento com contexto (os pontos do estado só na parte central do mapa); os quintis escolhidos no

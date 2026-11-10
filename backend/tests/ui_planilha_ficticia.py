@@ -8,8 +8,8 @@ Exportar, com o CSV e o método), a Análise Espacial (a Escolha dos território
 Análise de Tendência e a conversa. Onde a base do Brasil fala de município, estado e Brasil, a planilha fala de comuna,
 condado e o todo pelo nome (a Solária), com a concordância (comuna é feminino): "Todas que atendem", "Só as que eu marcar", "cada uma
 ligada", "a referência mais próxima dela", "As demais"; o CSV tem a coluna "Condado"; a conversa reconhece o condado pelo
-nome ("mostre só o condado Costa Ondina") e, desde 07/11/2026, mostra os condados ("Mostre os condados"; o "Ver por" também
-oferece "Condado | Comuna"). Nenhum texto à vista traz município,
+nome ("mostre só o condado Costa Ondina") e, desde 07/11/2026, mostra os condados ("Mostre os condados"; desde o comando V22,
+"Só os condados" e "Só a zona", na árvore da Seleção, no lugar do "Ver por"). Nenhum texto à vista traz município,
 UF, IBGE, Brasil ou a sede municipal.
 
 Catálogo sintético do Bloco 1 (a base do Brasil não é usada); servidor serve_ui_offline.py, sem o provedor de IA. A
@@ -25,7 +25,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 from playwright.sync_api import expect, sync_playwright
-from ui_support import AREA, URL, accept_privacy, is_post, offline, open_chat, options_of, send
+from ui_support import AREA, URL, abrir_regiao, accept_privacy, is_post, offline, open_chat, options_of, send
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 CONDADOS = {
@@ -179,8 +179,10 @@ def main():
         # concordância dos nomes da planilha.
         raiz = area.get_by_test_id("analise-raiz")
         expect(raiz).to_contain_text("Solária")
-        expect(raiz).to_contain_text("todas as 16 comunas")
-        expect(area.get_by_test_id("analise-territorios-instrucao")).to_contain_text("condados inteiros ou comunas")
+        # O resumo do universo e a orientação da árvore (comando V22, seção 3): a seta abre, a caixa marca, "Só o condado".
+        expect(area.get_by_test_id("analise-raiz-universo")).to_have_text("16 comunas | 4 condados")
+        expect(area.get_by_test_id("analise-territorios-instrucao")).to_have_text(
+            "A seta abre a lista; a caixa marca as comunas. “Só o condado” põe o condado na seleção como uma unidade.")
 
         def marca_a_planilha():
             caixa = area.get_by_test_id("analise-raiz-caixa")
@@ -191,59 +193,71 @@ def main():
         assert resposta["rotulos"]["unidade"] == {"singular": "comuna", "plural": "comunas", "genero": "f"}, resposta["rotulos"]
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as comunas (16)")
         guarda("selecao")
-        # O "Ver por" numa planilha com a coluna-mãe (07/11/2026, item 1 do comando): Condado | Comuna. Vendo por condado, cada
-        # condado é a soma das comunas dele (sem o identificador individual), com a ressalva da soma; de volta, as comunas.
-        expect(area.get_by_test_id("analise-nivel-estados")).to_contain_text("Condado")
-        condados, enviado = painel(lambda: aperta(area.get_by_test_id("analise-nivel-estados")))
-        assert enviado.get("nivel") == "estados" and "base" not in enviado, enviado
+        # Os condados como unidade numa planilha com a coluna-mãe (desde o comando V22, decisão 3; muda de propósito este trecho, que
+        # conferia o "Ver por" Condado | Comuna de 07/11/2026): "Só os condados", na linha da Solária, põe os 4 condados como unidade;
+        # cada condado é a soma das comunas dele (sem o identificador individual), com a ressalva da soma, dita no gráfico (sem os
+        # avisos coletivos de antes, seção 3 do comando V22). De volta, as comunas.
+        def espaco(locator):
+            locator.scroll_into_view_if_needed()
+            locator.focus()
+            locator.press("Space")
+        expect(area.get_by_test_id("analise-nivel")).to_have_count(0)
+        so_condados = area.get_by_test_id("analise-raiz-so-estados")
+        expect(so_condados).to_have_text("Só os condados")
+        condados, enviado = painel(lambda: aperta(so_condados))
+        assert enviado.get("nivel") == "estados" and "base" not in enviado and "estados" not in enviado, enviado
         assert len(condados["itens"]) == 4 and all(item["tipo"] == "estado" and item["contagem"] == "SOMA_DOS_COMPONENTES"
                                                    for item in condados["itens"]), condados["itens"]
         assert "SOMA_COM_POSSIVEL_DUPLA_CONTAGEM" in condados["limitacoes"], condados["limitacoes"]
-        # O aviso diz de onde vem cada condado (as comunas dele), sem a contagem estadual da base do Brasil.
-        expect(area.get_by_test_id("analise-aviso")).to_have_text("Ver por condado: cada ponto é um condado inteiro, pelas comunas dele.")
+        expect(so_condados).to_have_attribute("aria-pressed", "true")
+        expect(area.get_by_test_id("analise-raiz-caixa")).to_be_disabled()
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
         expect(area.locator('[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]')).to_have_count(4, timeout=60000)
         expect(area.get_by_test_id("analise-grafico")).to_contain_text("Cada condado vem das comunas dele: a soma.")
         expect(area.get_by_test_id("analise-grafico")).to_contain_text("podem ser contabilizados mais de uma vez")
         guarda("condados")
-        # De volta às comunas: a resposta pode vir da memória das últimas respostas, sem pedido novo ao motor (as comunas já
+        # De volta às comunas: "Só os condados" de novo tira os condados (as comunas ficam livres, sem nenhuma marcada), e a caixa
+        # da Solária marca as 16. A resposta pode vir da memória das últimas respostas, sem pedido novo ao motor (as comunas já
         # foram calculadas); a tela confere pelo que mostra.
         aperta(area.get_by_test_id("analise-aba-territorios"))
-        aperta(area.get_by_test_id("analise-nivel-municipios"))
-        expect(area.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
+        aperta(so_condados)
+        expect(so_condados).to_have_attribute("aria-pressed", "false")
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
+        espaco(area.get_by_test_id("analise-raiz-caixa"))
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as comunas (16)")
-        # Os dois níveis de grupo no "Ver por" (07/11/2026, item 1 do comando: "Ver por: Região | Distrito | Concelho"): Zona |
-        # Condado | Comuna. Vendo por zona, cada zona vem das comunas dela (nunca da soma dos condados), com a ressalva da soma.
-        expect(area.get_by_test_id("analise-nivel").get_by_role("radio")).to_have_count(3)
-        expect(area.get_by_test_id("analise-nivel").locator(".analise-nivel-nome")).to_have_text(["Zona", "Condado", "Comuna"])
-        zonas, enviado = painel(lambda: aperta(area.get_by_test_id("analise-nivel-regioes")))
-        assert enviado.get("nivel") == "regioes" and "base" not in enviado, enviado
+        # Os dois níveis de grupo (07/11/2026, item 1 do comando): desde o comando V22, "Só a zona", na linha de cada zona da árvore,
+        # no lugar do "Ver por" Zona | Condado | Comuna. Com as duas zonas como unidade, cada zona vem das comunas dela (nunca da
+        # soma dos condados), com a ressalva da soma.
+        so_serrana = area.locator('[data-testid="analise-regiao"][data-id="Zona Serrana"]').get_by_test_id("analise-regiao-so-regiao")
+        so_maritima = area.locator('[data-testid="analise-regiao"][data-id="Zona Marítima"]').get_by_test_id("analise-regiao-so-regiao")
+        expect(so_serrana).to_have_text("Só a zona")
+        _, enviado = painel(lambda: aperta(so_serrana))
+        assert enviado.get("nivel") == "regioes" and enviado.get("estados") == ["Zona Serrana"] and "base" not in enviado, enviado
+        zonas, enviado = painel(lambda: aperta(so_maritima))
+        assert enviado.get("nivel") == "regioes" and "base" not in enviado and "estados" not in enviado, enviado
         assert [item["id"] for item in zonas["itens"]] == ["uf:Zona Marítima", "uf:Zona Serrana"], zonas["itens"]
         assert zonas["rotulos"]["grupo_superior"] == {"singular": "zona", "plural": "zonas", "genero": "f"}, zonas["rotulos"]
-        expect(area.get_by_test_id("analise-aviso")).to_have_text("Ver por zona: cada ponto é uma zona inteira, pelas comunas dela.")
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as zonas (2)")
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
         expect(area.locator('[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]')).to_have_count(2, timeout=60000)
         expect(area.get_by_test_id("analise-grafico")).to_contain_text("Cada zona vem das comunas dela: a soma.")
         guarda("zonas")
-        # De volta às comunas, da memória das últimas respostas (sem pedido novo): a tela confere pelo que mostra.
+        # De volta às comunas, da memória das últimas respostas (sem pedido novo): as duas zonas saem, e a caixa da Solária marca as
+        # 16; a tela confere pelo que mostra.
         aperta(area.get_by_test_id("analise-aba-territorios"))
-        aperta(area.get_by_test_id("analise-nivel-municipios"))
-        expect(area.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
+        aperta(so_serrana)
+        aperta(so_maritima)
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
+        espaco(area.get_by_test_id("analise-raiz-caixa"))
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as comunas (16)")
         # A árvore de dois níveis e a trilha (07/11/2026, item 1 do comando, parte C2: "Portugal › Norte › Braga › Barcelos"): as zonas
         # em seções, com os condados dentro; marcar a zona marca os condados dela, e a trilha e a faixa mostram a zona; uma comuna
         # mostra os quatro níveis.
         expect(area.get_by_test_id("analise-regioes").get_by_test_id("analise-regiao")).to_have_count(2)
-        serrana = area.locator('[data-testid="analise-regiao"][data-id="Zona Serrana"]')
+        serrana = abrir_regiao(area, "Zona Serrana")  # as zonas começam recolhidas (comando V22, seção 3)
         expect(serrana.get_by_test_id("analise-grupo")).to_have_count(2)
         expect(serrana.get_by_test_id("analise-regiao-contagem")).to_have_text("2 condados · 8 comunas")
         trilha = area.get_by_test_id("analise-trilha").get_by_test_id("analise-trilha-parte")
-
-        def espaco(locator):
-            locator.scroll_into_view_if_needed()
-            locator.focus()
-            locator.press("Space")
         espaco(area.get_by_test_id("analise-raiz-caixa"))
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         espaco(serrana.get_by_test_id("analise-regiao-todos"))

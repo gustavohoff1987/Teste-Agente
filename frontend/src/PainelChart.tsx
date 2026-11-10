@@ -95,6 +95,10 @@ type Props = {
   notas: string[];
   onAlternar: (id: string) => void;
   onAbrirGrupo: (id: string) => void;
+  /** Foco da Análise Espacial (comando V22, seção 7): tocar, clicar ou Enter numa base foca nela (a base, a referência dela, a
+   * ligação e a distância exata), e as demais ligações esmaecem, sem sumir. */
+  foco?: string | null;
+  onFocar?: (id: string) => void;
 } & GraficoComMapaProps;
 
 const siglaDe = (item: PainelItem) => item.uf || (/\(([^()]+)\)\s*$/.exec(item.rotulo) || [])[1] || item.rotulo;
@@ -219,6 +223,7 @@ export default function PainelChart(p: Props) {
   /** Tocar: o estado desce até ele; a unidade abre o lugar dela (06/11/2026); com a escolha de itens em curso (a Comparar)
    * e no conjunto, marca e desmarca. */
   function acionar(bolha: BolhaDesenho) {
+    if (p.onFocar && !p.marcando && idsDasBases.has(bolha.id)) { p.onFocar(bolha.id); return; }
     if (bolha.tipo === "estado") p.onAbrirGrupo(bolha.id);
     else if (bolha.tipo === "municipio" && abreUnidade) p.onAbrirUnidade!(bolha.id);
     else p.onAlternar(bolha.id);
@@ -384,9 +389,12 @@ export default function PainelChart(p: Props) {
       {/* Base e referência (25/10/2026): as ligações tracejadas até as referências e, fora das bolhas da análise, as referências de
           contexto (não contam, não filtram, não vão à tabela). */}
       {ligacoes.map(ligacao => <line key={ligacao.base + ">" + ligacao.referencia} data-testid="analise-ligacao-base" data-base={ligacao.base}
-        data-referencia={ligacao.referencia} x1={ligacao.x1} y1={ligacao.y1} x2={ligacao.x2} y2={ligacao.y2} stroke={paleta.tinta2}
-        strokeWidth={1.4} strokeDasharray="5 4" aria-hidden="true"/>)}
+        data-referencia={ligacao.referencia} data-foco={p.foco ? (ligacao.base === p.foco ? "true" : "false") : undefined}
+        x1={ligacao.x1} y1={ligacao.y1} x2={ligacao.x2} y2={ligacao.y2} stroke={paleta.tinta2}
+        strokeWidth={p.foco && ligacao.base === p.foco ? 2.8 : 1.4} strokeOpacity={p.foco && ligacao.base !== p.foco ? 0.18 : 1}
+        strokeDasharray="5 4" aria-hidden="true"/>)}
       {contextos.map(contexto => <g key={contexto.id} data-testid="analise-referencia-da-base" data-id={contexto.referencia.id}
+        opacity={p.foco && !contexto.bases.some(item => item.base.id === p.foco) ? 0.3 : undefined}
         data-bases={contexto.bases.map(item => item.base.id).join(" ")} data-valor={String(contexto.valor)}
         data-populacao={contexto.referencia.populacao ?? ""} data-x={contexto.x.toFixed(1)} role="img"
         aria-label={contexto.referencia.rotulo + ", referência mais próxima de " + contexto.bases.map(item => item.base.rotulo).join(", ")}

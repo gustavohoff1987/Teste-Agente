@@ -6,25 +6,26 @@ import {
   type RotulosTerritoriais,
 } from "./painelApi";
 import {
-  MAX_CONJUNTOS, OPERADORES, SIMBOLOS, artigo, competenciaAbreviada, formatarNumero, grupoDaUnidade, maiuscula, nomeDaUnidade, nomeRepetido,
-  nomesLivresDeConjunto, quantos, unidadeMarcada, type GrupoInfo, type UnidadeDoCatalogo,
+  OPERADORES, SIMBOLOS, artigo, competenciaAbreviada, cronologica, grupoDaUnidade, maiuscula, nomeDaUnidade, quantos, unidadeMarcada,
+  type GrupoInfo, type UnidadeDoCatalogo,
 } from "./painelModel";
 
-// "Por critérios" (07/11/2026, comando de 07/11/2026, itens 2, 4, 5, 7, 8 e 9.1; antes, o painel "Selecionar por critérios" do
-// comando de 06/11/2026, decisão 4), um dos modos da Seleção de Territórios. Passos numerados, abaixo do mini mapa: 1. Onde procurar
-// (o todo, regiões, estados ou os marcados na lista, sempre com os nomes da base); 2. Critérios (indicador, comparação e valor,
-// valendo juntos, CAP-SUB-01, com a competência e a distância opcional "a até X km de"); 3. Agrupar por proximidade (opcional):
-// os conjuntos todos a até X km entre si (RQ-CAP-13), com a distância dita pela pessoa; agrupando, os critérios de valor são
-// opcionais. A prévia é toda do motor (POST /api/painel/criterios) e se atualiza sozinha a cada ajuste, com espera curta e o pedido
-// anterior cancelado; o mini mapa, no alto, mostra o resultado e, enquanto falta algo, o último válido, esmaecido. O rodapé reúne a
-// linha de estado e as saídas: "Usar como seleção (N)", "Usar cada conjunto como um território" (no lugar da seleção atual ou junto
-// com ela; levando ou não os sem conjunto) e "Cancelar". Nada é sugerido; a tela não calcula.
+// "Aplicar critérios de seleção" (comando V22, 9/11/2026, seção 4; antes, o modo "Por critérios" da coluna da esquerda, de 07/11/2026),
+// aberto pela ação do painel direito da Seleção, com a árvore à vista. Passos numerados, abaixo do mini mapa: 1. Onde procurar (abre
+// em "o país todo", decisão 5; continuam as regiões, os estados e os marcados, sempre com os nomes da base); 2. Critérios (indicador,
+// comparação e valor, valendo juntos, CAP-SUB-01, com a competência, em ordem de data, e a distância opcional "a até X km de"). O
+// agrupamento por proximidade saiu daqui e foi para "Agrupar territórios selecionados" (seção 5): um pedido com agrupamento (da
+// conversa ou de uma regra de antes) usa os que atendem como seleção e abre o agrupamento com a distância. A prévia é toda do motor
+// (POST /api/painel/criterios) e se atualiza sozinha a cada ajuste; o mini mapa mostra o resultado e, enquanto falta algo, o último
+// válido, esmaecido. O rodapé reúne a linha de estado e as saídas: "Usar como seleção (N)", no lugar da seleção atual (o padrão) ou
+// junto com ela, com o que sai e o que fica de fora dito antes, e "Cancelar". Nada é sugerido; a tela não calcula.
 
 type Onde = "todo" | "regioes" | "estados" | "marcados";
 type Rascunho = { atributo: FiltroDoCriterio["indicador"]; operador: FiltroDoCriterio["operador"]; valor: string };
 /** O que a pessoa pediu: os critérios, o agrupamento e, com os marcados, a seleção em que procurou (para reaplicar nela). */
 export type PedidoDosCriterios = { criterios: CriteriosOpcoes["criterios"]; agrupar: { km: number } | null; base?: PainelMunicipios };
-/** A escolha do rodapé, com os nomes finais dos conjuntos (item 8.3). */
+/** A escolha do rodapé: no lugar da seleção atual ou junto com ela (desde o comando V22, sem conjuntos: o agrupamento foi para "Agrupar
+ * territórios selecionados"; `conjuntos`, `levarSemConjunto` e `nomes` ficam pelo contrato, sempre vazios). */
 export type UsoDosCriterios = { conjuntos: boolean; junto: boolean; levarSemConjunto: boolean; nomes: Record<string, string> };
 type Props = {
   fonte: FonteDoMotor;
@@ -41,8 +42,12 @@ type Props = {
   regiaoDoGrupo?: (grupo: string) => string;
   /** Os marcados na lista: a base (unidades) ou, vendo por grupo, os grupos marcados. */
   marcados: { base: PainelMunicipios | null; grupos: string[]; vendoPorGrupo: boolean };
-  /** O lugar em uso na trilha (pré-escolhido): a região ou o estado dele. */
-  lugar: { tipo: "regioes" | "estados"; ids: string[] } | null;
+  /** O lugar em uso na trilha. Desde o comando V22 (decisão 5), "Onde procurar" abre sempre em "o país todo"; o lugar fica só como
+   * referência do contrato. */
+  lugar?: { tipo: "regioes" | "estados"; ids: string[] } | null;
+  /** Junto com a seleção atual (comando V22, seção 4): os municípios dos estados como unidade não entram, nem os membros de um
+   * conjunto da seleção; a tela diz quantos ficam de fora e por quê. No lugar dela, o que sai da seleção. */
+  naSelecao?: { estados: string[]; membrosDeConjuntos: string[]; conjuntos: number; grupoDe: (id: string) => string };
   /** A regra a reaplicar, o pedido da conversa ou o das Condições, já preenchidos. */
   inicial?: PedidoDosCriterios | null;
   aviso?: string;
@@ -52,8 +57,8 @@ type Props = {
   conjuntosNaAnalise: { id: string; rotulo: string }[];
   algoNaAnalise: boolean;
   onUsar: (previa: RespostaCriterios, pedido: PedidoDosCriterios, uso: UsoDosCriterios) => void;
-  /** Troca para "Marcar na lista" sem perder o rascunho. */
-  onMarcarNaLista: () => void;
+  /** Sem uso desde o comando V22 (a árvore fica sempre à vista); fica pelo contrato. */
+  onMarcarNaLista?: () => void;
   onCancelar: () => void;
 };
 
@@ -75,13 +80,11 @@ export default function SelecionarPorCriterios(p: Props) {
   const grupoF = artigo(grupoRotulo, false) === "a", superiorF = artigo(superior, false) === "a";
   const inicial = p.inicial?.criterios;
   const baseDaRegra = p.inicial?.base ?? null;
+  // "Onde procurar" abre em "o país todo" (comando V22, decisão 5); uma regra ou um pedido já preenchido abre como veio.
   const [onde, setOnde] = useState<Onde>(() => inicial?.partir_de.tipo === "selecao" ? "marcados"
-    : inicial?.partir_de.tipo === "ufs" ? "estados" : inicial?.partir_de.tipo === "regioes" ? "regioes"
-      : inicial ? "todo" : p.lugar?.tipo ?? "todo");
-  const [regioesEscolhidas, setRegioesEscolhidas] = useState<string[]>(() => inicial?.partir_de.tipo === "regioes" ? inicial.partir_de.regioes ?? []
-    : !inicial && p.lugar?.tipo === "regioes" ? p.lugar.ids : []);
-  const [estadosEscolhidos, setEstadosEscolhidos] = useState<string[]>(() => inicial?.partir_de.tipo === "ufs" ? inicial.partir_de.ufs ?? []
-    : !inicial && p.lugar?.tipo === "estados" ? p.lugar.ids : []);
+    : inicial?.partir_de.tipo === "ufs" ? "estados" : inicial?.partir_de.tipo === "regioes" ? "regioes" : "todo");
+  const [regioesEscolhidas, setRegioesEscolhidas] = useState<string[]>(() => inicial?.partir_de.tipo === "regioes" ? inicial.partir_de.regioes ?? [] : []);
+  const [estadosEscolhidos, setEstadosEscolhidos] = useState<string[]>(() => inicial?.partir_de.tipo === "ufs" ? inicial.partir_de.ufs ?? [] : []);
   const [competencia, setCompetencia] = useState(p.competencia);
   const [linhas, setLinhas] = useState<Rascunho[]>(() => inicial?.filtros.length
     ? inicial.filtros.map(filtro => ({ atributo: filtro.indicador, operador: filtro.operador, valor: valorDe(filtro.valor) }))
@@ -90,15 +93,13 @@ export default function SelecionarPorCriterios(p: Props) {
   const [de, setDe] = useState<string | null>(inicial?.distancia?.de ?? null);
   const [km, setKm] = useState(inicial?.distancia ? valorDe(inicial.distancia.km) : "");
   const [consulta, setConsulta] = useState("");
-  const [agrupar, setAgrupar] = useState(!!p.inicial?.agrupar);
-  const [kmAgrupar, setKmAgrupar] = useState(p.inicial?.agrupar ? valorDe(p.inicial.agrupar.km) : "");
+  // O agrupamento de um pedido de antes (da conversa ou de uma regra): fica para "Agrupar territórios selecionados", depois de usar.
+  const agruparDepois = p.inicial?.agrupar ?? null;
   const [previa, setPrevia] = useState<{ chave: string; dados: RespostaCriterios } | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
   const [junto, setJunto] = useState(false);
-  const [levarSemConjunto, setLevarSemConjunto] = useState(true);
-  const [nomesEditados, setNomesEditados] = useState<Record<string, string>>({});
-  const [listaAberta, setListaAberta] = useState(false);
+  const periodos = useMemo(() => cronologica(p.periodos), [p.periodos]);
   const controle = useRef<AbortController | null>(null);
   const porId = useMemo(() => new Map(p.unidades.map(item => [item.id, item])), [p.unidades]);
   const validas = useMemo(() => p.unidades.filter(item => !item.selection_reason), [p.unidades]);
@@ -115,7 +116,7 @@ export default function SelecionarPorCriterios(p: Props) {
   // ---------------------------------------------------------------------------------------------- o pedido e o que falta
   const filtros = linhas.filter(linha => linha.valor.trim()).map(linha => ({ indicador: linha.atributo, operador: linha.operador,
     valor: lerNumero(linha.valor) }));
-  const kmDistancia = lerNumero(km), kmDoAgrupamento = lerNumero(kmAgrupar);
+  const kmDistancia = lerNumero(km);
   const distancia = comDistancia && de && kmDistancia !== null && kmDistancia > 0 ? { de, km: kmDistancia } : null;
   const gruposDasRegioes = (ids: string[]) => p.grupos.filter(grupo => ids.includes(p.regiaoDoGrupo?.(grupo.id) ?? "")).map(grupo => grupo.id);
   // Uma região vira os grupos dela (como o lugar em uso já fazia); os marcados, vendo por grupo, os grupos marcados.
@@ -125,8 +126,7 @@ export default function SelecionarPorCriterios(p: Props) {
         : { tipo: "pais" };
   const pedido: PedidoDosCriterios = { criterios: { partir_de: partirDe, filtros: filtros.filter(filtro => filtro.valor !== null)
     .map(filtro => ({ ...filtro, valor: filtro.valor as number })), ...(distancia ? { distancia } : {}) },
-  agrupar: agrupar && kmDoAgrupamento !== null && kmDoAgrupamento > 0 ? { km: kmDoAgrupamento } : null,
-  ...(partirDe.tipo === "selecao" && marcadosBase ? { base: marcadosBase } : {}) };
+  agrupar: null, ...(partirDe.tipo === "selecao" && marcadosBase ? { base: marcadosBase } : {}) };
   // O que falta (item 7.4), na ordem dos passos.
   const falta = (() => {
     if (onde === "regioes" && !regioesEscolhidas.length) return "Escolha ao menos " + (superiorF ? "uma " : "um ") + superior.singular + ".";
@@ -136,8 +136,7 @@ export default function SelecionarPorCriterios(p: Props) {
     if (invalido >= 0) return "Falta o valor do critério " + (invalido + 1) + ".";
     if (comDistancia && !de) return "Falta " + (feminino ? "a " : "o ") + unidade.singular + " da distância.";
     if (comDistancia && !distancia) return "Falta a distância dos critérios, em km.";
-    if (agrupar && !pedido.agrupar) return "Falta a distância do agrupamento.";
-    if (!pedido.criterios.filtros.length && !distancia && !agrupar) return "Falta o valor do critério 1.";
+    if (!pedido.criterios.filtros.length && !distancia && !agruparDepois) return "Falta o valor do critério 1.";
     if (!competencia) return "Escolha a competência.";
     return "";
   })();
@@ -155,11 +154,13 @@ export default function SelecionarPorCriterios(p: Props) {
     controle.current = meu;
     const espera = setTimeout(() => {
       setCarregando(true); setErro("");
-      const opcoes: CriteriosOpcoes = { competencia, categoria: p.categoria, criterios: pedido.criterios, ...(pedido.agrupar ? { agrupar: pedido.agrupar } : {}),
+      const soOAgrupamento = !pedido.criterios.filtros.length && !pedido.criterios.distancia && !!agruparDepois;
+      const opcoes: CriteriosOpcoes = { competencia, categoria: p.categoria, criterios: pedido.criterios,
+        ...(soOAgrupamento ? { agrupar: agruparDepois } : {}),
         ...(pedido.base ? { base: { municipios: pedido.base } } : {}), ...(p.premissas && Object.keys(p.premissas).length ? { premissas: p.premissas } : {}),
         ...(p.fonte.tipo === "arquivo" ? { rotulos: p.rotulos } : {}) };
       pedirCriterios(p.fonte, opcoes, meu.signal)
-        .then(dados => { if (controle.current === meu) { setPrevia({ chave, dados }); setNomesEditados({}); } })
+        .then(dados => { if (controle.current === meu) setPrevia({ chave, dados }); })
         .catch(falha => {
           if (controle.current === meu && !(falha instanceof DOMException && falha.name === "AbortError"))
             setErro(falha instanceof Error ? falha.message : "Não foi possível calcular a prévia.");
@@ -169,28 +170,31 @@ export default function SelecionarPorCriterios(p: Props) {
     return () => { clearTimeout(espera); meu.abort(); };
   }, [chave, pronto]);
 
-  // ---------------------------------------------------------------------------------------------- os conjuntos e os nomes
-  const grupos = resultado?.grupos ?? null, isolados = resultado?.isolados ?? [], semPosicao = resultado?.semPosicao ?? [];
-  const semConjunto = [...isolados, ...semPosicao];
-  const existentes = p.conjuntosNaAnalise.map(conjunto => conjunto.rotulo);
-  // As letras seguem a escolha do rodapé (item 8.2): no lugar da seleção atual, recomeçam em A; junto com ela, continuam da próxima
-  // livre entre os conjuntos da análise.
-  const sugeridos = useMemo(() => grupos ? (junto ? nomesLivresDeConjunto(existentes, grupos.length) : grupos.map(grupo => grupo.rotulo)) : [],
-    [grupos, junto, existentes.join("|")]);
-  const nomeFinal = (id: string, i: number) => (nomesEditados[id] ?? sugeridos[i] ?? "").trim();
-  const nomesFinais = (grupos ?? []).map((grupo, i) => nomeFinal(grupo.id, i));
-  const problemaDoNome = (i: number) => {
-    const nome = nomesFinais[i];
-    if (!nome) return "Dê um nome ao conjunto.";
-    if (nomeRepetido(nome, [...nomesFinais.filter((_, j) => j !== i), ...(junto ? existentes : [])])) return "Já existe um conjunto com esse nome.";
-    return "";
-  };
-  const nomesComProblema = (grupos ?? []).some((_, i) => !!problemaDoNome(i));
-  const total = (grupos?.length ?? 0) + (junto ? p.conjuntosNaAnalise.length : 0);
-  const acimaDoLimite = !!grupos && grupos.length > 0 && total > MAX_CONJUNTOS;
-  const motivoDoLimite = acimaDoLimite ? "São " + grupos!.length + " conjuntos" + (junto && p.conjuntosNaAnalise.length ? ", mais os " +
-    p.conjuntosNaAnalise.length + " que já estão na análise," : "") + " e a análise aceita até " + MAX_CONJUNTOS + ": refine os critérios ou " +
-    "diminua a distância." : "";
+  // ---------------------------------------------------------------------------------------------- o que sai e o que fica de fora
+  // Junto com a seleção atual (comando V22, seção 4): os municípios de um estado como unidade e os membros de um conjunto da seleção
+  // não entram; no lugar dela, o que sai é dito antes de usar.
+  const foraJunto = useMemo(() => {
+    if (!atual || !junto || !p.naSelecao) return { doEstado: 0, doConjunto: 0 };
+    const estados = new Set(p.naSelecao.estados), membros = new Set(p.naSelecao.membrosDeConjuntos);
+    let doEstado = 0, doConjunto = 0;
+    for (const id of atual.ids) {
+      if (estados.has(p.naSelecao.grupoDe(id))) doEstado += 1;
+      else if (membros.has(id)) doConjunto += 1;
+    }
+    return { doEstado, doConjunto };
+  }, [atual, junto, p.naSelecao]);
+  const textoDoUso = (() => {
+    if (!p.algoNaAnalise || !p.naSelecao) return "";
+    if (!junto) {
+      const saem = [p.naSelecao.estados.length ? quantos(p.naSelecao.estados.length, grupoRotulo) + " como unidade" : "",
+        p.naSelecao.conjuntos ? quantos(p.naSelecao.conjuntos, { singular: "conjunto", plural: "conjuntos" }) : ""].filter(Boolean);
+      return saem.length ? "No lugar da seleção atual, saem também " + saem.join(" e ") + "." : "";
+    }
+    const partes = [foraJunto.doEstado ? quantos(foraJunto.doEstado, unidade) + " de " + (grupoF ? "uma " : "um ") + grupoRotulo.singular +
+      " que já está como unidade" : "", foraJunto.doConjunto ? quantos(foraJunto.doConjunto, unidade) + " que já " +
+      (foraJunto.doConjunto === 1 ? "está" : "estão") + " num conjunto da seleção" : ""].filter(Boolean);
+    return partes.length ? "Ficam de fora " + partes.join(" e ") + ": não são somad" + (feminino ? "as" : "os") + " duas vezes." : "";
+  })();
 
   // ---------------------------------------------------------------------------------------------- o mini mapa (itens 7.1 a 7.4)
   const fundo = useMemo(() => {
@@ -205,15 +209,11 @@ export default function SelecionarPorCriterios(p: Props) {
     if (p.coordenadas?.size) return p.coordenadas;
     return new Map((resultado?.pontos ?? []).map(ponto => [ponto.id, [ponto.lat, ponto.lon] as [number, number]]));
   }, [p.coordenadas, resultado]);
-  const conjuntosNoMapa = (grupos ?? []).map((grupo, i) => ({ id: grupo.id, nome: nomesFinais[i] || grupo.rotulo, membros: grupo.membros }));
-  const resumo = resultado ? resultado.atendem.toLocaleString("pt-BR") + " atende" + (resultado.atendem === 1 ? "" : "m") +
-    (grupos ? " · " + quantos(grupos.length, { singular: "conjunto", plural: "conjuntos" }) +
-      (grupos.length ? " · o maior com " + formatarNumero(Math.round(grupos[0].extensaoKm), true) + " km" : "") +
-      " · " + semConjunto.length + " sem conjunto" : "") : "";
+  const resumo = resultado ? resultado.atendem.toLocaleString("pt-BR") + " atende" + (resultado.atendem === 1 ? "" : "m") : "";
 
-  const usar = (conjuntos: boolean) => {
+  const usar = () => {
     if (!atual) return;
-    p.onUsar(atual, pedido, { conjuntos, junto, levarSemConjunto, nomes: Object.fromEntries((grupos ?? []).map((grupo, i) => [grupo.id, nomesFinais[i]])) });
+    p.onUsar(atual, { ...pedido, agrupar: agruparDepois }, { conjuntos: false, junto, levarSemConjunto: false, nomes: {} });
   };
   const caixaDeGrupo = (grupo: GrupoInfo, escolhidos: string[], definir: (ids: string[]) => void, testid: string) =>
     <label key={grupo.id} className="analise-caixa"><input type="checkbox" data-testid={testid} data-id={grupo.id} checked={escolhidos.includes(grupo.id)}
@@ -221,30 +221,16 @@ export default function SelecionarPorCriterios(p: Props) {
       <span>{grupo.nome}{grupo.sigla ? " (" + grupo.sigla + ")" : ""}</span></label>;
 
   return <section data-testid="analise-criterios" aria-labelledby="analise-criterios-titulo" className="analise-agregar analise-criterios">
-    <h4 id="analise-criterios-titulo" className="sr-only">Por critérios</h4>
+    <h4 id="analise-criterios-titulo" className="analise-agregar-titulo">Aplicar critérios de seleção</h4>
     <div className="analise-criterios-alto">
       <p data-testid="analise-criterios-resumo" className="analise-criterios-resumo" aria-live="polite">{resumo || "A prévia aparece aqui."}</p>
-      <MapaDosConjuntos coordenadas={coordenadas} fundo={fundo} destaque={grupos ? [] : resultado?.ids ?? []} conjuntos={conjuntosNoMapa}
-        semConjunto={grupos ? semConjunto.filter(id => !semPosicao.includes(id)) : []} nomeDe={nomeDe} escalaKm={agrupar ? kmDoAgrupamento : null}
-        esmaecido={esmaecido && !!resultado} rotulo={"Mini mapa: " + (resumo || "onde procurar")}
-        vazio="O mapa aparece com onde procurar escolhido."/>
+      <MapaDosConjuntos coordenadas={coordenadas} fundo={fundo} destaque={resultado?.ids ?? []} conjuntos={[]}
+        nomeDe={nomeDe} esmaecido={esmaecido && !!resultado} rotulo={"Mini mapa: " + (resumo || "onde procurar")}
+        vazio="O mapa aparece com onde procurar escolhido." legenda="pontos cheios: atendem aos critérios"/>
     </div>
-    {grupos && grupos.length > 0 && <div className="analise-criterios-lista">
-      <button type="button" data-testid="analise-criterios-ver-conjuntos" className="analise-link" aria-expanded={listaAberta}
-        onClick={() => setListaAberta(atual => !atual)}>{listaAberta ? "Fechar a lista dos conjuntos" : "Ver os " + grupos.length + " conjuntos"}</button>
-      {listaAberta && <ol className="analise-criterios-grupos" aria-label="Conjuntos por proximidade">
-        {grupos.map((grupo, i) => <li key={grupo.id} data-testid="analise-criterios-grupo" data-id={grupo.id}>
-          <label className="analise-rotulo-campo">Nome do conjunto
-            <input data-testid="analise-criterios-grupo-nome" value={nomesEditados[grupo.id] ?? sugeridos[i] ?? ""} maxLength={60} className="analise-campo"
-              aria-invalid={!!problemaDoNome(i)} onChange={event => setNomesEditados(atual => ({ ...atual, [grupo.id]: event.target.value }))}/>
-          </label>
-          {problemaDoNome(i) && <p role="alert" className="analise-faixa-erro">{problemaDoNome(i)}</p>}
-          <p className="analise-agregar-apoio">{quantos(grupo.membros.length, unidade)} · {formatarNumero(Math.round(grupo.extensaoKm), true)} km de
-            ponta a ponta: {grupo.membros.map(nomeDe).join(", ")}</p>
-        </li>)}
-      </ol>}
-    </div>}
     {p.aviso && <p role="status" data-testid="analise-criterios-aviso" className="analise-agregar-apoio">{p.aviso}</p>}
+    {agruparDepois && <p role="status" data-testid="analise-criterios-agrupar-depois" className="analise-agregar-apoio">O agrupamento por proximidade
+      (a até {valorDe(agruparDepois.km)} km) fica em “Agrupar territórios selecionados”: ao usar como seleção, ele abre com essa distância.</p>}
     <ol className="analise-criterios-passos">
       <li><fieldset className="analise-criterios-bloco">
         <legend>1. Onde procurar</legend>
@@ -261,14 +247,14 @@ export default function SelecionarPorCriterios(p: Props) {
         <label className="analise-caixa"><input type="radio" name="analise-criterios-onde" data-testid="analise-criterios-onde-marcados"
           checked={onde === "marcados"} disabled={!quantosMarcados} onChange={() => setOnde("marcados")}/>
           <span>{baseDaRegra ? "A seleção em que a regra procurou" : "Os marcados na lista"} ({quantosMarcados.toLocaleString("pt-BR")})</span></label>
-        {!quantosMarcados && <button type="button" data-testid="analise-criterios-ir-lista" className="analise-botao-secundario"
-          onClick={p.onMarcarNaLista}>Marcar na lista</button>}
+        {!quantosMarcados && <p className="analise-agregar-apoio" data-testid="analise-criterios-sem-marcados">Nenhum{feminino ? "a" : ""} {unidade.singular}
+          {" "}marcad{feminino ? "a" : "o"} na lista à esquerda.</p>}
       </fieldset></li>
       <li><fieldset className="analise-criterios-bloco">
-        <legend>2. Critérios{agrupar ? " (opcionais ao agrupar)" : " (valem juntos)"}</legend>
+        <legend>2. Critérios (valem juntos)</legend>
         <label className="analise-rotulo-campo">Competência dos critérios
           <select data-testid="analise-criterios-competencia" value={competencia} onChange={event => setCompetencia(event.target.value)} className="analise-campo">
-            {p.periodos.map(periodo => <option key={periodo} value={periodo}>{competenciaAbreviada(periodo)}</option>)}
+            {periodos.map(periodo => <option key={periodo} value={periodo}>{competenciaAbreviada(periodo)}</option>)}
           </select>
         </label>
         <ol className="space-y-2">
@@ -318,41 +304,23 @@ export default function SelecionarPorCriterios(p: Props) {
           </ul>}
         </div>}
       </fieldset></li>
-      <li><fieldset className="analise-criterios-bloco">
-        <legend>3. Agrupar por proximidade (opcional)</legend>
-        <label className="analise-caixa"><input type="radio" name="analise-criterios-agrupar" data-testid="analise-criterios-nao-agrupar"
-          checked={!agrupar} onChange={() => setAgrupar(false)}/><span>Não agrupar</span></label>
-        <label className="analise-caixa"><input type="radio" name="analise-criterios-agrupar" data-testid="analise-criterios-agrupar"
-          checked={agrupar} onChange={() => setAgrupar(true)}/><span>Agrupar {feminino ? "as" : "os"} que ficam perto {feminino ? "umas das outras" : "uns dos outros"}</span></label>
-        {agrupar && <div className="analise-criterios-distancia">
-          <label className="analise-rotulo-campo" htmlFor="analise-criterios-agrupar-km">Distância máxima entre os membros do conjunto (km)</label>
-          <input id="analise-criterios-agrupar-km" data-testid="analise-criterios-agrupar-km" inputMode="decimal" value={kmAgrupar}
-            onChange={event => setKmAgrupar(event.target.value)} className="analise-campo"/>
-          <p className="analise-agregar-apoio">Todos os territórios de um conjunto ficam a até essa distância uns dos outros.</p>
-        </div>}
-      </fieldset></li>
     </ol>
     <div data-testid="analise-criterios-rodape" className="analise-criterios-rodape">
       <p data-testid="analise-criterios-estado" role="status" className={"analise-criterios-estado" + (erro ? " analise-faixa-erro" : "")}>
         {erro || falta || (carregando || esmaecido ? "Calculando a prévia…" : resultado ? quantos(resultado.atendem, unidade) + " atende" +
-          (resultado.atendem === 1 ? "" : "m") + " aos critérios (" + (grupos ? resultado.regra.textoAgrupado ?? resultado.regra.texto : resultado.regra.texto) +
+          (resultado.atendem === 1 ? "" : "m") + " aos critérios (" + resultado.regra.texto +
           " em " + competenciaAbreviada(resultado.competencia) + ")" + (resultado.naoAvaliaveis ? "; " + quantos(resultado.naoAvaliaveis, unidade) +
-          " sem o dado para avaliar" : "") + "." : "")}{motivoDoLimite ? " " + motivoDoLimite : ""}</p>
+          " sem o dado para avaliar" : "") + "." : "")}</p>
       {p.algoNaAnalise && <div role="radiogroup" aria-label="O resultado na análise" className="analise-criterios-uso">
         <label className="analise-caixa"><input type="radio" name="analise-criterios-uso" data-testid="analise-criterios-no-lugar" checked={!junto}
           onChange={() => setJunto(false)}/><span>No lugar da seleção atual</span></label>
         <label className="analise-caixa"><input type="radio" name="analise-criterios-uso" data-testid="analise-criterios-junto" checked={junto}
           onChange={() => setJunto(true)}/><span>Junto com a seleção atual</span></label>
       </div>}
-      {grupos && grupos.length > 0 && <label className="analise-caixa">
-        <input type="checkbox" data-testid="analise-criterios-sem-conjunto" checked={levarSemConjunto} onChange={event => setLevarSemConjunto(event.target.checked)}/>
-        <span>Levar também {feminino ? "as" : "os"} {semConjunto.length} sem conjunto</span></label>}
+      {textoDoUso && <p data-testid="analise-criterios-uso-texto" role="status" className="analise-agregar-apoio">{textoDoUso}</p>}
       <div className="analise-agregar-acoes">
         <button type="button" data-testid="analise-criterios-como-selecao" className="analise-botao-primario" disabled={!atual || !atual.atendem}
-          onClick={() => usar(false)}>Usar como seleção ({(atual?.atendem ?? 0).toLocaleString("pt-BR")})</button>
-        {grupos && grupos.length > 0 && <button type="button" data-testid="analise-criterios-como-grupos" className="analise-botao-secundario"
-          disabled={!atual || acimaDoLimite || nomesComProblema} title={motivoDoLimite || (nomesComProblema ? "Confira os nomes dos conjuntos." : undefined)}
-          onClick={() => usar(true)}>Usar cada conjunto como um território</button>}
+          onClick={usar}>Usar como seleção ({(atual?.atendem ?? 0).toLocaleString("pt-BR")})</button>
         <button type="button" data-testid="analise-criterios-cancelar" className="analise-botao-secundario" onClick={p.onCancelar}>Cancelar</button>
       </div>
       {resultado && resultado.notas.length > 0 && <details className="analise-criterios-notas"><summary>Notas do motor</summary>

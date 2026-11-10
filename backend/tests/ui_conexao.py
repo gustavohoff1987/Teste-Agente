@@ -174,9 +174,9 @@ def main():
         expect(page.get_by_test_id("conexao-ocupado")).to_have_count(0)
         # No gráfico, a nova tentativa sai sozinha, depois do tempo que o serviço indica.
         responder_uma_vez(page, "**/api/painel", status=503, body=corpo, content_type="application/json")
-        # Os estados como unidades (05/11/2026, a seleção unificada): sem nada marcado, a unidade Estados marca todos e pede o gráfico.
+        # Os estados como unidades: desde o comando V22, "Só os estados", na linha do Brasil, põe todos e pede o gráfico.
         with page.expect_response(lambda r: r.url.endswith("/api/painel") and r.status == 200, timeout=120000):
-            aperta(area.get_by_test_id("analise-nivel-estados"))
+            aperta(area.get_by_test_id("analise-raiz-so-estados"))
         expect(area.get_by_test_id("analise-erro")).to_have_count(0, timeout=30000)
         expect(page.get_by_test_id("conexao-ocupado")).to_have_count(0, timeout=30000)
 

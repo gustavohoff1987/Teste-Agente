@@ -1628,10 +1628,13 @@ def _criterios(conv, dica, dica_indicador):
     agrupando = (", agrupando " + os_ + " que ficam a até " + _valor_escrito(km) + " km entre si") if km is not None else ""
     # Sem critério de valor (só o agrupamento, item 9.1): "todos os municípios" de onde procurar.
     descricao = _e(frases) if frases else ("todas as " if rot.feminino else "todos os ") + rot.plural
-    return _resposta(painel, "Abri “Por critérios”, na Seleção, com " + descricao + onde + agrupando + ". A prévia, no "
-                     "painel, mostra quant" + os_ + " atendem" + (" e os conjuntos" if km is not None else "") +
-                     "; nada muda na análise até você escolher “Usar como seleção”" +
-                     (" ou “Usar cada conjunto como um território”" if km is not None else "") + ".")
+    # Desde o comando V22 (9/11/2026, seções 4 e 5), "Aplicar critérios de seleção", e o agrupamento por proximidade fica em
+    # "Agrupar territórios selecionados", que abre com a distância depois de "Usar como seleção" (antes, "Por critérios" e "Usar
+    # cada conjunto como um território" no mesmo painel).
+    return _resposta(painel, "Abri “Aplicar critérios de seleção”, na Seleção, com " + descricao + onde + agrupando + ". A prévia, "
+                     "no painel, mostra quant" + os_ + " atendem; nada muda na análise até você escolher “Usar como seleção”" +
+                     ("; depois, “Agrupar territórios selecionados” abre por proximidade, com essa distância" if km is not None
+                      else "") + ".")
 
 
 def _clausula(conv, encontrado, inicio_local):

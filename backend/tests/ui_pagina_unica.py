@@ -38,8 +38,8 @@ from pathlib import Path
 
 from openpyxl import Workbook
 from playwright.sync_api import expect, sync_playwright
-from ui_support import (API, AREA, PRIVACIDADE, URL, accept_privacy, fonte_embutida_carregada, form_field, history_label,
-                        is_post, letras_miudas, no_horizontal_scroll, offline, options_of, responder_uma_vez,
+from ui_support import (API, AREA, PRIVACIDADE, URL, abrir_regiao, accept_privacy, fonte_embutida_carregada, form_field,
+                        history_label, is_post, letras_miudas, no_horizontal_scroll, offline, options_of, responder_uma_vez,
                         uploaded_filename)
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
@@ -237,10 +237,13 @@ def main():
         page.wait_for_timeout(1500)
         assert not painel, "sem territórios escolhidos, a área não pede nada ao motor"
         shot("02-sem-selecao")
-        # A seleção unificada (05/11/2026): sem nada marcado, a unidade de análise Estados é o atalho de todos os estados como
-        # unidades (a árvore marca o Brasil inteiro), e o motor recebe o nível estados sem a lista.
-        e1, sent, _ = painel_response(lambda: aperta(area.get_by_test_id("analise-nivel-estados")))
-        expect(area.get_by_test_id("analise-raiz-caixa")).to_be_checked()
+        # Desde o comando V22 (decisão 3; muda de propósito esta conferência, que via a unidade de análise Estados da seleção
+        # unificada de 05/11/2026): "Só os estados", na linha do Brasil, põe todos os estados como unidade (os municípios deles
+        # ficam de fora, e a caixa do Brasil fica desligada), e o motor recebe o nível estados sem a lista.
+        so_estados = area.get_by_test_id("analise-raiz-so-estados")
+        e1, sent, _ = painel_response(lambda: aperta(so_estados))
+        expect(so_estados).to_have_attribute("aria-pressed", "true")
+        expect(area.get_by_test_id("analise-raiz-caixa")).to_be_disabled()
         assert sent.get("nivel") == "estados" and "estados" not in sent, sent  # todos os estados: sem a lista
         assert not sent.get("base", {}).get("municipios", {}).get("todos"), sent
         if real:
@@ -263,7 +266,7 @@ def main():
         page.wait_for_timeout(1500)
         assert len(painel) == chamadas, "a nova análise começa sem territórios e não pede nada ao motor"
         expect(historico).to_contain_text(history_label(1))
-        caixa_do_grupo = area.get_by_test_id("analise-grupo").first.get_by_test_id("analise-grupo-todos")
+        caixa_do_grupo = abrir_regiao(area, "1").get_by_test_id("analise-grupo").first.get_by_test_id("analise-grupo-todos")
 
         def marca_o_grupo():
             caixa_do_grupo.scroll_into_view_if_needed()
@@ -395,15 +398,16 @@ def main():
         expect(colunas).to_have_count(0)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         expect(area).to_have_attribute("data-aba", "territorios")
-        # Numa planilha, a busca e a raiz da árvore falam de distritos e províncias. Desde 07/11/2026 (item 1 do comando de
-        # 06/11/2026; muda de propósito esta conferência, que esperava a planilha sem o controle), com a coluna-mãe, o "Ver por"
-        # tem a província e o distrito, como a base do Brasil tem o estado e o município.
-        expect(area.get_by_test_id("analise-nivel").locator(".analise-nivel-nome")).to_have_text(["Província", "Distrito"])
+        # Numa planilha, a busca e a raiz da árvore falam de distritos e províncias. Desde o comando V22 (decisão 3; muda de
+        # propósito esta conferência, que via o "Ver por" Província | Distrito de 07/11/2026), com a coluna-mãe, "Só as províncias"
+        # na linha do todo, como "Só os estados" na base do Brasil.
+        expect(area.get_by_test_id("analise-nivel")).to_have_count(0)
+        expect(area.get_by_test_id("analise-raiz-so-estados")).to_have_text("Só as províncias")
         expect(area.get_by_test_id("analise-busca")).to_have_attribute("placeholder", "Buscar distrito ou província")
         raiz = area.get_by_test_id("analise-raiz")
         # Sem o nome do todo no painel Colunas, "Toda a base" (07/11/2026, item 1 do comando; antes, "Toda a planilha").
         expect(raiz).to_contain_text("Toda a base")
-        expect(raiz).to_contain_text("todos os 4 distritos")
+        expect(area.get_by_test_id("analise-raiz-universo")).to_have_text("4 distritos | 2 províncias")  # o resumo do universo (V22)
         # As províncias da planilha (a coluna-mãe) agrupam os distritos na Seleção, como os estados na base do Brasil.
         assert area.get_by_test_id("analise-grupo").evaluate_all("els => els.map(e => e.dataset.id)") == ["Norte", "Sul"]
         expect(area.get_by_test_id("analise-aba-painel")).not_to_contain_text(SEM_MUNICIPIO)
