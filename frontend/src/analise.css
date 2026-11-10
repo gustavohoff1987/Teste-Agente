@@ -120,7 +120,7 @@
   .analise-corpo.analise-corpo-com-painel { grid-template-columns: minmax(0, 1fr) 340px; }
   /* Preso abaixo de Desfazer e Limpar seleção (fixos no alto desde 24/10/2026), como a explicação da tendência: com top de 12 px, o
      título e o × do painel ficavam por baixo deles ao rolar. */
-  .analise-painel { position: sticky; top: 70px; max-height: calc(100dvh - 84px); overflow: auto; }
+  .analise-painel { position: sticky; top: 70px; max-height: calc(100dvh - 84px - var(--espaco-da-conversa, 0px)); overflow: auto; }
 }
 @media (min-width: 1024px) and (max-width: 1359px) {
   /* Ao lado do gráfico, sem empurrá-lo para baixo: o painel fica por cima da parte direita do gráfico. */
@@ -409,7 +409,7 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
 .analise-aba-painel .analise-territorios-lista .analise-unidades-lista { columns: 2 200px; column-gap: 16px; }
 .analise-aba-painel .analise-territorios-lista .analise-grupos { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 .analise-selecionados { position: sticky; top: 70px; z-index: 4; display: flex; min-width: 0; flex-direction: column; gap: 10px;
-  max-height: calc(100dvh - 90px); padding: 12px; border: 1px solid var(--cor-borda-campo); border-radius: 14px;
+  max-height: calc(100dvh - 90px - var(--espaco-da-conversa, 0px)); padding: 12px; border: 1px solid var(--cor-borda-campo); border-radius: 14px;
   background: var(--cor-superficie-suave); }
 .analise-selecionados-cabeca { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
 .analise-selecionados-itens { min-height: 0; overflow: auto; }

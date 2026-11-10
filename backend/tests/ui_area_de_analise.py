@@ -1736,7 +1736,7 @@ def main():
             expect(territorios.get_by_test_id("analise-raiz-universo")).to_have_text("5.570 municípios | 27 UFs")
             # Começa sem os conjuntos dos passos anteriores: a seleção é só a caixa do Brasil.
             aperta(limpar)
-            expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum município marcado")
+            expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum território selecionado")
             brasil, sent = ok(lambda: marca(territorios.get_by_test_id("analise-raiz-caixa")))
             assert sent.get("nivel") == "municipios" and sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
             assert brasil["contexto"]["brasil_completo"] is True and brasil["contexto"]["estados"] == [], brasil["contexto"]
@@ -1747,7 +1747,7 @@ def main():
             # A seleção de todos os municípios se desfaz de uma vez (Limpar seleção e Desfazer), sem desmarcar um a um.
             expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Todos os municípios (5.570)")
             aperta(limpar)
-            expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum município marcado")
+            expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum território selecionado")
             aperta(desfazer)
             expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Todos os municípios (5.570)")
             aba_analise("distribuicao")
@@ -1797,7 +1797,7 @@ def main():
         expect(trilha.locator('[aria-current="location"]')).to_have_text("Brasil")
         expect(limpar).to_be_enabled()
         aperta(limpar)
-        expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum município marcado")
+        expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum território selecionado")
         expect(trilha.locator('[aria-current="location"]')).to_have_count(0)
         # O Amazonas inteiro (a resposta pode vir da memória da tela, sem novo pedido): "Brasil › Amazonas".
         marca(linha_do_estado(territorios, AM).get_by_test_id("analise-grupo-todos"))

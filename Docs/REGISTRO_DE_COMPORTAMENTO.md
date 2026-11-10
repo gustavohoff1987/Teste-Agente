@@ -35,6 +35,70 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-10 · Textos da seleção mista, nomes sem sobreposição e a caixa da conversa compacta (conferência da pausa 1 do V22)
+- **Classificação (regra 1), pela leitura, antes de codar:** os dez ajustes vieram da conferência das capturas da etapa 2 pelo
+  responsável (10/11/2026). Todos mudam o que a pessoa vê (textos, nomes no desenho, contadores e a caixa da conversa) e dois mudam
+  textos da API (`resumo.texto` de uma seleção com níveis diferentes e a nota dos estados). Passam nos dois testes: escopo, o
+  pedido do responsável; compatibilidade, nenhum contraria a SPEC nem uma divergência aprovada (os níveis continuam sem soma e sem
+  mistura nas medidas de posição, RQ-DAD-30; a frase-resumo continua só com segmentos copiados e conferidos; nenhum número muda).
+- **Antes:**
+  - o subtítulo dizia "Cada bolha é um município" mesmo com conjuntos e estados como unidade no gráfico; na Análise Espacial,
+    "de cada município" mesmo com conjuntos na base;
+  - o título não citava os conjuntos quando havia municípios ou estados na seleção ("em 35 municípios do Amazonas, no Pará
+    (estado) e na Bahia (estado)"; na Espacial, "35 municípios do Amazonas"); só com conjuntos, "nos conjuntos escolhidos";
+  - as notas dos estados diziam "os dois níveis nunca aparecem juntos" (na tela) e "Estados e municípios não aparecem juntos no
+    mesmo gráfico nem são somados entre si" (na API), o que deixou de ser verdade com os níveis na mesma seleção;
+  - na legenda de uma seleção mista, a camada dos municípios era "Municípios (e conjuntos de municípios):", embora os conjuntos
+    fiquem fora dos grupos por posição;
+  - na Escolha dos territórios da Análise Espacial, "35 municípios" e "35 municípios restam" não contavam os conjuntos da base; na
+    árvore, um estado com municípios em conjuntos mostrava só "35 de 62 municípios", e esses municípios pareciam fora da seleção;
+  - sem seleção, o painel direito dizia "Nenhum município marcado" (ou "Nenhum estado marcado"), e a barra do alto, "Nenhum
+    território selecionado";
+  - o foco da Análise Espacial mostrava a distância duas vezes ("769,16 km (distância geodésica do motor, em linha reta:
+    769,1610826612391 km)");
+  - a frase-resumo de uma seleção mista repetia "Em junho de 2024, o gráfico tem …" a cada nível;
+  - os nomes das bolhas sem lugar livre ("Conjunto X (soma) · valor", as referências) eram desenhados uns sobre os outros; nos
+    mini mapas, o nome de um conjunto ficava atrás dos pontos e podia cobrir pontos em destaque;
+  - a caixa da conversa, minimizada, mantinha a largura inteira (o nome do agente e "Arraste pelo cabeçalho para mover") e cobria
+    textos e botões do fim do painel direito da Seleção, como "Agrupar territórios selecionados".
+- **Agora:**
+  - o subtítulo nomeia os tipos presentes no desenho: "Cada bolha é um município, um conjunto ou um estado (como unidade)" (só os
+    que houver; só com municípios, como antes); na Espacial com conjuntos, "de cada território" (também na nota abaixo do
+    gráfico); a explicação da conversa ("Como ler") segue a mesma regra;
+  - o título inclui os conjuntos, numa lista só, como o resumo da seleção: "em 35 municípios do Amazonas, em 12 conjuntos, no
+    Pará (estado) e na Bahia (estado)"; na Espacial, "35 municípios do Amazonas e 12 conjuntos"; só com conjuntos, "em 3
+    conjuntos";
+  - as notas dos estados dizem que os dois níveis "nunca são somados nem misturados nos mesmos grupos" (na tela, base do Brasil e
+    planilha) e, na API, "Estados e municípios nunca são somados entre si nem misturados nos mesmos grupos por posição." (na
+    planilha, com os nomes dela);
+  - a camada dos municípios na legenda é só "Municípios:";
+  - na Escolha dos territórios, a seleção em uso, o que resta depois dos filtros e o que entra na base contam os conjuntos, como o
+    passo "Base" ("12 conjuntos e 35 territórios individuais", "… restam", "… entram na base"); na árvore e na lista dos
+    selecionados, o estado diz quantos municípios dele estão em conjuntos ("35 de 62 municípios · 27 em conjuntos"), a lista do
+    estado repete a contagem, e cada um desses municípios leva a marca "em conjunto" (com o nome do conjunto no título);
+  - sem seleção, o painel direito diz "Nenhum território selecionado", como a barra do alto;
+  - o foco mostra a distância uma vez, no formato da tela ("769,16 km"): é a distância do motor, sem recálculo para o desenho; a
+    precisão integral continua no CSV;
+  - a frase-resumo de uma seleção mista abre com uma frase só ("Em junho de 2024, o gráfico tem 35 municípios, 12 conjuntos e 2
+    estados como unidade.") e segue por nível, sem repetir a competência nem a contagem ("Entre os municípios, a densidade vai de
+    …"; "Entre os estados como unidade, …"; com um estado só, "Estado como unidade: Pará (PA), densidade de …");
+  - o nome de uma bolha que cobriria outro, à direita e à esquerda dela, não é desenhado: fica na dica (a bolha sob o mouse ou o
+    foco, as marcadas, as referências e os conjuntos, nessa ordem, garantem o lugar antes), e a nota dos símbolos diz isso; nos
+    mini mapas, o nome de um conjunto fica por cima dos pontos, com halo, acima do contorno ou, sem lugar, abaixo dele, e não
+    cobre outro nome nem pontos em destaque (sem lugar, só na dica do contorno, com o aviso na legenda);
+  - a caixa da conversa minimizada é compacta (o rosto, "Assistente" e o botão que a abre) e, no canto de sempre, o painel direito
+    da Seleção e o painel lateral das análises terminam acima dela.
+- **Permanece:** os números do motor (nada é recalculado na tela); a frase-resumo de um nível só; os grupos por posição só com as
+  unidades de cada nível; a caixa da conversa aberta (o nome do agente, o arraste e a posição guardada); as dicas com todos os
+  integrantes de um conjunto.
+- **Motivo:** conferência das capturas da etapa 2 pelo responsável (10/11/2026), antes da etapa 3 do comando V22.
+- **Documentação e testes:** [área de análise](PAINEL_INTEGRADO_INTERFACE.md#ajustes-de-10112026-conferência-da-pausa-1);
+  [Painel integrado](PAINEL_INTEGRADO.md#níveis-na-mesma-seleção-comando-v22) (a frase-resumo e a nota);
+  [Interface conversacional](INTERFACE_CONVERSACIONAL_INTEGRADA.md) (a caixa minimizada). Testes: Node (`painel.test.mjs`: o lugar
+  com os conjuntos, o subtítulo com os tipos, os nomes omitidos e a prioridade; "Nenhum território selecionado" nos três testes
+  que esperavam o texto antigo, que mudam de propósito), pytest (`test_painel_pagina.py`: a frase de abertura única) e os roteiros
+  `ui_area_de_analise.py` ("Nenhum território selecionado") e `ui_navegacao.py` ("142 de 144 municípios · 2 em conjuntos").
+
 ### 2026-11-09 · Ajustes da Seleção V22 na conferência das capturas (Eixo I)
 - **Classificação (regra 1), pela leitura, antes de codar:** os ajustes vieram da conferência das capturas da etapa 2 e decorrem
   das seções 2, 3, 6 e 7 do comando V22 (legendas, dicas, responsividade e contraste revistos; o foco numa base; "2 conjuntos e

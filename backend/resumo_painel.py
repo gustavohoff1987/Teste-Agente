@@ -172,40 +172,56 @@ def _units(body):
     return unit["singular"], unit["plural"], "as" if unit.get("genero") == "f" else "os"
 
 
-def _lead_many(c: Composer, body: dict, facts: dict):
+def _lead_many(c: Composer, body: dict, facts: dict, abertura: bool = True):
     """Vários itens: quantos o gráfico tem e de quanto a quanto vai o indicador; com os extremos iguais, o valor comum
-    (nunca "de X a X"); as unidades sem valor só quando há alguma."""
+    (nunca "de X a X"); as unidades sem valor só quando há alguma. Sem a `abertura` (a frase de um nível numa seleção com
+    níveis diferentes, 10/11/2026): a contagem já saiu na frase de abertura, comum aos níveis, e a frase do nível começa pelo
+    nome dele ("Entre os municípios, …"; "Entre os estados como unidade, …")."""
     singular, plural, article = _units(body)
     indicator = body["indicador"]
     unit = " " + DENSITY_UNIT if indicator == "densidade" else ""
-    c.text("Em ").period("competencia").text(", o gráfico tem ").count(singular, plural, "resumo", "contagens", "unidades")
-    if facts["contagens"]["conjuntos"]:
-        c.text(" e ").count("conjunto", "conjuntos", "resumo", "contagens", "conjuntos")
-    c.text(".")
+    if abertura:
+        c.text("Em ").period("competencia").text(", o gráfico tem ").count(singular, plural, "resumo", "contagens", "unidades")
+        if facts["contagens"]["conjuntos"]:
+            c.text(" e ").count("conjunto", "conjuntos", "resumo", "contagens", "conjuntos")
+        c.text(".")
+    elif not facts["contagens"]["unidades"]:
+        return  # só conjuntos neste nível: a abertura já os contou, e a ressalva da soma vem adiante
+    quem = article + " " + plural + (" como unidade" if not abertura and body["nivel"] == "estados" else "")
+    espaco = " " if abertura else ""
     extremes = facts["extremos"]["indicador"]
     if extremes is None:
-        c.text(" Sem valor de " + INDICATOR_TEXT[indicator] + " nesta competência.")
+        c.text(espaco + ("Sem valor de " if abertura else "Entre " + quem + ", sem valor de ") + INDICATOR_TEXT[indicator] +
+               " nesta competência.")
         return
     # Com conjuntos no gráfico (08/11/2026, decisão do responsável), a faixa continua só com as unidades e diz isso, com o nome de
     # cada extremo: "Entre os municípios, a densidade vai de X (A) a Y (B)".
-    entre = ("Entre " + article + " " + plural + ", a ") if facts["contagens"]["conjuntos"] else "A "
+    entre = ("Entre " + quem + ", a ") if facts["contagens"]["conjuntos"] or not abertura else "A "
     if facts["iguais"]["indicador"]:
         every = ("todos" if article == "os" else "todas") + (" com valor" if facts["contagens"]["sem_valor"] else "")
-        c.text(" " + entre + INDICATOR_TEXT[indicator] + " é de ").number("itens", extremes[0], indicator) \
+        c.text(espaco + entre + INDICATOR_TEXT[indicator] + " é de ").number("itens", extremes[0], indicator) \
             .text(unit + " em " + every + ".")
     elif facts["contagens"]["conjuntos"]:
-        c.text(" " + entre + INDICATOR_TEXT[indicator] + " vai ").named_range(extremes, [indicator], unit).text(".")
+        c.text(espaco + entre + INDICATOR_TEXT[indicator] + " vai ").named_range(extremes, [indicator], unit).text(".")
     else:
-        c.text(" A " + INDICATOR_TEXT[indicator] + " vai ").range(extremes, [indicator], unit).text(".")
+        c.text(espaco + entre + INDICATOR_TEXT[indicator] + " vai ").range(extremes, [indicator], unit).text(".")
     if facts["contagens"]["sem_valor"]:
         c.text(" ").count(singular, plural, "resumo", "contagens", "sem_valor").text(" sem valor nesta competência.")
 
 
-def _lead_one(c: Composer, body: dict, facts: dict):
-    """Um território só (24/10/2026): o nome, a competência e o valor dele, sem frases coletivas nem amplitude."""
+def _lead_one(c: Composer, body: dict, facts: dict, abertura: bool = True):
+    """Um território só (24/10/2026): o nome, a competência e o valor dele, sem frases coletivas nem amplitude. Sem a
+    `abertura` (um nível com um item só, numa seleção com níveis diferentes): o nome e o valor, sem repetir a competência;
+    o estado como unidade diz que é ("Estado como unidade: Pará (PA), densidade de …")."""
     index, indicator = facts["unico"], body["indicador"]
     unit = " " + DENSITY_UNIT if indicator == "densidade" else ""
-    c.label("itens", index, "rotulo").text(", em ").period("competencia").text(": ")
+    if abertura:
+        c.label("itens", index, "rotulo").text(", em ").period("competencia").text(": ")
+    elif body["nivel"] == "estados" and body["itens"][index].get("tipo") == "estado":
+        singular = _units(body)[0]
+        c.text(singular[:1].upper() + singular[1:] + " como unidade: ").label("itens", index, "rotulo").text(", ")
+    else:
+        c.label("itens", index, "rotulo").text(": ")
     if facts["contagens"]["sem_valor"]:
         c.text("sem valor de " + INDICATOR_TEXT[indicator] + " nesta competência.")
         return
@@ -443,17 +459,18 @@ def _context(c: Composer, body: dict):
         .number("contexto", "brasil", "densidade", kind="PARAMETRO").text(" " + DENSITY_UNIT + ".")
 
 
-def compose(body: dict, facts: dict, contexto: bool = True) -> Composer:
+def compose(body: dict, facts: dict, contexto: bool = True, abertura: bool = True) -> Composer:
     """A frase de uma resposta da página única, na ordem das análises: itens e indicador (distribuição), grupos e faixas,
     mudança, análise espacial, tendência, condições, comparação, rotatividade, ressalvas (conjuntos e estados) e a linha de
     contexto do Brasil. Os grupos que pintam o mapa (`grupos_mapa`, pedidos pela tela junto com toda análise) não entram:
     a frase descreve o que o gráfico mostra, e é a mesma com ou sem eles. Desde 24/10/2026, com um território só, a frase
     é individual (o nome, o valor, a variação com a direção e a classe dele); com vários, valores iguais saem uma vez (nunca
-    "de X a X"), e as contagens que são zero (sem valor, sem dado, não avaliáveis) ficam de fora."""
+    "de X a X"), e as contagens que são zero (sem valor, sem dado, não avaliáveis) ficam de fora. Sem a `abertura`
+    (summary_por_nivel), a frase é a de um nível de uma seleção com níveis diferentes, depois da frase de abertura comum."""
     view = {**body, "resumo": {"contagens": facts["contagens"]}}  # os caminhos como ficam na resposta
     c = Composer(view)
     one = facts.get("unico") is not None
-    (_lead_one if one else _lead_many)(c, view, facts)
+    (_lead_one if one else _lead_many)(c, view, facts, abertura)
     if view.get("grupos") is not None:
         _groups(c, view)
     if view.get("faixas") is not None:
@@ -540,35 +557,64 @@ def _caminho_do_nivel(caminho: list, nivel: str, de: int) -> list:
 
 
 def summary_por_nivel(body: dict, facts_of) -> dict | None:
-    """A frase de uma seleção com níveis diferentes (comando V22: estados como unidade e municípios): a frase de cada nível, na
-    ordem dos níveis, sobre os itens e os blocos dele (`por_nivel`), com os caminhos levados à resposta inteira; a linha de
-    contexto do Brasil sai uma vez, no fim. Nenhum valor de um nível é comparado com o de outro, e a frase inteira passa pela
-    mesma conferência (verify). `facts_of` conta os extremos e as contagens de um nível (painel.summary_facts)."""
+    """A frase de uma seleção com níveis diferentes (comando V22: estados como unidade e municípios). Desde 10/11/2026
+    (conferência das capturas), ela abre com uma frase só, com o que o gráfico tem em cada nível ("Em junho de 2024, o gráfico
+    tem 35 municípios, 12 conjuntos e 2 estados como unidade."), e segue com a frase de cada nível, na ordem dos níveis, sem
+    repetir a competência nem a contagem ("Entre os municípios, a densidade vai de …"; "Entre os estados como unidade, …"),
+    sobre os itens e os blocos dele (`por_nivel`), com os caminhos levados à resposta inteira; a linha de contexto do Brasil
+    sai uma vez, no fim. Nenhum valor de um nível é comparado com o de outro, e a frase inteira passa pela mesma conferência
+    (verify). `facts_of` conta os extremos e as contagens de um nível (painel.summary_facts)."""
     niveis = body.get("niveis") or []
-    partes, segmentos, textos, contagens = [], [], [], {}
-    for posicao, nivel in enumerate(niveis):
+    vistas = []
+    for nivel in niveis:
         bloco = body["por_nivel"][nivel]
         de, quantos = bloco["itens_de"], bloco["itens_quantos"]
         view = {**bloco, "itens": body["itens"][de:de + quantos]}
         facts = facts_of(view)
         bloco["resumo"] = {"contagens": facts["contagens"]}
-        composer = compose(view, facts, contexto=posicao == len(niveis) - 1)
+        vistas.append((nivel, de, view, facts))
+    partes, segmentos, contagens = [], [], {}
+
+    def juntar(composer, nivel=None, de=0):
         deslocamento = len(segmentos)
         for segmento in composer.segments:
-            segmentos.append({**segmento, "caminho": _caminho_do_nivel(segmento["caminho"], nivel, de)})
-        if partes:
-            partes.append({"texto": " "})
+            caminho = _caminho_do_nivel(segmento["caminho"], nivel, de) if nivel else segmento["caminho"]
+            segmentos.append({**segmento, "caminho": caminho})
         for parte in composer.parts:
             if "segmento" in parte:
                 indice = parte["segmento"] + deslocamento
                 partes.append({**parte, "segmento": indice, "caminho": segmentos[indice]["caminho"]})
             else:
                 partes.append(dict(parte))
-        textos.append(composer.sentence)
+
+    # A abertura: uma frase só, com as contagens de cada nível (as do motor, em por_nivel.<nível>.resumo.contagens).
+    termos = []
+    for nivel, de, view, facts in vistas:
+        singular, plural, _ = _units(view)
+        como = " como unidade" if nivel == "estados" else ""
+        if facts["contagens"]["unidades"]:
+            termos.append((singular + como, plural + como, ["por_nivel", nivel, "resumo", "contagens", "unidades"]))
+        if facts["contagens"]["conjuntos"]:
+            de_que = " de " + plural if nivel == "estados" else ""
+            termos.append(("conjunto" + de_que, "conjuntos" + de_que, ["por_nivel", nivel, "resumo", "contagens", "conjuntos"]))
+    if termos:
+        abre = Composer(body)
+        abre.text("Em ").period("competencia").text(", o gráfico tem ")
+        for posicao, (singular, plural, caminho) in enumerate(termos):
+            abre.text(", " if 0 < posicao < len(termos) - 1 else " e " if posicao else "").count(singular, plural, *caminho)
+        abre.text(".")
+        juntar(abre)
+    for posicao, (nivel, de, view, facts) in enumerate(vistas):
+        composer = compose(view, facts, contexto=posicao == len(vistas) - 1, abertura=False)
+        if composer.parts and "segmento" not in composer.parts[0] and composer.parts[0]["texto"].startswith(" "):
+            composer.parts[0]["texto"] = composer.parts[0]["texto"][1:]  # o espaço entre as frases entra uma vez, abaixo
+        if composer.parts and partes:
+            partes.append({"texto": " "})
+        juntar(composer, nivel, de)
         contagens[nivel] = facts["contagens"]
     if not segmentos:
         return None
-    out = {"versao": VERSION, "texto": " ".join(textos), "partes": partes, "segmentos": segmentos,
+    out = {"versao": VERSION, "texto": "".join(parte["texto"] for parte in partes), "partes": partes, "segmentos": segmentos,
            "contagens": contagens, "nota": NOTE}
     return out if verify({**body, "resumo": out}) else None
 

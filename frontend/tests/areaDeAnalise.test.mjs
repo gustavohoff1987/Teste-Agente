@@ -1372,7 +1372,7 @@ test('dois níveis de grupo: os grupos de cima, o Ver por "Região | Distrito | 
   assert.deepEqual(partes(M.lugarDaTrilha(escolhaDaTrilha('regioes', [], [], true, [], ['Alentejo', 'Norte']), trilha)), [['todo', 'Portugal', true]]);
   const resumo = estados => M.resumoDoUniverso({nivel: 'regioes', base: {todos: true, estados: [], ids: []}, estados, conjuntos: 0, grupos,
     regioes, rotulos: PORTUGAL, total: 5, grupoDe: arvore.grupoDe});
-  assert.deepEqual([resumo(['Alentejo', 'Norte']), resumo(['Norte']), resumo([])], ['Todas as regiões (2)', 'Norte', 'Nenhuma região marcada']);
+  assert.deepEqual([resumo(['Alentejo', 'Norte']), resumo(['Norte']), resumo([])], ['Todas as regiões (2)', 'Norte', 'Nenhum território selecionado']);  // 10/11/2026: antes, "Nenhuma região marcada"
   assert.equal(M.lugarDoUniverso({nivel: 'regioes', base: {todos: true, estados: [], ids: []}, conjuntos: 0, grupos, regioes, rotulos: PORTUGAL,
     brasil: false, grupoDe: arvore.grupoDe, estados: ['Alentejo', 'Norte']}).lugar, 'nas regiões');
   assert.ok(M.emGrupos('regioes') && M.emGrupos('estados') && !M.emGrupos('municipios'));

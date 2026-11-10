@@ -492,7 +492,8 @@ test('o que está na análise, em poucas palavras, e o lugar no título (24/10/2
   const resumo = extra => M.resumoDoUniverso({...c, nivel: 'municipios', base: base([]), ...extra});
   assert.equal(resumo({nivel: 'estados', estados: ['13', '35']}), 'Todos os estados (2)');
   assert.equal(resumo({nivel: 'estados', estados: ['35']}), 'São Paulo');
-  assert.equal(resumo({nivel: 'estados', estados: []}), 'Nenhum estado marcado');
+  // Sem nada, o mesmo texto da barra do alto (10/11/2026; muda de propósito: antes, "Nenhum estado marcado").
+  assert.equal(resumo({nivel: 'estados', estados: []}), 'Nenhum território selecionado');
   assert.equal(resumo({nivel: 'brasil'}), 'Brasil (total nacional)');
   assert.equal(resumo({base: base(['13'])}), 'Amazonas (62 municípios)');
   assert.equal(resumo({base: base([], ['code:130260', 'code:130420', 'code:130340'])}), '3 municípios do Amazonas');
@@ -509,7 +510,7 @@ test('o que está na análise, em poucas palavras, e o lugar no título (24/10/2
   // Planilha sem a lista das unidades (o catálogo não veio): a planilha inteira, sem um "(0)" enganoso.
   assert.equal(M.resumoDoUniverso({nivel: 'municipios', base: base([], [], true), estados: [], conjuntos: 0, grupos: [], rotulos: DISTRITOS,
     total: 0, grupoDe: () => ''}), 'Todos os distritos');
-  assert.equal(resumo({base: base([])}), 'Nenhum município marcado');
+  assert.equal(resumo({base: base([])}), 'Nenhum território selecionado');  // antes de 10/11/2026, "Nenhum município marcado"
   assert.equal(resumo({base: base(['13', '35'])}), 'Amazonas e São Paulo (707 municípios)');
   // A seleção cumulativa, de estados diferentes: cada um com as suas unidades.
   assert.equal(resumo({base: base([], ['code:130260', 'code:350010'])}), '2 municípios de 2 estados');
@@ -1380,4 +1381,57 @@ test('Agregar territórios (06/11/2026, item 5): os membros saem da seleção e 
   // O Brasil inteiro sem um do Pará: os outros estados inteiros e o resto do Pará.
   assert.deepEqual(M.baseSemUnidades({todos: true, estados: [], ids: []}, ['code:150001'], c),
     {todos: false, estados: ['13'], ids: ['code:150002', 'code:150003']});
+});
+
+test('ajustes da conferência das capturas (10/11/2026): o título com os conjuntos, o subtítulo com os tipos presentes e os nomes sem sobreposição', () => {
+  const base = (estados, ids = [], todos = false) => ({todos, estados, ids});
+  const lugar = extra => M.lugarDoUniverso({nivel: 'municipios', base: base([], ['code:130260', 'code:130420', 'code:130340']), conjuntos: 0,
+    grupos: GRUPOS, rotulos: BR, brasil: true, grupoDe: M.prefixoDe, ...extra});
+  // O lugar do título inclui os conjuntos, como o resumo da seleção: uma lista só.
+  assert.deepEqual(lugar({conjuntos: 12}), {lugar: 'em 3 municípios do Amazonas e em 12 conjuntos', curto: '3 municípios do Amazonas e 12 conjuntos'});
+  assert.deepEqual(lugar({conjuntos: 12, estados: ['35']}), {lugar: 'em 3 municípios do Amazonas, em 12 conjuntos e em São Paulo (estado)',
+    curto: '3 municípios do Amazonas, 12 conjuntos e São Paulo (estado)'});
+  assert.deepEqual(lugar({conjuntos: 1, base: base([])}), {lugar: 'em 1 conjunto', curto: '1 conjunto'});
+  assert.deepEqual(lugar({conjuntos: 2, base: base([]), estados: ['35']}), {lugar: 'em 2 conjuntos e em São Paulo (estado)', curto: '2 conjuntos e São Paulo (estado)'});
+  // Sem conjuntos nem estados como unidade, como antes.
+  assert.deepEqual(lugar({}), {lugar: 'em 3 municípios do Amazonas', curto: '3 municípios do Amazonas'});
+  // O subtítulo nomeia os tipos presentes no desenho.
+  const t = (tipos, extra = {}) => M.tituloDaAnalise({fonte: 'brasil', familia: 'distribuicao', visao: 'classes', indicador: 'densidade', nivel: 'municipios',
+    categoria: 'MEDICINA', competencia: '202406', janela: [], rotatividade: null, lugar: {lugar: 'em 3 municípios do Amazonas', curto: '3 municípios do Amazonas'},
+    rotulos: BR, tipos, ...extra}).subtitulo;
+  assert.equal(t({unidades: true, conjuntos: true, estados: true}), 'Cada bolha é um município, um conjunto ou um estado (como unidade). O tamanho mostra a população.');
+  assert.equal(t({unidades: true, conjuntos: false, estados: true}), 'Cada bolha é um município ou um estado (como unidade). O tamanho mostra a população.');
+  assert.equal(t({unidades: false, conjuntos: true, estados: false}), 'Cada bolha é um conjunto. O tamanho mostra a população.');
+  assert.equal(t({unidades: true, conjuntos: false, estados: false}), 'Cada bolha é um município. O tamanho mostra a população.');
+  assert.equal(t(null), 'Cada bolha é um município. O tamanho mostra a população.');
+  assert.equal(t({unidades: true, conjuntos: true, estados: false}, {nivel: 'estados'}), 'Cada bolha é um estado ou um conjunto. O tamanho mostra a população.');
+  // Na Análise Espacial com conjuntos, "de cada território"; só com municípios, "de cada município".
+  assert.ok(t({unidades: true, conjuntos: true, estados: false}, {familia: 'espacial'}).endsWith(
+    'Cada bolha é um município ou um conjunto. O tamanho mostra a população. A posição horizontal é a distância até a referência mais próxima de cada território.'));
+  assert.ok(t({unidades: true, conjuntos: false, estados: false}, {familia: 'espacial'}).endsWith('de cada município.'));
+  assert.equal(M.umDeCadaTipo({singular: 'comuna', plural: 'comunas', genero: 'f'}, {singular: 'condado', plural: 'condados'},
+    {unidades: true, conjuntos: true, estados: true}), 'uma comuna, um conjunto ou um condado (como unidade)');
+
+  // Os nomes das bolhas: com `omitir`, o nome que cobriria outro em todas as posições (dos dois lados) não é desenhado.
+  const empilhadas = Array.from({length: 20}, (_, i) => ({id: 'b' + String(i).padStart(2, '0'), x: 400, y: 200 + i, r: 5, largura: 120}));
+  const semOmitir = M.posicionarRotulos(empilhadas, 800, 16, 52);
+  assert.equal(semOmitir.size, 20, 'sem omitir, todos saem (os sem lugar, por cima dos outros), como antes');
+  const comOmitir = M.posicionarRotulos(empilhadas, 800, 16, 52, {omitir: true});
+  assert.ok(comOmitir.size < 20 && comOmitir.size >= 7, String(comOmitir.size));
+  const caixas = [...comOmitir].map(([id, r]) => {
+    const item = empilhadas.find(e => e.id === id);
+    const x0 = r.ancora === 'start' ? item.x + r.dx : item.x + r.dx - item.largura;
+    return [x0, x0 + item.largura, item.y + r.dy - 8, item.y + r.dy + 8];
+  });
+  for (let i = 0; i < caixas.length; i++) for (let j = i + 1; j < caixas.length; j++) {
+    const [a, b] = [caixas[i], caixas[j]];
+    assert.ok(!(a[0] < b[1] && a[1] > b[0] && a[2] < b[3] && a[3] > b[2]), 'nomes sobrepostos: ' + i + ' e ' + j);
+  }
+  assert.ok([...comOmitir.values()].some(r => r.ancora === 'end'), 'sem lugar à direita, o outro lado da bolha');
+  // A prioridade garante o lugar: o último da pilha, com a prioridade menor, sai primeiro e fica junto da bolha.
+  const comPrioridade = M.posicionarRotulos(empilhadas.map(e => e.id === 'b19' ? {...e, prioridade: -1} : e), 800, 16, 52, {omitir: true});
+  assert.deepEqual(comPrioridade.get('b19'), {dx: 11, dy: 0, ancora: 'start'});
+  // Com lugar para todos, nada muda com `omitir`.
+  const soltas = [{id: 'a', x: 100, y: 100, r: 5, largura: 80}, {id: 'b', x: 104, y: 102, r: 5, largura: 80}];
+  assert.deepEqual([...M.posicionarRotulos(soltas, 800, 16, 52, {omitir: true})], [...M.posicionarRotulos(soltas, 800, 16, 52)]);
 });

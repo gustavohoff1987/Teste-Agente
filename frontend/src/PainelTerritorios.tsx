@@ -137,6 +137,16 @@ export default function PainelTerritorios(p: Props) {
     const nos = p.conjuntos.filter(conjunto => conjuntoDeEstados(conjunto) && conjunto.membros.includes("uf:" + grupo)).map(conjunto => conjunto.rotulo);
     return comoUnidade.has(grupo) || !nos.length ? "está na seleção como unidade" : "está no conjunto " + nos.join(", ");
   };
+  // Os municípios que estão na seleção dentro de um conjunto (10/11/2026, conferência das capturas): a árvore diz quantos de cada
+  // estado estão em conjuntos e marca cada um como "em conjunto", para eles não parecerem fora da seleção.
+  const conjuntosDaUnidade = useMemo(() => {
+    const mapa = new Map<string, string[]>();
+    for (const conjunto of p.conjuntos) if (!conjuntoDeEstados(conjunto))
+      for (const id of conjunto.membros) mapa.set(id, [...(mapa.get(id) ?? []), conjunto.rotulo]);
+    return mapa;
+  }, [p.conjuntos]);
+  const emConjuntos = (ids: string[]) => ids.reduce((soma, id) => soma + (conjuntosDaUnidade.has(id) ? 1 : 0), 0);
+  const textoEmConjuntos = (n: number) => n ? " · " + n.toLocaleString("pt-BR") + (n === 1 ? " em conjunto" : " em conjuntos") : "";
   const estado = grupoRotulo.singular;
   const soO = (rotulo: Rotulo) => "Só " + artigo(rotulo, false) + " " + rotulo.singular;
   const soOs = (rotulo: Rotulo) => "Só " + artigo(rotulo, true) + " " + rotulo.plural;
@@ -201,13 +211,17 @@ export default function PainelTerritorios(p: Props) {
   const caixaDaUnidade = (item: UnidadeDoCatalogo, testid: string, comGrupo = false) => {
     const grupo = grupoDaUnidade(item);
     const preso = temGrupos && bloqueado(grupo);
-    return <li key={item.id} data-testid={testid} data-id={item.id} data-bloqueada={preso ? "true" : undefined}>
+    const nosConjuntos = conjuntosDaUnidade.get(item.id);
+    return <li key={item.id} data-testid={testid} data-id={item.id} data-bloqueada={preso ? "true" : undefined}
+      data-conjunto={nosConjuntos ? nosConjuntos.join(", ") : undefined}>
       <label className={"analise-caixa" + (preso ? " analise-caixa-bloqueada" : "")}
         title={preso ? nomeDoGrupo(grupo) + " " + ondeEsta(grupo) + "; " + artigo(unidade, true) + " " + unidade.plural + " del" +
           (generoGrupoF ? "a" : "e") + " ficam de fora enquanto isso." : undefined}>
         <input type="checkbox" checked={!preso && unidadeMarcada(p.base, item.id, temGrupos ? grupo : "")} disabled={preso}
           onChange={() => alternarUnidadeDaLista(item)}/>
         <span className="min-w-0 flex-1">{comGrupo ? nomeDaUnidade(item) : item.name || item.label}</span>
+        {nosConjuntos && <span data-testid="analise-unidade-em-conjunto" className="analise-marca-grupo shrink-0"
+          title={"Na seleção, dentro d" + (nosConjuntos.length === 1 ? "o conjunto " : "os conjuntos ") + nosConjuntos.join(", ")}>em conjunto</span>}
         {comGrupo && temGrupos ? <span className="shrink-0 text-[12px] text-slate-500">{nomeDoGrupo(grupo)}</span>
           : item.code && <span className="shrink-0 text-[12px] text-slate-500">{item.code}</span>}
       </label>
@@ -230,7 +244,8 @@ export default function PainelTerritorios(p: Props) {
         : semLista ? (p.base.todos ? (generoF ? "todas marcadas" : "todos marcados") : (generoF ? "nenhuma marcada" : "nenhum marcado")) +
           ". A lista " + (generoF ? "das " : "dos ") + unidade.plural + " não está disponível; a análise pode usar " +
           (p.rotulos.todo?.nome?.trim() ? todoInteiro(false, p.rotulos) : "toda a base") + "."
-          : n + " de " + quantos(lista.length, unidade) + " marcad" + (generoF ? "as" : "os") + "."}</p>
+          : n + " de " + quantos(lista.length, unidade) + " marcad" + (generoF ? "as" : "os") +
+            (emConjuntos(ids) ? "; " + emConjuntos(ids).toLocaleString("pt-BR") + (emConjuntos(ids) === 1 ? " em conjunto" : " em conjuntos") : "") + "."}</p>
       {!preso && <div className="analise-territorios-coletivos" role="group" aria-label="Marcar ou desmarcar de uma vez">
         <button type="button" data-testid="analise-marcar-todos" className="analise-botao-secundario" disabled={todasMarcadas}
           onClick={() => grupo ? p.onBase(marcarGrupo(p.base, grupo.id, ids), "Marcar " + todosOs(unidade) + " " + doGrupo(grupo))
@@ -262,8 +277,10 @@ export default function PainelTerritorios(p: Props) {
       : preso ? "como unidade, pel" + (superiorF ? "a " : "o ") + superior.singular
         : inteiro ? (generoF ? "todas as " : "todos os ") + total.toLocaleString("pt-BR") + " " + (total === 1 ? unidade.singular : unidade.plural)
           : n ? n.toLocaleString("pt-BR") + " de " + quantos(total, unidade) : quantos(total, unidade);
+    const nosConjuntos = preso ? 0 : emConjuntos(ids);
     const verTexto = (aberto ? "Fechar a lista " + (generoF ? "das " : "dos ") : "Ver " + (generoF ? "as " : "os ")) + quantos(total, unidade) + " " + doGrupo(grupo);
-    return <li key={grupo.id} data-testid={testid} data-id={grupo.id} data-marcadas={n} data-aberto={aberto ? "true" : "false"}
+    return <li key={grupo.id} data-testid={testid} data-id={grupo.id} data-marcadas={n} data-em-conjuntos={nosConjuntos}
+      data-aberto={aberto ? "true" : "false"}
       data-unidade={unidadeAtiva ? "true" : "false"} data-situacao={unidadeAtiva ? "unidade" : inteiro ? "inteiro" : parcial ? "parcial" : "nenhum"}
       className={"analise-no analise-no-grupo" + (aberto ? " analise-no-aberto" : "")}>
       <div className="analise-no-linha">
@@ -275,7 +292,7 @@ export default function PainelTerritorios(p: Props) {
             aria-label={textoTodasAsUnidadesDoGrupo(p.rotulos, grupo)} onChange={() => alternarGrupo(grupo)}/>
           <span className="analise-no-texto">
             <span className="analise-no-nome">{grupo.nome}{grupo.sigla ? " (" + grupo.sigla + ")" : ""}</span>
-            <span data-testid="analise-grupo-contagem" className="analise-no-contagem">{contagem}</span>
+            <span data-testid="analise-grupo-contagem" className="analise-no-contagem">{contagem}{textoEmConjuntos(nosConjuntos)}</span>
           </span>
         </label>
         {botaoComoUnidade(unidadeAtiva, soO(grupoRotulo), "analise-grupo-so-estado",
@@ -442,6 +459,7 @@ export default function PainelTerritorios(p: Props) {
         const g = p.grupos.find(grupo => grupo.id === item.grupo);
         return <GrupoNaLista key={item.grupo || "unidades"} grupo={item} info={g} rotulo={item.nome || (temGrupos ? "Sem " + grupoRotulo.singular : maiuscula(unidade.plural))}
           unidade={unidade} generoF={generoF} nomeDe={id => nomes.get(id) || nomeCompleto(id)} nomeCompleto={nomeCompleto}
+          emConjuntos={textoEmConjuntos(item.grupo ? emConjuntos(idsDoGrupo(item.grupo)) : emConjuntos(todasAsUnidades))}
           onTirarGrupo={g ? () => tirarGrupo(g) : undefined} rotuloTirarGrupo={g ? "Tirar " + deGrupo(g) : ""} onTirar={tirarUnidade}/>;
       })}
       {!p.base.todos && linhasDosGrupos.length > GRUPOS_A_VISTA && <li><button type="button" data-testid="analise-selecionados-mais" className="analise-link"
@@ -551,14 +569,16 @@ export default function PainelTerritorios(p: Props) {
  * "Ver todos os N", para listas grandes). */
 function GrupoNaLista(p: { grupo: { grupo: string; nome: string; marcadas: number; total: number; inteiro: boolean; ids: string[] };
   info?: GrupoInfo; rotulo: string; unidade: Rotulo; generoF: boolean; nomeDe: (id: string) => string;
-  nomeCompleto: (id: string) => string; onTirarGrupo?: () => void; rotuloTirarGrupo: string; onTirar: (id: string) => void }) {
+  nomeCompleto: (id: string) => string; onTirarGrupo?: () => void; rotuloTirarGrupo: string; onTirar: (id: string) => void;
+  /** " · 27 em conjuntos" (10/11/2026): os do grupo que estão na seleção dentro de um conjunto. */
+  emConjuntos?: string }) {
   const [todas, setTodas] = useState(false);
   const item = p.grupo;
   const ids = todas ? item.ids : item.ids.slice(0, ETIQUETAS_POR_GRUPO);
   return <li data-testid="analise-selecionado" data-grupo={item.grupo} className="analise-selecionado-grupo">
     <div className="analise-selecionado-cabeca">
       <span className="min-w-0"><strong className="text-ink">{p.rotulo}</strong>{" "}<span className="text-slate-600">· {item.inteiro
-        ? (p.generoF ? "todas as " : "todos os ") + item.total : item.marcadas + " de " + quantos(item.total, p.unidade)}</span></span>
+        ? (p.generoF ? "todas as " : "todos os ") + item.total : item.marcadas + " de " + quantos(item.total, p.unidade)}{p.emConjuntos ?? ""}</span></span>
       {p.onTirarGrupo && <button type="button" data-testid="analise-selecionado-tirar-grupo" className="analise-icone analise-icone-pequeno"
         aria-label={p.rotuloTirarGrupo} onClick={p.onTirarGrupo}><X size={13} aria-hidden="true"/></button>}
     </div>

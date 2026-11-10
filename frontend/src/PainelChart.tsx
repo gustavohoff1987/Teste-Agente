@@ -196,10 +196,16 @@ export default function PainelChart(p: Props) {
   };
   const rotulados = grafico.bolhas.filter(bolha => desenhada(bolha) && (selecionados.has(bolha.id) || bolha.tipo === "conjunto" ||
     bolha.referencia || bolha.id === ativo || (comNome && idsDasBases.has(bolha.id)) || realce.has(bolha.id) || !!p.rotuloSempre?.(bolha.item)));
+  // Os nomes não se sobrepõem (10/11/2026, conferência das capturas do comando V22): o que não cabe fica só na dica da bolha. A
+  // bolha sob o mouse ou o foco garante o lugar primeiro; depois, as marcadas e as destacadas pela conversa, as referências, os
+  // conjuntos e os demais.
+  const prioridadeDoRotulo = (bolha: BolhaDesenho) => bolha.id === ativo ? 0 : selecionados.has(bolha.id) || realce.has(bolha.id) ? 1
+    : bolha.referencia ? 2 : bolha.tipo === "conjunto" ? 3 : 4;
   const rotulos = posicionarRotulos([...rotulados.map(bolha => ({ id: bolha.id, x: bolha.x, y: bolha.y, r: bolha.r,
-    largura: larguraDoTexto(textoDoRotulo(bolha)) })), ...contextos.filter(contexto => referenciasComNome || contexto.id === ativo).map(contexto =>
-    ({ id: contexto.id, x: contexto.x, y: contexto.y, r: contexto.r, largura: larguraDoTexto(contexto.texto) }))], grafico.largura - 4, 16,
-    grafico.esquerda);
+    largura: larguraDoTexto(textoDoRotulo(bolha)), prioridade: prioridadeDoRotulo(bolha) })),
+    ...contextos.filter(contexto => referenciasComNome || contexto.id === ativo).map(contexto =>
+      ({ id: contexto.id, x: contexto.x, y: contexto.y, r: contexto.r, largura: larguraDoTexto(contexto.texto), prioridade: contexto.id === ativo ? 0 : 2 }))],
+    grafico.largura - 4, 16, grafico.esquerda, { omitir: true });
   // Ordem de desenho estável: as mais populosas atrás. Não depende do mouse, do foco nem do destaque.
   const ordem = useMemo(() => [...grafico.bolhas].sort((a, b) => (b.item.populacao ?? -1) - (a.item.populacao ?? -1) ||
     a.id.localeCompare(b.id, "pt-BR", { numeric: true })), [grafico]);
@@ -274,6 +280,7 @@ export default function PainelChart(p: Props) {
   const esquerdaPlot = grafico.esquerda, direitaPlot = grafico.largura - grafico.direita;
   const temConjunto = grafico.bolhas.some(bolha => bolha.tipo === "conjunto"), temReferencia = grafico.bolhas.some(bolha => bolha.referencia);
   const temVazada = grafico.bolhas.some(bolha => bolha.vazada && bolha.visivel);
+  const nomesOmitidos = rotulados.filter(bolha => !rotulos.has(bolha.id)).length;
   const simbolos = [temConjunto ? "anel escuro: conjunto (soma das contagens dos componentes, com possível dupla contagem)" : "",
     temReferencia ? "mira: membro da referência (distância 0)" : "",
     contextos.length ? "círculo claro com mira: referência fora da base, no início do eixo (0 km)" : "",
@@ -281,7 +288,8 @@ export default function PainelChart(p: Props) {
     temConjunto && p.distancia ? "traço horizontal: do membro mais próximo ao mais distante do conjunto" : "",
     p.cometa ? "rastro: do valor na competência inicial (círculo vazado) até a atual" +
       (p.trajetoria && grafico.bolhas.some(bolha => bolha.trajeto) ? "; pontos pequenos: os valores dos períodos do meio" : "") : "",
-    temVazada ? "bolha vazada tracejada: valor não avaliável nesta camada (veja Não avaliáveis)" : ""]
+    temVazada ? "bolha vazada tracejada: valor não avaliável nesta camada (veja Não avaliáveis)" : "",
+    nomesOmitidos ? "os nomes que cobririam outros ficam só na dica de cada bolha (passe o mouse ou use as setas)" : ""]
     .filter(Boolean).join("; ").replace(/^./, letra => letra.toUpperCase());
   const linhaH = (valor: number) => posicaoNoEixo(eixoY, valor);
   const dentroDoEixo = (valor: number) => valor >= eixoY.dominio[0] && valor <= eixoY.dominio[1];
@@ -413,7 +421,7 @@ export default function PainelChart(p: Props) {
         {especiais.map(bolha => desenharBolha(bolha, "analise-bolha-destaque",
           selecionados.has(bolha.id) || bolha.tipo === "conjunto" || bolha.referencia || bolha.id === focoEfetivo))}
       </> : ordem.map(bolha => desenharBolha(bolha, "analise-bolha", true))}
-      <g className="analise-rotulos" aria-hidden="true" pointerEvents="none">
+      <g className="analise-rotulos" aria-hidden="true" pointerEvents="none" data-omitidos={nomesOmitidos}>
         {ordem.filter(bolha => rotulos.has(bolha.id)).map(bolha => {
           const rotulo = rotulos.get(bolha.id)!;
           // O nome deslocado da posição junto da bolha (para não cobrir outro) ganha a linha guia até ela (06/11/2026, item 7.2).
@@ -457,7 +465,7 @@ export default function PainelChart(p: Props) {
       {p.legendaCor}
       <div className="min-w-0 max-w-xl space-y-1">
         {notaArranjo && <p data-testid="analise-arranjo-nota">{notaArranjo}</p>}
-        {eixoY && eixoX && <p>Horizontal: {p.porItem ? "distância até a referência mais próxima de cada " + p.rotulos.unidade.singular
+        {eixoY && eixoX && <p>Horizontal: {p.porItem ? "distância até a referência mais próxima de cada " + (temConjunto ? "território" : p.rotulos.unidade.singular)
           : "distância até a referência"}; vertical: {especie.rotulo.toLowerCase()}. Sem reta de tendência nem
           correlação: cada bolha é só um par de valores.{leve ? " Com muitas bolhas, elas ficam semitransparentes e podem se sobrepor." : ""}</p>}
         {simbolos && <p data-testid="analise-simbolos">{simbolos}.</p>}

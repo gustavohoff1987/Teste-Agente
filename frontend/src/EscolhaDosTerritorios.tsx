@@ -203,7 +203,8 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
     const previa = resposta?.[lado].previa;
     if (pendencias[lado].length && !previa) return "Complete " + (lado === "base" ? "a base" : "a referência") + " para ver quantos entram.";
     if (!previa) return carregando ? "Contando…" : "";
-    const quantosEntram = lado === "base" ? quantos(previa.total, unidade) + (previa.total === 1 ? " entra na base" : " entram na base")
+    // Com conjuntos na base (10/11/2026), a contagem os inclui, como o passo "Base": "12 conjuntos e 35 territórios individuais".
+    const quantosEntram = lado === "base" ? contagemDaBase(previa.total) + (previa.total + conjuntosDaBase.length === 1 ? " entra na base" : " entram na base")
       : quantosCandidatos(previa.total, unidade) + " a referência";
     const resto = previa.total - previa.nomes.length;
     return quantosEntram + (previa.nomes.length ? ": " + previa.nomes.join(", ") + (resto > 0 ? " e mais " +
@@ -254,7 +255,10 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
             <Plus size={13} aria-hidden="true"/>{NOMES_DOS_FILTROS[item]}</button>)}
         </div>
         <p className="territorios-apoio" data-testid={id("apoio-filtros")}>{TEXTO_DE_APOIO_DOS_FILTROS}</p>
-        <p className="territorios-contagem" data-testid={id("contagem-filtros")}>{contagem(contagens?.filtros, contagens?.filtros === 1 ? " resta" : " restam")}
+        <p className="territorios-contagem" data-testid={id("contagem-filtros")}>{lado === "base" && conjuntosDaBase.length
+          ? contagemDaBase(contagens?.filtros) + (contagens?.filtros === null || contagens?.filtros === undefined ? ""
+            : contagens.filtros + conjuntosDaBase.length === 1 ? " resta" : " restam")
+          : contagem(contagens?.filtros, contagens?.filtros === 1 ? " resta" : " restam")}
           {!!contagens?.naoAvaliaveis && " · " + quantos(contagens.naoAvaliaveis, unidade) + " com filtro não avaliável"}</p>
       </fieldset>
     </>;
@@ -278,7 +282,7 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
           mostra a menor distância, com a referência desse membro, e a maior.</p>}
         <button type="button" data-testid="territorios-base-alterar" className="analise-botao-secundario" onClick={p.onAlterarSelecao}>
           Alterar a seleção</button>
-        <p className="territorios-contagem" data-testid="territorios-base-contagem-partir">{contagem(contagens?.partirDe)}</p>
+        <p className="territorios-contagem" data-testid="territorios-base-contagem-partir">{contagemDaBase(contagens?.partirDe)}</p>
       </fieldset>
       {filtrosDo("base")}
       <p className="territorios-contagem" data-testid="territorios-base-contagem-final">{contagemDaBase(contagens?.final)}</p>

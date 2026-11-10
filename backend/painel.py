@@ -3377,7 +3377,7 @@ def _state_notes(ctx, final, initial):
              "Valores ausentes e denominadores nulos não são transformados em zero; itens não avaliáveis seguem com o "
              "motivo.",
              "Unidade de contagem: " + unit + ". Não há conversão entre pessoas, vínculos e postos.",
-             "Estados e municípios não aparecem juntos no mesmo gráfico nem são somados entre si."]
+             NOTE_SEPARADOS]
     for measures in (final, initial):
         if measures is None:
             continue
@@ -3677,7 +3677,8 @@ def _compute_grupos_da_planilha(ctx, options, spec) -> dict:
               ("a soma, com possível dupla contagem (quem atua em mais de " + unit.g("um ", "uma ") + unit.singular +
                " conta em cada " + unit.g("um", "uma") + ")" if soma else "as pessoas únicas, pelo identificador individual") +
               "; a população é a soma d" + unit.g("os", "as") + " " + unit.plural + ", cada " + unit.g("um", "uma") +
-              " uma vez. " + group.Plural + " e " + unit.plural + " não aparecem juntos no mesmo gráfico."),
+              " uma vez. " + group.Plural + " e " + unit.plural + " nunca são somados entre si nem misturados nos mesmos "
+              "grupos por posição."),
              "Valores ausentes e denominadores nulos não são transformados em zero; itens não avaliáveis seguem com o motivo."]
     body = {"competencia": ctx.period, "competencia_inicial": initial_period, "categoria": ctx.category,
             "versao_base": (ctx.frame.attrs.get("source") or {}).get("version"), "chave_execucao": None,
@@ -3877,7 +3878,9 @@ def _compute_brazil(ctx, options, spec) -> dict:
 # territoriais diferentes" na apresentação). A Análise Espacial mede a distância de cada município: os estados ficam de fora, com
 # o motivo, em `fora_da_analise`.
 NIVEIS_JUNTOS = "NIVEIS_TERRITORIAIS_DIFERENTES"
-NOTE_SEPARADOS = "Estados e municípios não aparecem juntos no mesmo gráfico nem são somados entre si."
+# Desde 10/11/2026 (os dois níveis podem estar na mesma seleção, comando V22): a nota diz o que nunca acontece — a soma e a
+# mistura nos grupos por posição — e não mais que eles "não aparecem juntos".
+NOTE_SEPARADOS = "Estados e municípios nunca são somados entre si nem misturados nos mesmos grupos por posição."
 POR_NIVEL_FORA = ("itens", "resumo", "sessao")
 
 

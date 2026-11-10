@@ -483,11 +483,16 @@ conjuntos de estados pela soma das fontes estaduais. Depois, junta as respostas,
 - **Medidas de posição:** quantis, ordenação, grupos por posição e faixas ficam dentro de cada nível, nunca misturando estados e
   municípios (RQ-DAD-30). Com um só estado como unidade, os grupos por posição ficam só nos municípios.
 - **`comparar`:** só entre itens do mesmo nível; misturar → 422 "A comparação põe lado a lado territórios do mesmo nível: …".
-- **`limitacoes`** traz `NIVEIS_TERRITORIAIS_DIFERENTES`; as notas trocam "Estados e municípios não aparecem juntos no mesmo
-  gráfico …" pela nota dos níveis ("Estados como unidade e municípios na mesma análise (comando V22): cada nível vem da própria
+- **`limitacoes`** traz `NIVEIS_TERRITORIAIS_DIFERENTES`; as notas trocam "Estados e municípios nunca são somados entre si nem
+  misturados nos mesmos grupos por posição." (o texto desde 10/11/2026; antes, "… não aparecem juntos no mesmo gráfico nem são
+  somados entre si.") pela nota dos níveis ("Estados como unidade e municípios na mesma análise (comando V22): cada nível vem da própria
   fonte … e nunca é somado ao outro; …"). A chave de execução é a das duas respostas.
-- **`resumo`:** a frase de cada nível, uma depois da outra, com os caminhos levados à resposta inteira e as contagens por nível
-  (`resumo.contagens` com `municipios` e `estados`), conferida como sempre (`resumo_painel.summary_por_nivel`).
+- **`resumo`:** desde 10/11/2026, uma frase de abertura com o que o gráfico tem em cada nível ("Em junho de 2024, o gráfico tem
+  35 municípios, 12 conjuntos e 2 estados como unidade.") e, depois, a frase de cada nível, sem repetir a competência nem a
+  contagem ("Entre os municípios, a densidade vai de …"; "Entre os estados como unidade, …"; com um estado só, "Estado como
+  unidade: Pará (PA), densidade de …"), com os caminhos levados à resposta inteira e as contagens por nível (`resumo.contagens`
+  com `municipios` e `estados`), conferida como sempre (`resumo_painel.summary_por_nivel`). Até 10/11/2026, a frase inteira de
+  cada nível, uma depois da outra.
 - **Análise Espacial** (`referencia` ou `consulta`): a distância é medida de cada município (CAP-ESP-02), e os estados como
   unidade e os conjuntos de estados ficam de fora, em **`fora_da_analise`** (`[{"id", "rotulo", "tipo", "motivo"}]`, com o motivo
   "Fora da Análise Espacial: o estado como unidade não tem um ponto único, …"), com a nota de quantos ficaram de fora; os itens são

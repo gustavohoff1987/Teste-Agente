@@ -645,8 +645,10 @@ def main():
         assert len(carajas["itens"]) == 143 and not {PARAUAPEBAS, MARABA} & {item["id"] for item in carajas["itens"]}, \
             "o grupo fica no lugar das duas"
         expect(agregar).to_have_count(0)
+        # Os dois do conjunto continuam na seleção, dentro dele: a lista e a árvore dizem quantos (10/11/2026).
         expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + PA + '"]')).to_contain_text(
-            "Pará · 142 de 144 municípios")
+            "Pará · 142 de 144 municípios · 2 em conjuntos")
+        expect(territorios.locator('[data-testid="analise-grupo"][data-id="' + PA + '"]')).to_have_attribute("data-em-conjuntos", "2")
         texto_do_grupo = territorios.get_by_test_id("analise-selecionado-conjunto-texto")
         expect(texto_do_grupo).to_have_text("Carajás · conjunto · 2 municípios · 894 médicos · 1,52 por mil", timeout=60000)
         expect(territorios.get_by_test_id("analise-selecionado-ressalva")).to_have_text(re.compile(

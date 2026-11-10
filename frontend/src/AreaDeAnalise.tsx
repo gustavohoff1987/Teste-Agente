@@ -499,8 +499,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       (d.estados.length > 0 || d.conjuntos.some(conjuntoDeEstados)) ? { ...d, estados: [], conjuntos: d.conjuntos.filter(c => !conjuntoDeEstados(c)) } : d;
     const lugar = familia === "espacial" && medido.consulta ? lugarDaConsulta(medido.consulta, { rotulos, brasil: tipo === "brasil", grupos, nomes,
       selecao: lugarDe(medido) }) : lugarDe(medido);
+    // Os tipos de território no desenho (10/11/2026): com conjuntos ou estados como unidade, o subtítulo diz "Cada bolha é um
+    // município, um conjunto ou um estado (como unidade)"; só com as unidades, como antes.
+    const tipos = medido.nivel === "municipios" ? { unidades: !baseVazia(medido.base), conjuntos: medido.conjuntos.length > 0, estados: medido.estados.length > 0 }
+      : emGrupos(medido.nivel) ? { unidades: medido.estados.length > 0 || !medido.conjuntos.length, conjuntos: medido.conjuntos.length > 0, estados: false } : null;
     return tituloDaAnalise({ fonte: tipo, familia, visao: visaoEfetiva(d), indicador: d.indicador, nivel: d.nivel, categoria: d.categoria,
-      competencia: d.competencia, janela: d.janela, rotatividade: d.rotatividade, lugar, rotulos,
+      competencia: d.competencia, janela: d.janela, rotatividade: d.rotatividade, lugar, rotulos, tipos,
       serie: familia === "tendencia" && d.visao === "series" ? intervaloDaSerie(d, periodos) : undefined });
   }, [tipo, lugarDe, rotulos, nomes, periodos, grupos]);
 
@@ -1460,16 +1464,16 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   function focarBase(id: string) {
     setFocoEspacial(atual => atual === id ? null : id);
   }
-  /** "MARABA (PA) → referência mais próxima: ITUPIRANGA (PA) · 47,93 km (distância geodésica do motor: 47,9312… km)". */
+  /** "MARABA (PA) → referência mais próxima: ITUPIRANGA (PA) · 47,93 km": a distância do motor, sem recálculo para o desenho, no
+   * formato da tela (10/11/2026; antes, também com todas as casas, que já vão no CSV). */
   const foraDaRotacao = useMemo(() => foraDaRotatividade(def, id => grupos.find(item => item.id === id)?.nome ?? id,
     rotulos.grupo ?? ROTULOS_GENERICOS.grupo!), [def.nivel, def.estados, def.conjuntos, grupos, rotulos]);
   function textoDoFoco(par: (typeof pares)[number]): string {
     const item = resposta?.itens.find(atual => atual.id === par.base.id);
     const distancia = item?.distancia_km ?? null;
-    const exata = distancia === null ? "" : String(distancia).replace(".", ",");
     return par.base.rotulo + " → " + (par.referencias.length > 1 ? "referências mais próximas (empate): " : "referência mais próxima: ") +
       (par.referencias.map(ref => ref.rotulo).join(", ") || "nenhuma") + (distancia === null ? " · distância não avaliável"
-        : " · " + formatarNumero(distancia) + " km (distância geodésica do motor, em linha reta: " + exata + " km)") +
+        : " · " + formatarNumero(distancia) + " km") +
       (item?.tipo === "conjunto" && item.membroDaReferencia ? " · pelo membro mais próximo, " + item.membroDaReferencia.rotulo : "") + ".";
   }
   /** Limpar filtros (a função das análises, 24/10/2026): a régua, as condições, a ordenação, a comparação, o filtro da classe e os
@@ -1656,8 +1660,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
               : camadaFinal === "ordem" ? maiuscula(grupoDaLegenda) + " como unidade: posições próprias, sem misturar com " + artigo(rotulos.unidade, true) + " " +
                 rotulos.unidade.plural + "." : null;
     return <ul data-testid={id("analise-legenda-cor")} data-camada={camadaFinal} className="flex flex-col gap-1" aria-label="Legenda das cores">
-      {dosEstados && <li data-testid={id("analise-legenda-nivel-unidades")} className="leading-4 font-semibold">{maiuscula(rotulos.unidade.plural)}
-        {" "}(e conjuntos de {rotulos.unidade.plural}):</li>}
+      {dosEstados && <li data-testid={id("analise-legenda-nivel-unidades")} className="leading-4 font-semibold">{maiuscula(rotulos.unidade.plural)}:</li>}
       {itensLegenda.map(item => <li key={item.chave} data-testid={id("analise-legenda-cor-item")} data-chave={item.chave} data-contagem={item.contagem ?? ""}
         data-conjuntos={item.porTipo ? item.porTipo.conjuntos ?? 0 : ""} className="flex items-center gap-1.5">
         <span className="analise-amostra-bolha" style={item.vazada ? amostraVazada : { background: item.cor ?? paleta.bolha }} aria-hidden="true"/>
@@ -1682,11 +1685,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     ...(emGrupos(resposta?.nivel) && tipo === "arquivo" ? [maiuscula("cada " + grupoDasBolhas.singular) + " vem d" +
       artigo(unidade, true) + " " + unidade.plural + " del" + (generoDe(grupoDasBolhas) === "f" ? "a" : "e") + ": " +
       (somaNosGrupos ? "a soma. " + RESSALVA_DA_SOMA : "as pessoas únicas, pelo identificador individual (quem atua em mais de " + umA(unidade) +
-        " conta uma vez).") + " Os dois níveis nunca aparecem juntos."] : []),
+        " conta uma vez).") + " Os dois níveis nunca são somados nem misturados nos mesmos grupos."] : []),
     // As bolhas dos estados, na base do Brasil (a fonte estadual de profissionais únicos).
     ...(resposta?.nivel === "estados" && tipo === "brasil" ? [maiuscula("cada " + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular) + " conta os profissionais únicos da " +
       "fonte estadual: quem atua em mais de " + umA(unidade) + " conta uma vez. A bolha não é a soma das bolhas d" + artigo(unidade, true) + " " +
-      unidade.plural + ", e os dois níveis nunca aparecem juntos."] : []),
+      unidade.plural + "; os dois níveis nunca são somados nem misturados nos mesmos grupos."] : []),
   ];
   // Os textos que nomeiam o nível seguem o nível em uso (07/11/2026, item 1.3 do comando): vendo por estado, "Nenhum estado
   // recebeu classe", não "Nenhum município".

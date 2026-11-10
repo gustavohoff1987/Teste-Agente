@@ -9,7 +9,9 @@ import { useNarrow } from "./useNarrow";
 // compacta. A posição fica no localStorage, sempre com try/catch (sem armazenamento, vale só nesta tela). No celular, a caixa
 // fica ancorada embaixo. A conversa mantém o id "assistente". Desde 04/11/2026, a caixa inteira cabe na janela em qualquer
 // altura: ela nunca passa da altura da janela, o histórico e a orientação rolam por dentro e o campo de envio fica sempre à
-// vista (styles.css, "Caixa da conversa inteira na janela").
+// vista (styles.css, "Caixa da conversa inteira na janela"). Desde 10/11/2026 (conferência das capturas do comando V22), a caixa
+// minimizada é compacta (o rosto, "Assistente" e o botão que a abre), e, no canto de sempre, a página reserva o espaço dela no fim
+// do painel da Seleção (a variável --espaco-da-conversa), para ela não cobrir textos nem botões.
 
 const CHAVE = "adt:painel-chat:v1";
 const PASSO = 16, PASSO_LONGO = 64;
@@ -81,6 +83,13 @@ export default function ChatFloatingBox({ children, ocupado = false, ampla = fal
     const timer = window.setTimeout(() => gravar({ x: posicao?.x ?? null, y: posicao?.y ?? null, minimizada }), 150);
     return () => window.clearTimeout(timer);
   }, [posicao, minimizada]);
+  // Minimizada no canto de sempre (ou ancorada embaixo, no celular), a caixa fica por cima do fim da tela: quem prende um painel à
+  // janela desconta esse espaço.
+  useEffect(() => {
+    const raiz = document.documentElement;
+    raiz.style.setProperty("--espaco-da-conversa", minimizada && (narrow || !posicao) ? "72px" : "0px");
+    return () => { raiz.style.removeProperty("--espaco-da-conversa"); };
+  }, [minimizada, narrow, posicao]);
 
   function agarrar(event: PointerEvent<HTMLDivElement>) {
     if (narrow || event.button !== 0 || (event.target as Element).closest("button")) return;
@@ -127,11 +136,12 @@ export default function ChatFloatingBox({ children, ocupado = false, ampla = fal
       aria-label={narrow ? "Conversa com o agente" : "Conversa com o agente. Para mover a caixa, arraste o cabeçalho ou, com ele focado, use as setas; Shift acelera e Home volta ao canto."}
       onPointerDown={agarrar} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar} onKeyDown={teclado}>
       <BrandAvatar size={34}/>
-      <div className="min-w-0 flex-1">
+      {minimizada ? <p data-testid="painel-chat-compacta" className="shrink-0 whitespace-nowrap text-[14px] font-bold tracking-[-0.01em] text-ink">
+        {ocupado ? "Interpretando…" : "Assistente"}</p> : <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">Agente Diagnóstico Territorial</p>
         <p className="truncate text-[12px] text-slate-600">{ocupado ? "Interpretando o pedido…" : narrow ? "Conversa sobre o gráfico" : "Arraste pelo cabeçalho para mover"}</p>
-      </div>
-      {!narrow && <GripHorizontal size={16} aria-hidden="true" className="shrink-0 text-slate-400"/>}
+      </div>}
+      {!narrow && !minimizada && <GripHorizontal size={16} aria-hidden="true" className="shrink-0 text-slate-400"/>}
       <button type="button" data-testid="painel-chat-minimizar" aria-expanded={!minimizada} aria-controls="painel-chat-corpo"
         aria-label={minimizada ? "Abrir a conversa" : "Minimizar a conversa"} title={minimizada ? "Abrir a conversa" : "Minimizar a conversa"}
         onClick={() => setMinimizada(valor => !valor)}

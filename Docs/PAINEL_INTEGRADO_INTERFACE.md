@@ -204,7 +204,7 @@ descrição de 05 a 09/11/2026 que vem depois dela (marcada como histórico).
   membro mais próximo (do motor), com a ligação no gráfico e no mapa, e a linha acima do desenho conta "Base: 35 territórios
   individuais e 12 conjuntos · cada um ligado … (o conjunto, pelo membro mais próximo)". O foco: clique, toque ou Enter numa bolha
   da base (a dica diz "Destacar a referência e a distância", no lugar de "Abrir") destaca a base, a referência dela, a ligação e a
-  distância exata do motor e esmaece as demais relações sem apagá-las (`analise-foco-espacial`, com "Limpar o foco",
+  distância do motor (sem recálculo para o desenho) e esmaece as demais relações sem apagá-las (`analise-foco-espacial`, com "Limpar o foco",
   `analise-foco-limpar`); focar outra base troca o foco, e o mapa acompanha o gráfico (e o contrário). Na Análise Espacial e na
   Rotatividade, o título fala só do que a análise mede (sem os estados como unidade, que ficam no aviso).
 - **Saíram:** o "Ver por" (na Seleção e na faixa do lugar; `opcoesVerPor` ficou em `painelModel.ts`, sem uso na tela), os modos
@@ -214,6 +214,40 @@ descrição de 05 a 09/11/2026 que vem depois dela (marcada como histórico).
   individualizados, o mini mapa dos conjuntos, a regra com a seleção ("Reaplicar em outra competência"), o conjunto (a soma do
   motor, a ressalva, o ✎ e o ×, o mesmo nome em todo lugar), o toque nas bolhas (a bolha de um estado abre os municípios dele), a
   abertura sem territórios e a seleção vazia.
+
+#### Ajustes de 10/11/2026 (conferência da pausa 1)
+
+Pedidos pelo responsável ao conferir as capturas da etapa 2; onde divergem, valem sobre o texto acima e sobre o histórico abaixo.
+
+- **Subtítulo:** nomeia os tipos presentes no desenho (`umDeCadaTipo`, em `painelModel.ts`): "Cada bolha é um município, um
+  conjunto ou um estado (como unidade). O tamanho mostra a população."; só com municípios, como antes. Na Análise Espacial com
+  conjuntos na base, "a distância até a referência mais próxima de cada território" (no subtítulo e na nota abaixo do gráfico).
+- **Título:** o lugar inclui os conjuntos, numa lista só, como o resumo da seleção (`lugarDoUniverso`): "Densidade de médicos em
+  35 municípios do Amazonas, em 12 conjuntos, no Pará (estado) e na Bahia (estado) · junho de 2024"; na Análise Espacial (que
+  deixa os estados de fora), "· 35 municípios do Amazonas e 12 conjuntos ·"; só com conjuntos, "em 3 conjuntos".
+- **Notas dos estados** (abaixo do gráfico, no nível dos estados): "… os dois níveis nunca são somados nem misturados nos mesmos
+  grupos." (base do Brasil e planilha), no lugar de "nunca aparecem juntos".
+- **Legenda por nível:** a camada dos municípios é "Municípios:" (os conjuntos ficam fora dos grupos por posição).
+- **Contadores:** na Escolha dos territórios, com conjuntos na base, a seleção em uso (`territorios-base-contagem-partir`), o que
+  resta depois dos filtros (`territorios-base-contagem-filtros`) e a prévia contam "12 conjuntos e 35 territórios individuais",
+  como o passo "Base". Na árvore, o estado com municípios em conjuntos diz "35 de 62 municípios · 27 em conjuntos"
+  (`analise-grupo-contagem`, com `data-em-conjuntos`), a lista dele repete ("35 de 62 municípios marcados; 27 em conjuntos."), e
+  cada um desses municípios leva a marca "em conjunto" (`analise-unidade-em-conjunto`, com o nome do conjunto no título e em
+  `data-conjunto`); na lista dos selecionados, "Amazonas · 35 de 62 municípios · 27 em conjuntos".
+- **Sem seleção:** o resumo do painel direito (`analise-selecionados-resumo`) diz "Nenhum território selecionado", como a barra
+  do alto (antes, "Nenhum município marcado").
+- **Foco da Análise Espacial:** a distância uma vez, no formato da tela ("… · 769,16 km"). "Exata" quer dizer a distância do
+  motor, sem recálculo para o desenho; a precisão integral vai no CSV.
+- **Frase-resumo da seleção mista:** uma frase de abertura e, depois, a de cada nível
+  ([Painel integrado](PAINEL_INTEGRADO.md#níveis-na-mesma-seleção-comando-v22)).
+- **Nomes sem sobreposição:** no gráfico (`posicionarRotulos` com `omitir`), o nome que cobriria outro dos dois lados da bolha
+  não é desenhado e fica na dica; garantem o lugar, nesta ordem, a bolha sob o mouse ou o foco, as marcadas e as destacadas pela
+  conversa, as referências, os conjuntos e os demais (`g.analise-rotulos` traz `data-omitidos`, e a nota dos símbolos diz "os
+  nomes que cobririam outros ficam só na dica de cada bolha"). Nos mini mapas (`MapaDosConjuntos.tsx`), o nome de um conjunto é
+  desenhado por cima dos pontos, com halo, acima do contorno ou, sem lugar ali, abaixo dele; não cobre outro nome nem pontos em
+  destaque e, sem lugar, fica só na dica do contorno (`analise-mapa-nomes-na-dica`, na legenda).
+- **Caixa da conversa minimizada:** compacta (o rosto, "Assistente" e o botão que a abre). No canto de sempre, o painel direito
+  da Seleção e o painel lateral das análises terminam acima dela (a variável `--espaco-da-conversa`).
 
 ### Até 09/11/2026: a seleção unificada, o Ver por e os modos (histórico)
 

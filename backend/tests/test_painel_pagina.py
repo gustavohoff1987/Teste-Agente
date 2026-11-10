@@ -347,6 +347,17 @@ def test_estados_como_unidade_junto_com_municipios_cada_nivel_pelo_proprio_calcu
     assert any("na mesma análise (comando V22)" in note for note in body["notas"])
     # A frase-resumo de cada nível, conferida pelo motor (resumo_painel.verify), com as contagens de cada um.
     assert body["resumo"] is not None and set(body["resumo"]["contagens"]) == {"municipios", "estados"}
+    # Desde 10/11/2026: uma frase de abertura só, com o que o gráfico tem em cada nível, e depois a de cada nível, sem repetir a
+    # competência nem "o gráfico tem".
+    texto = body["resumo"]["texto"]
+    assert texto.startswith("Em junho de 2024, o gráfico tem 2 municípios e 1 estado como unidade. Entre os municípios, a "
+                            "densidade vai de "), texto
+    assert texto.count("o gráfico tem") == 1 and texto.count("Em junho de 2024") == 1, texto
+    assert " Estado como unidade: " + by_id(body)["uf:15"]["rotulo"] + ", densidade de " in texto, texto
+    varios = ok(page(info, base={"municipios": {"ids": [MANAUS, TEFE]}}, estados_unidade=["15"],
+                     conjuntos=[{"id": "c1", "rotulo": "Par", "membros": [PARINTINS, MANACAPURU]}]))["resumo"]["texto"]
+    assert varios.startswith("Em junho de 2024, o gráfico tem 2 municípios, 1 conjunto e 1 estado como unidade. Entre os "
+                             "municípios, a densidade vai de "), varios
     # Nunca juntos: o estado inteiro (como unidade ou num conjunto de estados) e os municípios dele. (O conjunto de estados junto
     # com municípios de outro estado está em test_real_estados_como_unidade_e_conjunto_de_estados_com_municipios: o catálogo
     # sintético só tem o Amazonas e o Pará.)

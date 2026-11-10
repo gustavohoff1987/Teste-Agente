@@ -442,6 +442,21 @@ def _simples_resultado(c: Composicao, body: dict, alvo: list[int], plural: str, 
         _extremos(c, indicador, plural)
 
 
+def _um_de_cada_tipo(body: dict) -> str:
+    """"um município, um conjunto ou um estado (como unidade)" (10/11/2026): os tipos de item que a resposta traz, na ordem
+    unidade, conjunto e estado como unidade; só com as unidades, "um município", como antes."""
+    singular, _, feminino = unidades(body)
+    base = ("uma " if feminino else "um ") + singular
+    tipos = {item.get("tipo") for item in body.get("itens") or []}
+    if body.get("nivel") != "municipios":
+        partes = ([base] if tipos - {"conjunto"} or not tipos else []) + (["um conjunto"] if "conjunto" in tipos else [])
+    else:
+        grupo = (body.get("rotulos") or {}).get("grupo") or {"singular": "estado", "plural": "estados", "genero": "m"}
+        partes = ([base] if "municipio" in tipos or not tipos else []) + (["um conjunto"] if "conjunto" in tipos else []) + \
+            ([("uma " if _feminino(grupo) else "um ") + grupo["singular"] + " (como unidade)"] if "estado" in tipos else [])
+    return partes[0] if len(partes) == 1 else ", ".join(partes[:-1]) + " ou " + partes[-1]
+
+
 def _didatico(c: Composicao, body: dict, alvo: list[int], plural: str) -> None:
     indicador = body["indicador"]
     familia = "tendencia" if body.get("tendencia") is not None else "espacial" if body.get("referencia") is not None \
@@ -457,8 +472,7 @@ def _didatico(c: Composicao, body: dict, alvo: list[int], plural: str) -> None:
         for indice in alvo:
             c.text("\n• ")
             _fatos_da_unidade(c, indice, "didatico")
-    c.text("\n4. Como ler: cada bolha é " + ("uma " if unidades(body)[2] else "um ") + unidades(body)[0] +
-           "; a altura mostra o valor, e o tamanho, a população.")
+    c.text("\n4. Como ler: cada bolha é " + _um_de_cada_tipo(body) + "; a altura mostra o valor, e o tamanho, a população.")
     c.text("\n5. O que o resultado não diz: ele descreve os valores; não identifica causas nem diz se um valor é "
            "adequado ou não (esta versão não tem critério normativo).")
 

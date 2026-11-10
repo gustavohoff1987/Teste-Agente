@@ -281,6 +281,16 @@ export function textoInstrucaoGrupos(rotulos: RotulosTerritoriais): string {
 }
 /** "Cada bolha é um município. O tamanho mostra a população." */
 export const textoCadaBolha = (rotulo: Rotulo) => "Cada bolha é " + umA(rotulo) + ". O tamanho mostra a população.";
+/** Os tipos de território que uma análise desenha (comando V22: municípios, conjuntos e estados como unidade na mesma seleção). */
+export type TiposNaAnalise = { unidades: boolean; conjuntos: boolean; estados: boolean };
+/** "um município, um conjunto ou um estado (como unidade)" (10/11/2026): os tipos presentes no desenho, na ordem unidade, conjunto
+ * e estado como unidade. Sem os tipos (ou só com as unidades), "um município", como antes. */
+export function umDeCadaTipo(rotuloBolha: Rotulo, grupo: Rotulo, tipos?: TiposNaAnalise | null): string {
+  const partes = !tipos ? [] : [...(tipos.unidades ? [umA(rotuloBolha)] : []), ...(tipos.conjuntos ? ["um conjunto"] : []),
+    ...(tipos.estados ? [umA(grupo) + " (como unidade)"] : [])];
+  if (!partes.length) return umA(rotuloBolha);
+  return partes.length === 1 ? partes[0] : partes.slice(0, -1).join(", ") + " ou " + partes[partes.length - 1];
+}
 
 // ================================================================================================ indicadores e famílias
 export const INDICADORES: Record<PainelIndicador, { rotulo: string; eixo: string; unidade: string; contagem: boolean }> = {
@@ -411,6 +421,8 @@ export function unidadesNoUniverso(base: PainelMunicipios, grupos: GrupoInfo[], 
 }
 
 export type Lugar = { lugar: string; curto: string };
+/** O que a tela diz quando nada está selecionado, no alto e no painel da Seleção. */
+export const TEXTO_NENHUM_TERRITORIO = "Nenhum território selecionado";
 /** "no Amazonas", "na Bahia", "em Santa Catarina": a preposição do nome do grupo pela gramática do motor ("Municípios do
  * Amazonas"); sem ela (numa planilha), "em <nome>". */
 function emGrupo(g: GrupoInfo | undefined, id: string): string {
@@ -433,18 +445,21 @@ export function lugarDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios;
   /** Os grupos de cima (07/11/2026): no nivel "regioes", eles são os itens, com o nome do grupo de cima. */
   regioes?: GrupoInfo[] }): Lugar {
   if (c.nivel === "regioes") return lugarDoUniverso({ ...c, nivel: "estados", grupos: c.regioes ?? [], rotulos: rotulosDaVista(c.rotulos, "regioes") });
-  // Estados como unidade junto com os municípios (comando V22): "nos municípios do Amazonas e no Pará (estado)".
-  if (c.nivel === "municipios" && c.estados?.length) {
-    const resto = lugarDoUniverso({ ...c, estados: [] });
+  // Estados como unidade e conjuntos junto com os municípios (comando V22): uma lista só, como o resumo da seleção — "em 35
+  // municípios do Amazonas, em 12 conjuntos, no Pará (estado) e na Bahia (estado)". Os conjuntos entram no lugar desde 10/11/2026
+  // (antes, o título só os citava quando não havia mais nada: "nos conjuntos escolhidos").
+  if (c.nivel === "municipios" && (c.estados?.length || c.conjuntos)) {
+    const resto = baseVazia(c.base) ? null : lugarDoUniverso({ ...c, estados: [], conjuntos: 0 });
     const g = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
     const info = (id: string) => c.grupos.find(item => item.id === id);
-    // Uma lista só: "em 35 municípios do Amazonas, no Pará (estado) e na Bahia (estado)".
-    const estados = c.estados.length <= 2 ? c.estados.map(id => emGrupo(info(id), id) + " (" + g.singular + ")")
-      : ["em " + quantos(c.estados.length, g) + " como unidade"];
-    const curtos = c.estados.length <= 2 ? c.estados.map(id => (info(id)?.nome || id) + " (" + g.singular + ")")
-      : [quantos(c.estados.length, g) + " como unidade"];
-    return resto.lugar ? { lugar: emLista([resto.lugar, ...estados]), curto: emLista([resto.curto, ...curtos]) }
-      : { lugar: emLista(estados), curto: emLista(curtos) };
+    const comoUnidade = c.estados ?? [];
+    const conjuntos = c.conjuntos ? [inteiro.format(c.conjuntos) + (c.conjuntos === 1 ? " conjunto" : " conjuntos")] : [];
+    const estados = comoUnidade.length <= 2 ? comoUnidade.map(id => emGrupo(info(id), id) + " (" + g.singular + ")")
+      : ["em " + quantos(comoUnidade.length, g) + " como unidade"];
+    const curtos = comoUnidade.length <= 2 ? comoUnidade.map(id => (info(id)?.nome || id) + " (" + g.singular + ")")
+      : [quantos(comoUnidade.length, g) + " como unidade"];
+    return { lugar: emLista([...(resto?.lugar ? [resto.lugar] : []), ...conjuntos.map(texto => "em " + texto), ...estados]),
+      curto: emLista([...(resto ? [resto.curto] : []), ...conjuntos, ...curtos]) };
   }
   const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
   const origem = nomeDoTodo(c.brasil, c.rotulos);
@@ -495,14 +510,15 @@ export function lugarDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios;
 
 /** O que está na análise, em poucas palavras (24/10/2026, no lugar da trilha "Brasil › Amazonas", que voltava aos estados
  * trocando a seleção): na aba Seleção de Territórios e nas análises. "Brasil (total nacional)", "Todos os estados (27)", "Bahia e
- * Santa Catarina", "Amazonas (62 municípios)", "3 municípios da Bahia", "12 municípios de 2 estados", "Nenhum município marcado". */
+ * Santa Catarina", "Amazonas (62 municípios)", "3 municípios da Bahia", "12 municípios de 2 estados". Sem nada, "Nenhum território
+ * selecionado" (10/11/2026; antes, "Nenhum município marcado" ou "Nenhum estado marcado"), como na barra do alto. */
 export function resumoDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios; estados: string[]; conjuntos: number; grupos: GrupoInfo[];
   rotulos: RotulosTerritoriais; total: number; grupoDe: (id: string) => string; nomes?: Map<string, string>;
   /** Os grupos de cima (07/11/2026): no nivel "regioes", "Todas as zonas (2)". */
   regioes?: GrupoInfo[] }): string {
   if (c.nivel === "regioes") return resumoDoUniverso({ ...c, nivel: "estados", grupos: c.regioes ?? [], rotulos: rotulosDaVista(c.rotulos, "regioes") });
   const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
-  const nenhum = (rotulo: Rotulo) => "Nenhum" + (fem(rotulo) ? "a " : " ") + rotulo.singular + " marcad" + (fem(rotulo) ? "a" : "o");
+  const nenhum = (_rotulo: Rotulo) => TEXTO_NENHUM_TERRITORIO;
   const nome = (id: string) => c.grupos.find(item => item.id === id)?.nome || id;
   if (c.nivel === "brasil") return "Brasil (total nacional)";
   const conjuntosDoNivel = c.conjuntos ? " e " + c.conjuntos + (c.conjuntos === 1 ? " conjunto" : " conjuntos") : "";
@@ -1466,16 +1482,22 @@ export function caudaDoCometa(dx: number, dy: number, r: number): string {
 }
 
 export type Rotulo2 = { dx: number; dy: number; ancora: "start" | "end" | "middle" };
-/** Rótulos diretos seletivos: à direita da bolha (à esquerda perto da borda), deslocados na vertical quando colidem. */
-export function posicionarRotulos(itens: { id: string; x: number; y: number; r: number; largura: number }[], limite: number,
-  altura = 16, inicio = -Infinity): Map<string, Rotulo2> {
+/** Rótulos diretos seletivos: à direita da bolha (à esquerda perto da borda), deslocados na vertical quando colidem. Com `omitir`
+ * (10/11/2026, conferência das capturas do comando V22), o nome que cobriria outro em todas as posições possíveis (dos dois lados
+ * da bolha) não é desenhado: fica na dica dela. A `prioridade` (a menor primeiro) diz quais nomes garantem o lugar antes dos
+ * demais. Sem `omitir`, como antes: o nome sem lugar livre fica junto da bolha. */
+export function posicionarRotulos(itens: { id: string; x: number; y: number; r: number; largura: number; prioridade?: number }[], limite: number,
+  altura = 16, inicio = -Infinity, opcoes: { omitir?: boolean } = {}): Map<string, Rotulo2> {
   const ocupados: { x0: number; x1: number; y0: number; y1: number }[] = [];
   const saida = new Map<string, Rotulo2>();
-  for (const item of [...itens].sort((a, b) => a.y - b.y || a.x - b.x || comparar(a.id, b.id))) {
+  const livre = (x0: number, x1: number, y: number) => !ocupados.some(caixa => x0 < caixa.x1 && x1 > caixa.x0 &&
+    y - altura / 2 < caixa.y1 && y + altura / 2 > caixa.y0);
+  for (const item of [...itens].sort((a, b) => (a.prioridade ?? 0) - (b.prioridade ?? 0) || a.y - b.y || a.x - b.x || comparar(a.id, b.id))) {
     const direita = item.x + item.r + 6 + item.largura <= limite;
     // Com o início da área de desenho (`inicio`, 05/11/2026): o nome que não cabe nem à direita nem à esquerda (gráfico estreito,
     // no celular) fica centrado acima da bolha, dentro da área, sem cobrir o título do eixo. Sem `inicio`, como antes.
-    const esquerda = !direita && item.x - item.r - 6 - item.largura >= inicio;
+    const cabeAEsquerda = item.x - item.r - 6 - item.largura >= inicio;
+    const esquerda = !direita && cabeAEsquerda;
     const centro = !direita && !esquerda;
     const meio = centro ? (limite - inicio >= item.largura ? Math.min(Math.max(item.x, inicio + item.largura / 2), limite - item.largura / 2)
       : (inicio + limite) / 2) : 0;
@@ -1484,8 +1506,20 @@ export function posicionarRotulos(itens: { id: string; x: number; y: number; r: 
     const base = centro ? -(item.r + altura / 2 + 2) : 0;
     const deslocamentos = centro ? [0, -altura, -2 * altura, altura * 2 + 2 * item.r + 4, -3 * altura]
       : [0, altura, -altura, 2 * altura, -2 * altura, 3 * altura, -3 * altura];
-    const dy = base + (deslocamentos.find(desvio => !ocupados.some(caixa => x0 < caixa.x1 && x1 > caixa.x0 &&
-      item.y + base + desvio - altura / 2 < caixa.y1 && item.y + base + desvio + altura / 2 > caixa.y0)) ?? 0);
+    const achado = deslocamentos.find(desvio => livre(x0, x1, item.y + base + desvio));
+    if (achado === undefined && opcoes.omitir) {
+      // Sem lugar deste lado: o outro lado da bolha, antes de deixar o nome só na dica.
+      if (direita && cabeAEsquerda) {
+        const e0 = item.x - item.r - 6 - item.largura, e1 = e0 + item.largura;
+        const outro = deslocamentos.find(desvio => livre(e0, e1, item.y + desvio));
+        if (outro !== undefined) {
+          ocupados.push({ x0: e0, x1: e1, y0: item.y + outro - altura / 2, y1: item.y + outro + altura / 2 });
+          saida.set(item.id, { dx: -(item.r + 6), dy: outro, ancora: "end" });
+        }
+      }
+      continue;
+    }
+    const dy = base + (achado ?? 0);
     ocupados.push({ x0, x1, y0: item.y + dy - altura / 2, y1: item.y + dy + altura / 2 });
     saida.set(item.id, centro ? { dx: meio - item.x, dy, ancora: "middle" }
       : { dx: direita ? item.r + 6 : -(item.r + 6), dy, ancora: direita ? "start" : "end" });
@@ -3096,22 +3130,26 @@ export function tituloDaAnalise(p: { fonte: "brasil" | "arquivo" | null; familia
   nivel: PainelNivel; categoria: string; competencia: string; janela: string[]; rotatividade: { inicial: string; final: string } | null;
   lugar: Lugar; rotulos: RotulosTerritoriais;
   /** As competências da Série temporal (24/10/2026), quando é a visão em uso. */
-  serie?: string[] }): { titulo: string; subtitulo: string } {
+  serie?: string[];
+  /** Os tipos de território no desenho (10/11/2026): com conjuntos ou estados como unidade, o subtítulo os nomeia. */
+  tipos?: TiposNaAnalise | null }): { titulo: string; subtitulo: string } {
   if (!p.fonte) return { titulo: TITULO_DO_SISTEMA, subtitulo: TEXTO_ESCOLHA_DOS_DADOS };
   const especie = INDICADORES[p.indicador].rotulo;
   const quem = profissionaisDe(p.categoria);
   const rotuloBolha = emGrupos(p.nivel) ? rotulosDaVista(p.rotulos, p.nivel).grupo ?? ROTULOS_GENERICOS.grupo! : p.rotulos.unidade;
   // O nível Brasil (até 06/11/2026; não é mais escolhido na tela): uma bolha, uma linha, o total nacional.
+  const umDeCada = umDeCadaTipo(rotuloBolha, p.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!, p.tipos);
   const cadaBolha = p.nivel === "brasil" ? "A bolha é o Brasil inteiro, com o total nacional de profissionais. O tamanho mostra a população."
-    : textoCadaBolha(rotuloBolha);
-  const cadaLinha = p.nivel === "brasil" ? "A linha é o Brasil inteiro" : "Cada linha é " + umA(rotuloBolha);
+    : "Cada bolha é " + umDeCada + ". O tamanho mostra a população.";
+  const cadaLinha = p.nivel === "brasil" ? "A linha é o Brasil inteiro" : "Cada linha é " + umDeCada;
   const onde = p.lugar.lugar ? " " + p.lugar.lugar : "";
   const periodo = (a: string, b: string) => competenciaPorExtenso(a) + " a " + competenciaPorExtenso(b);
   // Análise Espacial com a Escolha dos territórios (27/10/2026): a distância é sempre até a referência mais próxima de cada um.
   if (p.familia === "espacial" && p.nivel === "municipios")
     return { titulo: especie + " de " + quem + " e distância até a referência mais próxima · " + p.lugar.curto + " · " +
       competenciaPorExtenso(p.competencia),
-      subtitulo: cadaBolha + " A posição horizontal é a distância até a referência mais próxima de cada " + rotuloBolha.singular + "." };
+      subtitulo: cadaBolha + " A posição horizontal é a distância até a referência mais próxima de cada " +
+        (p.tipos?.conjuntos ? "território" : rotuloBolha.singular) + "." };
   if (p.familia === "tendencia" && p.visao === "series" && (p.serie?.length ?? 0) >= 2) {
     const serie = p.serie!;
     return { titulo: "Série temporal da " + especie.toLowerCase() + " de " + quem + " · " + p.lugar.curto + " · " +

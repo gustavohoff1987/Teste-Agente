@@ -393,6 +393,9 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .painel-chat-cabecalho:active { cursor:grabbing; }
 .painel-chat-cabecalho:focus-visible { outline:3px solid var(--cor-foco); outline-offset:2px; }
 .painel-chat[data-minimizada="true"] .painel-chat-cabecalho { border-bottom:0; border-radius:18px; }
+/* Minimizada (10/11/2026), a caixa é compacta: o rosto, "Assistente" e o botão que a abre; não cobre o fim dos painéis. */
+.painel-chat[data-minimizada="true"] { width:auto !important; max-width:calc(100vw - 16px); }
+.painel-chat-ancorada[data-minimizada="true"] { left:auto; }
 .painel-chat-corpo { min-height:0; overflow:auto; }
 .painel-chat .conversation-dock { position:static; border-top:0; border-radius:0 0 18px 18px; box-shadow:none; }
 @media (max-width:639px) {

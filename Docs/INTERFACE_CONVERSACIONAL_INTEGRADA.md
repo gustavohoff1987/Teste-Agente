@@ -139,7 +139,9 @@ contexto da sessão muda com a fonte em uso.
 ## Conversa
 
 A conversa fica na caixa flutuante com o rosto do agente, sempre na página: arrastável pelo cabeçalho (mouse, toque e
-teclado: setas, Shift acelera e Home volta ao canto), minimizável e sempre dentro da janela; no celular, ancorada embaixo.
+teclado: setas, Shift acelera e Home volta ao canto), minimizável e sempre dentro da janela; no celular, ancorada embaixo. Minimizada
+(desde 10/11/2026), ela é compacta — o rosto, "Assistente" e o botão que a abre — e, no canto de sempre, os painéis presos à
+janela terminam acima dela.
 Desde 04/11/2026, a caixa cabe inteira na janela em qualquer altura, com zoom de 100%:
 - ela nunca passa da altura da janela;
 - a orientação e o histórico rolam por dentro, com mínimos proporcionais à janela;
