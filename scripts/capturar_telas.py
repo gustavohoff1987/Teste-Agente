@@ -71,12 +71,14 @@ def capturar(url, saida, canal):
         territorios = area.get_by_test_id("analise-territorios")
         respostas = {}
 
-        def tela(nome, acao):
-            """Executa os passos da tela e salva a captura da página inteira."""
+        def tela(nome, acao, manter_rolagem=False):
+            """Executa os passos da tela e salva a captura da página inteira. Antes, volta ao topo: a barra fixa (Desfazer e Limpar
+            seleção) fica no lugar dela, em vez de aparecer no meio da página. `manter_rolagem` fica para a tela que depende do
+            ponteiro parado sobre um elemento (a dica)."""
             try:
                 acao()
-                if area.count() and area.get_attribute("data-ferramenta"):
-                    page.evaluate("window.scrollTo(0, 0)")  # com uma ferramenta aberta, a barra fixa volta ao lugar na captura inteira
+                if not manter_rolagem:
+                    page.evaluate("window.scrollTo(0, 0)")
                 page.wait_for_timeout(900)  # transições curtas do gráfico
                 caminho = saida / (nome + ".png")
                 page.screenshot(path=str(caminho), full_page=True)
@@ -332,7 +334,7 @@ def capturar(url, saida, canal):
         tela("07-agrupar-escolha-livre", agrupar_livre)
         tela("08-agrupar-proximidade", agrupar_proximidade)
         tela("09-selecao-com-conjuntos", selecao_com_conjuntos)
-        tela("10-dica-do-conjunto", dica_do_conjunto)
+        tela("10-dica-do-conjunto", dica_do_conjunto, manter_rolagem=True)
         tela("11-espacial-escolha-dos-territorios", espacial_escolha)
         tela("12-espacial-foco", espacial_foco)
         tela("16-detector-selecao-mista", detector_tabela)
