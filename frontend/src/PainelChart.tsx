@@ -214,10 +214,13 @@ export default function PainelChart(p: Props) {
     realce.has(bolha.id))) : [];
   const contextoAtivo = ativo?.startsWith(PREFIXO_REFERENCIA) ? contextos.find(contexto => contexto.id === ativo) : undefined;
   const abreUnidade = !!p.onAbrirUnidade && !p.marcando;
-  const dica = bolhaAtiva ? montarDica(bolhaAtiva.item, { indicador: p.indicador, competencia: p.resposta.competencia,
+  // Na Análise Espacial, tocar numa base foca a ligação dela (comando V22, seção 7): a dica diz isso, no lugar de "Abrir".
+  const focaNaBase = !!p.onFocar && !p.marcando && !!bolhaAtiva && idsDasBases.has(bolhaAtiva.id);
+  const dicaDaBolha = bolhaAtiva ? montarDica(bolhaAtiva.item, { indicador: p.indicador, competencia: p.resposta.competencia,
     competenciaInicial, distancia: p.distancia, variacao: p.cometa && !!competenciaInicial, tendencia: !!bolhaAtiva.item.tendencia,
     nomes: p.nomes, limiares: p.limiares, rotulos: p.rotulos, unidadesDoGrupo: p.unidadesDoGrupo, porItem: !!p.porItem,
-    trajetoria: !!p.trajetoria, abrirUnidade: abreUnidade }) : contextoAtivo ? dicaDaReferenciaDeContexto(contextoAtivo) : null;
+    trajetoria: !!p.trajetoria, abrirUnidade: abreUnidade && !focaNaBase }) : contextoAtivo ? dicaDaReferenciaDeContexto(contextoAtivo) : null;
+  const dica = dicaDaBolha && focaNaBase ? { ...dicaDaBolha, acao: "Destacar a referência e a distância" } : dicaDaBolha;
   const alvoDaDica = bolhaAtiva ?? contextoAtivo ?? null;
 
   /** Tocar: o estado desce até ele; a unidade abre o lugar dela (06/11/2026); com a escolha de itens em curso (a Comparar)

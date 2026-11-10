@@ -129,7 +129,7 @@ export default function AgruparSelecionados(p: Props) {
       selecionados, cada um como território individual. Um conjunto reúne territórios do mesmo nível.</p>
   </>;
 
-  if (modo === "proximidade") return <section data-testid="analise-agrupar" data-modo="proximidade" className="analise-agregar">
+  if (modo === "proximidade") return <section data-testid="analise-agrupamento" data-modo="proximidade" className="analise-agregar">
     {cabecalho}
     {!comUnidades ? <p className="analise-agregar-apoio">Selecione ao menos {generoF ? "duas" : "dois"} {unidade.plural} para agrupar por proximidade
       (os {grupo.plural} como unidade entram só na escolha livre).</p> : <>
@@ -169,7 +169,7 @@ export default function AgruparSelecionados(p: Props) {
     </div>
   </section>;
 
-  return <section data-testid="analise-agrupar" data-modo="livre" className="analise-agregar">
+  return <section data-testid="analise-agrupamento" data-modo="livre" className="analise-agregar">
     {cabecalho}
     {comUnidades && comEstados && !p.editando && <div role="radiogroup" aria-label="Nível do conjunto" className="analise-selecao-modos">
       <button type="button" role="radio" aria-checked={nivel === "municipios"} data-testid="analise-agrupar-nivel-municipios" className="analise-selecao-modo"

@@ -438,11 +438,13 @@ export function lugarDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios;
     const resto = lugarDoUniverso({ ...c, estados: [] });
     const g = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
     const info = (id: string) => c.grupos.find(item => item.id === id);
-    const estados = c.estados.length <= 2 ? c.estados.map(id => emGrupo(info(id), id) + " (" + g.singular + ")").join(" e ")
-      : "em " + quantos(c.estados.length, g) + " como unidade";
-    const curtos = c.estados.length <= 2 ? emLista(c.estados.map(id => (info(id)?.nome || id) + " (" + g.singular + ")"))
-      : quantos(c.estados.length, g) + " como unidade";
-    return resto.lugar ? { lugar: resto.lugar + " e " + estados, curto: resto.curto + " e " + curtos } : { lugar: estados, curto: curtos };
+    // Uma lista só: "em 35 municípios do Amazonas, no Pará (estado) e na Bahia (estado)".
+    const estados = c.estados.length <= 2 ? c.estados.map(id => emGrupo(info(id), id) + " (" + g.singular + ")")
+      : ["em " + quantos(c.estados.length, g) + " como unidade"];
+    const curtos = c.estados.length <= 2 ? c.estados.map(id => (info(id)?.nome || id) + " (" + g.singular + ")")
+      : [quantos(c.estados.length, g) + " como unidade"];
+    return resto.lugar ? { lugar: emLista([resto.lugar, ...estados]), curto: emLista([resto.curto, ...curtos]) }
+      : { lugar: emLista(estados), curto: emLista(curtos) };
   }
   const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
   const origem = nomeDoTodo(c.brasil, c.rotulos);
@@ -512,10 +514,12 @@ export function resumoDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios
   }
   // Com estados como unidade junto com os municípios (comando V22): "62 municípios do Amazonas e Pará (estado)".
   if (c.estados.length) {
-    const estadosTexto = c.estados.length <= 2 ? emLista(c.estados.map(id => nome(id) + " (" + grupo.singular + ")"))
-      : quantos(c.estados.length, grupo) + " como unidade";
-    const resto = resumoDoUniverso({ ...c, estados: [] });
-    return baseVazia(c.base) && !c.conjuntos ? estadosTexto : resto + " e " + estadosTexto;
+    // Uma lista só: "35 municípios do Amazonas, 12 conjuntos, Pará (estado) e Bahia (estado)".
+    const estadosTexto = c.estados.length <= 2 ? c.estados.map(id => nome(id) + " (" + grupo.singular + ")")
+      : [quantos(c.estados.length, grupo) + " como unidade"];
+    const partes = [...(baseVazia(c.base) ? [] : [resumoDoUniverso({ ...c, estados: [], conjuntos: 0 })]),
+      ...(c.conjuntos ? [c.conjuntos + (c.conjuntos === 1 ? " conjunto" : " conjuntos")] : []), ...estadosTexto];
+    return maiuscula(emLista(partes));
   }
   if (c.base.todos) return maiuscula(todosOs(unidade)) + (c.total ? " (" + inteiro.format(c.total) + ")" : "") + conjuntosDoNivel;
   const avulsas = c.base.ids.filter(id => !c.base.estados.includes(c.grupoDe(id)));
@@ -3411,17 +3415,21 @@ function referenciaDaBase(resposta: Pick<PainelResposta, "itens" | "referencia">
  * mostra a referência no gráfico (bolha de contexto com a mira, no início do eixo, ligada à base) e no mapa. Só estado visual
  * (RQ-REP-06): todo número vem do motor, e nada é calculado entre os dois (CAP-REF-01). Nulo sem base ou com a base fora da
  * resposta. */
-export function parDaBase(resposta: Pick<PainelResposta, "itens" | "referencia"> | null, base: string | null | undefined): ParDaBase | null {
+export function parDaBase(resposta: Pick<PainelResposta, "itens" | "referencia"> | null, base: string | null | undefined,
+  comConjuntos = false): ParDaBase | null {
   if (!resposta || !base) return null;
-  const item = resposta.itens.find(candidato => candidato.id === base && candidato.tipo === "municipio");
+  // Com `comConjuntos` (comando V22, seções 6 e 7), um conjunto da base também é território-base: a referência e a distância dele
+  // são as do membro mais próximo, do motor.
+  const item = resposta.itens.find(candidato => candidato.id === base && (candidato.tipo === "municipio" ||
+    (comConjuntos && candidato.tipo === "conjunto")));
   if (!item) return null;
   const referencias = item.referencia ? [] : item.referenciaDoItem ?? [];
   if (!referencias.length) return { base: item, referencias: [], distancia: null, motivo: motivosDe(item, "distancia")[0] ?? null };
   return { base: item, referencias: referencias.map(ref => referenciaDaBase(resposta, ref)), distancia: numero(item.distancia_km), motivo: null };
 }
 /** Os pares dos territórios da base, na ordem deles. */
-export const paresDasBases = (resposta: Pick<PainelResposta, "itens" | "referencia"> | null, bases: string[]) =>
-  bases.map(base => parDaBase(resposta, base)).filter((par): par is ParDaBase => !!par);
+export const paresDasBases = (resposta: Pick<PainelResposta, "itens" | "referencia"> | null, bases: string[], comConjuntos = false) =>
+  bases.map(base => parDaBase(resposta, base, comConjuntos)).filter((par): par is ParDaBase => !!par);
 /** As referências de contexto do gráfico: as dos pares que o gráfico não desenha como bolha, uma vez cada. */
 export function referenciasDeContexto(pares: ParDaBase[]): ReferenciaDeContexto[] {
   const porId = new Map<string, ReferenciaDeContexto>();
@@ -3463,7 +3471,12 @@ export function textoDosTerritoriosBase(c: { pares: ParDaBase[]; ligados: number
     : " O gráfico desenha " + ligados + " dessas ligações: no máximo " + MAX_LIGACOES + ", e só das bolhas à vista.";
   if (pares.length === 1) return textoDoParDaBase(pares[0]) + ligacoes;
   const resto = pares.length - PARES_NO_TEXTO;
-  return "Base: " + inteiro.format(pares.length) + " · " + cadaUm + " à sua referência mais próxima por linha tracejada: " +
+  // Com conjuntos na base (comando V22, seção 6): "35 territórios individuais e 12 conjuntos", nunca só o número das unidades.
+  const conjuntos = pares.filter(par => par.base.tipo === "conjunto").length;
+  const quantosNaBase = conjuntos ? quantos(pares.length - conjuntos, { singular: "território individual", plural: "territórios individuais" }) +
+    " e " + quantos(conjuntos, { singular: "conjunto", plural: "conjuntos" }) : inteiro.format(pares.length);
+  return "Base: " + quantosNaBase + " · " + cadaUm + " à sua referência mais próxima por linha tracejada" +
+    (conjuntos ? " (o conjunto, pelo membro mais próximo)" : "") + ": " +
     pares.slice(0, PARES_NO_TEXTO).map(parCurto).join("; ") + (resto > 0 ? "; e mais " + inteiro.format(resto) + " (nas dicas e na tabela)" : "") +
     "." + ligacoes;
 }

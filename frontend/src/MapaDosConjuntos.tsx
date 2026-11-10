@@ -81,6 +81,12 @@ export function dentroDoContorno(forma: [number, number][], x: number, y: number
   return dentro;
 }
 
+/** O centro do nome de um conjunto, deslocado para o nome caber inteiro no mapa (a largura do texto estimada pela letra). */
+export function dentroDaLargura(x: number, nome: string, largura: number): number {
+  const meia = Math.min(largura / 2 - 4, nome.length * LETRA * 0.31);
+  return Math.min(largura - 4 - meia, Math.max(4 + meia, x));
+}
+
 export default function MapaDosConjuntos(p: Props) {
   const cores = coresDoMapa(useEsquemaDeCor());
   const largura = p.largura ?? 340, altura = p.altura ?? 220;
@@ -117,7 +123,23 @@ export default function MapaDosConjuntos(p: Props) {
   const papel = (id: string) => membros.has(id) ? "membro" : sem.has(id) ? "sem" : destaque.has(id) ? "atende" : "fundo";
   const ordem = [...desenho.posicao.keys()].sort((a, b) => ["fundo", "atende", "sem", "membro"].indexOf(papel(a)) -
     ["fundo", "atende", "sem", "membro"].indexOf(papel(b)));
-  const nomesAvulsos = [...sem].filter(id => desenho.posicao.has(id)).slice(0, MAX_NOMES_AVULSOS);
+  // Os nomes não se sobrepõem (comando V22, seção 7: legendas legíveis com dezenas de conjuntos): os dos conjuntos primeiro, depois
+  // os dos sem conjunto; um nome que cobriria outro já posto fica só no título do contorno ou do ponto (ao passar o mouse).
+  const caixas: [number, number, number, number][] = [];
+  const cabe = (x: number, y: number, texto: string, ancora: "middle" | "start") => {
+    const largo = texto.length * LETRA * 0.62;
+    const caixa: [number, number, number, number] = ancora === "middle" ? [x - largo / 2, y - LETRA, x + largo / 2, y + 3] : [x, y - LETRA, x + largo, y + 3];
+    if (caixas.some(c => caixa[0] < c[2] && caixa[2] > c[0] && caixa[1] < c[3] && caixa[3] > c[1])) return false;
+    caixas.push(caixa);
+    return true;
+  };
+  const nomesDosConjuntos = new Set(desenho.contornos.filter(conjunto => conjunto.caminho && conjunto.topo &&
+    cabe(dentroDaLargura(conjunto.topo[0], conjunto.nome, largura), Math.max(LETRA, conjunto.topo[1] - 3), conjunto.nome, "middle")).map(conjunto => conjunto.id));
+  const nomeAvulso = (id: string) => p.nomeDe(id).replace(/\s*\([^()]*\)\s*$/, "");
+  const nomesAvulsos = [...sem].filter(id => desenho.posicao.has(id)).slice(0, MAX_NOMES_AVULSOS).filter(id => {
+    const [x, y] = desenho.posicao.get(id)!;
+    return cabe(x + 5, y + 4, nomeAvulso(id), "start");
+  });
   return <figure data-testid="analise-mapa-conjuntos" data-esmaecido={p.esmaecido ? "true" : "false"}
     className={"analise-mapa-conjuntos" + (p.esmaecido ? " analise-mapa-conjuntos-esmaecido" : "")}>
     <svg viewBox={"0 0 " + largura + " " + altura} width={largura} height={altura} role="img" aria-label={p.rotulo}
@@ -126,8 +148,8 @@ export default function MapaDosConjuntos(p: Props) {
       {desenho.contornos.map(conjunto => conjunto.caminho && <g key={conjunto.id}>
         <path data-testid="analise-mapa-contorno" data-id={conjunto.id} data-nome={conjunto.nome} d={conjunto.caminho} fill={cores.tinta}
           fillOpacity={0.04} stroke={cores.tinta} strokeWidth={1.2} strokeDasharray="4 3"><title>{conjunto.descricao ?? conjunto.nome}</title></path>
-        {conjunto.topo && <text data-testid="analise-mapa-nome-conjunto" x={conjunto.topo[0]} y={Math.max(LETRA, conjunto.topo[1] - 3)}
-          textAnchor="middle" fontSize={LETRA} fontWeight={600} fill={cores.tinta}>{conjunto.nome}</text>}
+        {conjunto.topo && nomesDosConjuntos.has(conjunto.id) && <text data-testid="analise-mapa-nome-conjunto" x={dentroDaLargura(conjunto.topo[0], conjunto.nome, largura)}
+          y={Math.max(LETRA, conjunto.topo[1] - 3)} textAnchor="middle" fontSize={LETRA} fontWeight={600} fill={cores.tinta}>{conjunto.nome}</text>}
       </g>)}
       {ordem.map(id => {
         const [x, y] = desenho.posicao.get(id)!;
@@ -142,7 +164,7 @@ export default function MapaDosConjuntos(p: Props) {
       })}
       {nomesAvulsos.map(id => {
         const [x, y] = desenho.posicao.get(id)!;
-        return <text key={"n" + id} x={x + 5} y={y + 4} fontSize={LETRA} fill={cores.tinta}>{p.nomeDe(id).replace(/\s*\([^()]*\)\s*$/, "")}</text>;
+        return <text key={"n" + id} x={x + 5} y={y + 4} fontSize={LETRA} fill={cores.tinta}>{nomeAvulso(id)}</text>;
       })}
       {desenho.barra && <g data-testid="analise-mapa-escala">
         <line x1={MARGEM} x2={MARGEM + desenho.barra} y1={altura - 9} y2={altura - 9} stroke={cores.tinta} strokeWidth={1.5}/>

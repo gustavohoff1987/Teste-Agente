@@ -1639,7 +1639,7 @@ def main():
         # Desde o comando V22 (seção 5), "Agrupar territórios selecionados", no painel direito, por escolha livre: só os
         # selecionados (o Amazonas inteiro) entram.
         aperta(territorios.get_by_test_id("analise-agrupar-selecionados"))
-        expect(territorios.get_by_test_id("analise-agrupar")).to_have_attribute("data-modo", "livre")
+        expect(territorios.get_by_test_id("analise-agrupamento")).to_have_attribute("data-modo", "livre")
         agregar = territorios.get_by_test_id("analise-agregar")
         expect(agregar).to_be_visible()
         expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Conjunto A")

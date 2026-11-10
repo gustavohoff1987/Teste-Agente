@@ -493,8 +493,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     [grupos, rotulos, tipo, grupoDe, nomesDoCatalogo, regioes]);
   const tituloDe = useCallback((d: DefinicaoAnalise, familia: Familia) => {
     // Na Análise Espacial com a Escolha dos territórios, o lugar do título é o da base da consulta (27/10/2026).
-    const lugar = familia === "espacial" && d.consulta ? lugarDaConsulta(d.consulta, { rotulos, brasil: tipo === "brasil", grupos, nomes,
-      selecao: lugarDe(d) }) : lugarDe(d);
+    // Na Análise Espacial e na Rotatividade, os estados como unidade e os conjuntos de estados ficam de fora (comando V22, seção 2): o
+    // lugar do título é o do que a análise mede.
+    const medido = (familia === "espacial" || familia === "rotatividade") && d.nivel === "municipios" &&
+      (d.estados.length > 0 || d.conjuntos.some(conjuntoDeEstados)) ? { ...d, estados: [], conjuntos: d.conjuntos.filter(c => !conjuntoDeEstados(c)) } : d;
+    const lugar = familia === "espacial" && medido.consulta ? lugarDaConsulta(medido.consulta, { rotulos, brasil: tipo === "brasil", grupos, nomes,
+      selecao: lugarDe(medido) }) : lugarDe(medido);
     return tituloDaAnalise({ fonte: tipo, familia, visao: visaoEfetiva(d), indicador: d.indicador, nivel: d.nivel, categoria: d.categoria,
       competencia: d.competencia, janela: d.janela, rotatividade: d.rotatividade, lugar, rotulos,
       serie: familia === "tendencia" && d.visao === "series" ? intervaloDaSerie(d, periodos) : undefined });
@@ -866,7 +870,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // marcando.
   const basesDaReferencia = useMemo(() => resposta ? basesPossiveis(resposta.itens) : [], [resposta]);
   const idsDasBases = useMemo(() => basesDaReferencia.map(base => base.id), [basesDaReferencia]);
-  const pares = useMemo(() => distanciaNaTela && resposta ? paresDasBases(resposta, idsDasBases) : [], [distanciaNaTela, resposta, idsDasBases]);
+  // Os conjuntos da base também são territórios-base na Análise Espacial (comando V22, seções 6 e 7): a referência e a distância pelo
+  // membro mais próximo, com a ligação, o foco e a contagem da base.
+  const idsDosConjuntosDaBase = useMemo(() => resposta ? resposta.itens.filter(item => item.tipo === "conjunto" && !item.referencia)
+    .map(item => item.id) : [], [resposta]);
+  const pares = useMemo(() => distanciaNaTela && resposta ? paresDasBases(resposta, [...idsDasBases, ...idsDosConjuntosDaBase], true) : [],
+    [distanciaNaTela, resposta, idsDasBases, idsDosConjuntosDaBase]);
   // As ligações do gráfico: das bases à vista (dentro da régua e dos filtros), as marcadas primeiro, até MAX_LIGACOES.
   const paresLigados = useMemo(() => {
     const aVista = new Set(visiveis.map(item => item.id)), marcadas = new Set(selecao);
@@ -1766,8 +1775,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   </ul> : null;
   // As ligações do mapa, até MAX_LIGACOES: primeiro as das unidades marcadas, depois as dos demais territórios da base, na ordem dos
   // nomes.
-  const ligacoes = useMemo(() => distanciaNaTela && resposta ? ligacoesDoMapa(resposta.itens, [...new Set([...selecao, ...idsDasBases])]) : [],
-  [distanciaNaTela, resposta, selecao, idsDasBases]);
+  const ligacoes = useMemo(() => distanciaNaTela && resposta ? ligacoesDoMapa(resposta.itens,
+    [...new Set([...selecao, ...idsDasBases, ...idsDosConjuntosDaBase])]) : [], [distanciaNaTela, resposta, selecao, idsDasBases, idsDosConjuntosDaBase]);
   // O destaque da resposta de valor (06/11/2026) aparece também no mapa, com o anel e o nome dos marcados (estado visual).
   const realceNaTela = realce && realce.chave === chave ? realce.ids : NENHUM_REALCE;
   const selecaoDoMapa = realceNaTela.length ? [...new Set([...selecao, ...realceNaTela])] : selecao;
@@ -1873,6 +1882,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // Nas bolhas dos estados, os nomes só dos destaques: os 3 maiores e os 3 menores pela ordem do motor (os marcados e o tocado, o
   // gráfico já rotula). Antes de 06/11/2026, as 27 siglas ficavam sempre à vista.
   const destaquesDosGrupos = useMemo(() => destaquesDaOrdem(resposta?.ordemDoIndicador ?? null), [resposta]);
+  // Numa seleção mista (comando V22), os estados como unidade levam o nome no gráfico pela ordem do nível deles (os 3 maiores e
+  // os 3 menores; com até 6 estados, todos), para não se confundirem com os municípios.
+  const destaquesDosEstados = useMemo(() => destaquesDaOrdem(resposta?.porNivel?.estados?.ordemDoIndicador ?? null), [resposta]);
   const desenhoDoGrafico = (() => {
     if (!resposta) return null;
     if (listaDosGrupos && vistaDosGrupos === "lista")
@@ -1907,7 +1919,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       faixasDistancia={faixasDistancia} unidadesDoGrupo={unidadesDoGrupo} legendaCor={layoutTendencia ? null : legendaCor} notas={notasDoGrafico}
       linhaDoGrupo={linhaDoGrupo} onAbrirUnidade={abrirUnidade} marcando={marcando}
       extraDoRotulo={extraDoRotulo}
-      rotuloSempre={item => (item.tipo === "estado" && destaquesDosGrupos.has(item.id)) || (camadaFinal === "ordem" && primeiros !== null && primeiros <= 12 && item.ordem?.posicao !== null &&
+      rotuloSempre={item => (item.tipo === "estado" && (destaquesDosGrupos.has(item.id) || destaquesDosEstados.has(item.id))) || (camadaFinal === "ordem" && primeiros !== null && primeiros <= 12 && item.ordem?.posicao !== null &&
         item.ordem !== null && (item.ordem.posicao as number) <= primeiros)}
       onAlternar={alternar} onAbrirGrupo={abrirGrupoDaBolha}
       pontosDoMapa={mapa.disponivel && dadosConferem ? dadosAtuais?.pontos ?? null : null}
@@ -2386,7 +2398,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           {!!resposta?.foraDaAnalise?.length && !semUnidades && <p data-testid="analise-fora-da-analise" role="status" className="analise-aviso-familia">
             <ChartScatter size={14} aria-hidden="true"/><span>Fora desta análise: {resposta.foraDaAnalise.map(item => item.tipo === "estado"
               ? item.rotulo.replace(/\s*\([A-Z]{2}\)$/, "") + " (" + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular + ")" : item.rotulo).join(", ")}.{" "}
-              {resposta.foraDaAnalise[0].motivo.replace(/^Fora da Análise Espacial: /, "")}</span></p>}
+              {maiuscula(resposta.foraDaAnalise[0].motivo.replace(/^Fora da Análise Espacial: /, ""))}</span></p>}
           {/* Na rotatividade, os estados como unidade e os conjuntos de estados não entram no pedido (comando V22, seção 2): quais e
               por quê. */}
           {def.familia === "rotatividade" && foraDaRotacao.length > 0 && !semUnidades && <p data-testid="analise-fora-da-rotatividade" role="status"

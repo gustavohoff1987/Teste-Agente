@@ -114,7 +114,7 @@ def main():
         def agrupar(modo="livre"):
             """"Agrupar territórios selecionados", na modalidade pedida."""
             aperta(direita.get_by_test_id("analise-agrupar-selecionados"))
-            janela = territorios.get_by_test_id("analise-agrupar")
+            janela = territorios.get_by_test_id("analise-agrupamento")
             expect(janela).to_be_visible()
             if janela.get_attribute("data-modo") != modo:
                 aperta(janela.get_by_test_id("analise-agrupar-" + modo))
@@ -294,7 +294,7 @@ def main():
         expect(janela.get_by_test_id("analise-mapa-contorno")).to_have_count(len(corpo["grupos"]))
         page.screenshot(path=str(OUTPUT / "criterios-para-50km-real.png"), full_page=True)
         aperta(janela.get_by_test_id("analise-agrupar-cancelar"))
-        expect(territorios.get_by_test_id("analise-agrupar")).to_have_count(0)
+        expect(territorios.get_by_test_id("analise-agrupamento")).to_have_count(0)
 
         # 8. Pela conversa: o pedido do comando abre os critérios preenchidos, com a prévia; nada muda até "Usar como seleção", e
         #    então o agrupamento por proximidade abre com a distância pedida.
@@ -317,7 +317,7 @@ def main():
                            condicao=lambda o: (o.get("agrupar") or {}).get("km") == 200)
         assert len(pedido["base"]["municipios"]["ids"]) == 89, pedido["base"]
         expect(partes).to_have_text(["Brasil", "Seleção: densidade abaixo de 0,5 em jun/2024 (89)"])
-        janela = territorios.get_by_test_id("analise-agrupar")
+        janela = territorios.get_by_test_id("analise-agrupamento")
         expect(janela).to_have_attribute("data-modo", "proximidade")
         expect(janela.get_by_test_id("analise-agrupar-km")).to_have_value("200")
         aperta(janela.get_by_test_id("analise-agrupar-cancelar"))
@@ -432,11 +432,11 @@ def main():
                              condicao=lambda o: bool(o.get("conjuntos")))
         assert [c["rotulo"] for c in enviado["conjuntos"]] == ["Conjunto A"] and len(enviado["conjuntos"][0]["membros"]) == 5, \
             enviado["conjuntos"]
-        expect(territorios.get_by_test_id("analise-agrupar")).to_have_count(0)
+        expect(territorios.get_by_test_id("analise-agrupamento")).to_have_count(0)
         texto_do_conjunto = direita.get_by_test_id("analise-selecionado-conjunto-texto")
         expect(texto_do_conjunto).to_contain_text("Conjunto A · conjunto · 5 municípios", timeout=60000)
         aperta(direita.get_by_test_id("analise-selecionado-conjunto-editar"))
-        agregar = territorios.get_by_test_id("analise-agrupar").get_by_test_id("analise-agregar")
+        agregar = territorios.get_by_test_id("analise-agrupamento").get_by_test_id("analise-agregar")
         expect(agregar.get_by_test_id("analise-agregar-criar")).to_have_text("Salvar conjunto")
         agregar.get_by_test_id("analise-agregar-nome").fill("Paraenses do A")
         aperta(agregar.get_by_test_id("analise-agregar-criar"))
@@ -453,7 +453,7 @@ def main():
         expect(agregar.get_by_test_id("analise-agregar-nome-repetido")).to_have_text("Já existe um conjunto com esse nome na análise.")
         expect(agregar.get_by_test_id("analise-agregar-criar")).to_be_disabled()
         aperta(agregar.get_by_test_id("analise-agregar-cancelar"))
-        expect(territorios.get_by_test_id("analise-agrupar")).to_have_count(0)
+        expect(territorios.get_by_test_id("analise-agrupamento")).to_have_count(0)
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
         aperta(area.get_by_test_id("analise-desenho-mapa"))
         expect(area.get_by_test_id("mapa-analise").get_by_test_id("mapa-simbolos")).to_contain_text(

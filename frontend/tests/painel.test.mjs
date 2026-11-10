@@ -497,6 +497,15 @@ test('o que está na análise, em poucas palavras, e o lugar no título (24/10/2
   assert.equal(resumo({base: base(['13'])}), 'Amazonas (62 municípios)');
   assert.equal(resumo({base: base([], ['code:130260', 'code:130420', 'code:130340'])}), '3 municípios do Amazonas');
   assert.equal(resumo({base: base([], [], true)}), 'Todos os municípios (5.570)');
+  // Comando V22: estados como unidade junto com municípios e conjuntos, numa lista só.
+  assert.equal(resumo({base: base(['13']), estados: ['35']}), 'Amazonas (62 municípios) e São Paulo (estado)');
+  assert.equal(resumo({base: base([], ['code:130260', 'code:130420', 'code:130340']), conjuntos: 12, estados: ['35']}),
+    '3 municípios do Amazonas, 12 conjuntos e São Paulo (estado)');
+  assert.equal(resumo({estados: ['35']}), 'São Paulo (estado)');
+  const lugarMisto = M.lugarDoUniverso({nivel: 'municipios', base: base([], ['code:130260', 'code:130420', 'code:130340']), conjuntos: 0,
+    grupos: GRUPOS, rotulos: BR, brasil: true, grupoDe: M.prefixoDe, estados: ['35']});
+  assert.match(lugarMisto.lugar, /^em 3 municípios do Amazonas e .*São Paulo \(estado\)$/);
+  assert.ok(!/ e .* e /.test(lugarMisto.lugar), lugarMisto.lugar);
   // Planilha sem a lista das unidades (o catálogo não veio): a planilha inteira, sem um "(0)" enganoso.
   assert.equal(M.resumoDoUniverso({nivel: 'municipios', base: base([], [], true), estados: [], conjuntos: 0, grupos: [], rotulos: DISTRITOS,
     total: 0, grupoDe: () => ''}), 'Todos os distritos');

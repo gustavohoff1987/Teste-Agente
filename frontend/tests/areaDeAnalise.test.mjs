@@ -931,6 +931,13 @@ test('base e referência (25/10/2026; Escolha dos territórios, 27/10/2026): cad
   // Com a unidade feminina (28/10/2026), "cada uma ligada"; com os rótulos do Brasil, como antes.
   assert.ok(M.textoDosTerritoriosBase({pares, ligados: 3, rotulos: COMUNAS}).startsWith('Base: 4 · cada uma ligada à sua referência mais próxima'));
   assert.ok(M.textoDosTerritoriosBase({pares, ligados: 3, rotulos: BR}).startsWith('Base: 4 · cada um ligado à sua referência mais próxima'));
+  // Comando V22 (seções 6 e 7): um conjunto da base é território-base (a referência pelo membro mais próximo), e a contagem separa os
+  // territórios individuais dos conjuntos.
+  assert.equal(M.parDaBase(r, 'c1'), null, 'sem comConjuntos, só as unidades');
+  assert.equal(M.parDaBase(r, 'c1', true).base.id, 'c1');
+  const comConjunto = [...pares, {base: {id: 'c1', rotulo: 'Juntos', tipo: 'conjunto'}, referencias: pares[0].referencias, distancia: 10, motivo: null}];
+  assert.ok(M.textoDosTerritoriosBase({pares: comConjunto, ligados: 5, rotulos: BR}).startsWith('Base: 4 territórios individuais e 1 conjunto · ' +
+    'cada um ligado à sua referência mais próxima por linha tracejada (o conjunto, pelo membro mais próximo): '));
   // Pelos membros escolhidos (o contrato de 21/10), o membro já está no gráfico, a distância zero, com a mira: os valores vêm do
   // item, a ligação vai até a bolha dele, e ele não entra como contexto.
   const pelosMembros = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', indicador: 'densidade',

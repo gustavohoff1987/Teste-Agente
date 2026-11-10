@@ -523,7 +523,7 @@ export default function PainelTerritorios(p: Props) {
               <strong data-testid="analise-selecionados-resumo" className="text-ink">{resumo}</strong></p>
           </div>
           <div data-testid="analise-mapa-selecao" className="analise-mapa-selecao">
-            {mapaDaSelecao ? <MapaDosConjuntos coordenadas={p.coordenadas!} fundo={mapaDaSelecao.fundo} destaque={mapaDaSelecao.individuais}
+            {mapaDaSelecao ? <MapaDosConjuntos largura={420} altura={210} coordenadas={p.coordenadas!} fundo={mapaDaSelecao.fundo} destaque={mapaDaSelecao.individuais}
               conjuntos={mapaDaSelecao.conjuntos} nomeDe={nomeCompleto} rotulo={"Mapa da seleção atual: " + resumo}
               vazio="O mapa aparece com o primeiro território selecionado." legenda="pontos cheios: selecionados · tracejado: estado como unidade ou conjunto"/>
               : <p className="analise-agregar-apoio">{vazio ? "O mapa aparece com o primeiro território selecionado." : "Carregando os pontos do mapa…"}</p>}

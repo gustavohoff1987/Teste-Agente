@@ -177,7 +177,7 @@ descrição de 05 a 09/11/2026 que vem depois dela (marcada como histórico).
   fora e por quê. Um pedido da conversa com distância entre os membros ("… a até 200 km entre si") abre os critérios com "Depois,
   agrupar por proximidade a até 200 km" (`analise-criterios-agrupar-depois`): usado o resultado, "Agrupar territórios
   selecionados" abre por proximidade, com essa distância.
-- **Agrupar territórios selecionados** (`analise-agrupar`, com `data-modo`; `AgruparSelecionados.tsx`): "Por escolha livre"
+- **Agrupar territórios selecionados** (`analise-agrupamento`, com `data-modo`; `AgruparSelecionados.tsx`): "Por escolha livre"
   (`analise-agrupar-livre`) e "Por proximidade" (`analise-agrupar-proximidade`). Na escolha livre, só os territórios selecionados
   são candidatos (a janela de antes, `analise-agregar`: a busca, a lista de um estado, o mini mapa, o nome e "O conjunto fica no
   lugar dos membros"); com estados como unidade, a escolha entre municípios e estados (`analise-agrupar-nivel-municipios` e
@@ -200,9 +200,13 @@ descrição de 05 a 09/11/2026 que vem depois dela (marcada como histórico).
   de estados, "das contagens estaduais"); um estado como unidade, "(estado)" e "fonte estadual (médicos únicos no estado)".
 - **Análise Espacial** (seções 6 e 7 do comando): com conjuntos na base, a Escolha dos territórios conta "3 conjuntos" ou "2
   conjuntos e 4 territórios individuais" (nunca "Base 0 municípios"), e a frase da base diz "Territórios da seleção prévia"; a
-  frase-resumo diz "de cada território". O foco: clique, toque ou Enter numa bolha da base destaca a base, a referência dela, a
-  ligação e a distância exata do motor e esmaece as demais relações sem apagá-las (`analise-foco-espacial`, com "Limpar o foco",
-  `analise-foco-limpar`); focar outra base troca o foco, e o mapa acompanha o gráfico (e o contrário).
+  frase-resumo diz "de cada território". Os conjuntos da base são territórios-base como os outros: a referência e a distância pelo
+  membro mais próximo (do motor), com a ligação no gráfico e no mapa, e a linha acima do desenho conta "Base: 35 territórios
+  individuais e 12 conjuntos · cada um ligado … (o conjunto, pelo membro mais próximo)". O foco: clique, toque ou Enter numa bolha
+  da base (a dica diz "Destacar a referência e a distância", no lugar de "Abrir") destaca a base, a referência dela, a ligação e a
+  distância exata do motor e esmaece as demais relações sem apagá-las (`analise-foco-espacial`, com "Limpar o foco",
+  `analise-foco-limpar`); focar outra base troca o foco, e o mapa acompanha o gráfico (e o contrário). Na Análise Espacial e na
+  Rotatividade, o título fala só do que a análise mede (sem os estados como unidade, que ficam no aviso).
 - **Saíram:** o "Ver por" (na Seleção e na faixa do lugar; `opcoesVerPor` ficou em `painelModel.ts`, sem uso na tela), os modos
   "Marcar na lista", "Por critérios" e "Agrupar territórios" e o "Agrupar os marcados", os avisos coletivos ("Todos os municípios
   da Região Norte desmarcados…", `analise-selecao-aviso`; o Desfazer continua no alto), o botão "Ver a Análise de Distribuição"
@@ -304,7 +308,8 @@ da tela).
   extensões vêm sempre do motor), os territórios de onde procurar em cinza claro (`analise-mapa-ponto` com `data-papel="fundo"`),
   os que atendem em destaque (`atende`), os membros de cada conjunto em pontos cheios (`membro`), dentro do contorno tracejado do
   conjunto (a envoltória dos pontos, com folga; `analise-mapa-contorno`, com `data-nome`), com o nome dele junto ao contorno
-  (`analise-mapa-nome-conjunto`), e os que ficam sem conjunto vazados (`sem`), com o nome ao lado; a barra de escala do tamanho da
+  (`analise-mapa-nome-conjunto`), e os que ficam sem conjunto vazados (`sem`), com o nome ao lado (desde o comando V22, um nome que
+  cobriria outro já posto fica só no título do contorno ou do ponto, ao passar o mouse; o nome do conjunto não sai do mapa); a barra de escala do tamanho da
   distância escolhida (`analise-mapa-escala`); a legenda "tracejado: conjunto · vazados: sem conjunto"; e o nome de cada município
   ao passar o mouse ou tocar. Cada conjunto se distingue pelo contorno e pelo nome, não só pela cor. Enquanto a prévia está
   incompleta, o último resultado válido fica esmaecido (`data-esmaecido="true"`). Sem nada para desenhar, uma orientação

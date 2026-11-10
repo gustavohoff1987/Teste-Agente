@@ -413,6 +413,13 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
   background: var(--cor-superficie-suave); }
 .analise-selecionados-cabeca { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
 .analise-selecionados-itens { min-height: 0; overflow: auto; }
+/* Com o mapa e as ações no mesmo painel preso à tela (comando V22), a lista guarda ao menos algumas linhas à vista; o painel rola se
+   faltar altura. Em telas estreitas, o painel não é preso, e nada disso se aplica. */
+@media (min-width: 900px) {
+  .analise-selecionados:has(.analise-mapa-selecao) { overflow-y: auto; }
+  .analise-selecionados:has(.analise-mapa-selecao) > * { flex-shrink: 0; }
+  .analise-selecionados:has(.analise-mapa-selecao) > .analise-selecionados-itens { flex: 0 1 auto; min-height: 120px; }
+}
 .analise-selecionados-lista { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .analise-selecionados-estados { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .analise-selecionados-vazio { margin: 0; color: var(--cor-texto-2); font-size: 13px; line-height: 1.5; }
@@ -810,7 +817,9 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-no-seta:hover { background: var(--cor-realce-destaque); }
 .analise-no-seta-icone { transition: transform .15s ease; }
 .analise-no-seta[aria-expanded="true"] .analise-no-seta-icone { transform: rotate(90deg); }
-.analise-caixa.analise-no-caixa { flex: 1 1 auto; min-width: 0; min-height: 34px; }
+/* A caixa e o nome ocupam o resto da linha ao lado da seta (base zero): em tela estreita, o nome quebra por dentro, e a seta não
+   fica sozinha numa linha. */
+.analise-caixa.analise-no-caixa { flex: 1 1 0; min-width: 0; min-height: 34px; }
 .analise-caixa.analise-no-caixa input { width: 17px; height: 17px; }
 .analise-no-texto { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
 .analise-no-nome { color: var(--cor-tinta); font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
@@ -829,16 +838,27 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-caixa.analise-caixa-bloqueada { color: var(--cor-texto-desligado); opacity: .6; cursor: not-allowed; }
 .analise-caixa.analise-caixa-bloqueada:hover { background: transparent; }
 .analise-mapa-selecao { min-height: 60px; }
-.analise-mapa-selecao .analise-mapa-conjuntos svg { width: 100%; }
+/* O mapa da seleção no tamanho dele (sem ampliar letras e pontos), centrado; em telas estreitas, reduz. */
+.analise-mapa-selecao .analise-mapa-conjuntos svg { margin-inline: auto; }
 .analise-selecao-acoes { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; border-top: 1px solid var(--cor-borda-suave); }
 .analise-selecao-acoes > button { display: inline-flex; align-items: center; gap: 6px; }
 .analise-selecionado-estado { border-color: var(--cor-borda-convite); }
 .analise-conjunto-membros { margin-top: 2px; font-size: 12px; }
 .analise-conjunto-membros > summary { color: var(--cor-destaque-texto); cursor: pointer; }
-.analise-territorios[data-acao="criterios"] .analise-selecionados, .analise-territorios[data-acao="agrupar"] .analise-selecionados {
-  max-height: none; }
+/* No painel direito (comando V22), os critérios e o agrupamento rolam dentro do painel, preso à tela: o mini mapa e a linha-resumo
+   ficam no alto do painel, e o rodapé com as escolhas, no fim dele. Em telas estreitas, o painel não é preso, e a página rola. */
+@media (min-width: 900px) {
+  .analise-territorios[data-acao="criterios"] .analise-selecionados, .analise-territorios[data-acao="agrupar"] .analise-selecionados {
+    overflow-y: auto; overscroll-behavior: contain; }
+  /* O deslocamento cobre o espaçamento interno do painel (12 px), em que o conteúdo rolado apareceria. */
+  .analise-selecionados .analise-criterios-alto { top: -12px; }
+  .analise-selecionados .analise-criterios-rodape { bottom: -12px; padding-bottom: 12px; }
+}
 @media (max-width: 479px) {
   .analise-no-linha { flex-wrap: wrap; }
+  /* No celular, o nome tem a linha toda ao lado da seta, e "Só o estado" vai para a linha de baixo, alinhado ao nome. */
+  .analise-caixa.analise-no-caixa { flex-basis: calc(100% - 48px); }
+  .analise-no-linha > .analise-so-estado { margin-left: 44px; }
   .analise-no-acoes { width: 100%; padding-left: 44px; justify-content: flex-start; }
   .analise-no-filhos { margin-left: 8px; }
 }

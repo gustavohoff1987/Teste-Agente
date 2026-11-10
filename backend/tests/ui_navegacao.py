@@ -609,7 +609,7 @@ def main():
         # modos; "Agrupar territórios selecionados", no painel direito, por escolha livre, só com os selecionados (o Pará inteiro).
         expect(territorios.get_by_test_id("analise-selecao-modos")).to_have_count(0)
         aperta(territorios.get_by_test_id("analise-agrupar-selecionados"))
-        expect(territorios.get_by_test_id("analise-agrupar")).to_have_attribute("data-modo", "livre")
+        expect(territorios.get_by_test_id("analise-agrupamento")).to_have_attribute("data-modo", "livre")
         agregar = territorios.get_by_test_id("analise-agregar")
         expect(territorios.get_by_test_id("analise-arvore")).to_be_visible()
         expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Conjunto A")

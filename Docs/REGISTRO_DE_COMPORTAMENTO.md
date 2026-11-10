@@ -35,6 +35,43 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-09 · Ajustes da Seleção V22 na conferência das capturas (Eixo I)
+- **Classificação (regra 1), pela leitura, antes de codar:** os ajustes vieram da conferência das capturas da etapa 2 e decorrem
+  das seções 2, 3, 6 e 7 do comando V22 (legendas, dicas, responsividade e contraste revistos; o foco numa base; "2 conjuntos e
+  4 territórios individuais"; o painel direito sincronizado). Todos mudam o que a pessoa vê e passam nos dois testes (escopo: o
+  comando; compatibilidade: nenhum contraria a SPEC nem uma divergência aprovada; nenhum número muda).
+- **Antes** (no commit da Seleção V22, logo antes deste):
+  - o mapa da seleção era esticado à largura do painel (letras e pontos grandes) e podia apertar a lista; os nomes dos conjuntos
+    podiam sair do mapa ou se sobrepor;
+  - as regiões abertas fechavam a cada volta à Seleção, e recolher a região de um estado com a lista aberta não a fechava;
+  - o resumo e o título encadeavam "e … e …" ("35 municípios do Amazonas e 12 conjuntos e Pará (estado) e Bahia (estado)");
+  - os critérios e o agrupamento, no painel direito, usavam o rodapé preso à página, que cobria campos;
+  - no celular, a seta de um estado podia ficar sozinha numa linha;
+  - na Análise Espacial, os conjuntos da base não eram territórios-base (sem ligação no gráfico, sem foco, "Base: 35" sem os
+    conjuntos), o motivo dos estados de fora começava em minúscula, o título citava os estados que ficaram de fora, e a dica de
+    uma base dizia "Abrir";
+  - os estados como unidade de uma seleção mista não tinham o nome no gráfico;
+  - o painel "Agrupar territórios selecionados" usava o test id `analise-agrupar`, o mesmo do seletor de grupos da Distribuição.
+- **Agora:**
+  - o mapa da seleção fica no tamanho dele (420 × 210), a lista guarda ao menos algumas linhas, e o painel rola por inteiro se
+    faltar altura; um nome que cobriria outro fica só no título do contorno ou do ponto, e o nome do conjunto não sai do mapa;
+  - as regiões abertas continuam abertas ao voltar à Seleção; recolher a região fecha também a lista aberta de um estado dela;
+  - uma lista só: "35 municípios do Amazonas, 12 conjuntos, Pará (estado) e Bahia (estado)", também no título;
+  - os critérios e o agrupamento rolam dentro do painel, com o mini mapa no alto e o rodapé no fim dele;
+  - no celular, o nome fica ao lado da seta, e "Só o estado" vai para a linha de baixo, alinhado ao nome;
+  - na Análise Espacial, os conjuntos da base são territórios-base (a referência e a distância pelo membro mais próximo, do motor,
+    com a ligação no gráfico e no mapa e o foco), a linha acima do desenho diz "Base: 35 territórios individuais e 12 conjuntos ·
+    … (o conjunto, pelo membro mais próximo)", o motivo começa em maiúscula, o título fala só do que a análise mede (também na
+    Rotatividade), e a dica de uma base diz "Destacar a referência e a distância";
+  - os estados como unidade de uma seleção mista levam o nome no gráfico, pela ordem do nível deles;
+  - o painel de agrupar usa `analise-agrupamento` (o seletor da Distribuição continua `analise-agrupar`).
+- **Permanece:** os números do motor e os pedidos (nada é recalculado na tela); o restante da Seleção V22.
+- **Motivo:** conferência das capturas da etapa 2 do comando V22, antes da pausa 1.
+- **Documentação e testes:** [área de análise](PAINEL_INTEGRADO_INTERFACE.md#seleção-do-comando-v22-09112026) (a árvore, o mini mapa
+  e a Análise Espacial); Node (`painel.test.mjs`: o resumo e o lugar numa lista só; `areaDeAnalise.test.mjs`: o conjunto como
+  território-base e a contagem da base); os roteiros `ui_criterios.py`, `ui_area_de_analise.py` e `ui_navegacao.py` com o test id
+  `analise-agrupamento`; `scripts/capturar_telas.py` (a Distribuição com os quintis de cada nível, o Pará e a Bahia como unidade).
+
 ### 2026-11-09 · A Seleção do comando V22: árvore, estado como unidade, painel direito e níveis juntos (Eixo I)
 - **Classificação (regra 1), pela leitura, antes de codar:** os itens das seções 2 a 7 e 11 do comando V22 foram classificados
   de uma vez. Todos mudam comportamento (telas, textos, fluxos, contratos da API e remoções) e passam nos dois testes:

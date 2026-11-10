@@ -6,8 +6,8 @@ Uso, de qualquer pasta do repositório, depois de "npm run build" em frontend/:
 Sobe o servidor de testes (backend/tests/serve_ui_offline.py, sem transporte de IA) com a base versionada da raiz, percorre
 as telas principais da página única e salva as capturas em .local/capturas/<data-hora>/, pasta ignorada pelo Git. Desde o
 comando V22 (9/11/2026), as telas da Seleção de Territórios: a árvore Brasil → região → estado → município, a Região Norte
-aberta, a seleção com o Pará como unidade ("Só o estado") e os municípios do Amazonas, com o mapa da seleção, a lista e as três
-ações; a Distribuição com os dois níveis; "Aplicar critérios de seleção"; "Agrupar territórios selecionados" por escolha livre e
+aberta, a seleção com o Pará e a Bahia como unidade ("Só o estado") e os municípios do Amazonas, com o mapa da seleção, a lista
+e as três ações; a Distribuição com os dois níveis e os quintis de cada um; "Aplicar critérios de seleção"; "Agrupar territórios selecionados" por escolha livre e
 por proximidade; a seleção com os conjuntos; a dica de um conjunto, com todos os membros; a Escolha dos territórios da Análise
 Espacial com a base em conjuntos e territórios individuais; o foco numa base da Análise Espacial; os estados como unidade ("Só
 os estados"). Depois, o Histórico, o diálogo de Nova sessão, o painel "Colunas" de uma planilha de distritos e províncias
@@ -28,7 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "frontend" / "dist" / "index.html"
 sys.path.insert(0, str(ROOT / "backend" / "tests"))
-AM, PA = "13", "15"
+AM, PA, BA = "13", "15", "29"
 
 
 def porta_livre():
@@ -116,6 +116,8 @@ def capturar(url, saida, canal):
         def selecao_mista():
             para = linha_do_estado(PA)
             grafico(lambda: para.get_by_test_id("analise-grupo-so-estado").click())
+            bahia = linha_do_estado(BA)
+            grafico(lambda: bahia.get_by_test_id("analise-grupo-so-estado").click())
             amazonas = linha_do_estado(AM)
             grafico(lambda: amazonas.get_by_test_id("analise-grupo-todos").check(), chave="mista")
             para.get_by_test_id("analise-grupo-ver").click()  # os municípios do Pará, esmaecidos e bloqueados
@@ -124,7 +126,11 @@ def capturar(url, saida, canal):
         def distribuicao_mista():
             territorios.get_by_test_id("analise-confirmar-selecao").click()
             expect(area).to_have_attribute("data-aba", "distribuicao")
-            expect(area.get_by_test_id("analise-legenda-nivel-estados")).to_be_visible(timeout=60000)
+            expect(area.locator('[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]')).to_have_count(2, timeout=60000)
+            # Os quintis de cada nível, com a legenda de cada um (a dos estados à parte).
+            grafico(lambda: area.get_by_test_id("analise-ajustes").get_by_test_id("analise-agrupar").select_option("quintis"),
+                    lambda o: bool(o.get("grupos")))
+            expect(area.get_by_test_id("analise-legenda-nivel-estados").first).to_be_visible(timeout=60000)
 
         def criterios():
             area.get_by_test_id("analise-aba-territorios").click()
@@ -134,7 +140,7 @@ def capturar(url, saida, canal):
         def agrupar_livre():
             territorios.get_by_test_id("analise-criterios-cancelar").click()
             territorios.get_by_test_id("analise-agrupar-selecionados").click()
-            expect(territorios.get_by_test_id("analise-agrupar")).to_have_attribute("data-modo", "livre")
+            expect(territorios.get_by_test_id("analise-agrupamento")).to_have_attribute("data-modo", "livre")
 
         def agrupar_proximidade():
             territorios.get_by_test_id("analise-agrupar-proximidade").click()
