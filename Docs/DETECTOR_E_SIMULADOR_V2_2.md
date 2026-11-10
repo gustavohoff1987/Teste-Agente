@@ -13,7 +13,27 @@
 
 > **Versão 2.2.** Decisões do responsável de 9/11/2026, depois da avaliação do comando integrado: (1) o Detector passa a se chamar **Detector de Sinais Territoriais**; a terceira camada passa a ser **sinal analítico** e as classes, **intensidade do sinal** (atenção, alta, crítica); (2) o Simulador é **exceção aprovada** à exclusão de projeção da SPEC (seção 2.5); (3) entram as **definições operacionais** da revisão estatística (seções 4.2 e 8.8), que prevalecem sobre o texto anterior quando houver divergência; (4) ficam definidos padrões provisórios para estados, Brasil e conjuntos no Simulador e a regra do estado como unidade na seleção (seções 8.8 e 13). Mudanças na seção 18.1.
 >
-> **Seções normativas:** 2 a 14 e 16. As seções 1.1, 17, 18 e 19 são registro histórico.
+> **Decisões do responsável de 10/11/2026 (pausa 1 do comando V22).** Valem para a implementação e prevalecem sobre o texto
+> abaixo quando houver divergência:
+>
+> - **(D-A) Intensidade do sinal como divergência aprovada, só no Detector.** As classes atenção, alta e crítica (seção 5.2)
+>   são exibidas como **sinal analítico** do Detector de Sinais Territoriais, não como juízo normativo, de desassistência ou
+>   de prioridade. Fica registrada como divergência aprovada da SPEC (CFG-NOR, 4.4.19: nenhum critério normativo
+>   pré-configurado); fora do Detector, o assistente continua recusando "crítico" sem critério. Os limiares que a calibração
+>   ainda não confirmou são **provisórios**, e onde faltar calibração não há classe.
+> - **(D-B) "Simular recuperação" com meta hipotética.** A meta automática (o patamar do indicador 7, pelo planejamento
+>   inverso; seções 8.8 e 10.3) entra como **hipótese editável**, com o texto "meta hipotética: voltar ao patamar de X
+>   médicos", o texto fixo de cenário e **nenhuma palavra de recomendação** (nunca "recomenda-se", "é preciso prover",
+>   "deveria"). A meta não é recomendação automática de provimento.
+> - **(D-C) Linguagem simples na interface.** Na tela, os termos técnicos dão lugar a frases simples; os termos técnicos
+>   ficam nos detalhes ("Como foi calculado") e no relatório:
+>   - em vez de "não calibrado": **"sem classificação"**, com o motivo, por exemplo "poucos municípios parecidos na base para
+>     dizer se esta queda é incomum";
+>   - em vez de "candidato" (limiar ou método): **"limite provisório"** (ou "método provisório");
+>   - a mesma regra vale para os demais termos técnicos (quantil, cauda, histerese, α, M0d…): a tela diz o que significam, e o
+>     nome técnico fica nos detalhes.
+>
+> **Seções normativas:** 2 a 14 e 16, com as decisões de 10/11/2026 acima. As seções 1.1, 17, 18 e 19 são registro histórico.
 
 ---
 
@@ -466,7 +486,7 @@ Vêm da mesma revisão estatística. Prevalecem sobre o texto das seções 7.3, 
 | Faixas de 80% | Só de 1 a 4 anos; além de 4 anos, “indisponível”, sem extrapolar. A coluna de 3 anos é calculada na calibração. Data intermediária usa a faixa do ano inteiro seguinte. A faixa é da base B(t) e se desloca com a intervenção I(t), com rótulo. N0 = 0, estados e Brasil: “indisponível”. Conjuntos: faixa do porte da soma, rotulada “aproximação”. Métodos M1 a M3: “indisponível” até terem faixas próprias. |
 | Intervenções | `S(u) = 0` para u < 0; padrão `S = 1` (permanência total), rotulado como hipótese. |
 | Meta inversa | Menor inteiro x com N(T) ≥ meta, com B(T) calculado sem arredondar; a meta vale na data final T. Com S = 1 e k eventos iguais, x = ⌈(meta − B(T)) ÷ k⌉; nos demais casos, busca entre inteiros. |
-| Simular recuperação | Abre o Simulador com o território, a janela e, como meta, o patamar do indicador 7 (seção 4.2), pelo planejamento inverso; a pessoa pode trocar a meta. |
+| Simular recuperação | Abre o Simulador com o território, a janela e, como meta, o patamar do indicador 7 (seção 4.2), pelo planejamento inverso; a pessoa pode trocar a meta. A meta é hipótese editável ("meta hipotética: voltar ao patamar de X médicos"), com o texto fixo de cenário e sem palavras de recomendação (decisão D-B de 10/11/2026). |
 
 ---
 
@@ -734,6 +754,14 @@ A avaliação deve classificar cada recomendação como: **acolher**, **acolher 
 ---
 
 ## 18. Registro de mudanças
+
+### 18.0. Decisões de 10/11/2026 (pausa 1 do comando V22)
+
+- D-A: intensidade do sinal (atenção, alta, crítica) aprovada como divergência da SPEC, só no Detector, com limites
+  provisórios e "sem classificação" onde faltar calibração.
+- D-B: "Simular recuperação" com a meta como hipótese editável, sem palavras de recomendação.
+- D-C: linguagem simples na interface ("sem classificação" com o motivo; "limite provisório"); termos técnicos nos detalhes e
+  no relatório.
 
 ### 18.1. Da versão 2.1 para a 2.2
 

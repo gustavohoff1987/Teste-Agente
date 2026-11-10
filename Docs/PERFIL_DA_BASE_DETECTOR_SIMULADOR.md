@@ -89,11 +89,15 @@ pessoas distintas, cada uma no seu nível.
 
 ## 8. Bloqueios reais e decisões pendentes
 
+Na interface, estes termos seguem a decisão D-C do anexo (linguagem simples: "sem classificação" no lugar de "não
+calibrado", "limite provisório" no lugar de "candidato"); os termos técnicos ficam nos detalhes e no relatório.
+
 1. **Unidade de contagem:** documentada pelo responsável e pelo perfil governado, não pelo CSV (seção 2). Não bloqueia: os textos
    seguem a seção 2, e nenhuma soma municipal é chamada de "médicos únicos".
 2. **Intensidade do sinal com limiares candidatos** (decisão 1 do comando: atenção, alta e crítica): a SPEC (CFG-NOR, 4.4.19)
-   não traz critério normativo pré-configurado, e o diálogo hoje recusa "crítico" sem critério. A compatibilidade com a SPEC
-   depende de consulta ao responsável (regra 1), antes da etapa 3; até a resposta, nenhuma classe é exibida.
+   não traz critério normativo pré-configurado, e o diálogo recusa "crítico" sem critério. **Resolvido em 10/11/2026**
+   (decisão D-A do [anexo](DETECTOR_E_SIMULADOR_V2_2.md)): divergência aprovada, só no Detector, com "limite provisório" e
+   "sem classificação" (com o motivo) onde faltar calibração.
 3. **Calibração por porte e intervalo:** possível em jun/2024 em todas as células (seção 4); nas primeiras competências,
    "não calibrado". A crítica do indicador 7 fica "não calibrável" enquanto não houver casos para estimar a cauda (seção 4.2).
 4. **População comparável:** só nos trechos da seção 6; fora deles, os indicadores 8 e 9 ficam "comparação não habilitada".
@@ -101,5 +105,6 @@ pessoas distintas, cada uma no seu nível.
    indicadores descritivos, sem intensidade calibrada.
 6. **Faixas de 80% do Simulador:** a tabela da seção 11.2 do anexo traz valores iniciais, a recalcular na base (retroprojeções
    com origens móveis) antes de exibir; sem o recálculo, "indisponível".
-7. **"Simular recuperação"** (meta = patamar do indicador 7, por planejamento inverso; etapa 5): a meta automática precisa ser
-   conferida com o responsável quanto à recomendação automática de provimento (princípio 2 da seção 8 do comando).
+7. **"Simular recuperação"** (meta = patamar do indicador 7, por planejamento inverso; etapa 5). **Resolvido em 10/11/2026**
+   (decisão D-B do [anexo](DETECTOR_E_SIMULADOR_V2_2.md)): a meta é hipótese editável ("meta hipotética: voltar ao patamar de
+   X médicos"), com o texto fixo de cenário e sem palavras de recomendação.
