@@ -423,6 +423,14 @@ def main():
             "data-valor", "999", timeout=60000)
         guarda("total-informado")
 
+        # 7c. As ferramentas do comando V22 (Detector e Simulador) ficam desligadas com uma planilha, com o motivo em palavras que
+        # não usam o vocabulário da base brasileira (CI 42895759046).
+        for ferramenta in ("detector", "simulador"):
+            expect(area.get_by_test_id("analise-ferramenta-" + ferramenta)).to_be_disabled()
+        expect(area.get_by_test_id("analise-ferramentas-motivo")).to_have_text(
+            "O Detector e o Simulador funcionam só com a base de médicos que vem com o Agente (registros de janeiro e junho de 2014 a "
+            "2024). Com uma planilha enviada, não estão disponíveis.")
+
         # 8. Nada do Brasil e nenhuma concordância de antes em tudo o que esteve à vista.
         for nome, texto in vistos.items():
             achados = sorted({m.group(0) for m in DO_BRASIL.finditer(texto)}) + sorted({m.group(0) for m in DISCORDANCIA.finditer(texto)})

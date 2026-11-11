@@ -2174,7 +2174,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const selecaoParaFerramentas = useMemo(() => tipo === "brasil" && !semSelecao(def) ? selecaoDasFerramentas(def, grupoDe) : null,
     [tipo, def.nivel, def.base, def.estados, def.conjuntos, grupoDe]);
   const motivoDasFerramentas = tipo === "brasil" ? null
-    : "O Detector e o Simulador usam a base do Brasil (médicos, registros de janeiro e junho de 2014 a 2024); com uma planilha enviada, não estão disponíveis.";
+    // Com uma planilha (que pode ser de outro país), nenhum texto à vista usa o vocabulário da base brasileira (28/10/2026).
+    : "O Detector e o Simulador funcionam só com a base de médicos que vem com o Agente (registros de janeiro e junho de 2014 a 2024). Com uma planilha enviada, não estão disponíveis.";
   const resumoDaSelecao = !fonte ? "Escolha os dados primeiro" : !pronto ? "Preparando os dados…"
     : semUnidades ? "Nenhum território selecionado"
     : resumoDoUniverso({ nivel: def.nivel, base: def.base, estados: def.estados, conjuntos: def.conjuntos.length, grupos, regioes, rotulos,

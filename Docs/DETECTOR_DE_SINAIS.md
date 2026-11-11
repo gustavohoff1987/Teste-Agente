@@ -21,7 +21,8 @@ Detector (decisão D-A do responsável, 10/11/2026); fora dele, o assistente con
 
 O Detector calcula no motor (`backend/detector.py`, sobre `backend/series_brasil.py`), sem o provedor de IA, e funciona com ele
 indisponível. Só existe na **base do Brasil** (médicos, registros de janeiro e junho de 2014 a 2024); com uma planilha enviada, o
-botão fica desligado, com o motivo.
+botão fica desligado, com o motivo (em palavras que não usam o vocabulário da base brasileira, porque a planilha pode ser de
+outro país: "funcionam só com a base de médicos que vem com o Agente").
 
 ## Na tela
 
@@ -87,7 +88,8 @@ Os números entre parênteses são os dos fenômenos do catálogo. Os limites s�
   instabilidade;
 - **descontinuidade de registro — quebra de fonte:** a soma municipal da UF abaixo da contagem estadual de médicos únicos, nas
   competências em que todos os municípios da UF têm registro (na base, só o Distrito Federal, de jan/2014 a jun/2017). O trecho
-  sai da comparação, e a janela do município começa depois dele;
+  sai da comparação, e a janela do município começa depois dele. O registro que sai da quebra (Brasília, 4.070 → 8.851 em
+  jan/2018) faz parte dela: na série, não leva "verificar registro", e a transição não é perda nem ganho a classificar;
 - **verificar registro:** o salto sem volta observada e a queda de 10 ou mais médicos que leva a contagem à metade ou menos. A
   queda grande que persiste **continua alertável**.
 

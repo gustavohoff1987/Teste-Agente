@@ -1251,8 +1251,10 @@ def _serie(base: Base, cal: Calibracao, territorio: Territorio, e: int) -> list[
                 ponto["marca"] = "pico_que_volta"
             elif bool(cal.quebra[linha, i]):
                 ponto["marca"] = "quebra_de_fonte"
-            elif i > 0 and (bool(cal.salto[linha, i]) or bool(cal.queda_grande[linha, i])) and \
+            elif i > 0 and int(cal.marca[linha, i]) != 4 and (bool(cal.salto[linha, i]) or bool(cal.queda_grande[linha, i])) and \
                     not (int(cal.marca[linha, i]) in (2, 3) and int(cal.marca_conhecida[linha, i]) <= e):
+                # O registro que sai de uma quebra de fonte (marca 4) não entra aqui: o salto dele é a própria quebra, como em
+                # _registro (CI 42895759046: Brasília, 4.070 → 8.851 em jan/2018).
                 ponto["marca"] = "verificar_registro"
         elif territorio.tipo == "conjunto" and territorio.ausentes is not None and territorio.ausentes[i]:
             ponto["membros_sem_registro"] = int(territorio.ausentes[i])

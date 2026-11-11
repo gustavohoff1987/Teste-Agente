@@ -341,17 +341,19 @@ def main():
         expect(redonda).to_have_attribute("aria-expanded", "false")
         expect(redonda).to_be_focused()
         expect(redonda.get_by_test_id("marca-personagem")).to_be_visible()
-        assert chat.inner_text().strip() == "", chat.inner_text()
+        assert chat.get_by_test_id("painel-chat-handle").inner_text().strip() == "", chat.get_by_test_id("painel-chat-handle").inner_text()
+        expect(chat.get_by_text("Assistente", exact=True)).to_have_count(0)
         minima = chat.bounding_box()
         assert minima["width"] <= 60 and minima["height"] <= 60 and abs(minima["width"] - minima["height"]) <= 1, minima
-        # Arrastar o botão redondo move a caixa e não a abre; o clique a abre.
+        # Arrastar o botão redondo move a caixa e não a abre; o clique a abre. O arrasto vai para a direita e para baixo, onde há
+        # espaço na janela (a caixa já foi levada para cima e para a esquerda nos passos anteriores).
         page.mouse.move(minima["x"] + minima["width"] / 2, minima["y"] + minima["height"] / 2)
         page.mouse.down()
-        page.mouse.move(minima["x"] + minima["width"] / 2 - 120, minima["y"] + minima["height"] / 2 - 90, steps=6)
+        page.mouse.move(minima["x"] + minima["width"] / 2 + 120, minima["y"] + minima["height"] / 2 + 90, steps=6)
         page.mouse.up()
         expect(chat).to_have_attribute("data-minimizada", "true")
         arrastada = chat.bounding_box()
-        assert abs((minima["x"] - arrastada["x"]) - 120) <= 4 and abs((minima["y"] - arrastada["y"]) - 90) <= 4, (minima, arrastada)
+        assert abs((arrastada["x"] - minima["x"]) - 120) <= 4 and abs((arrastada["y"] - minima["y"]) - 90) <= 4, (minima, arrastada)
         chat.get_by_test_id("painel-chat-minimizar").click()
         expect(chat.locator("#assistant-input")).to_be_visible()
         expect(chat.get_by_test_id("painel-chat-minimizar")).to_have_attribute("aria-label", "Minimizar a conversa")

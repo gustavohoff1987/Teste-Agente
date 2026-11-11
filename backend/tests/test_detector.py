@@ -230,6 +230,15 @@ def test_quebra_de_fonte_e_janela_depois_dela():
     assert saida["registro"] == {"estado": "descontinuidade_de_registro",
                                  "eventos": [{"tipo": "quebra_de_fonte", "de": "201401", "ate": "201706"}]}
     assert "quebra de fonte" in detector.texto_do_registro(saida["registro"])
+    # Na série, o registro que sai da quebra (100 → 300: um salto que dobra a contagem) não leva "verificar registro": o salto é
+    # a própria quebra de fonte, como no registro do território (CI 42895759046, com Brasília em jan/2018).
+    assert bool(cal.salto[linha, 8]) and int(cal.marca[linha, 8]) == 4
+    assert [ponto.get("marca") for ponto in detector._serie(b, cal, territorio, T - 1)[:10]] == ["quebra_de_fonte"] * 8 + [None, None]
+    # Um salto fora da quebra continua com "verificar registro".
+    outro = base({"530010": serie((100, 8), (300, 4), (700, 1)), **fundo(3)}, estados={"53": [250] * T, "11": [1] * T})
+    marcas = [ponto.get("marca") for ponto in detector._serie(outro, detector.calibrar(outro, guardar=False),
+                                                              series_brasil.municipio(outro, "530010"), T - 1)]
+    assert marcas[8] is None and marcas[12] == "verificar_registro", marcas
 
 
 def test_queda_grande_que_persiste_continua_alertavel_com_verificar_registro():

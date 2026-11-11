@@ -35,6 +35,32 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-11 · Correção do CI das etapas 3 e 4 do V22 (execução 42895759046)
+- **Classificação (regra 1):** correção de três falhas da primeira execução no CI dos commits das etapas 3 e 4. Duas mudam o que a
+  tela mostra (mudança de comportamento, dentro do escopo do comando V22 e sem contrariar a SPEC: prevista); a terceira é só de
+  teste.
+- **Antes (no envio de 10/11/2026):**
+  - na série do Detector, o registro que sai de uma quebra de fonte levava a marca "verificar registro" (Brasília, jan/2018: 4.070
+    → 8.851), embora o registro do território já tratasse esse salto como parte da quebra (job `dados-reais`,
+    `test_real_distrito_federal_quebra_de_fonte`);
+  - com uma planilha enviada, o motivo das ferramentas desligadas dizia "usam a base do Brasil", e a regra de 28/10/2026 não
+    admite o vocabulário da base brasileira com uma planilha, que pode ser de outro país (`ui_planilha_ficticia.py`).
+- **Agora:**
+  - o registro que sai da quebra de fonte não leva "verificar registro" na série: o salto é a própria quebra; um salto fora dela
+    continua marcado;
+  - o motivo das ferramentas com uma planilha é "O Detector e o Simulador funcionam só com a base de médicos que vem com o Agente
+    (registros de janeiro e junho de 2014 a 2024). Com uma planilha enviada, não estão disponíveis."
+- **Permanece:** o registro do território ("descontinuidade de registro", com a quebra de jan/2014 a jun/2017), a janela que
+  começa depois da quebra, as marcas do pico que volta e de "verificar registro" fora da quebra; os botões desligados com uma
+  planilha; a mensagem da rota para quem a chama sem a base do Brasil.
+- **Motivo:** falhas do CI. Conclusão sobre cada teste (regra 3): nos dois primeiros, o defeito era do produto, e os testes
+  ficaram como estavam; no terceiro (`ui_pagina_unica.py`, em três suítes), o defeito era do teste novo de 10/11/2026, que lia como
+  texto do botão redondo o anúncio para leitores de tela de um passo anterior ("Caixa da conversa movida."); a asserção passou a
+  olhar o texto à vista do cabeçalho da caixa, sem afrouxar o que confere (o botão sem texto, redondo e arrastável).
+- **Documentação e testes:** [Detector](DETECTOR_DE_SINAIS.md) e [área de análise](PAINEL_INTEGRADO_INTERFACE.md). Testes: o caso
+  sintético da saída da quebra em `test_detector.py` (antes, só a base versionada o pegava); o motivo das ferramentas, por
+  extenso, em `ui_planilha_ficticia.py`; a asserção corrigida em `ui_pagina_unica.py`.
+
 ### 2026-11-10 · Ajustes da conferência da pausa 2 do V22: caixa da conversa redonda, conjuntos e intervenções no Simulador e textos do Detector
 - **Classificação (regra 1), pela leitura, antes de codar:** textos e uma forma de tela pedidos pelo responsável na conferência
   das capturas da pausa 2 (10/11/2026): mudança de comportamento. *Escopo:* decorre do pedido. *Compatibilidade:* não contraria a

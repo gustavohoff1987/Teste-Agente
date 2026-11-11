@@ -257,7 +257,10 @@ Pedidos pelo responsável ao conferir as capturas da etapa 2; onde divergem, val
 Acima das abas, a linha "Ferramentas" (`analise-ferramentas-novas`) traz os botões das ferramentas do Eixo II do comando V22. Cada
 uma abre no lugar do painel da aba e do desenho da análise (`analise-ferramenta-painel`; `area-de-analise` leva `data-ferramenta`)
 e fecha quando a pessoa escolhe uma aba, vai à Seleção de Territórios ou faz um pedido pela conversa. Só existem na base do
-Brasil; com uma planilha enviada, ficam desligadas, com o motivo (`analise-ferramentas-motivo`).
+Brasil; com uma planilha enviada, ficam desligadas, com o motivo (`analise-ferramentas-motivo`): "O Detector e o Simulador
+funcionam só com a base de médicos que vem com o Agente (registros de janeiro e junho de 2014 a 2024). Com uma planilha enviada,
+não estão disponíveis." O texto não cita o Brasil: com uma planilha, nenhum texto à vista usa o vocabulário da base brasileira
+(regra de 28/10/2026).
 
 - **Detector de Sinais** (`analise-ferramenta-detector`): [Detector de Sinais Territoriais](DETECTOR_DE_SINAIS.md). Usa a seleção
   em uso.
