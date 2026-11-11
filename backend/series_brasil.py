@@ -265,10 +265,12 @@ def _conjunto(base: Base, bruto) -> Territorio:
                       versao=versao, ausentes=ausentes)
 
 
-def selecao(base: Base, opcoes: dict) -> list[Territorio]:
+def selecao(base: Base, opcoes: dict, com_brasil: bool = False) -> list[Territorio]:
     """Os territórios de um pedido, na ordem: municípios (pelo código), estados como unidade e conjuntos. O mesmo contrato do
     painel (`base.municipios`, `estados_unidade` e `conjuntos`); um estado como unidade (ou num conjunto de estados) e os
-    municípios dele não entram juntos (RQ-DAD-30), como no painel."""
+    municípios dele não entram juntos (RQ-DAD-30), como no painel. Com `com_brasil` (o Simulador de Cenários), `brasil: true`
+    acrescenta o Brasil no fim, pela contagem nacional de médicos únicos: cada território é simulado à parte, e o Brasil nunca é
+    somado aos demais."""
     bruto = ((opcoes.get("base") or {}).get("municipios") or {}) if isinstance(opcoes.get("base"), dict) else {}
     if not isinstance(bruto, dict):
         raise ValueError("Seleção inválida: envie base.municipios com todos, estados e ids.")
@@ -295,6 +297,8 @@ def selecao(base: Base, opcoes: dict) -> list[Territorio]:
     territorios = [municipio(base, base.codigos[linha]) for linha in sorted(linhas)]
     territorios += [estado(base, prefixo) for prefixo in sorted(unidades)]
     territorios += conjuntos
+    if com_brasil and opcoes.get("brasil") is True:
+        territorios.append(brasil(base))
     if not territorios:
         raise ValueError("Nenhum território na seleção: escolha os territórios na Seleção de Territórios.")
     return territorios

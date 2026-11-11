@@ -1,4 +1,4 @@
-"""Simulador de Cenários Territoriais na página única (comando V22, etapa 4), com a base versionada (somente leitura).
+"""Simulador de Cenários Territoriais na página única (comando V22, etapas 4 e 5), com a base versionada (somente leitura).
 
 Confere, contra as respostas de POST /api/simulador:
 - a ferramenta na navegação principal ("Simulador de Cenários"), que sem territórios não pede nada ao motor;
@@ -13,6 +13,11 @@ Confere, contra as respostas de POST /api/simulador:
 - o modo avançado, com um segundo cenário; a retirada acima do estoque, devolvida para revisão; as estatísticas históricas, com
   a média aritmética só descritiva; a validação dos métodos; as exportações (CSV dos resultados e JSON do cenário) e a
   importação do cenário;
+- da etapa 5: "Abrir no Simulador", no Detector de Sinais, que traz MANAUS (AM) com o contexto analítico sem mudar a seleção
+  principal; o Brasil como território, só no Simulador; as referências de comparação (FLORIANOPOLIS dinâmica, o Brasil fixo e um
+  valor informado), com as curvas no gráfico, os textos do motor, "não alcança no horizonte simulado" e o aviso de sobreposição;
+  o CSV das comparações; e o planejamento inverso, com a meta hipotética, o menor inteiro por evento e o plano usado como
+  intervenção, que recalculado alcança a meta;
 - nenhuma chamada ao provedor de IA e nenhum erro na página.
 
 Base Brasil versionada (suíte base-versionada, ADT_BLOCK1_REAL=1); servidor serve_ui_offline.py, sem o provedor de IA.
@@ -26,6 +31,7 @@ from ui_support import URL, offline, options_of
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 MANAUS, TEFE, RIO_RUFINO, BRASILIA, PR = "code:130260", "code:130420", "code:421505", "code:530010", "41"
+FLORIANOPOLIS = "code:420540"
 FIXO = "Cenário hipotético, não é previsão: "
 
 
@@ -342,6 +348,171 @@ def main():
         expect(resumo).to_have_text(principal)
         expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "3")  # o Desfazer não mexe na seleção local
 
+        # 14. "Abrir no Simulador" (etapa 5): do Detector de Sinais, MANAUS (AM) vai ao Simulador com o contexto analítico (o
+        # território, a data avaliada e os sinais à vista). A seleção local fica só com ele e não acompanha a seleção principal,
+        # que não muda. Manaus está acima do patamar anterior: não há "Simular recuperação" para ele.
+        area.get_by_test_id("analise-ferramenta-detector").click()
+        detector = area.get_by_test_id("detector")
+        expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
+        with page.expect_response(lambda r: r.url.endswith("/api/detector") and r.request.method == "POST", timeout=180000):
+            detector.locator('[data-testid="detector-linha"][data-id="' + MANAUS + '"]').get_by_test_id("detector-abrir").click()
+        expect(detector.get_by_test_id("detector-detalhe")).to_have_attribute("data-id", MANAUS)
+        expect(detector.get_by_test_id("detector-simular-recuperacao")).to_have_count(0)
+        detector.get_by_test_id("detector-abrir-no-simulador").click()
+        expect(area).to_have_attribute("data-ferramenta", "simulador")
+        expect(simulador).to_have_attribute("data-etapa", "1")
+        expect(simulador).to_have_attribute("data-modo", "simples")
+        expect(simulador).to_have_attribute("data-estado", "configurando")
+        aviso = simulador.get_by_test_id("simulador-do-detector")
+        expect(aviso).to_have_attribute("data-recuperacao", "false")
+        expect(aviso).to_contain_text("Aberto pelo Detector de Sinais: MANAUS (AM), avaliado em jun/2024")
+        expect(aviso).to_contain_text("Sem sinais à vista lá.")
+        expect(aviso).to_contain_text("o que vem depois do último registro é cenário hipotético")
+        expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "1")
+        expect(local(MANAUS)).to_have_count(1)
+        expect(simulador.get_by_test_id("simulador-origem-da-selecao")).to_have_attribute("data-acompanha", "false")
+        expect(simulador.get_by_test_id("simulador-origem-da-selecao")).to_contain_text("veio do Detector de Sinais")
+        expect(simulador.get_by_test_id("simulador-nao-acompanha")).to_contain_text("não acompanha a seleção principal")
+        expect(resumo).to_have_text(principal)
+
+        # 15. O Brasil como território, só no Simulador (a contagem nacional), e as referências de comparação: FLORIANOPOLIS (SC),
+        # dinâmica; o Brasil, fixo; e um valor informado. Elas podem ficar fora da seleção do Simulador e não mudam a principal.
+        acrescentar("brasil", "br")
+        expect(local("br")).to_contain_text("Brasil (contagem nacional)")
+        expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "2")
+        simulador.get_by_test_id("simulador-busca").fill("")
+        referencias = simulador.get_by_test_id("simulador-referencias")
+        expect(referencias).to_have_attribute("data-total", "0")
+        expect(simulador.get_by_test_id("simulador-metrica")).to_have_count(0)
+
+        def da_lista(alvo):
+            return simulador.locator('[data-testid="simulador-referencia-item"][data-alvo="' + alvo + '"]')
+        simulador.get_by_test_id("simulador-referencia-busca").fill("florian")
+        simulador.locator('[data-testid="simulador-referencia-acrescentar"][data-id="' + FLORIANOPOLIS + '"]').click()
+        expect(da_lista(FLORIANOPOLIS)).to_have_attribute("data-tipo", "fixa")
+        da_lista(FLORIANOPOLIS).get_by_test_id("simulador-referencia-tipo").select_option("dinamica")
+        expect(da_lista(FLORIANOPOLIS)).to_have_attribute("data-tipo", "dinamica")
+        simulador.get_by_test_id("simulador-referencia-brasil").click()
+        simulador.get_by_test_id("simulador-referencia-brasil").click()
+        expect(simulador.get_by_test_id("simulador-referencia-aviso")).to_have_text("Esta referência já está na lista.")
+        simulador.get_by_test_id("simulador-referencia-valor-nova").click()
+        expect(simulador.get_by_test_id("simulador-calcular-direto")).to_be_disabled()   # falta o valor da referência
+        simulador.get_by_test_id("simulador-referencia-valor").fill("6.500")
+        expect(referencias).to_have_attribute("data-total", "3")
+        expect(simulador.get_by_test_id("simulador-metrica")).to_have_value("quantidade")
+        expect(simulador.get_by_test_id("simulador-metrica-apoio")).to_contain_text("não é comparar a suficiência do atendimento")
+        expect(resumo).to_have_text(principal)
+        simulador.get_by_test_id("simulador-etapa-3").click()
+        simulador.get_by_test_id("simulador-atalho-4").click()
+        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+        assert enviado == {
+            "base": {"municipios": {"todos": False, "estados": [], "ids": [MANAUS]}}, "brasil": True, "horizonte": "202806",
+            "cenarios": [{"id": "c1", "nome": "Cenário 1", "metodo": "padrao"}, {"id": "m0", "nome": "Persistência (referência)", "metodo": "M0"}],
+            "referencias": [{"id": "r1", "tipo": "dinamica", "territorio": FLORIANOPOLIS}, {"id": "r2", "tipo": "fixa", "territorio": "br"},
+                            {"id": "r3", "tipo": "valor", "valor": 6500, "rotulo": "Valor informado por você"}]}, enviado
+        assert [item["id"] for item in corpo["territorios"]] == [MANAUS, "br"], corpo["territorios"]
+        assert corpo["comparacao"] == {"metrica": "quantidade", "hipotese_de_populacao": None}, corpo["comparacao"]
+        de_manaus = do_territorio(corpo, MANAUS)["cenarios"][0]
+        comparacoes = {item["id"]: item for item in de_manaus["comparacoes"]}
+        # Sem cruzamento no horizonte: "não alcança no horizonte simulado", sem data inventada.
+        assert all(item["alcance"] == {"estado": "nao_alcanca", "data": None} for item in comparacoes.values()), comparacoes
+        expect(simulador.get_by_test_id("simulador-foco")).to_have_value(MANAUS)
+
+        def da_comparacao(chave):
+            return resultado.locator('[data-testid="simulador-comparacao"][data-ref="' + chave + '"]')
+        expect(resultado.get_by_test_id("simulador-comparacao")).to_have_count(3)
+        for chave in ("r1", "r2", "r3"):
+            expect(da_comparacao(chave)).to_have_attribute("data-alcance", "nao_alcanca")
+            expect(da_comparacao(chave)).to_contain_text(comparacoes[chave]["texto"])
+        expect(da_comparacao("r1")).to_contain_text("Não alcança no horizonte simulado (até jun/2028).")
+        expect(da_comparacao("r2").get_by_test_id("simulador-comparacao-aviso").first).to_have_text(
+            "A referência (Brasil) contém o território: a comparação não é independente.")
+        expect(resultado.get_by_test_id("simulador-hipotetico")).to_have_count(0)   # com milhares de médicos, a escala não tem o que dizer
+        # No gráfico, as curvas das referências que cabem na escala; a do Brasil fica na legenda, fora da escala.
+        expect(grafico.get_by_test_id("simulador-referencia")).to_have_count(2)
+        expect(grafico.locator('[data-testid="simulador-referencia-legenda"][data-ref="r1"]')).to_contain_text(
+            "R1: referência FLORIANOPOLIS (SC) (dinâmica: ")
+        do_brasil_na_legenda = grafico.locator('[data-testid="simulador-referencia-legenda"][data-ref="r2"]')
+        expect(do_brasil_na_legenda).to_have_attribute("data-na-escala", "false")
+        expect(do_brasil_na_legenda).to_contain_text("fora da escala deste gráfico (502.495 médicos na data final)")
+        expect(simulador.get_by_test_id("simulador-referencias-do-calculo")).to_contain_text("comparadas por quantidade de médicos")
+        page.screenshot(path=str(OUTPUT / "simulador-04-referencias-real.png"), full_page=True)
+        # O Brasil no gráfico: o padrão provisório do nível (a taxa composta de 3 anos na contagem nacional), sem faixa.
+        simulador.get_by_test_id("simulador-foco").select_option("br")
+        do_brasil = do_territorio(corpo, "br")["cenarios"][0]
+        assert do_brasil["metodo"]["usado"] == "M1" and do_brasil["final"]["faixa"] is None and "hipotetico" not in do_brasil, do_brasil["metodo"]
+        expect(resultado).to_have_attribute("data-metodo", "M1")
+        expect(resultado.get_by_test_id("simulador-texto")).to_have_text(do_brasil["texto"])
+        expect(resultado.locator('[data-testid="simulador-avisos"] li[data-codigo="PADRAO_PROVISORIO_DO_NIVEL"]')).to_contain_text(
+            "Para o Brasil, o método padrão é provisório")
+        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 80%: indisponível")
+        expect(simulador.get_by_test_id("simulador-resultados")).to_contain_text("médicos únicos no Brasil (fonte nacional)")
+        expect(da_comparacao("r2")).to_contain_text("A referência é o próprio território.")
+        with page.expect_download() as baixado:
+            simulador.get_by_test_id("simulador-exportar-comparacoes").click()
+        assert baixado.value.suggested_filename == "comparacoes_202806.csv", baixado.value.suggested_filename
+        csv = Path(baixado.value.path()).read_text(encoding="utf-8-sig")
+        assert csv.startswith("Identificador;Território;Cenário;Referência;Tipo da referência;O que é a referência;Métrica;Data;"), csv[:300]
+        assert "não alcança no horizonte simulado" in csv and "já está no nível da referência ou acima na origem" in csv, csv[:900]
+
+        # 16. O planejamento inverso: a meta hipotética de alcançar a referência (FLORIANOPOLIS), com um acréscimo por ano. O motor
+        # devolve o menor número inteiro de médicos por evento; o cenário só o recebe por comando ("Usar como intervenção deste
+        # cenário") e, recalculado, alcança a meta.
+        simulador.get_by_test_id("simulador-etapa-1").click()
+        local("br").get_by_role("button").click()
+        expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "1")
+        simulador.get_by_test_id("simulador-etapa-3").click()
+        simulador.get_by_test_id("simulador-plano-novo").click()
+        plano = simulador.get_by_test_id("simulador-plano")
+        expect(plano).to_have_attribute("data-meta", "valor")
+        expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Informe a meta do planejamento inverso, em médicos.")
+        expect(simulador.get_by_test_id("simulador-calcular")).to_be_disabled()
+        plano.get_by_test_id("simulador-plano-meta").select_option("referencia")
+        expect(plano.get_by_test_id("simulador-plano-referencia")).to_have_value("r1")
+        expect(plano.get_by_test_id("simulador-plano-em")).to_have_value("2025-06")
+        plano.get_by_test_id("simulador-plano-periodica").check()
+        expect(plano.get_by_test_id("simulador-plano-ate")).to_have_value("2027-06")
+        plano.get_by_test_id("simulador-plano-ate").fill("2028-06")
+        expect(plano).to_contain_text("não um plano")
+        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+        assert "brasil" not in enviado and enviado["cenarios"][0] == {"id": "c1", "nome": "Cenário 1", "metodo": "padrao", "planejamento": {
+            "meta": {"tipo": "referencia", "referencia": "r1"}, "em": "202506", "ate": "202806", "a_cada_meses": 12}}, enviado
+        de_manaus = do_territorio(corpo, MANAUS)["cenarios"][0]
+        planejado = de_manaus["planejamento"]
+        assert (planejado["estado"], planejado["eventos"], planejado["por_evento"], planejado["total"]) == ("calculado", 4, 387, 1548), planejado
+        assert planejado["texto"].startswith("Meta hipotética: alcançar a referência FLORIANOPOLIS (SC)") and planejado["texto"].endswith(
+            "É uma conta condicional às hipóteses do cenário, não um plano."), planejado["texto"]
+        for proibida in ("recomenda", "é preciso", "deveria", "necessário prover"):
+            assert proibida not in planejado["texto"].lower(), proibida
+        assert de_manaus["final"]["intervencao"] == 0, "o acréscimo planejado só entra no cenário por comando"
+        bloco = resultado.get_by_test_id("simulador-planejamento")
+        expect(bloco).to_have_attribute("data-estado", "calculado")
+        expect(bloco).to_have_attribute("data-por-evento", "387")
+        expect(bloco).to_have_attribute("data-eventos", "4")
+        expect(bloco.get_by_test_id("simulador-planejamento-texto")).to_have_text(planejado["texto"])
+        expect(bloco).to_contain_text("conta condicional")
+        expect(grafico.get_by_test_id("simulador-evento")).to_have_count(0)
+        page.screenshot(path=str(OUTPUT / "simulador-05-planejamento-real.png"), full_page=True)
+        bloco.get_by_test_id("simulador-planejamento-usar").click()
+        expect(simulador).to_have_attribute("data-etapa", "3")
+        expect(simulador).to_have_attribute("data-estado", "desatualizado")
+        expect(simulador.get_by_test_id("simulador-plano")).to_have_attribute("data-ativo", "false")
+        expect(simulador.get_by_test_id("simulador-intervencao")).to_have_count(1)
+        expect(simulador.get_by_test_id("simulador-intervencao-quantidade")).to_have_value("387")
+        expect(simulador.get_by_test_id("simulador-intervencao-periodica")).to_be_checked()
+        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+        assert enviado["cenarios"][0] == {"id": "c1", "nome": "Cenário 1", "metodo": "padrao", "intervencoes": [
+            {"tipo": "acrescimo", "quantidade": 387, "em": "202506", "ate": "202806", "a_cada_meses": 12}]}, enviado
+        aplicado = do_territorio(corpo, MANAUS)["cenarios"][0]
+        assert abs(aplicado["final"]["total"] - planejado["resultado"]) < 1e-6 and aplicado["final"]["total"] >= planejado["meta"]["valor"], aplicado["final"]
+        da_meta = next(item for item in aplicado["comparacoes"] if item["id"] == "r1")
+        assert da_meta["alcance"] == {"estado": "alcanca", "data": "202806"}, da_meta["alcance"]
+        expect(da_comparacao("r1")).to_have_attribute("data-alcance", "alcanca")
+        expect(da_comparacao("r1")).to_contain_text("No cenário, alcança a referência em jun/2028")
+        expect(grafico.get_by_test_id("simulador-evento")).to_have_count(4)
+        expect(resultado.get_by_test_id("simulador-planejamento")).to_have_count(0)
+        expect(resumo).to_have_text(principal)
+
         assert not chamadas_llm, "o Simulador calcula sem o provedor de IA"
         assert not falhas, falhas
         browser.close()
@@ -349,7 +520,9 @@ def main():
           "como unidade, retirada de MANAUS e recusa de CURITIBA) sem mudar a seleção principal, janela e método padrão, data final em "
           "qualquer mês, cenário com acréscimo (texto fixo do motor, gráfico com observado, base, evento e faixa; pico fora do ajuste em "
           "RIO RUFINO), Paraná sem faixa, estatísticas descritivas, modo avançado com dois cenários, retirada acima do estoque, validação "
-          "dos métodos, exportações CSV e JSON, importação do cenário, cópia de novo e Aplicar à seleção principal com Desfazer.")
+          "dos métodos, exportações CSV e JSON, importação do cenário, cópia de novo e Aplicar à seleção principal com Desfazer; "
+          "Abrir no Simulador com o contexto do Detector, o Brasil como território, três referências (curvas, textos, não alcança no "
+          "horizonte e sobreposição), CSV das comparações e planejamento inverso (387 médicos em 4 eventos), usado como intervenção.")
 
 
 if __name__ == "__main__":

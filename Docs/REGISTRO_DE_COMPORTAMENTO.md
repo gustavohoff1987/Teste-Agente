@@ -35,6 +35,82 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-11 · Comparativos e integração do Detector e do Simulador: fenômenos 8 a 12, referências, planejamento inverso e "Simular recuperação" (comando V22, etapa 5)
+- **Classificação (regra 1):** implementa a etapa 5 do comando V22 (seções 9.2, fenômenos 8 a 12, 10.5 e planejamento inverso, e a
+  ligação entre as ferramentas), mais os pedidos do responsável de 10/11/2026 (os fenômenos 8 a 12 e as referências também em
+  gráfico ou mapa, com os componentes que o Agente já tem; o Brasil como referência e como território simulável). São mudanças de
+  comportamento, dentro do escopo do comando e compatíveis com a SPEC e com as divergências já aprovadas: a intensidade do sinal
+  só no Detector (decisão D-A: os fenômenos 8 a 10 **não** ganham intensidade, porque os limites deles não foram validados); a
+  projeção só no Simulador (decisão 2 do comando); "Simular recuperação" com a meta como hipótese editável e sem palavras de
+  recomendação (decisão D-B); e a linguagem simples (decisão D-C). **Mudança prevista.** A SPEC não foi editada.
+- **Antes:**
+  - o Detector de Sinais mostrava os fenômenos 1 a 7 (o núcleo), em tabela de seis colunas, com seis itens nos detalhes;
+  - o Simulador de Cenários simulava municípios, estados como unidade e conjuntos, sem o Brasil, sem referências de comparação e
+    sem planejamento inverso; as duas ferramentas não se ligavam;
+  - o assistente de conversa recusava a projeção e sugeria a tendência e a série temporal.
+- **Agora, no Detector de Sinais** (versão `DETECTOR-SINAIS/V2.2/2`):
+  - os **fenômenos 8 a 12**: a taxa de médicos por 1.000 habitantes e a variação dela em 2 anos, com a decomposição (8); o
+    percentil pela taxa num universo fixo na janela (9); o índice ante a referência na mesma unidade e sem o território (10); a
+    distância em linha reta até o município mais próximo com taxa igual ou maior que o critério, a taxa do Brasil na data (11); e
+    as combinações pré-definidas de sinais, sem índice geral (12). Os fenômenos 8, 9 e 10 são **sinais observados** (forte,
+    muito forte, queda de posição), com limites provisórios e **sem intensidade**; abaixo de 20 médicos no início da janela,
+    descritivos; o 11 é só contexto;
+  - a variação em 2 anos só é calculada em janelas inteiras dentro de 2014–2017 ou de 2018–2021 (população comparável). Fora
+    disso, **"comparação não habilitada"**, com o nível da data à vista: é o caso do último registro, jun/2024;
+  - a tabela passa a ter **nove colunas** (entram "Comparação relativa", "Contexto geográfico" e "Sinais combinados"), quatro
+    filtros de fenômeno novos e quatro contagens novas no resumo; os detalhes listam os 12 fenômenos (11 itens) e ganham a
+    **série da taxa**, com a da referência tracejada;
+  - acima da tabela, o **gráfico de bolhas** (a distância e a taxa; a vista inicial) e o **mapa dos sinais**, com os componentes
+    do Agente e só com os valores e as coordenadas do motor; "Só a tabela" os esconde;
+  - quatro grupos novos de parâmetros exploratórios (taxa por habitante, posição relativa, defasagem e o critério do contexto);
+  - nos detalhes, **"Abrir no Simulador"** e, para quem está abaixo do patamar anterior, **"Simular recuperação"**;
+  - a rota responde também com `comparacao`, `coordenadas`, os campos novos de cada linha e, no detalhe, `comparativo`; o CSV
+    ganha 23 colunas, e o JSON do método, `comparacao_relativa`; a limitação `COMPARACAO_SO_COM_POPULACAO_COMPARAVEL` acompanha
+    toda resposta.
+- **Agora, no Simulador de Cenários** (versão `SIMULADOR-CENARIOS/V2.2/2`):
+  - o **Brasil** entra como território, só no Simulador (a contagem nacional; padrão provisório: a taxa composta de 3 anos; sem
+    faixa); "Aplicar à seleção principal" não o leva, e a tela diz isso;
+  - **referências de comparação**, até 5: um município, um estado, o Brasil, um conjunto da seleção local ou um valor da pessoa;
+    fixas ou dinâmicas; por quantidade ou por taxa com a população constante (hipótese declarada). Cada cenário traz a diferença,
+    a razão, o índice e o alcance ("alcança em…", "já está no nível…" ou **"Não alcança no horizonte simulado"**, sem data
+    inventada), com os avisos de sobreposição e de unidade; no gráfico, a curva de cada referência que cabe na escala;
+  - **planejamento inverso** por cenário: a meta hipotética (um número de médicos, o patamar anterior ou uma referência) e o
+    calendário; o motor devolve o menor número inteiro de médicos por evento, a conta sem arredondar e o cenário simulado com o
+    acréscimo. O texto termina com "É uma conta condicional às hipóteses do cenário, não um plano." O acréscimo só entra no
+    cenário por "Usar como intervenção deste cenário";
+  - a **hipótese derivada da simulação**, num painel à parte e só quando é pertinente: a dependência de poucos médicos que o
+    valor do cenário teria. Nenhum teste de evento observado é aplicado a curvas simuladas;
+  - aberto pelo Detector, o Simulador fica só com aquele território na seleção local (que não acompanha a principal nem a
+    altera), com o aviso da origem; em "Simular recuperação", abre na etapa das intervenções, com a meta de voltar ao patamar;
+  - o CSV dos resultados ganha quatro colunas (a meta, os médicos por evento, os eventos e a intensidade da hipótese derivada);
+    há um CSV das comparações; o cenário exportado leva o Brasil, as referências, a métrica e o planejamento.
+- **Agora, na conversa:** a recusa de projeção continua (AT-04) e, na base do Brasil, indica o caminho: "Para montar cenários
+  hipotéticos, que não são previsão, há o Simulador de Cenários, na linha Ferramentas da área de análise: nele, você escolhe o
+  método, as hipóteses e a data final."
+- **Permanece:** os fenômenos 1 a 7, a calibração, as marcas de registro e o histórico de sinais (que cobre só o núcleo); a
+  intensidade só onde havia; os métodos M0 a M3, as intervenções, a retroprojeção e as faixas de 80% do Simulador; o texto fixo de
+  cenário; a seleção principal, que só muda por "Aplicar à seleção principal"; as rotas existentes e os contratos delas (os
+  campos novos são acréscimos); a recusa de previsões livres pela conversa e pela guarda de fidelidade; com uma planilha enviada,
+  as ferramentas desligadas, e a recusa de projeção sem citar o Simulador; nenhum dado vai ao provedor de IA; a base não mudou.
+- **Motivo:** etapa 5 do comando V22 e pedidos do responsável na pausa 2 (10/11/2026).
+- **Limites declarados:** os limites dos fenômenos 8 a 10 não têm validação (a fotografia de 11/11/2026 mostra que a queda de 10%
+  da taxa atinge de 9% a 21% dos municípios avaliados: é pouco seletiva); a regra da população comparável também foi aplicada à
+  variação do fenômeno 10, por decisão conservadora; a comparação por taxa vale só com a população constante; a referência
+  dinâmica usa o método padrão provisório do nível dela; o planejamento inverso é uma conta, não um plano.
+- **Documentação e testes:** [Detector](DETECTOR_DE_SINAIS.md) (os 12 fenômenos, a população comparável, o gráfico e o mapa, a
+  rota e a fotografia), [Simulador](SIMULADOR_DE_CENARIOS.md) (o Brasil, as referências, o planejamento inverso, a hipótese
+  derivada, a rota e as exportações), [área de análise](PAINEL_INTEGRADO_INTERFACE.md), [diálogo governado](DIALOGO_GOVERNADO.md),
+  [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md) e `README.md`; `scripts/calibrar_detector.py` ganhou a fotografia dos
+  fenômenos 8 a 11, e `scripts/capturar_telas.py`, as telas 25 a 39. Testes: `backend/tests/test_detector.py` (séries sintéticas
+  com população e coordenadas, a rota e a base versionada), `test_simulador.py` (o Brasil, as referências, a taxa, o planejamento
+  inverso reaplicado, a hipótese derivada, as recusas e a base versionada), `test_dialogo.py` (a indicação do Simulador só na
+  base do Brasil), `frontend/tests/detector.test.mjs` e `simulador.test.mjs`, e os roteiros `ui_detector.py` e `ui_simulador.py`.
+  **Testes que mudaram porque o comportamento mudou de propósito (regra 3):** as dimensões de uma avaliação passam a ter cinco
+  chaves; a lista de fenômenos, 11 itens; as limitações da resposta, três; os cabeçalhos da tabela, nove; a lista de filtros,
+  treze; e o CSV dos resultados do Simulador, quatro colunas a mais. Os catálogos sintéticos das rotas ganharam populações e
+  coordenadas diferentes e outra contagem nacional, para a taxa e a distância terem o que conferir; nenhuma asserção anterior
+  dependia desses valores. Nenhum teste foi afrouxado.
+
 ### 2026-11-11 · Correção do CI das etapas 3 e 4 do V22 (execução 42895759046)
 - **Classificação (regra 1):** correção de três falhas da primeira execução no CI dos commits das etapas 3 e 4. Duas mudam o que a
   tela mostra (mudança de comportamento, dentro do escopo do comando V22 e sem contrariar a SPEC: prevista); a terceira é só de

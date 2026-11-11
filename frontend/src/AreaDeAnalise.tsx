@@ -54,7 +54,8 @@ import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import IconeVassoura from "./IconeVassoura";
 import DetectorDeSinais from "./DetectorDeSinais";
 import SimuladorDeCenarios from "./SimuladorDeCenarios";
-import type { ConfigDoSimulador, SelecaoLocal } from "./simuladorModel";
+import { configDoDetector, selecaoDoDetector, type ConfigDoSimulador, type SelecaoLocal } from "./simuladorModel";
+import type { AlvoDoSimulador } from "./detectorModel";
 import "./analise.css";
 
 // Área de análise da página única (22/10/2026). Numa linha de abas (23/10/2026), que aparece só com os dados prontos
@@ -1107,6 +1108,18 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     mudarEscolha({ nivel: "municipios", base: normalizarArvore({ todos: false, estados: [], ids: [...local.municipios] }, arvore), estados,
       conjuntos: local.conjuntos.map(conjunto => ({ ...conjunto, membros: [...conjunto.membros] })) }, "Aplicar a seleção do Simulador");
     setAviso("A seleção do Simulador foi aplicada à seleção principal.");
+  }
+  /** "Abrir no Simulador" e "Simular recuperação", no Detector de Sinais: o Simulador abre só com aquele território na seleção local
+   * (que não acompanha a principal nem a altera), com a janela escolhida no Detector e os sinais à vista como contexto. Em "Simular
+   * recuperação", o cenário leva o planejamento inverso com a meta hipotética de voltar ao patamar anterior, que a pessoa pode trocar
+   * (decisão D-B de 10/11/2026). Nada é calculado aqui: o Simulador pede os cenários ao motor. */
+  function abrirNoSimulador(alvo: AlvoDoSimulador, patamar: number | null) {
+    const ultimo = periodos.filter(c => /^\d{6}$/.test(c)).sort().pop();
+    const local = selecaoDoDetector(alvo, selecaoParaFerramentas);
+    if (!ultimo || !local) { setAviso("Este território não está mais na seleção principal: confira a Seleção de Territórios."); return; }
+    setConfigDoSimulador(configDoDetector({ local, rotulo: alvo.rotulo, sinais: alvo.sinais, fim: alvo.fim, exploratorio: alvo.exploratorio }, ultimo,
+      alvo.janela, patamar));
+    setFerramenta("simulador");
   }
   /** "Só a zona", numa planilha com dois níveis: o grupo de cima como unidade, sozinho (não se mistura com outros níveis). */
   function regioesComoUnidade(regioesPedidas: string[], ativar: boolean, acao: string) {
@@ -2284,7 +2297,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         })}
       </div>
       {ferramenta === "detector" && fonteMotor && <div data-testid="analise-ferramenta-painel" data-ferramenta={ferramenta} className="analise-ferramenta-painel">
-        <DetectorDeSinais fonte={fonteMotor} selecao={selecaoParaFerramentas} resumoDaSelecao={resumoDaSelecao} onAlterarSelecao={irParaTerritorios}/>
+        <DetectorDeSinais fonte={fonteMotor} selecao={selecaoParaFerramentas} resumoDaSelecao={resumoDaSelecao} onAlterarSelecao={irParaTerritorios}
+          onAbrirNoSimulador={alvo => abrirNoSimulador(alvo, null)} onSimularRecuperacao={abrirNoSimulador}/>
       </div>}
       {ferramenta === "simulador" && fonteMotor && <div data-testid="analise-ferramenta-painel" data-ferramenta={ferramenta} className="analise-ferramenta-painel">
         <SimuladorDeCenarios fonte={fonteMotor} principal={selecaoParaFerramentas} resumoDaPrincipal={resumoDaSelecao} unidades={municipios} grupos={grupos}

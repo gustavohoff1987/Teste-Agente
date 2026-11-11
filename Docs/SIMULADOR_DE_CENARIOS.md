@@ -1,9 +1,9 @@
 # Simulador de Cenários Territoriais
 
-Ferramenta do comando V22 (Eixo II, etapa 4: o núcleo). A referência metodológica é
-[Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md) (seções 2.5, 7, 8, 8.8, que prevalece, 9 e 11, com as decisões D-A a D-C
-de 10/11/2026), e o perfil da base está em [Perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md). Este documento descreve o que
-o sistema faz hoje.
+Ferramenta do comando V22 (Eixo II, etapas 4 e 5: o núcleo, de 10/11/2026; e as referências, o planejamento inverso e a ligação
+com o Detector, de 11/11/2026). A referência metodológica é [Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md) (seções
+2.5, 3.3, 7, 8, 8.8, que prevalece, 9, 10 e 11, com as decisões D-A a D-C de 10/11/2026), e o perfil da base está em
+[Perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md). Este documento descreve o que o sistema faz hoje.
 
 ## O que é
 
@@ -48,11 +48,20 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
      de um cenário importado), ela é só do Simulador e só muda aqui dentro ou por "Copiar de novo a seleção principal". A tela diz
      isso duas vezes: no alto da etapa e, junto do botão "Copiar de novo a seleção principal", o aviso de que a cópia **deixou de
      acompanhar** a seleção principal (`simulador-nao-acompanha`).
-   - A busca acrescenta um município ou um estado como unidade **só no Simulador**; o "×" de cada território o tira. O estado
-     inteiro e os municípios dele não entram juntos, como na Seleção de Territórios (RQ-DAD-30): a tela recusa, com o motivo.
+   - A busca acrescenta um município, um estado como unidade ou **o Brasil** **só no Simulador**; o "×" de cada território o
+     tira. O estado inteiro e os municípios dele não entram juntos, como na Seleção de Territórios (RQ-DAD-30): a tela recusa,
+     com o motivo. O Brasil é a contagem nacional de médicos únicos: é simulado à parte e nunca é somado aos demais.
    - **"Aplicar à seleção principal"** é o único caminho pelo qual o Simulador muda a seleção principal. É um comando separado e
-     um passo do Desfazer.
+     um passo do Desfazer. O Brasil não vai (a seleção principal não o tem como unidade), e a tela diz isso.
    - O Simulador compara até **100 territórios** de cada vez; acima disso, a tela pede para reduzir a seleção local.
+   - **Referências de comparação (opcional)** (`simulador-referencias`): até 5. Uma referência é um município, um estado como
+     unidade, o Brasil, um conjunto da seleção local ou **um valor da pessoa**; pode ficar fora da seleção do Simulador e não
+     muda a seleção principal. Cada uma é **fixa** (o último valor registrado se mantém) ou **dinâmica** (segue o método padrão
+     provisório dela, sem intervenções). A métrica da comparação é escolhida à vista (`simulador-metrica`): a **quantidade de
+     médicos** ou a **taxa por 1.000 habitantes, com a população constante** (a do último registro, como hipótese declarada).
+   - Quando o Simulador é aberto pelo **Detector de Sinais** ("Abrir no Simulador" ou "Simular recuperação"), a seleção local
+     fica só com aquele território e não acompanha a principal; o aviso `simulador-do-detector` diz de onde ela veio, a data
+     avaliada e os sinais à vista lá, e pode ser dispensado.
 2. **Base histórica e método** (`simulador-base`):
    - a **janela histórica**, com início e fim livres entre as competências reais (o fim é a origem do cenário). Os atalhos (janela
      padrão de 3 anos, últimos 5 anos, série completa) são só atalhos. Com a origem antes do último registro, o trecho até ele é
@@ -66,12 +75,29 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
    - as **intervenções hipotéticas** de cada cenário: acréscimo ou retirada de X médicos, numa data ou num calendário (a cada
      tantos meses, de uma data a outra), com a **permanência** em % ao ano (100, todos ficam, é a hipótese padrão);
    - o aviso de que cada intervenção vale para **cada território** do cenário, não para o total (`simulador-por-territorio`):
-     com 49 territórios, um acréscimo de 5 médicos soma 5 a cada um deles, inclusive aos estados como unidade e aos conjuntos.
+     com 49 territórios, um acréscimo de 5 médicos soma 5 a cada um deles, inclusive aos estados como unidade e aos conjuntos;
+   - o **planejamento inverso** de cada cenário (`simulador-plano`, por "Calcular o acréscimo que alcança uma meta"): a **meta
+     hipotética** (chegar a um número de médicos, voltar ao patamar anterior ou alcançar uma referência) e o calendário dos
+     acréscimos (uma data, ou de uma data a outra a cada tantos meses, com a permanência). A meta é uma hipótese da pessoa, e ela
+     pode trocá-la. Em "Simular recuperação", o Simulador abre nesta etapa, com a meta de voltar ao patamar já preenchida.
 4. **Comparações e resultados** (`simulador-resultados`):
    - o **gráfico** de um território por vez (`simulador-grafico`): o observado, a base de cada cenário, a linha com a intervenção
      e os marcadores dos eventos, a faixa de 80% quando existe, a fronteira "observado | simulado (hipótese)" e a fonte;
    - o **texto de cada cenário** (`simulador-texto`), que vem pronto do motor, pelo modelo fixo; as contas da data final (base,
      intervenção e total), a faixa em linguagem simples e os avisos;
+   - as **comparações** de cada cenário com as referências (`simulador-comparacao`): o texto do motor, com o valor do território e
+     o da referência na data final, a diferença, o índice (100 é a referência) e o alcance — "No cenário, alcança a referência
+     em…" (a primeira data avaliada em que isso ocorre), "Na origem, o território já está no nível da referência ou acima dele"
+     ou **"Não alcança no horizonte simulado"**, sem data inventada — e os avisos de sobreposição e de unidade. No gráfico, a
+     curva de cada referência (traço e ponto, com as marcas R1, R2…); a referência muito acima do território fica "fora da
+     escala deste gráfico", na legenda; por taxa, as referências ficam só nos textos;
+   - o resultado do **planejamento inverso** (`simulador-planejamento`, com a marca "conta condicional"): a meta, o menor
+     acréscimo inteiro por evento, a conta sem arredondar e o texto do cenário com esse acréscimo. O cenário à vista continua
+     sendo o do pedido: o acréscimo só entra nele por **"Usar como intervenção deste cenário"** (com um território só na
+     seleção; com mais de um, o número é de cada território);
+   - a **hipótese derivada da simulação** (`simulador-hipotetico`), num painel à parte: a dependência de poucos médicos que o
+     valor do cenário teria, pela escala estrutural do Detector. Só para municípios, e só quando é pertinente (há intensidade no
+     valor do cenário ou num dos limites da faixa, ou o território teria até 20 médicos);
    - a **tabela** de todos os territórios (`simulador-tabela`): o último registro usável e, por cenário, o valor na data final, a
      faixa e o método usado em palavras. Num **conjunto**, o método aparece como "soma das projeções dos membros (cada um com o
      crescimento do seu estado)" (ou "cada um no último valor", na persistência; nos demais métodos, "soma das contagens dos
@@ -92,6 +118,19 @@ com a permanência rotulada como hipótese. Com mais de um território no pedido
 "acréscimo de 5 médicos **em cada território do cenário**, em jun/2025, …" (ou "só nos territórios indicados"). N é o inteiro mais
 próximo; a precisão integral fica na resposta e nas exportações. Um
 conjunto é rotulado como "soma das projeções dos membros" (M0 e M0d) ou "soma das contagens dos componentes" (demais métodos).
+
+Os textos da etapa 5 também vêm prontos do motor:
+
+> Em [data], [território] teria [N] médicos, e a referência [nome] ([fixa: o valor de … mantido | dinâmica: método, com registros
+> até … | valor informado por você, mantido]), [M]: [X abaixo | acima da referência | o mesmo valor] (índice [I]; 100 é a
+> referência). [Alcance.]
+
+> Meta hipotética: [voltar ao patamar de X médicos | X médicos | alcançar a referência …] em [data]. Menor acréscimo inteiro que
+> alcança a meta, nas hipóteses deste cenário: [x] médicos [em … | em cada um dos k eventos, de … a … (total)]. Pela conta sem
+> arredondar, seriam [x,xx] por evento. [O texto do cenário com esse acréscimo.] É uma conta condicional às hipóteses do
+> cenário, não um plano.
+
+Nenhum deles usa palavras de recomendação ("recomenda-se", "é preciso prover", "deveria"): decisão D-B de 10/11/2026.
 
 A tela e os textos de cenário usam linguagem simples (decisão D-C): "método provisório", "limite provisório", "sem intervenção",
 "indisponível", com o motivo. A **deriva do estado** do M0d aparece como "o crescimento recente do estado" (o método, como
@@ -142,6 +181,55 @@ com `t` em **anos reais** desde a origem (o último registro usável da janela; 
   mostrado.
 - Uma intervenção com data até a origem não é aceita: ela já está nos registros.
 
+### O Brasil como território
+
+O Brasil entra só no Simulador, pela **contagem nacional de médicos únicos** (`brasil: true` no pedido; `id` "br"). O método
+padrão é provisório: a taxa composta (M1) dos 3 anos até a origem, na série nacional, com aviso; não há faixa de 80% nem
+hipótese derivada. O Brasil nunca é somado aos demais territórios, e não é uma unidade da seleção principal nem do Detector.
+
+### Referências e comparação
+
+- A referência **fixa** mantém o valor do último registro usável dela na janela. A **dinâmica** segue o método padrão provisório
+  do nível dela (municípios e conjuntos de municípios: a persistência com o crescimento recente do estado; estados e Brasil: a
+  taxa composta de 3 anos), sem intervenções, com os avisos desse método. O **valor da pessoa** se mantém e é lido na métrica
+  escolhida.
+- Em cada data do cenário (a origem e as datas da trajetória), a comparação traz a **diferença** (referência − território), a
+  **razão** (território ÷ referência) e o **índice** (100 × a razão). Nenhuma variação é chamada de "convergência".
+- **Alcance:** `ja_acima` (na origem, o território já está no nível da referência ou acima), `alcanca` (com a primeira data
+  avaliada em que isso ocorre) ou `nao_alcanca` ("Não alcança no horizonte simulado"). Nenhuma data é inventada ou extrapolada.
+- **Sobreposição e unidades:** a comparação avisa quando a referência é o próprio território, quando um contém o outro (o Brasil
+  ou o estado do município; o conjunto com um município em comum; estados em comum) e quando as contagens têm unidades diferentes
+  (a contagem municipal, a estadual de médicos únicos, a nacional, ou a soma dos componentes). Nunca se declara uma independência
+  que não há.
+- **Por taxa:** médicos por 1.000 habitantes, com a **população do último registro em todas as datas simuladas** (hipótese
+  declarada na tela, no texto e nas exportações; a base não traz população futura). O estado e o Brasil usam a soma das
+  populações municipais; sem população válida, a comparação é "não calculável".
+- Comparar quantitativos de territórios de portes diferentes não é comparar a suficiência do atendimento.
+
+### Planejamento inverso
+
+O menor número **inteiro** de médicos por evento com que o cenário alcança a meta na data final `T`, com a base `B(T)` **sem
+arredondar** (seção 8.8 do anexo). Com `k` eventos iguais e permanência total, `x = ⌈(meta − N(T)) ÷ k⌉`, onde `N(T)` já conta
+as outras intervenções do cenário; com permanência menor, cada evento pesa `(p/100)^anos até T`, e o motor procura o menor
+inteiro. A resposta traz também a conta sem arredondar (o incremento médio teórico) e o cenário **simulado de novo** com o
+acréscimo: reaplicado como intervenção, ele alcança a meta, e com um médico a menos por evento, não.
+
+- **Meta:** um número de médicos; o **patamar anterior** (o do fenômeno 7 do Detector: a maior média de dois anos seguidos antes
+  dos registros mais recentes; sem valor informado, o de cada território); ou o valor de uma **referência** na data final.
+- **Estados:** `calculado`; `ja_alcancada` (o cenário já chega à meta: nenhum acréscimo); `nao_alcancavel` (com permanência zero,
+  nenhum médico acrescentado está no território na data final); `nao_calculavel` (nenhum evento do calendário entre a origem e a
+  data final; território sem patamar calculável; referência ausente ou sem valor).
+- O resultado é uma **necessidade matemática condicional** às hipóteses do cenário. Não é plano de provimento, recomendação nem
+  avaliação de suficiência.
+
+### Hipótese derivada da simulação
+
+A única leitura do Detector que vale para uma trajetória simulada (seção 3.3 do anexo) é a **escala estrutural** aplicada ao
+valor do cenário na data final (e aos limites da faixa de 80%, quando há): quantos médicos o território teria, que intensidade a
+dependência de poucos médicos teria e quanto a saída de um médico tiraria. Vale só para municípios e leva o rótulo "hipótese
+derivada da simulação". Os testes de evento observado (perda, patamar, declínio) e os indicadores relativos **nunca** são
+aplicados a curvas simuladas.
+
 ### Faixa de 80%
 
 - Só existe para o **M0d** de **municípios** com pelo menos 1 médico na origem, de **1 a 4 anos** depois da origem. É o intervalo
@@ -172,18 +260,32 @@ nada é registrado na sessão, e nada vai ao provedor de IA. Conta nas vagas das
 | Opção | Conteúdo |
 |---|---|
 | `base`, `estados_unidade`, `conjuntos` | a seleção local, no contrato compartilhado das ferramentas (`series_brasil.selecao`), até 100 territórios |
+| `brasil` | `true` acrescenta o Brasil (a contagem nacional), por último; só o Simulador aceita |
 | `janela` | `{"inicio", "fim"}`, competências da base; sem ela, os 3 anos até o último registro |
 | `horizonte` | a data final, `AAAAMM`, em qualquer mês depois do fim da janela (até 2100); sem ela, 2 anos depois do último registro |
-| `cenarios` | até 6: `{"id", "nome", "metodo", "taxa_manual_pct"?, "janela"?, "intervencoes"?}`; `metodo` é `padrao`, `M0`, `M0d`, `M1`, `M2`, `M3` ou `manual`; sem a lista, um cenário sem intervenção no método padrão |
+| `cenarios` | até 6: `{"id", "nome", "metodo", "taxa_manual_pct"?, "janela"?, "intervencoes"?, "planejamento"?}`; `metodo` é `padrao`, `M0`, `M0d`, `M1`, `M2`, `M3` ou `manual`; sem a lista, um cenário sem intervenção no método padrão |
 | `intervencoes` | até 12 por cenário: `{"tipo": "acrescimo" ou "retirada", "quantidade", "em", "ate"?, "a_cada_meses"?, "permanencia_pct_ao_ano"?, "territorios"?}` |
+| `planejamento` | por cenário: `{"meta": {"tipo": "valor" ou "patamar" ou "referencia", "valor"?, "referencia"?}, "em", "ate"?, "a_cada_meses"?, "permanencia_pct_ao_ano"?}` |
+| `referencias` | até 5: `{"id", "territorio": "code:…" ou "uf:…" ou "br" ou o id de um conjunto da seleção, "tipo": "fixa" ou "dinamica", "metodo"?, "taxa_manual_pct"?}` ou `{"id", "tipo": "valor", "valor", "rotulo"?}` |
+| `comparacao` | `{"metrica": "quantidade" ou "taxa"}`; sem ela, a quantidade |
 
 A resposta traz `versao`, `fonte`, `competencias`, `ultimo_registro`, `janela`, `horizonte`, `metodos`, `territorios`,
 `retroprojecao` (`origens`, `faixas`, `tabela`), `notas` e `limitacoes`. Cada território traz `observado` (com o estado de cada
 registro e as marcas de registro), `historico` (as estatísticas descritivas), `lacunas` e `cenarios`; cada cenário, `estado`,
 `metodo` (`pedido`, `usado`, `provisorio`, `voltou_ao_m0`, `soma`), `parametros`, `avisos`, `horizonte`, `faixa`, `trajetoria`
-(`data`, `anos`, `base`, `intervencao`, `total`, `retroprojecao`, `observado`, `faixa`), `final` e `texto`. Erros de pedido vêm em
-422, em português (seleção vazia ou acima de 100, território fora da base, competência fora da base, data final até o fim da
-janela, método desconhecido, taxa manual ausente ou fora do método manual, intervenção inválida, planilha enviada).
+(`data`, `anos`, `base`, `intervencao`, `total`, `retroprojecao`, `observado`, `faixa`), `final` e `texto`. Desde a etapa 5
+(versão `SIMULADOR-CENARIOS/V2.2/2`), a resposta traz também `referencias` (o rótulo, o tipo, a unidade, o estado e a descrição
+de cada uma) e `comparacao` (`metrica` e `hipotese_de_populacao`), e cada cenário pode trazer:
+
+- `comparacoes` (com referências no pedido): por referência, `estado`, `descricao`, `avisos`, `pontos` (`data`, `territorio`,
+  `referencia`, `diferenca`, `razao`, `indice`), `inicial`, `final`, `alcance` (`estado` e `data`) e `texto`;
+- `planejamento` (com o pedido): `estado`, `meta` (`tipo`, `valor`, `rotulo`), `sem_o_plano`, `eventos`, `datas`, `por_evento`,
+  `total`, `teorico_por_evento`, `resultado`, `intervencao` (pronta para voltar como intervenção) e `texto`;
+- `hipotetico` (municípios): `rotulo`, `data`, `valor`, `inteiro`, `classe`, `impacto_pct` e `na_faixa`.
+
+Erros de pedido vêm em 422, em português (seleção vazia ou acima de 100, território fora da base, competência fora da base, data
+final até o fim da janela, método desconhecido, taxa manual ausente ou fora do método manual, intervenção inválida, referência
+inválida, repetida ou acima de 5, métrica desconhecida, planejamento sem meta ou sem calendário, planilha enviada).
 
 ## Retroprojeção: como os métodos se saíram no passado
 
@@ -274,12 +376,17 @@ O que o estudo sustenta e o que não sustenta:
 
 ## Exportações
 
-- **Cenário (JSON, formato `ADT-CENARIO/1`):** a seleção local (com a composição e a versão dos conjuntos), a janela, a data
-  final, o modo e os cenários, com a versão do método, a versão da base, o último registro e a data da exportação. **Importar**
-  lê esse arquivo e repõe a configuração, sem calcular; se a base for outra versão, a tela avisa.
+- **Cenário (JSON, formato `ADT-CENARIO/1`):** a seleção local (com a composição e a versão dos conjuntos, e o Brasil, quando
+  está nela), a janela, a data final, o modo e os cenários (com o planejamento inverso de cada um), as referências e a métrica,
+  com a versão do método, a versão da base, o último registro e a data da exportação. **Importar** lê esse arquivo e repõe a
+  configuração, sem calcular; se a base for outra versão, a tela avisa. A referência a um conjunto que não veio no arquivo fica
+  de fora. O aviso de origem do Detector não é exportado.
 - **Resultados (CSV, separador `;`, com BOM):** uma linha por território, cenário e data, com o observado, a base, a intervenção,
   o total e a faixa em precisão integral, e a rastreabilidade em cada linha (método pedido e usado, estado, origem, janela,
-  avisos, o texto do cenário e as versões).
+  avisos, o texto do cenário e as versões). Desde a etapa 5, também a meta do planejamento inverso, os médicos por evento (ou o
+  estado, quando não há número), os eventos e a intensidade da hipótese derivada.
+- **Comparações (CSV, quando há referências):** uma linha por território, cenário, referência e data, com o valor do território,
+  o da referência, a diferença, a razão e o índice, o alcance no horizonte simulado, os avisos e a hipótese de população.
 
 ## Limitações
 
@@ -289,13 +396,19 @@ O que o estudo sustenta e o que não sustenta:
 - A base do cenário supõe que o passado recente continua: ela não conhece políticas, concursos, fechamentos ou choques.
 - Comparar quantitativos absolutos de territórios de portes diferentes não é comparar suficiência do atendimento.
 - A faixa de 80% só existe para o método padrão dos municípios, até 4 anos, e vem de um único período histórico.
-- O Brasil inteiro como unidade não entra na seleção do Simulador (o contrato das ferramentas tem municípios, estados como unidade
-  e conjuntos).
+- O padrão do Brasil e o dos estados (a taxa composta de 3 anos) são provisórios e não têm faixa.
+- A referência dinâmica usa o método padrão provisório do nível dela, com a janela geral do pedido; na tela, ela não tem método,
+  janela nem intervenções próprios (a rota aceita outro método).
+- A comparação por taxa vale só com a hipótese de população constante: a base não traz população futura.
+- O planejamento inverso responde a uma conta, não a uma pergunta de política: ele não sabe se os médicos existem, se ficam, nem
+  quanto custa.
+- Uma intervenção vale para cada território do cenário; o número do planejamento inverso é próprio de cada território, e por
+  isso só pode ser usado como intervenção com um território só na seleção local.
 
-**Fica para a etapa 5 do comando V22:** as referências fora da seleção e a comparação com elas (diferença, razão, "não alcança no
-horizonte simulado"); o planejamento inverso (o menor número inteiro de médicos que alcança uma meta); a ligação com o Detector,
-inclusive "Simular recuperação" (decisão D-B) e as métricas hipotéticas derivadas da simulação; e a indicação do Simulador pelo
-assistente de conversa, que continua recusando previsões livres.
+**Assistente de conversa.** Ele continua recusando previsões e projeções livres (AT-04) e não monta cenários. Desde 11/11/2026,
+na base do Brasil, a recusa indica o caminho: "Para montar cenários hipotéticos, que não são previsão, há o Simulador de
+Cenários, na linha Ferramentas da área de análise: nele, você escolhe o método, as hipóteses e a data final." Com uma planilha
+enviada, em que o Simulador não existe, a recusa não o cita.
 
 ## Testes
 
@@ -303,8 +416,14 @@ assistente de conversa, que continua recusando previsões livres.
   volta ao M0; M1 com o tempo real e a recusa do início em zero; M2, M3 e os ajustes em lote; a taxa da pessoa; as intervenções
   somadas à base, a permanência e a retirada impossível; conjuntos e estados; a média aritmética só descritiva; os avisos de
   horizonte; as faixas pela retroprojeção com origens móveis; o ajuste sem observações posteriores à janela), a rota com um
-  catálogo sintético e, no job `dados-reais`, a base versionada (as faixas e os erros acima, o Distrito Federal, Rio Rufino/SC,
-  São Paulo como unidade e o limite de 100 territórios).
+  catálogo sintético (inclusive o Brasil como território, as referências com o alcance e a sobreposição, a comparação por
+  taxa, o planejamento inverso reaplicado ao Simulador, a hipótese derivada e as recusas) e, no job `dados-reais`, a base
+  versionada (as faixas e os erros acima, o Distrito Federal, Rio Rufino/SC, São Paulo como unidade, o limite de 100
+  territórios, o Brasil, as referências de Manaus, o planejamento inverso e "Simular recuperação" em Abreulândia/TO).
+- pytest: `backend/tests/test_dialogo.py` — a recusa de projeção indica o Simulador só na base do Brasil.
 - Node: `frontend/tests/simulador.test.mjs` — as datas, a seleção local, o que falta para calcular, o pedido ao motor, a leitura
-  da resposta, os textos da tabela e da faixa, a importação e a exportação do cenário e o CSV.
-- Navegador: `backend/tests/ui_simulador.py` (suíte `base-versionada`).
+  da resposta, os textos da tabela e da faixa, a importação e a exportação do cenário e o CSV; o Brasil na seleção local, as
+  referências e a métrica, o planejamento inverso, a configuração com que o Detector abre o Simulador, a hipótese derivada e o
+  CSV das comparações.
+- Navegador: `backend/tests/ui_simulador.py` (suíte `base-versionada`), com "Abrir no Simulador", o Brasil, as referências e o
+  planejamento inverso; "Simular recuperação" está em `backend/tests/ui_detector.py`.

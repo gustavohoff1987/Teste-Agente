@@ -4,7 +4,7 @@
 // A tela usa linguagem simples (decisão D-C de 10/11/2026): "sem classificação", com o motivo, no lugar de "não calibrado";
 // "limite provisório", no lugar de "candidato"; os termos técnicos ficam nos detalhes e nas exportações. Sem importações em tempo
 // de execução, para os testes Node lerem só este arquivo.
-import type { PainelMunicipios } from "./painelApi";
+import type { PainelDominio, PainelItem, PainelMunicipios } from "./painelApi";
 
 export type ClasseDoSinal = "atencao" | "alta" | "critica";
 export const NOMES_DAS_CLASSES: Record<ClasseDoSinal, string> = { atencao: "Atenção", alta: "Alta", critica: "Crítica" };
@@ -34,7 +34,22 @@ export type LinhaDoDetector = {
   instabilidade: { estado: string; indice: number | null };
   registro: { estado: string; tipos: string[] };
   membros: number | null;
+  /** Conjunto: os identificadores dos componentes (para o contorno no mapa). */
+  idsDosMembros: string[];
+  // Fenômenos 8 a 12 (etapa 5 do comando V22): o nível da data, a variação em 2 anos (quando a comparação é habilitada) e o sinal
+  // observado, com limites provisórios e sem intensidade.
+  disponibilidade: { estado: string; taxa: number | null; populacao: number | null; variacaoPct: number | null; sinal: string | null };
+  posicao: { estado: string; percentil: number | null; universo: number | null; variacaoPp: number | null; sinal: string | null };
+  defasagem: { estado: string; indice: number | null; variacaoPontos: number | null; sinal: string | null };
+  contexto: { estado: string; distanciaKm: number | null; referencia: string | null; referenciaId: string | null; percentil: number | null };
+  coexistencia: { estado: string; combinacoes: string[]; textos: string[]; repercussoes: number };
 };
+/** A janela de comparação dos fenômenos 8 a 10 e o critério do contexto geográfico (fenômeno 11), do motor. */
+export type ComparacaoDoDetector = { de: string | null; ate: string | null; estado: string; minimoDeMedicos: number;
+  contexto: { taxaMinima: number | null; taxaDoBrasil: number | null; pctDaTaxaDoBrasil: number | null; atendem: number; universo: number } };
+/** As séries de um território para os gráficos dos fenômenos 8 e 10: a taxa, a taxa da referência e o índice, por competência. */
+export type ComparativoDoTerritorio = { competencias: string[]; taxa: (number | null)[]; indice: (number | null)[];
+  referencia: { rotulo: string; motivo: string | null; taxa: (number | null)[] } };
 export type CelulaDaPerda = { porte: string; transicoes: number; quedaIncomumPct: number | null; quedaMuitoIncomumPct: number | null;
   alta: string; critica: string };
 export type FaixaDoPatamar = { porte: string; observacoes: number; afastamentoIncomumPct: number | null; alta: string; critica: string };
@@ -49,6 +64,9 @@ export type RespostaDoDetector = {
     sinais: Record<string, number>; semRegistroNaData: number };
   calibracao: { competencia: string; intervaloMeses: number | null; perda: CelulaDaPerda[]; patamar: FaixaDoPatamar[];
     monitoramento: { avaliadas: number; incomuns: number; taxaPct: number | null } };
+  comparacao: ComparacaoDoDetector;
+  /** As coordenadas autorizadas do motor (id → [latitude, longitude]) para o mapa: os municípios da seleção e os de referência. */
+  coordenadas: Record<string, [number, number]>;
   notas: string[]; limitacoes: string[];
 };
 export type PontoDaSerie = { competencia: string; valor: number | null; estado: string; marca: string | null; membrosSemRegistro: number | null };
@@ -61,7 +79,7 @@ export type FenomenoDoDetalhe = { chave: string; numero: string; nome: string; d
   qualidade: string };
 export type DetalheDoDetector = { id: string; rotulo: string; tipo: string; unidade: string; membros: string[]; janela: JanelaDoDetector;
   inicioDoTerritorio: string; depoisDaQuebra: boolean; serie: PontoDaSerie[]; historico: PassoDoHistorico[]; fenomenos: FenomenoDoDetalhe[];
-  notas: string[]; exploratorio: boolean };
+  comparativo: ComparativoDoTerritorio | null; notas: string[]; exploratorio: boolean };
 
 // ------------------------------------------------------------------------------------------------ leitura da resposta
 const objeto = (valor: unknown): Record<string, unknown> => valor && typeof valor === "object" && !Array.isArray(valor) ? valor as Record<string, unknown> : {};
@@ -81,12 +99,28 @@ function janelaDe(bruto: unknown): JanelaDoDetector {
 function parametrosDe(bruto: unknown): ParametrosDoDetector {
   return Object.fromEntries(Object.entries(objeto(bruto)).map(([grupo, valores]) => [grupo, numeros(valores)]));
 }
+const numerosOuNulos = (valor: unknown): (number | null)[] => lista(valor).map(num);
+function comparacaoDe(bruto: unknown): ComparacaoDoDetector {
+  const c = objeto(bruto), x = objeto(c.contexto);
+  return { de: texto(c.de), ate: texto(c.ate), estado: texto(c.estado) ?? "", minimoDeMedicos: num(c.minimo_de_medicos) ?? 20,
+    contexto: { taxaMinima: num(x.taxa_minima), taxaDoBrasil: num(x.taxa_do_brasil), pctDaTaxaDoBrasil: num(x.pct_da_taxa_do_brasil),
+      atendem: num(x.atendem) ?? 0, universo: num(x.universo) ?? 0 } };
+}
+function coordenadasDe(bruto: unknown): Record<string, [number, number]> {
+  const saida: Record<string, [number, number]> = {};
+  for (const [id, par] of Object.entries(objeto(bruto))) {
+    const [lat, lon] = lista(par).map(num);
+    if (lat !== null && lon !== null && lat !== undefined && lon !== undefined) saida[id] = [lat, lon];
+  }
+  return saida;
+}
 function linhaDe(bruto: unknown): LinhaDoDetector | null {
   const o = objeto(bruto);
   const id = texto(o.id), rotulo = texto(o.rotulo);
   if (!id || !rotulo) return null;
   const ultima = objeto(o.ultima), e = objeto(o.estrutural), pe = objeto(o.perda), pa = objeto(o.patamar), de = objeto(o.declinio),
-    ds = objeto(o.desaceleracao), ins = objeto(o.instabilidade), reg = objeto(o.registro), dim = objeto(o.dimensoes);
+    ds = objeto(o.desaceleracao), ins = objeto(o.instabilidade), reg = objeto(o.registro), dim = objeto(o.dimensoes),
+    di = objeto(o.disponibilidade), po = objeto(o.posicao), df = objeto(o.defasagem), cx = objeto(o.contexto), co = objeto(o.coexistencia);
   const tipo = o.tipo === "estado" || o.tipo === "conjunto" || o.tipo === "brasil" ? o.tipo : "municipio";
   return { id, rotulo, tipo, nivel: texto(o.nivel) ?? "municipios", uf: texto(o.uf),
     ultima: texto(ultima.competencia) && num(ultima.valor) !== null
@@ -103,7 +137,17 @@ function linhaDe(bruto: unknown): LinhaDoDetector | null {
     desaceleracao: { estado: texto(ds.estado) ?? "", desacelera: ds.desacelera === true,
       persistente: typeof ds.persistente === "boolean" ? ds.persistente : null, rotulo: texto(ds.rotulo) },
     instabilidade: { estado: texto(ins.estado) ?? "", indice: num(ins.indice) },
-    registro: { estado: texto(reg.estado) ?? "normal", tipos: textos(reg.tipos) }, membros: num(o.membros) };
+    registro: { estado: texto(reg.estado) ?? "normal", tipos: textos(reg.tipos) }, membros: num(o.membros),
+    idsDosMembros: textos(o.ids_dos_membros),
+    disponibilidade: { estado: texto(di.estado) ?? "", taxa: num(di.taxa), populacao: num(di.populacao), variacaoPct: num(di.variacao_pct),
+      sinal: texto(di.sinal) },
+    posicao: { estado: texto(po.estado) ?? "", percentil: num(po.percentil), universo: num(po.universo), variacaoPp: num(po.variacao_pp),
+      sinal: texto(po.sinal) },
+    defasagem: { estado: texto(df.estado) ?? "", indice: num(df.indice), variacaoPontos: num(df.variacao_pontos), sinal: texto(df.sinal) },
+    contexto: { estado: texto(cx.estado) ?? "", distanciaKm: num(cx.distancia_km), referencia: texto(cx.referencia),
+      referenciaId: texto(cx.referencia_id), percentil: num(cx.percentil) },
+    coexistencia: { estado: texto(co.estado) ?? "", combinacoes: textos(co.combinacoes), textos: textos(co.textos),
+      repercussoes: num(co.repercussoes) ?? 0 } };
 }
 
 /** A resposta da tabela de POST /api/detector nos tipos da tela. */
@@ -137,13 +181,16 @@ export function normalizarDetector(bruto: unknown): RespostaDoDetector {
           alta: texto(c.alta) ?? "", critica: texto(c.critica) ?? "" };
       }),
       monitoramento: { avaliadas: num(mon.avaliadas) ?? 0, incomuns: num(mon.incomuns) ?? 0, taxaPct: num(mon.taxa_pct) } },
+    comparacao: comparacaoDe(o.comparacao), coordenadas: coordenadasDe(o.coordenadas),
     notas: textos(o.notas), limitacoes: textos(o.limitacoes) };
 }
 
 /** A resposta de um território (com `detalhe`) nos tipos da tela. */
 export function normalizarDetalhe(bruto: unknown): DetalheDoDetector {
-  const o = objeto(bruto), t = objeto(o.territorio), jt = objeto(o.janela_do_territorio);
+  const o = objeto(bruto), t = objeto(o.territorio), jt = objeto(o.janela_do_territorio), cp = objeto(o.comparativo), cr = objeto(cp.referencia);
   return { id: texto(t.id) ?? "", rotulo: texto(t.rotulo) ?? "", tipo: texto(t.tipo) ?? "municipio", unidade: texto(t.unidade) ?? "",
+    comparativo: textos(cp.competencias).length ? { competencias: textos(cp.competencias), taxa: numerosOuNulos(cp.taxa),
+      indice: numerosOuNulos(cp.indice), referencia: { rotulo: texto(cr.rotulo) ?? "", motivo: texto(cr.motivo), taxa: numerosOuNulos(cr.taxa) } } : null,
     membros: textos(t.nomes_dos_membros), janela: janelaDe(o.janela), inicioDoTerritorio: texto(jt.inicio) ?? "",
     depoisDaQuebra: jt.depois_da_quebra === true, exploratorio: o.exploratorio === true, notas: textos(o.notas),
     serie: lista(o.serie).map(item => {
@@ -234,6 +281,117 @@ export function trechosDoRitmo(linha: LinhaDoDetector): Trecho[] {
   return saida;
 }
 
+const duasCasas = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const formatarTaxa = (valor: number) => duasCasas.format(valor);
+const variacaoComSinal = (valor: number, sufixo: string) => {
+  const arredondado = Math.round(Math.abs(valor) * 10) / 10;
+  return (arredondado === 0 ? "" : valor > 0 ? "+" : "−") + umaCasa.format(arredondado) + sufixo;
+};
+// Na tabela, o nome curto do sinal; que ele é um sinal observado, com limite provisório e sem intensidade, está na legenda da
+// tabela (TEXTO_SINAIS_RELATIVOS) e nos detalhes de cada fenômeno.
+const SINAIS_RELATIVOS: Record<string, string> = { queda: "queda de posição", forte: "sinal forte", muito_forte: "sinal muito forte" };
+export const TEXTO_SINAIS_RELATIVOS = "Na comparação relativa, “sinal forte”, “sinal muito forte” e “queda de posição” são sinais observados em 2 anos, " +
+  "com limites provisórios e sem intensidade.";
+const ESTADOS_RELATIVOS: Record<string, string> = { comparacao_nao_habilitada: "variação em 2 anos: comparação não habilitada",
+  janela_insuficiente: "variação em 2 anos: janela insuficiente", descritivo: "descritivo: menos de 20 médicos no início da janela",
+  nao_calculavel: "variação não calculável", referencia_invalida: "sem referência na mesma unidade" };
+const apoioRelativo = (estado: string, sinal: string | null): string | null => sinal ? SINAIS_RELATIVOS[sinal] ?? null : ESTADOS_RELATIVOS[estado] ?? null;
+
+/** A comparação relativa da linha (fenômenos 8, 9 e 10): a taxa por habitante, a posição e o índice ante a referência, com a
+ * variação em 2 anos quando a comparação é habilitada. Sem intensidade: os limites são provisórios. */
+export function trechosDaComparacao(linha: LinhaDoDetector): Trecho[] {
+  const saida: (Trecho & { estado: string })[] = [];
+  const d = linha.disponibilidade, p = linha.posicao, f = linha.defasagem;
+  if (d.taxa !== null) saida.push({ chave: "disponibilidade", estado: d.estado, classe: null, apoio: apoioRelativo(d.estado, d.sinal),
+    texto: formatarTaxa(d.taxa) + " por 1.000 hab." + (d.variacaoPct !== null ? " (" + variacaoComSinal(d.variacaoPct, "%") + " em 2 anos)" : "") });
+  if (p.percentil !== null) saida.push({ chave: "posicao", estado: p.estado, classe: null, apoio: apoioRelativo(p.estado, p.sinal),
+    texto: "Percentil " + Math.round(p.percentil) + (p.variacaoPp !== null ? " (" + variacaoComSinal(p.variacaoPp, " pontos") + ")" : "") });
+  if (f.indice !== null) saida.push({ chave: "defasagem", estado: f.estado, classe: null, apoio: apoioRelativo(f.estado, f.sinal),
+    texto: "Índice " + umaCasa.format(f.indice) + " ante a referência" + (f.variacaoPontos !== null ? " (" + variacaoComSinal(f.variacaoPontos, " pontos") + ")" : "") });
+  // Quando nenhuma variação pôde ser calculada pelo mesmo motivo, o motivo aparece uma vez só, no fim.
+  const motivos = new Set(saida.map(trecho => trecho.estado));
+  if (saida.length > 1 && motivos.size === 1 && ["comparacao_nao_habilitada", "janela_insuficiente", "descritivo"].includes(saida[0].estado))
+    saida.forEach((trecho, indice) => { if (indice < saida.length - 1) trecho.apoio = null; });
+  return saida.map(({ estado: _estado, ...trecho }) => trecho);
+}
+
+/** O contexto geográfico da linha (fenômeno 11): a distância até o município mais próximo que atende ao critério. Só contexto. */
+export function trechoDoContexto(linha: LinhaDoDetector): Trecho {
+  const c = linha.contexto;
+  if (c.estado === "contexto" && c.distanciaKm !== null) return { chave: "contexto", classe: null,
+    texto: "A " + umaCasa.format(c.distanciaKm) + " km de " + (c.referencia ?? "um município que atende ao critério"),
+    apoio: c.percentil !== null ? "mais longe que " + Math.round(c.percentil) + "% dos municípios que não atendem ao critério"
+      : linha.tipo === "conjunto" ? "pelo componente mais próximo" : null };
+  if (c.estado === "atende_ao_criterio") return { chave: "contexto", texto: "Atende ao critério", classe: null, apoio: "taxa igual ou maior que a do critério" };
+  if (c.estado === "nao_aplicavel") return { chave: "contexto", texto: "Não se aplica", classe: null, apoio: "o estado como unidade não tem um ponto único" };
+  if (c.estado === "sem_coordenada") return { chave: "contexto", texto: "Sem coordenada válida", classe: null, apoio: null };
+  return { chave: "contexto", texto: "Não calculável", classe: null, apoio: null };
+}
+
+/** Os sinais combinados da linha (fenômeno 12): as combinações pré-definidas, sem índice geral. */
+export function trechosCombinados(linha: LinhaDoDetector): Trecho[] {
+  const textosDasCombinacoes = linha.coexistencia.textos;
+  return textosDasCombinacoes.map((item, indice) => ({ chave: "coexistencia", texto: item, classe: null,
+    apoio: indice === textosDasCombinacoes.length - 1 && linha.coexistencia.repercussoes > 1
+      ? linha.coexistencia.repercussoes + " sinais vêm de quedas no número de médicos: contam como um evento" : null }));
+}
+
+// ------------------------------------------------------------------------------------------------ gráficos e mapa (etapa 5)
+const SEM_VALORES = { populacao: null, quantidade: null, densidade: null };
+/** As linhas com distância (fenômeno 11) como itens do gráfico de bolhas do Agente: X = a distância até o município mais próximo
+ * que atende ao critério; Y = a taxa por 1.000 habitantes; tamanho = a população. Só os valores do motor. */
+export function itensDoContexto(linhas: LinhaDoDetector[]): PainelItem[] {
+  return linhas.filter(linha => linha.contexto.estado === "contexto" && linha.contexto.distanciaKm !== null && linha.disponibilidade.taxa !== null)
+    .map(linha => ({ id: linha.id, tipo: linha.tipo, rotulo: linha.rotulo, uf: linha.uf, populacao: linha.disponibilidade.populacao,
+      quantidade: linha.ultima?.valor ?? null, densidade: linha.disponibilidade.taxa, distancia_km: linha.contexto.distanciaKm,
+      ...(linha.tipo === "conjunto" ? { membros: linha.idsDosMembros, contagem: "SOMA_DOS_COMPONENTES" } : {}),
+      inicial: SEM_VALORES, variacao_percentual: SEM_VALORES, avaliavel: { densidade: true, distancia: true, variacao: null }, motivos: [],
+      referencia: false, tendencia: null, grupo: null, grupoMapa: null, faixa: null, faixa_distancia: null,
+      referenciaDoItem: linha.contexto.referenciaId ? [{ id: linha.contexto.referenciaId, rotulo: linha.contexto.referencia ?? "" }] : null,
+      membroDaReferencia: null, condicoes: null, ordem: null, rotatividade: null, serie: null }));
+}
+/** Os domínios [mínimo, máximo] dos itens do gráfico de bolhas, como o motor os manda no painel. */
+export function dominiosDoContexto(itens: PainelItem[]): Partial<Record<string, PainelDominio | null>> {
+  const dominio = (valores: (number | null)[]): PainelDominio | null => {
+    const validos = valores.filter((valor): valor is number => valor !== null && Number.isFinite(valor));
+    return validos.length ? [Math.min(...validos), Math.max(...validos)] : null;
+  };
+  return { densidade: dominio(itens.map(item => item.densidade)), distancia_km: dominio(itens.map(item => item.distancia_km)),
+    populacao: dominio(itens.map(item => item.populacao)), quantidade: dominio(itens.map(item => item.quantidade)) };
+}
+/** O que o mapa do Detector desenha: no fundo, os municípios da seleção com ponto; em destaque, os que têm o fenômeno do filtro (ou,
+ * sem filtro, algum sinal combinado); os conjuntos, pelo contorno dos componentes; vazados, os municípios de referência do contexto
+ * geográfico (o mais próximo que atende ao critério) dos territórios em destaque. */
+export function camadasDoMapa(resposta: RespostaDoDetector, linhas: LinhaDoDetector[], fenomeno: string): { fundo: string[]; destaque: string[];
+  conjuntos: { id: string; nome: string; membros: string[] }[]; referencias: string[]; sinal: string } {
+  const comPonto = (id: string) => id in resposta.coordenadas;
+  const sinal = fenomeno === "todos" ? "combinados" : fenomeno;
+  const marcadas = linhas.filter(linha => linha.sinais.includes(sinal));
+  const municipios = (lista: LinhaDoDetector[]) => lista.filter(linha => linha.tipo === "municipio" && comPonto(linha.id)).map(linha => linha.id);
+  const destaque = municipios(marcadas);
+  const noDestaque = new Set(destaque);
+  return { fundo: municipios(linhas).filter(id => !noDestaque.has(id)), destaque, sinal,
+    conjuntos: linhas.filter(linha => linha.tipo === "conjunto" && linha.idsDosMembros.some(comPonto))
+      .map(linha => ({ id: linha.id, nome: linha.rotulo, membros: linha.idsDosMembros.filter(comPonto) })),
+    referencias: [...new Set(marcadas.map(linha => linha.contexto.referenciaId).filter((id): id is string => !!id && comPonto(id) && !noDestaque.has(id)))] };
+}
+/** A série da taxa de um território e a da referência dele, para a Série temporal do Agente (fenômenos 8 e 10). */
+export function seriesDoComparativo(detalhe: DetalheDoDetector): { item: PainelItem; referencias: { id: string; rotulo: string;
+  observacoes: { competencia: string; valor: number | null }[] }[] } | null {
+  const c = detalhe.comparativo;
+  if (!c || !c.taxa.some(valor => valor !== null)) return null;
+  const observacoes = (valores: (number | null)[]) => c.competencias.map((competencia, indice) => ({ competencia, valor: valores[indice] ?? null }));
+  const ultima = [...c.taxa].reverse().find(valor => valor !== null) ?? null;
+  const item = { id: detalhe.id, tipo: detalhe.tipo, rotulo: detalhe.rotulo, uf: null, populacao: null, quantidade: null, densidade: ultima,
+    distancia_km: null, inicial: SEM_VALORES, variacao_percentual: SEM_VALORES, avaliavel: { densidade: true, distancia: null, variacao: null },
+    motivos: [], referencia: false, tendencia: null, grupo: null, grupoMapa: null, faixa: null, faixa_distancia: null, referenciaDoItem: null,
+    membroDaReferencia: null, condicoes: null, ordem: null, rotatividade: null,
+    serie: { observacoes: observacoes(c.taxa), comparavel: true, motivo: null } } as PainelItem;
+  // No desenho, o rótulo curto da referência ("demais municípios de Amazonas"); o completo fica na legenda do gráfico.
+  return { item, referencias: c.referencia.taxa.some(valor => valor !== null)
+    ? [{ id: "referencia", rotulo: "Referência: " + c.referencia.rotulo.replace(/\s*\(.*$/, ""), observacoes: observacoes(c.referencia.taxa) }] : [] };
+}
+
 const NOMES_DO_REGISTRO: Record<string, string> = { pico_que_volta: "pico que volta", quebra_de_fonte: "quebra de fonte", salto: "salto",
   queda_grande: "queda grande" };
 /** A qualidade do registro: normal, "verificar registro" ou descontinuidade de registro. */
@@ -268,7 +426,25 @@ export const FILTROS_DE_FENOMENO: { chave: string; rotulo: string }[] = [
   { chave: "declinio", rotulo: "Declínio em junhos seguidos" },
   { chave: "desaceleracao", rotulo: "Desaceleração do crescimento" },
   { chave: "registro", rotulo: "Registro a verificar ou com descontinuidade" },
+  { chave: "disponibilidade", rotulo: "Queda da taxa por habitante (2 anos)" },
+  { chave: "posicao", rotulo: "Queda da posição relativa (2 anos)" },
+  { chave: "defasagem", rotulo: "Defasagem ante a referência (2 anos)" },
+  { chave: "combinados", rotulo: "Sinais combinados" },
 ];
+/** O que o Detector leva ao Simulador de Cenários (o contexto analítico preservado): o território, a data avaliada, a janela em uso
+ * (quando a pessoa a escolheu; a janela padrão do Detector, a série inteira, não é levada), os sinais à vista, pelos nomes dos
+ * filtros, e se os parâmetros eram personalizados (exploratórios). */
+export type AlvoDoSimulador = { id: string; tipo: LinhaDoDetector["tipo"]; rotulo: string; sinais: string[]; fim: string;
+  janela: { inicio: string; fim: string } | null; exploratorio: boolean };
+export function alvoDoSimulador(linha: LinhaDoDetector, resposta: Pick<RespostaDoDetector, "janela" | "exploratorio">): AlvoDoSimulador {
+  const rotulos = new Map(FILTROS_DE_FENOMENO.map(item => [item.chave, item.rotulo]));
+  return { id: linha.id, tipo: linha.tipo, rotulo: linha.rotulo, sinais: linha.sinais.map(sinal => rotulos.get(sinal) ?? sinal), fim: resposta.janela.fim,
+    janela: resposta.janela.padrao ? null : { inicio: resposta.janela.inicio, fim: resposta.janela.fim }, exploratorio: resposta.exploratorio };
+}
+/** O patamar anterior que "Simular recuperação" leva ao Simulador como meta hipotética: só quando o território está abaixo dele
+ * (acima do patamar, não há o que recuperar). */
+export const patamarARecuperar = (linha: LinhaDoDetector): number | null =>
+  linha.patamar.patamar !== null && linha.patamar.diferencaPct !== null && linha.patamar.diferencaPct < 0 ? linha.patamar.patamar : null;
 export type FiltrosDoDetector = { fenomeno: string; porte: string; busca: string };
 export const SEM_FILTROS: FiltrosDoDetector = { fenomeno: "todos", porte: "todos", busca: "" };
 const semAcento = (valor: string) => valor.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -302,6 +478,13 @@ export const NOMES_DOS_PARAMETROS: Record<string, { grupo: string; campos: Recor
   patamar: { grupo: "Afastamento do patamar anterior", campos: { atencao: "Atenção: abaixo do patamar (%)", critica: "Crítica: abaixo do patamar (%)",
     minimo: "Patamar mínimo para classificar (médicos)", alta_alfa: "Alta: incomum até (% das avaliações)" } },
   declinio: { grupo: "Declínio em junhos seguidos", campos: { forte_perda: "Sinal forte: perda mínima (%)", muito_forte_perda: "Sinal muito forte: perda mínima (%)" } },
+  disponibilidade: { grupo: "Taxa por habitante (em 2 anos)", campos: { forte: "Sinal forte: queda mínima da taxa (%)",
+    muito_forte: "Sinal muito forte: queda mínima da taxa (%)" } },
+  posicao: { grupo: "Posição relativa (em 2 anos)", campos: { queda: "Queda de posição: mínimo (pontos de percentil)",
+    forte: "Sinal forte: queda mínima (pontos de percentil)", muito_forte: "Sinal muito forte: queda mínima (pontos de percentil)" } },
+  defasagem: { grupo: "Defasagem ante a referência (em 2 anos)", campos: { forte: "Sinal forte: queda mínima do índice (pontos)",
+    muito_forte: "Sinal muito forte: queda mínima do índice (pontos)" } },
+  contexto: { grupo: "Contexto geográfico", campos: { taxa_do_brasil_pct: "Critério: taxa mínima do município mais próximo (% da taxa do Brasil)" } },
 };
 /** Só o que difere do padrão vai no pedido (a configuração exploratória). */
 export function parametrosPersonalizados(padrao: ParametrosDoDetector, emEdicao: ParametrosDoDetector): ParametrosDoDetector | null {
@@ -339,6 +522,20 @@ export function csvDoDetector(resposta: RespostaDoDetector, linhas: LinhaDoDetec
     ["Desaceleração repetida (exploratória)", l => l.desaceleracao.persistente === null ? "" : l.desaceleracao.persistente ? "sim" : "não"],
     ["Índice de instabilidade", l => l.instabilidade.indice], ["Qualidade do registro", l => l.registro.estado],
     ["Marcas de registro", l => l.registro.tipos.join(" | ")],
+    ["Janela de comparação: de", () => resposta.comparacao.de], ["Janela de comparação: até", () => resposta.comparacao.ate],
+    ["Janela de comparação: estado", () => resposta.comparacao.estado],
+    ["Taxa por 1.000 habitantes", l => l.disponibilidade.taxa], ["População", l => l.disponibilidade.populacao],
+    ["Variação da taxa em 2 anos (%)", l => l.disponibilidade.variacaoPct], ["Taxa: estado", l => l.disponibilidade.estado],
+    ["Taxa: sinal observado", l => l.disponibilidade.sinal],
+    ["Percentil da taxa", l => l.posicao.percentil], ["Universo do percentil", l => l.posicao.universo],
+    ["Variação do percentil em 2 anos (pontos)", l => l.posicao.variacaoPp], ["Posição: estado", l => l.posicao.estado],
+    ["Posição: sinal observado", l => l.posicao.sinal],
+    ["Índice ante a referência", l => l.defasagem.indice], ["Variação do índice em 2 anos (pontos)", l => l.defasagem.variacaoPontos],
+    ["Defasagem: estado", l => l.defasagem.estado], ["Defasagem: sinal observado", l => l.defasagem.sinal],
+    ["Distância ao município mais próximo que atende ao critério (km)", l => l.contexto.distanciaKm],
+    ["Município mais próximo que atende ao critério", l => l.contexto.referencia], ["Percentil da distância", l => l.contexto.percentil],
+    ["Contexto geográfico: estado", l => l.contexto.estado], ["Critério do contexto: taxa mínima", () => resposta.comparacao.contexto.taxaMinima],
+    ["Sinais combinados", l => l.coexistencia.textos.join(" | ")],
     ["Configuração", () => resposta.exploratorio ? "personalizada (exploratória)" : "padrão (limites provisórios)"],
     ["Versão do método", () => resposta.versao], ["Versão da base", () => resposta.fonte.versao],
   ];
@@ -349,6 +546,7 @@ export function csvDoDetector(resposta: RespostaDoDetector, linhas: LinhaDoDetec
 /** O método em JSON: a fonte, a janela, os parâmetros (padrão e em uso), o que a comparação diz na data e as notas. */
 export function metodoDoDetector(resposta: RespostaDoDetector): string {
   return JSON.stringify({ ferramenta: "Detector de Sinais Territoriais", versao_do_metodo: resposta.versao, fonte: resposta.fonte,
-    janela: resposta.janela, parametros: resposta.parametros, comparacao_na_data: resposta.calibracao, notas: resposta.notas,
-    limitacoes: resposta.limitacoes, referencia: "Docs/DETECTOR_E_SIMULADOR_V2_2.md, seções 2.4, 4, 4.2 e 5" }, null, 2);
+    janela: resposta.janela, parametros: resposta.parametros, comparacao_na_data: resposta.calibracao,
+    comparacao_relativa: resposta.comparacao, notas: resposta.notas,
+    limitacoes: resposta.limitacoes, referencia: "Docs/DETECTOR_E_SIMULADOR_V2_2.md, seções 2.4, 4, 4.1, 4.2 e 5" }, null, 2);
 }

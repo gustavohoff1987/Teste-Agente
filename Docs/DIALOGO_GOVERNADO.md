@@ -106,7 +106,7 @@ troca) e recebe recusa natural com a forma governada e, quando há, uma alternat
 | Criar classificação; ranking por juízo; afirmar juízo ("carência") | CFG-NOR, EXC-08 | Aplicar o critério da pessoa como condição, sem rótulo de juízo |
 | Outro método | TPL-07, EXC-08 | Os métodos disponíveis |
 | Outras ocupações | RQ-CFG-11 | A categoria dos dados em uso |
-| Política, correlação, projeção, pessoas, fontes externas | TPL-06 com EXC-02, EXC-05, EXC-09, EXC-07 | O que a análise descreve |
+| Política, correlação, projeção, pessoas, fontes externas | TPL-06 com EXC-02, EXC-05, EXC-09, EXC-07 | O que a análise descreve. Na **projeção**, com a base do Brasil, a recusa também indica o caminho (11/11/2026, comando V22): "Para montar cenários hipotéticos, que não são previsão, há o Simulador de Cenários, na linha Ferramentas da área de análise: nele, você escolhe o método, as hipóteses e a data final." A conversa não projeta nem monta cenários; com uma planilha enviada, em que o Simulador não existe, a indicação não aparece |
 | Ignorar parâmetro; delegar a escolha | INV-06, EXC-11 | A escolha fica com a pessoa, com exemplos |
 
 Classificação das mudanças pela SPEC:

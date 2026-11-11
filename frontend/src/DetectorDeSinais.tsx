@@ -1,17 +1,21 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Download, LoaderCircle, SlidersHorizontal } from "lucide-react";
+import { ChartScatter, ChevronDown, ChevronRight, Download, LoaderCircle, Map as IconeDoMapa, SlidersHorizontal, Table } from "lucide-react";
+import { BolhasDoContexto, MapaDosSinais, SerieDaTaxa } from "./DetectorGraficos";
 import { ErroDoMotor, pedirAoMotor, type FonteDoMotor } from "./painelApi";
 import {
-  FILTROS_DE_FENOMENO, NOMES_DAS_CLASSES, NOMES_DOS_PARAMETROS, ROTULOS_DOS_PORTES, SEM_FILTROS, TEXTO_LIMITES_PROVISORIOS, competenciaCurta,
+  FILTROS_DE_FENOMENO, NOMES_DAS_CLASSES, NOMES_DOS_PARAMETROS, ROTULOS_DOS_PORTES, SEM_FILTROS, TEXTO_LIMITES_PROVISORIOS, TEXTO_SINAIS_RELATIVOS, competenciaCurta,
   csvDoDetector, filtrarLinhas, formatarInteiro, formatarPct, metodoDoDetector, normalizarDetalhe, normalizarDetector, ordenarLinhas,
-  parametrosPersonalizados, textoDaUltima, textoDoRegistro, tipoDoTerritorio, trechoEstrutural, trechosDaTrajetoria, trechosDoRitmo,
-  type ClasseDoSinal, type DetalheDoDetector, type FiltrosDoDetector, type LinhaDoDetector, type OpcoesDoDetector, type OrdemDoDetector,
+  parametrosPersonalizados, textoDaUltima, textoDoRegistro, tipoDoTerritorio, trechoDoContexto, trechoEstrutural, trechosCombinados,
+  trechosDaComparacao, trechosDaTrajetoria, trechosDoRitmo, formatarTaxa, medicos, alvoDoSimulador, patamarARecuperar,
+  type AlvoDoSimulador, type ClasseDoSinal, type DetalheDoDetector, type FiltrosDoDetector, type LinhaDoDetector, type OpcoesDoDetector, type OrdemDoDetector,
   type ParametrosDoDetector, type RespostaDoDetector, type SelecaoDasFerramentas, type Trecho,
 } from "./detectorModel";
 
-// Detector de Sinais Territoriais (comando V22, Eixo II, etapa 3; Docs/DETECTOR_DE_SINAIS.md). A tela mostra a situação mais recente
-// da janela para os territórios da seleção em uso: a condição estrutural, a trajetória, o ritmo e a instabilidade, a qualidade do
-// registro e a última observação; os filtros por fenômeno, porte e período; os detalhes de cada território (o que foi observado, o
+// Detector de Sinais Territoriais (comando V22, Eixo II, etapas 3 e 5; Docs/DETECTOR_DE_SINAIS.md). A tela mostra a situação mais
+// recente da janela para os territórios da seleção em uso: a condição estrutural, a trajetória, o ritmo e a instabilidade, a
+// comparação relativa (taxa por habitante, posição e defasagem ante a referência), o contexto geográfico, os sinais combinados, a
+// qualidade do registro e a última observação. Os fenômenos 8 a 12 aparecem também em gráfico e mapa (DetectorGraficos.tsx, com os
+// componentes do Agente); a tabela fica como detalhe. Há os filtros por fenômeno, porte e período; os detalhes de cada território (o que foi observado, o
 // critério, quanto difere do habitual, o que significa, o que não significa, as limitações do dado e a qualidade do registro), com o
 // histórico de sinais à parte; e os parâmetros personalizados, sempre marcados como exploratórios. Todo número e todo texto de
 // resultado vêm do motor (POST /api/detector), que calcula sem o provedor de IA. A tela só filtra, ordena e desenha.
@@ -23,9 +27,12 @@ type Props = {
   selecao: SelecaoDasFerramentas | null;
   resumoDaSelecao: string;
   onAlterarSelecao: () => void;
-  /** Abre o território no Simulador de Cenários, com a janela em uso (etapa 4 do comando). */
-  onAbrirNoSimulador?: (id: string, janela: { inicio: string; fim: string }) => void;
+  /** Abre o território no Simulador de Cenários, com o contexto analítico (a data avaliada, a janela escolhida e os sinais à vista). */
+  onAbrirNoSimulador?: (alvo: AlvoDoSimulador) => void;
+  /** "Simular recuperação": abre o Simulador com o território e, como meta hipotética e editável, o patamar anterior (decisão D-B). */
+  onSimularRecuperacao?: (alvo: AlvoDoSimulador, patamar: number) => void;
 };
+type Vista = "bolhas" | "mapa" | "tabela";
 
 function baixar(nome: string, corpo: string, tipo: string) {
   const url = URL.createObjectURL(new Blob([corpo], { type: tipo }));
@@ -95,13 +102,16 @@ const CAMPOS_DO_DETALHE: [keyof DetalheDoDetector["fenomenos"][number], string][
   ["observado", "O que foi observado"], ["criterio", "Qual critério"], ["habitual", "Quanto difere do habitual"], ["significa", "O que significa"],
   ["naoSignifica", "O que não significa"], ["limitacoes", "Limitações do dado"], ["qualidade", "Qualidade do registro"]];
 
-function DetalheDoTerritorio({ detalhe, onAbrirNoSimulador }: { detalhe: DetalheDoDetector; onAbrirNoSimulador?: () => void }) {
+function DetalheDoTerritorio({ detalhe, patamar, onAbrirNoSimulador, onSimularRecuperacao }: { detalhe: DetalheDoDetector;
+  /** O patamar anterior do território (fenômeno 7), quando ele está abaixo dele: a meta hipotética de "Simular recuperação". */
+  patamar: number | null; onAbrirNoSimulador?: () => void; onSimularRecuperacao?: () => void }) {
   const [aberto, setAberto] = useState<string | null>(detalhe.fenomenos.find(f => f.classe)?.chave ?? detalhe.fenomenos[0]?.chave ?? null);
   const [verHistorico, setVerHistorico] = useState(false);
   return <div data-testid="detector-detalhe" data-id={detalhe.id} className="ferramenta-detalhe">
     <p className="ferramenta-apoio">Contagem: {detalhe.unidade}.{detalhe.membros.length > 0 && " Componentes: " + detalhe.membros.join(", ") + "."}
       {detalhe.depoisDaQuebra && " Os indicadores deste território começam em " + competenciaCurta(detalhe.inicioDoTerritorio) + ", depois da quebra de fonte."}</p>
     <SerieObservada detalhe={detalhe}/>
+    <SerieDaTaxa detalhe={detalhe}/>
     <ul className="ferramenta-fenomenos" aria-label={"Fenômenos de " + detalhe.rotulo}>
       {detalhe.fenomenos.map(f => <li key={f.chave} data-testid="detector-fenomeno" data-chave={f.chave} data-estado={f.estado} className="ferramenta-fenomeno">
         <button type="button" className="ferramenta-fenomeno-cabeca" aria-expanded={aberto === f.chave}
@@ -120,8 +130,15 @@ function DetalheDoTerritorio({ detalhe, onAbrirNoSimulador }: { detalhe: Detalhe
       <button type="button" data-testid="detector-historico-botao" className="analise-botao-secundario" aria-expanded={verHistorico}
         onClick={() => setVerHistorico(valor => !valor)}>{verHistorico ? "Fechar o histórico de sinais" : "Ver o histórico de sinais"}</button>
       {onAbrirNoSimulador && <button type="button" data-testid="detector-abrir-no-simulador" className="analise-botao-secundario"
-        onClick={onAbrirNoSimulador}>Abrir no Simulador</button>}
+        title="Leva este território ao Simulador de Cenários, com a data avaliada, a janela escolhida e os sinais à vista" onClick={onAbrirNoSimulador}>
+        Abrir no Simulador</button>}
+      {onSimularRecuperacao && patamar !== null && <button type="button" data-testid="detector-simular-recuperacao" className="analise-botao-secundario"
+        title={"Abre o Simulador com a meta hipotética de voltar ao patamar de " + formatarTaxa(patamar).replace(/,00$/, "") + " médicos; a meta pode ser trocada"}
+        onClick={onSimularRecuperacao}>Simular recuperação</button>}
     </div>
+    {onSimularRecuperacao && patamar !== null && <p data-testid="detector-recuperacao-apoio" className="ferramenta-apoio">“Simular recuperação” abre o
+      Simulador de Cenários com uma meta hipotética: voltar ao patamar de {medicos(Math.round(patamar))} (a maior média de dois anos seguidos antes
+      dos registros mais recentes). A meta é uma hipótese que você pode trocar; o resultado é um cenário, não uma previsão.</p>}
     {verHistorico && <div className="ferramenta-rolagem"><table data-testid="detector-historico" className="analise-tabela ferramenta-tabela">
       <caption className="ferramenta-apoio">Histórico de sinais na janela: cada data avaliada só com o que era conhecido nela.</caption>
       <thead><tr><th scope="col">Registro</th><th scope="col">Médicos</th><th scope="col">Condição estrutural</th>
@@ -159,6 +176,7 @@ export default function DetectorDeSinais(p: Props) {
   const [verParametros, setVerParametros] = useState(false);
   const [rascunho, setRascunho] = useState<Record<string, Record<string, string>>>({});
   const [verMetodo, setVerMetodo] = useState(false);
+  const [vista, setVista] = useState<Vista>("bolhas");
   const cache = useRef(new Map<string, RespostaDoDetector>());
 
   const pedido: OpcoesDoDetector | null = useMemo(() => p.selecao ? { ...p.selecao, ...(janela.inicio || janela.fim ? { janela } : {}),
@@ -207,6 +225,14 @@ export default function DetectorDeSinais(p: Props) {
   const competencias = resposta?.competencias ?? [];
   const inicioEmUso = janela.inicio ?? resposta?.janela.inicio ?? "", fimEmUso = janela.fim ?? resposta?.janela.fim ?? "";
   const mudarFiltros = (parte: Partial<FiltrosDoDetector>) => { setFiltros(atual => ({ ...atual, ...parte })); setPagina(0); };
+  /** Abre os detalhes de um território a partir do gráfico ou do mapa: a linha dele vai para a página à vista. */
+  function abrirDoDesenho(id: string) {
+    const posicao = filtradas.findIndex(linha => linha.id === id);
+    if (posicao < 0) return;
+    setPagina(Math.floor(posicao / POR_PAGINA));
+    setAberto(id);
+    requestAnimationFrame(() => document.querySelector('[data-testid="detector-linha"][data-id="' + id + '"]')?.scrollIntoView({ block: "center" }));
+  }
 
   function aplicarParametros() {
     if (!resposta) return;
@@ -328,19 +354,53 @@ export default function DetectorDeSinais(p: Props) {
       {contagem("em declínio em junhos seguidos", resumo.sinais.declinio, "detector-resumo-declinio")}
       {contagem("com desaceleração do crescimento", resumo.sinais.desaceleracao, "detector-resumo-desaceleracao")}
       {contagem("com registro a verificar", resumo.sinais.registro, "detector-resumo-registro")}
+      {contagem("com queda da taxa por habitante", resumo.sinais.disponibilidade, "detector-resumo-disponibilidade")}
+      {contagem("com queda de posição", resumo.sinais.posicao, "detector-resumo-posicao")}
+      {contagem("com defasagem maior ante a referência", resumo.sinais.defasagem, "detector-resumo-defasagem")}
+      {contagem("com sinais combinados", resumo.sinais.combinados, "detector-resumo-combinados")}
     </p>}
+
+    {resposta && <div data-testid="detector-visual" data-vista={vista} className="ferramenta-visual">
+      <div role="group" aria-label="Gráfico, mapa ou só a tabela" className="ferramenta-modos analise-nao-imprimir">
+        <button type="button" data-testid="detector-vista-bolhas" className="analise-botao-secundario" aria-pressed={vista === "bolhas"}
+          onClick={() => setVista("bolhas")}><ChartScatter size={14} aria-hidden="true"/>Distância e taxa (bolhas)</button>
+        <button type="button" data-testid="detector-vista-mapa" className="analise-botao-secundario" aria-pressed={vista === "mapa"}
+          onClick={() => setVista("mapa")}><IconeDoMapa size={14} aria-hidden="true"/>Mapa dos sinais</button>
+        <button type="button" data-testid="detector-vista-tabela" className="analise-botao-secundario" aria-pressed={vista === "tabela"}
+          onClick={() => setVista("tabela")}><Table size={14} aria-hidden="true"/>Só a tabela</button>
+      </div>
+      <p data-testid="detector-comparacao" data-estado={resposta.comparacao.estado} role="note" className="ferramenta-apoio">
+        <strong>Comparação relativa</strong> (taxa por habitante, posição e defasagem ante a referência):{" "}
+        {resposta.comparacao.estado === "comparavel"
+          ? "variação de " + competenciaCurta(resposta.comparacao.de) + " a " + competenciaCurta(resposta.comparacao.ate) + ", em 2 anos, com população comparável."
+          : resposta.comparacao.estado === "comparacao_nao_habilitada"
+            ? "a variação de " + competenciaCurta(resposta.comparacao.de) + " a " + competenciaCurta(resposta.comparacao.ate) + " não é calculada (comparação não " +
+              "habilitada): a população de 2021 a 2023 é repetida, e a de 2024 é de outra base. A taxa, a posição e o índice da data continuam à vista. Para " +
+              "ver a variação, termine a janela entre jun/2016 e jan/2018 ou entre jun/2020 e jan/2022."
+            : "a variação não é calculada nesta janela: falta o registro de junho de dois anos antes."}{" "}
+        <strong>Contexto geográfico:</strong>{" "}
+        {resposta.comparacao.contexto.taxaMinima === null ? "sem a taxa do Brasil na data, o critério não pode ser aplicado."
+          : "distância em linha reta até o município mais próximo com " + formatarTaxa(resposta.comparacao.contexto.taxaMinima) + " médicos por 1.000 " +
+            "habitantes ou mais (" + formatarInteiro(Math.round(resposta.comparacao.contexto.pctDaTaxaDoBrasil ?? 100)) + "% da taxa do Brasil em " +
+            competenciaCurta(resposta.janela.fim) + "); " + formatarInteiro(resposta.comparacao.contexto.atendem) + " municípios do país atendem ao critério."}
+      </p>
+      {vista === "bolhas" && <BolhasDoContexto resposta={resposta} linhas={filtradas} onAbrir={abrirDoDesenho}/>}
+      {vista === "mapa" && <MapaDosSinais resposta={resposta} linhas={filtradas} fenomeno={filtros.fenomeno} onAbrir={abrirDoDesenho}/>}
+    </div>}
 
     {resposta && <div className="ferramenta-rolagem">
       <table data-testid="detector-tabela" data-linhas={filtradas.length} className="analise-tabela ferramenta-tabela">
-        <caption className="ferramenta-apoio">{TEXTO_LIMITES_PROVISORIOS} Situação em {competenciaCurta(resposta.janela.fim)}; janela desde{" "}
-          {competenciaCurta(resposta.janela.inicio)}.</caption>
+        <caption className="ferramenta-apoio">Detalhes por território. {TEXTO_LIMITES_PROVISORIOS} Situação em {competenciaCurta(resposta.janela.fim)}; janela desde{" "}
+          {competenciaCurta(resposta.janela.inicio)}. {TEXTO_SINAIS_RELATIVOS} O contexto geográfico e os sinais combinados também não têm intensidade.</caption>
         <thead><tr>
           <th scope="col">Território</th><th scope="col">Condição estrutural</th><th scope="col">Trajetória</th>
-          <th scope="col">Ritmo e instabilidade</th><th scope="col">Qualidade do registro</th><th scope="col">Última observação</th>
+          <th scope="col">Ritmo e instabilidade</th><th scope="col">Comparação relativa</th><th scope="col">Contexto geográfico</th>
+          <th scope="col">Sinais combinados</th><th scope="col">Qualidade do registro</th><th scope="col">Última observação</th>
         </tr></thead>
         <tbody>
           {naPagina.map(linha => {
             const registro = textoDoRegistro(linha), trajetoria = trechosDaTrajetoria(linha), ritmo = trechosDoRitmo(linha), tipo = tipoDoTerritorio(linha);
+            const comparacao = trechosDaComparacao(linha), combinados = trechosCombinados(linha);
             const detalhe = detalhes[linha.id], expandida = aberto === linha.id;
             return <Fragment key={linha.id}>
               <tr data-testid="detector-linha" data-id={linha.id} data-tipo={linha.tipo} data-sinais={linha.sinais.join(" ")}
@@ -357,19 +417,27 @@ export default function DetectorDeSinais(p: Props) {
                 <td>{trajetoria.length ? trajetoria.map(trecho => <TrechoDaLinha key={trecho.chave} trecho={trecho}/>)
                   : <span className="ferramenta-apoio">{linha.perda.estado === "ausencia_de_dado" ? "sem registro nesta data" : "sem perda no último registro"}</span>}</td>
                 <td>{ritmo.length ? ritmo.map(trecho => <TrechoDaLinha key={trecho.chave} trecho={trecho}/>) : <span className="ferramenta-apoio">—</span>}</td>
+                <td className="ferramenta-coluna-larga">{comparacao.length ? comparacao.map(trecho => <TrechoDaLinha key={trecho.chave} trecho={trecho}/>)
+                  : <span className="ferramenta-apoio">{linha.posicao.estado === "nao_aplicavel" && linha.disponibilidade.taxa === null
+                    ? "sem taxa por habitante neste território" : "sem taxa por habitante nesta data"}</span>}</td>
+                <td><TrechoDaLinha trecho={trechoDoContexto(linha)}/></td>
+                <td>{combinados.length ? combinados.map((trecho, indice) => <TrechoDaLinha key={indice} trecho={trecho}/>)
+                  : <span className="ferramenta-apoio">—</span>}</td>
                 <td><span data-testid="detector-registro" data-marca={registro.marca} className={"ferramenta-registro ferramenta-registro-" + registro.marca}>
                   {registro.texto}</span></td>
                 <td>{textoDaUltima(linha, resposta.janela.fim)}</td>
               </tr>
-              {expandida && <tr className="ferramenta-linha-detalhe"><td colSpan={6}>
+              {expandida && <tr className="ferramenta-linha-detalhe"><td colSpan={9}>
                 {!detalhe ? <p role="status" className="ferramenta-apoio"><LoaderCircle size={14} className="animate-spin inline" aria-hidden="true"/> Abrindo os detalhes…</p>
                   : "erro" in detalhe ? <p role="alert" className="analise-motivo">{detalhe.erro}</p>
-                    : <DetalheDoTerritorio detalhe={detalhe} onAbrirNoSimulador={p.onAbrirNoSimulador
-                      ? () => p.onAbrirNoSimulador!(linha.id, { inicio: resposta.janela.inicio, fim: resposta.janela.fim }) : undefined}/>}
+                    : <DetalheDoTerritorio detalhe={detalhe} patamar={patamarARecuperar(linha)} onAbrirNoSimulador={p.onAbrirNoSimulador
+                      ? () => p.onAbrirNoSimulador!(alvoDoSimulador(linha, resposta)) : undefined}
+                      onSimularRecuperacao={p.onSimularRecuperacao && patamarARecuperar(linha) !== null
+                        ? () => p.onSimularRecuperacao!(alvoDoSimulador(linha, resposta), patamarARecuperar(linha)!) : undefined}/>}
               </td></tr>}
             </Fragment>;
           })}
-          {!filtradas.length && <tr><td colSpan={6} data-testid="detector-sem-linhas" className="ferramenta-apoio">Nenhum território da seleção passa nos filtros.</td></tr>}
+          {!filtradas.length && <tr><td colSpan={9} data-testid="detector-sem-linhas" className="ferramenta-apoio">Nenhum território da seleção passa nos filtros.</td></tr>}
         </tbody>
       </table>
     </div>}

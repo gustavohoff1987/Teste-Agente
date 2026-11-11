@@ -101,6 +101,9 @@ calibrado", "limite provisório" no lugar de "candidato"); os termos técnicos f
 3. **Calibração por porte e intervalo:** possível em jun/2024 em todas as células (seção 4); nas primeiras competências,
    "não calibrado". A crítica do indicador 7 fica "não calibrável" enquanto não houver casos para estimar a cauda (seção 4.2).
 4. **População comparável:** só nos trechos da seção 6; fora deles, os indicadores 8 e 9 ficam "comparação não habilitada".
+   **Implementado em 11/11/2026** (etapa 5 do comando): a janela de 2 anos só é habilitada inteira dentro de 2014–2017 ou de
+   2018–2021; por decisão conservadora, a mesma regra vale para a variação do indicador 10, e o nível da data (taxa, percentil
+   e índice) continua à vista ([Detector de Sinais](DETECTOR_DE_SINAIS.md)).
 5. **Estados como unidade e conjuntos:** sem calibração própria (a da V2.2 é municipal); o Detector mostra os fatos e os
    indicadores descritivos, sem intensidade calibrada.
 6. **Faixas de 80% do Simulador:** a tabela da seção 11.2 do anexo traz valores iniciais, a recalcular na base (retroprojeções

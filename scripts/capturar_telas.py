@@ -11,7 +11,11 @@ e as três ações; a Distribuição com os dois níveis e os quintis de cada um
 por proximidade; a seleção com os conjuntos; a dica de um conjunto, com todos os membros; a Escolha dos territórios da Análise
 Espacial com a base em conjuntos e territórios individuais; o foco numa base da Análise Espacial; os estados como unidade ("Só
 os estados"); o Detector de Sinais Territoriais (a tabela, os detalhes, os alertas do Brasil e os parâmetros) e o Simulador de
-Cenários Territoriais (os territórios, as intervenções, os resultados, a base e o método e a validação). Depois, o Histórico, o diálogo de Nova sessão, o painel "Colunas" de uma planilha de distritos e províncias
+Cenários Territoriais (os territórios, as intervenções, os resultados, a base e o método e a validação). Da etapa 5 do comando
+(telas 25 a 38): os fenômenos 8 a 12 do Detector em jun/2021, quando a comparação de 2 anos é habilitada (as bolhas da distância e
+da taxa, o mapa dos sinais, a série da taxa com a referência e os detalhes de cada fenômeno); "Abrir no Simulador" com as
+referências de comparação, as comparações, o planejamento inverso e o Brasil como território; e "Simular recuperação", com a meta
+hipotética e o resultado. Depois, o Histórico, o diálogo de Nova sessão, o painel "Colunas" de uma planilha de distritos e províncias
 (criada numa pasta temporária) e a Seleção no celular. Nada vai para o provedor de IA, nenhum dado é alterado e o servidor é
 encerrado no fim. Uma tela que falhar é informada no fim, sem impedir as seguintes. Saída: 0 se todas as capturas foram feitas.
 """
@@ -30,6 +34,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "frontend" / "dist" / "index.html"
 sys.path.insert(0, str(ROOT / "backend" / "tests"))
 AM, PA, BA = "13", "15", "29"
+MANAUS, FLORIANOPOLIS = "code:130260", "code:420540"
+# A tabela do Detector tem 50 linhas por página: as capturas dele mostram o alto da página (os filtros, o gráfico ou o mapa, as
+# primeiras linhas e os detalhes abertos). A página inteira passaria do limite de altura de uma imagem do navegador.
+ALTO_DO_DETECTOR = 4200
 
 
 def porta_livre():
@@ -71,17 +79,22 @@ def capturar(url, saida, canal):
         territorios = area.get_by_test_id("analise-territorios")
         respostas = {}
 
-        def tela(nome, acao, manter_rolagem=False):
+        def tela(nome, acao, manter_rolagem=False, altura_maxima=None):
             """Executa os passos da tela e salva a captura da página inteira. Antes, volta ao topo: a barra fixa (Desfazer e Limpar
             seleção) fica no lugar dela, em vez de aparecer no meio da página. `manter_rolagem` fica para a tela que depende do
-            ponteiro parado sobre um elemento (a dica)."""
+            ponteiro parado sobre um elemento (a dica). Com `altura_maxima`, a captura para nessa altura (o alto da página)."""
             try:
                 acao()
                 if not manter_rolagem:
                     page.evaluate("window.scrollTo(0, 0)")
                 page.wait_for_timeout(900)  # transições curtas do gráfico
                 caminho = saida / (nome + ".png")
-                page.screenshot(path=str(caminho), full_page=True)
+                altura = page.evaluate("document.documentElement.scrollHeight")
+                if altura_maxima and altura > altura_maxima:
+                    page.screenshot(path=str(caminho), full_page=True,
+                                    clip={"x": 0, "y": 0, "width": page.viewport_size["width"], "height": altura_maxima})
+                else:
+                    page.screenshot(path=str(caminho), full_page=True)
                 feitas.append(caminho.name)
                 print("   ok:", caminho.name, flush=True)
             except Exception as erro:  # noqa: BLE001 — a tela seguinte ainda é útil para a conferência
@@ -263,6 +276,152 @@ def capturar(url, saida, canal):
             simulador.get_by_test_id("simulador-validacao-botao").click()
             expect(simulador.get_by_test_id("simulador-faixas")).to_be_visible()
 
+        def do_detector(acao):
+            """Executa a ação e espera a resposta do Detector (/api/detector) e a tela pronta."""
+            with page.expect_response(lambda r: is_post(r, "/api/detector"), timeout=180000):
+                acao()
+            expect(area.get_by_test_id("detector")).to_have_attribute("data-estado", "pronto", timeout=180000)
+
+        def fenomeno(chave):
+            """Abre, nos detalhes do território, o fenômeno pedido (um de cada vez)."""
+            item = area.get_by_test_id("detector").locator('[data-testid="detector-fenomeno"][data-chave="' + chave + '"]')
+            botao = item.locator("button").first
+            if botao.get_attribute("aria-expanded") != "true":
+                botao.click()
+            expect(item.locator("dl")).to_be_visible()
+
+        def detector_bolhas():
+            # Etapa 5: em jun/2021 a comparação de 2 anos é habilitada (jun/2019 a jun/2021). Os municípios com queda da taxa por
+            # habitante (fenômeno 8), nas bolhas: a distância até quem atende ao critério (fenômeno 11) e a taxa.
+            detector = area.get_by_test_id("detector")
+            detector.get_by_test_id("detector-abrir").first.click()  # fecha os detalhes
+            do_detector(lambda: detector.get_by_test_id("detector-janela-fim").select_option("202106"))
+            detector.get_by_test_id("detector-filtro-fenomeno").select_option("disponibilidade")
+            detector.get_by_test_id("detector-vista-bolhas").click()
+            expect(detector.get_by_test_id("detector-bolhas")).to_be_visible(timeout=60000)
+
+        def detector_mapa():
+            detector = area.get_by_test_id("detector")
+            detector.get_by_test_id("detector-vista-mapa").click()
+            expect(detector.get_by_test_id("detector-mapa")).to_be_visible(timeout=60000)
+
+        def detector_taxa():
+            # Os detalhes de um território com o sinal: a série da taxa com a referência (tracejada) e o fenômeno 8.
+            detector = area.get_by_test_id("detector")
+            detector.get_by_test_id("detector-vista-tabela").click()
+            detector.get_by_test_id("detector-abrir").first.click()
+            expect(detector.get_by_test_id("detector-serie-da-taxa")).to_be_visible(timeout=60000)
+            fenomeno("disponibilidade")
+
+        def detector_combinados():
+            # Os sinais combinados (fenômeno 12): o primeiro território com uma combinação, com o texto do fenômeno aberto.
+            detector = area.get_by_test_id("detector")
+            detector.get_by_test_id("detector-abrir").first.click()  # fecha os detalhes
+            detector.get_by_test_id("detector-filtro-fenomeno").select_option("combinados")
+            detector.get_by_test_id("detector-abrir").first.click()
+            expect(detector.get_by_test_id("detector-detalhe")).to_be_visible(timeout=60000)
+            fenomeno("coexistencia")
+
+        def abrir_no_simulador():
+            # "Abrir no Simulador": Manaus, no último registro, vai ao Simulador com o contexto do Detector; lá, três referências
+            # (Florianópolis, dinâmica; o Brasil, fixo; e um valor informado).
+            detector = area.get_by_test_id("detector")
+            detector.get_by_test_id("detector-abrir").first.click()  # fecha os detalhes
+            do_detector(lambda: detector.get_by_test_id("detector-janela-fim").select_option("202406"))
+            detector.get_by_test_id("detector-filtro-fenomeno").select_option("todos")
+            detector.get_by_test_id("detector-busca").fill("manaus")
+            detector.locator('[data-testid="detector-linha"][data-id="' + MANAUS + '"]').get_by_test_id("detector-abrir").click()
+            expect(detector.get_by_test_id("detector-detalhe")).to_be_visible(timeout=60000)
+            detector.get_by_test_id("detector-abrir-no-simulador").click()
+            simulador = area.get_by_test_id("simulador")
+            expect(simulador.get_by_test_id("simulador-do-detector")).to_be_visible(timeout=60000)
+            simulador.get_by_test_id("simulador-referencia-busca").fill("florian")
+            simulador.locator('[data-testid="simulador-referencia-acrescentar"][data-id="' + FLORIANOPOLIS + '"]').click()
+            simulador.locator('[data-testid="simulador-referencia-item"][data-alvo="' + FLORIANOPOLIS + '"]').get_by_test_id(
+                "simulador-referencia-tipo").select_option("dinamica")
+            simulador.get_by_test_id("simulador-referencia-brasil").click()
+            simulador.get_by_test_id("simulador-referencia-valor-nova").click()
+            simulador.get_by_test_id("simulador-referencia-valor").fill("6500")
+            expect(simulador.get_by_test_id("simulador-referencias")).to_have_attribute("data-total", "3")
+
+        def do_simulador(acao):
+            with page.expect_response(lambda r: is_post(r, "/api/simulador"), timeout=180000):
+                acao()
+            expect(area.get_by_test_id("simulador")).to_have_attribute("data-estado", "pronto", timeout=180000)
+
+        def simulador_comparacoes():
+            # As comparações: as curvas das referências no gráfico (a do Brasil, fora da escala) e os textos de cada uma.
+            simulador = area.get_by_test_id("simulador")
+            simulador.get_by_test_id("simulador-etapa-3").click()
+            simulador.get_by_test_id("simulador-atalho-4").click()
+            do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+            expect(simulador.get_by_test_id("simulador-comparacao").first).to_be_visible()
+
+        def simulador_planejamento():
+            # O planejamento inverso: a meta hipotética de alcançar a referência (Florianópolis), com um acréscimo por ano.
+            simulador = area.get_by_test_id("simulador")
+            simulador.get_by_test_id("simulador-etapa-1").click()   # o Brasil sai: o planejamento fica só com Manaus
+            simulador.locator('[data-testid="simulador-local"][data-id="br"]').get_by_role("button").click()
+            simulador.get_by_test_id("simulador-etapa-3").click()
+            simulador.get_by_test_id("simulador-plano-novo").click()
+            simulador.get_by_test_id("simulador-plano-meta").select_option("referencia")
+            simulador.get_by_test_id("simulador-plano-periodica").check()
+            simulador.get_by_test_id("simulador-plano-ate").fill("2028-06")
+            expect(simulador.get_by_test_id("simulador-plano")).to_have_attribute("data-meta", "referencia")
+
+        def simulador_planejamento_resultado():
+            simulador = area.get_by_test_id("simulador")
+            do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+            expect(simulador.get_by_test_id("simulador-planejamento-texto").first).to_be_visible()
+
+        def simulador_plano_como_intervencao():
+            # "Usar como intervenção deste cenário": o acréscimo calculado entra nas intervenções, e o cenário recalculado alcança a meta.
+            simulador = area.get_by_test_id("simulador")
+            simulador.get_by_test_id("simulador-planejamento-usar").click()
+            expect(simulador.get_by_test_id("simulador-intervencao")).to_have_count(1)
+            do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+            expect(simulador.get_by_test_id("simulador-evento").first).to_be_visible()
+
+        def simulador_brasil():
+            # O Brasil como território, só no Simulador: a contagem nacional, com o padrão provisório (taxa composta de 3 anos), sem faixa.
+            simulador = area.get_by_test_id("simulador")
+            simulador.get_by_test_id("simulador-etapa-1").click()
+            simulador.get_by_test_id("simulador-busca").fill("brasil")
+            simulador.locator('[data-testid="simulador-acrescentar"][data-id="br"]').click()
+            simulador.get_by_test_id("simulador-busca").fill("")
+            do_simulador(lambda: simulador.get_by_test_id("simulador-calcular-direto").click())
+            simulador.get_by_test_id("simulador-foco").select_option("br")
+            expect(simulador.get_by_test_id("simulador-grafico")).to_be_visible()
+
+        def simular_recuperacao():
+            # "Simular recuperação": do Detector, um município abaixo do patamar anterior vai ao Simulador com a meta hipotética
+            # (e editável) de voltar ao patamar; o Simulador abre na etapa em que a meta está à vista.
+            area.get_by_test_id("analise-ferramenta-detector").click()
+            detector = area.get_by_test_id("detector")
+            expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
+            detector.get_by_test_id("detector-filtro-fenomeno").select_option("patamar")
+            detector.get_by_test_id("detector-abrir").first.click()
+            expect(detector.get_by_test_id("detector-simular-recuperacao")).to_be_visible(timeout=60000)
+            detector.get_by_test_id("detector-simular-recuperacao").click()
+            simulador = area.get_by_test_id("simulador")
+            expect(simulador).to_have_attribute("data-etapa", "3", timeout=60000)
+            expect(simulador.get_by_test_id("simulador-plano")).to_have_attribute("data-meta", "patamar")
+
+        def simular_recuperacao_resultado():
+            simulador = area.get_by_test_id("simulador")
+            do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+            expect(simulador.get_by_test_id("simulador-planejamento").first).to_be_visible()
+            expect(simulador.get_by_test_id("simulador-hipotetico").first).to_be_visible()   # poucos médicos: a hipótese derivada
+
+        def detector_de_volta():
+            # De volta ao Detector, para a tela dos parâmetros (a ferramenta reabre com os padrões).
+            area.get_by_test_id("analise-ferramenta-detector").click()
+            detector = area.get_by_test_id("detector")
+            expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
+            detector.get_by_test_id("detector-vista-tabela").click()
+            detector.get_by_test_id("detector-abrir").first.click()
+            expect(detector.get_by_test_id("detector-detalhe")).to_be_visible(timeout=60000)
+
         def estados_como_unidade():
             if area.get_attribute("data-ferramenta"):
                 area.get_by_test_id("analise-ferramenta-" + area.get_attribute("data-ferramenta")).click()
@@ -337,16 +496,32 @@ def capturar(url, saida, canal):
         tela("10-dica-do-conjunto", dica_do_conjunto, manter_rolagem=True)
         tela("11-espacial-escolha-dos-territorios", espacial_escolha)
         tela("12-espacial-foco", espacial_foco)
-        tela("16-detector-selecao-mista", detector_tabela)
-        tela("17-detector-detalhe", detector_detalhe)
+        tela("16-detector-selecao-mista", detector_tabela, altura_maxima=ALTO_DO_DETECTOR)
+        tela("17-detector-detalhe", detector_detalhe, altura_maxima=ALTO_DO_DETECTOR)
         tela("20-simulador-territorios", simulador_territorios)
         tela("21-simulador-intervencoes", simulador_intervencoes)
         tela("22-simulador-resultados", simulador_resultados)
         tela("23-simulador-base-e-metodo", simulador_base_e_metodo)
         tela("24-simulador-validacao", simulador_validacao)
         tela("13-estados-como-unidade", estados_como_unidade)
-        tela("18-detector-brasil-alertas", detector_brasil)
-        tela("19-detector-parametros", detector_parametros)
+        tela("18-detector-brasil-alertas", detector_brasil, altura_maxima=ALTO_DO_DETECTOR)
+        tela("25-detector-bolhas-distancia-e-taxa", detector_bolhas, altura_maxima=ALTO_DO_DETECTOR)
+        tela("26-detector-mapa-dos-sinais", detector_mapa, altura_maxima=ALTO_DO_DETECTOR)
+        tela("27-detector-taxa-e-fenomeno-8", detector_taxa, altura_maxima=ALTO_DO_DETECTOR)
+        tela("28-detector-fenomeno-9-posicao", lambda: fenomeno("posicao"), altura_maxima=ALTO_DO_DETECTOR)
+        tela("29-detector-fenomeno-10-defasagem", lambda: fenomeno("defasagem"), altura_maxima=ALTO_DO_DETECTOR)
+        tela("30-detector-fenomeno-11-contexto", lambda: fenomeno("contexto"), altura_maxima=ALTO_DO_DETECTOR)
+        tela("31-detector-fenomeno-12-sinais-combinados", detector_combinados, altura_maxima=ALTO_DO_DETECTOR)
+        tela("32-abrir-no-simulador-e-referencias", abrir_no_simulador)
+        tela("33-simulador-comparacoes", simulador_comparacoes)
+        tela("34-simulador-brasil", simulador_brasil)
+        tela("35-simulador-planejamento-inverso", simulador_planejamento)
+        tela("36-simulador-planejamento-resultado", simulador_planejamento_resultado)
+        tela("37-simulador-plano-como-intervencao", simulador_plano_como_intervencao)
+        tela("38-simular-recuperacao-meta", simular_recuperacao)
+        tela("39-simular-recuperacao-resultado", simular_recuperacao_resultado)
+        detector_de_volta()
+        tela("19-detector-parametros", detector_parametros, altura_maxima=ALTO_DO_DETECTOR)
         tela("14-historico", historico)
         tela("14b-nova-sessao", nova_sessao)
         tela("14c-planilha-colunas", colunas)

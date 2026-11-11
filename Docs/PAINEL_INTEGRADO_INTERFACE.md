@@ -263,11 +263,16 @@ não estão disponíveis." O texto não cita o Brasil: com uma planilha, nenhum 
 (regra de 28/10/2026).
 
 - **Detector de Sinais** (`analise-ferramenta-detector`): [Detector de Sinais Territoriais](DETECTOR_DE_SINAIS.md). Usa a seleção
-  em uso.
+  em uso. Dentro dele, o gráfico de bolhas, o mapa de pontos e a Série temporal são os componentes do Agente (`PainelChart`,
+  `MapaDosConjuntos` e `PainelSeries`), com os valores e as coordenadas do motor do Detector.
 - **Simulador de Cenários** (`analise-ferramenta-simulador`): [Simulador de Cenários Territoriais](SIMULADOR_DE_CENARIOS.md).
   Trabalha numa **seleção local**, cópia da seleção em uso, guardada na área enquanto a fonte for a mesma (sair e voltar não a
   perde, nem os cenários). A seleção em uso só muda por "Aplicar à seleção principal", que é um passo do Desfazer ("Aplicar a
   seleção do Simulador") e deixa a ferramenta aberta.
+- **Do Detector para o Simulador** (11/11/2026): "Abrir no Simulador" e "Simular recuperação", nos detalhes de um território do
+  Detector, trocam a ferramenta aberta e põem no Simulador uma seleção local só com aquele território (o município, o estado
+  como unidade ou o conjunto, com a composição e a versão que ele tem na seleção em uso), sem mudar a seleção em uso. Se o
+  conjunto já não está na seleção, a área avisa e não abre.
 
 ### Até 09/11/2026: a seleção unificada, o Ver por e os modos (histórico)
 
@@ -1372,9 +1377,9 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
 - Os conjuntos de estados existem só na base do Brasil (a soma das fontes estaduais); numa planilha, os conjuntos são de unidades.
   Na Análise de Rotatividade, os estados como unidade e os conjuntos de estados ficam de fora, com o aviso.
 - O Detector de Sinais Territoriais e o Simulador de Cenários Territoriais (Eixo II do comando V22) existem desde 10/11/2026, no
-  núcleo de cada um ([Detector](DETECTOR_DE_SINAIS.md); [Simulador](SIMULADOR_DE_CENARIOS.md)). Os comparativos, as referências,
-  o planejamento inverso e a ligação entre as duas ferramentas vêm na etapa 5 do comando
-  ([Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md); [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md)).
+  núcleo de cada um ([Detector](DETECTOR_DE_SINAIS.md); [Simulador](SIMULADOR_DE_CENARIOS.md)). Os comparativos (fenômenos 8 a
+  12), as referências, o planejamento inverso e a ligação entre as duas ferramentas existem desde 11/11/2026 (etapa 5 do comando;
+  [Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md); [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md)).
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
 

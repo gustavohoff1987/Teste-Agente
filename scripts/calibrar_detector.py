@@ -15,6 +15,13 @@ O que faz (Docs/DETECTOR_E_SIMULADOR_V2_2.md, seções 4.2 e 6; os resultados fi
    Var(ε) = φ·N^θ, arredondadas para inteiros não negativos, sem nenhuma queda real; depois, com quedas de 20%, 30% e 50%
    injetadas no último registro. g e φ vêm da própria base (por tipo de intervalo, 5 ou 7 meses); θ = 1,35.
 
+5. mostra a **fotografia dos fenômenos 8 a 11** (etapa 5 do comando V22; seção 4.1 do anexo, itens 8 a 11): nas datas em que a
+   janela de comparação de 2 anos cabe num trecho com população comparável (junho de 2016, 2017, 2020 e 2021), quantos municípios
+   têm cada sinal observado (a queda da taxa por habitante, a queda de posição e a ampliação da defasagem ante a referência),
+   quantos ficam só descritivos (menos de 20 médicos no início da janela) e, em cada junho, o critério e as distâncias do
+   contexto geográfico. Os limites desses indicadores são provisórios e não têm validação: a fotografia mostra a sensibilidade
+   deles, não uma taxa de acerto. `--so-comparativos` imprime só esta parte.
+
 Nada é gravado: o estudo só imprime as tabelas (Markdown). Nenhum dado é alterado, e nada vai ao provedor de IA.
 """
 import argparse
@@ -27,6 +34,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
+import comparativos  # noqa: E402
 import detector  # noqa: E402
 import series_brasil  # noqa: E402
 from brazil_data import load_brazil_sources  # noqa: E402
@@ -73,10 +81,56 @@ def _pct(parte, total, casas=2):
     return "—" if not total else f"{100.0 * parte / total:.{casas}f}%".replace(".", ",")
 
 
+def _fotografia_dos_comparativos(base, cal):
+    """Os sinais observados dos fenômenos 8 a 10 em cada junho com comparação habilitada, e o contexto geográfico (11) em cada
+    junho da base. Usa as mesmas funções do serviço (detector.avaliar, com os parâmetros padrão), município a município."""
+    p = detector.PADRAO
+    territorios = [series_brasil.municipio(base, codigo) for codigo in base.codigos]
+    junhos = [i for i, periodo in enumerate(base.periodos) if periodo.endswith("06")]
+    print("\n## Fenômenos 8 a 10: sinais observados nas datas com comparação habilitada (limites provisórios, sem validação)\n")
+    print(_linha(["Data", "Janela", "Avaliados (20 médicos ou mais no início)", "Só descritivos (menos de 20)",
+                  "8: queda da taxa forte", "8: muito forte", "9: queda de posição", "9: forte", "9: muito forte (confirmada)",
+                  "10: defasagem forte", "10: muito forte", "Com sinais combinados (12)"]))
+    print(_linha(["---"] * 12))
+    for e in junhos:
+        ini, fim, motivo = comparativos.janela(base, e)
+        if motivo:
+            continue
+        contagem = {chave: {} for chave in ("disponibilidade", "posicao", "defasagem")}
+        combinados = 0
+        for territorio in territorios:
+            av = detector.avaliar(base, cal, territorio, 0, e, p)
+            for chave in contagem:
+                rotulo = av[chave].get("sinal") or av[chave]["estado"]
+                contagem[chave][rotulo] = contagem[chave].get(rotulo, 0) + 1
+            combinados += "combinados" in av["sinais"]
+        d, po, df = contagem["disponibilidade"], contagem["posicao"], contagem["defasagem"]
+        avaliados = d.get("sem_sinal", 0) + d.get("forte", 0) + d.get("muito_forte", 0)
+        print(_linha([base.periodos[e], base.periodos[ini] + " a " + base.periodos[fim], avaliados, d.get("descritivo", 0),
+                      d.get("forte", 0), d.get("muito_forte", 0), po.get("queda", 0), po.get("forte", 0), po.get("muito_forte", 0),
+                      df.get("forte", 0), df.get("muito_forte", 0), combinados]))
+    print("\nNos demais junhos, a janela cruza 2017→2018 ou passa de 2021 (a população se repete de 2021 a 2023 e muda de base em "
+          "2024): \"comparação não habilitada\", com o nível da data à vista.")
+    print("\n## Fenômeno 11: contexto geográfico em cada junho (critério: a taxa do Brasil na data)\n")
+    print(_linha(["Data", "Taxa do Brasil (por 1.000)", "Municípios que atendem", "Municípios com distância", "Distância mediana (km)",
+                  "Distância no percentil 90 (km)", "Maior distância (km)"]))
+    print(_linha(["---"] * 7))
+    for e in junhos:
+        qd = comparativos.quadro(base, e, p, guardar=False)
+        distancias = qd.distancia_km[~np.isnan(qd.distancia_km)]
+        if qd.taxa_do_brasil is None or not distancias.size:
+            print(_linha([base.periodos[e], "—", "—", "—", "—", "—", "—"]))
+            continue
+        print(_linha([base.periodos[e], f"{qd.taxa_do_brasil:.2f}".replace(".", ","), int(qd.atende.sum()), int(distancias.size),
+                      f"{np.median(distancias):.1f}".replace(".", ","), f"{np.percentile(distancias, 90):.1f}".replace(".", ","),
+                      f"{distancias.max():.1f}".replace(".", ",")]))
+
+
 def main():
     argumentos = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     argumentos.add_argument("--repeticoes", type=int, default=5)
     argumentos.add_argument("--semente", type=int, default=20261110)
+    argumentos.add_argument("--so-comparativos", action="store_true", help="imprime só a fotografia dos fenômenos 8 a 11")
     opcoes = argumentos.parse_args()
 
     fontes = _Fontes()
@@ -87,6 +141,9 @@ def main():
     n, t = q.shape
     print("Base Brasil, versão", base.versao[:12], "·", n, "municípios ·", t, "competências, de", base.periodos[0], "a", base.periodos[-1])
     print("Método:", detector.VERSION)
+    if opcoes.so_comparativos:
+        _fotografia_dos_comparativos(base, cal)
+        return 0
 
     print("\n## Monitoramento por data (dado real)\n")
     print(_linha(["Data", "Intervalo (meses)", "Transições avaliadas", "Na cauda de 1%", "Taxa", "Alertas de intensidade alta",
@@ -113,6 +170,8 @@ def main():
     for faixa in limiares["patamar"]:
         print(_linha([faixa["porte"], faixa["observacoes"],
                       "—" if faixa["afastamento_incomum_pct"] is None else f"{faixa['afastamento_incomum_pct']:.1f}%".replace(".", ",")]))
+
+    _fotografia_dos_comparativos(base, cal)
 
     # ------------------------------------------------------------------ modelo nulo sintético (seção 4.2)
     intervalo = cal.intervalo

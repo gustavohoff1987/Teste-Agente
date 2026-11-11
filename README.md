@@ -918,10 +918,16 @@ classe da tendência; com vários, sem faixas artificiais nem contagens zeradas)
 
 Na base do Brasil, o botão **Detector de Sinais**, na navegação principal, mostra a situação mais recente de cada território da
 seleção: a condição estrutural (poucos médicos ou nenhum), a trajetória (perda entre dois registros, afastamento do patamar
-anterior e declínio em junhos seguidos), o ritmo e a instabilidade e a qualidade do registro, com os detalhes e o histórico de
-sinais de cada um. O fato observado sempre aparece; a intensidade do sinal (atenção, alta, crítica) só existe com critério e
-comparação com municípios parecidos, tem limites provisórios e não é juízo de desassistência nem de prioridade (divergência
-aprovada da SPEC, só nesta ferramenta). Os cálculos são do motor (`POST /api/detector`), sem o provedor de IA. Regras, rota,
+anterior e declínio em junhos seguidos), o ritmo e a instabilidade, a comparação relativa (a taxa por habitante, a posição entre
+os municípios e o índice ante a referência, com a variação em 2 anos), o contexto geográfico (a distância em linha reta até o
+município mais próximo com mais médicos por habitante), os sinais combinados e a qualidade do registro, com os detalhes e o
+histórico de sinais de cada um. São os 12 fenômenos do catálogo, também em gráfico de bolhas e em mapa. O fato observado sempre
+aparece; a intensidade do sinal (atenção, alta, crítica) só existe com critério e comparação com municípios parecidos, tem
+limites provisórios e não é juízo de desassistência nem de prioridade (divergência aprovada da SPEC, só nesta ferramenta). A
+comparação relativa não tem intensidade (são sinais observados, com limites provisórios) e só calcula a variação em trechos com
+população comparável: no último registro, jun/2024, aparece "comparação não habilitada", com o nível da data à vista. Não há
+índice geral. Nos detalhes, "Abrir no Simulador" e "Simular recuperação" levam o território ao Simulador de Cenários. Os
+cálculos são do motor (`POST /api/detector`), sem o provedor de IA. Regras, rota,
 estudo de calibração e limitações: [Docs/DETECTOR_DE_SINAIS.md](Docs/DETECTOR_DE_SINAIS.md); a referência metodológica é
 [Docs/DETECTOR_E_SIMULADOR_V2_2.md](Docs/DETECTOR_E_SIMULADOR_V2_2.md).
 
@@ -935,8 +941,14 @@ ou uma taxa informada por ela), as intervenções (acréscimos e retiradas de m�
 final, em qualquer mês. Os resultados separam o observado, a base do cenário, a intervenção e, quando sustentada, a faixa de 80%
 (só no método padrão dos municípios, até 4 anos). Cada cenário traz o texto fixo "Cenário hipotético, não é previsão: …"; nada é
 previsão, observação atual nem recomendação de provimento. A média aritmética das taxas aparece só como descrição do passado. O
-Simulador é a exceção aprovada à exclusão de projeção da SPEC, só nesta ferramenta: o assistente de conversa continua recusando
-previsões livres. Os cálculos são do motor (`POST /api/simulador`), sem o provedor de IA. Métodos, rota, estudo de retroprojeção
+Brasil pode entrar como território, só no Simulador, pela contagem nacional. Cada cenário pode ser comparado com **referências**
+(um município, um estado, o Brasil, um conjunto ou um valor da pessoa; fixas ou dinâmicas; por quantidade ou por taxa com a
+população constante), com a diferença, o índice e o alcance ("não alcança no horizonte simulado", sem data inventada), e pode
+ter um **planejamento inverso**: o menor número inteiro de médicos por evento que alcança uma meta hipotética (um número, o
+patamar anterior ou uma referência), como conta condicional, nunca como plano. O Detector de Sinais abre o Simulador com o
+território e o contexto ("Abrir no Simulador" e "Simular recuperação"). O Simulador é a exceção aprovada à exclusão de projeção
+da SPEC, só nesta ferramenta: o assistente de conversa continua recusando previsões livres e, na base do Brasil, indica o
+Simulador. Os cálculos são do motor (`POST /api/simulador`), sem o provedor de IA. Métodos, rota, estudo de retroprojeção
 e limitações: [Docs/SIMULADOR_DE_CENARIOS.md](Docs/SIMULADOR_DE_CENARIOS.md).
 
 ## Escopo e limitações do protótipo

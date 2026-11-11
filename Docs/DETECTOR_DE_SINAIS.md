@@ -1,8 +1,9 @@
 # Detector de Sinais Territoriais
 
-Ferramenta do comando V22 (Eixo II, etapa 3: o núcleo). A referência metodológica é
-[Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md) (seções 2.4, 4, 4.2 e 5, com as decisões D-A a D-C de 10/11/2026), e o
-perfil da base está em [Perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md). Este documento descreve o que o sistema faz hoje.
+Ferramenta do comando V22 (Eixo II, etapas 3 e 5: o núcleo, de 10/11/2026, e os comparativos, de 11/11/2026). A referência
+metodológica é [Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md) (seções 2.4, 4, 4.1, 4.2 e 5, com as decisões D-A a D-C de
+10/11/2026), e o perfil da base está em [Perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md). Este documento descreve o que o
+sistema faz hoje: os **12 fenômenos** do catálogo (os fenômenos 1 e 2 formam uma só escala, e por isso a tela lista 11 itens).
 
 ## O que é
 
@@ -19,8 +20,8 @@ A intensidade do sinal descreve o indicador. Não é juízo de desassistência, 
 provimento. Ela é uma **divergência aprovada da SPEC** (CFG-NOR, 4.4.19: nenhum critério normativo pré-configurado), válida só no
 Detector (decisão D-A do responsável, 10/11/2026); fora dele, o assistente continua recusando "crítico" sem critério.
 
-O Detector calcula no motor (`backend/detector.py`, sobre `backend/series_brasil.py`), sem o provedor de IA, e funciona com ele
-indisponível. Só existe na **base do Brasil** (médicos, registros de janeiro e junho de 2014 a 2024); com uma planilha enviada, o
+O Detector calcula no motor (`backend/detector.py` e, para os fenômenos 8 a 12, `backend/comparativos.py`, sobre
+`backend/series_brasil.py`), sem o provedor de IA, e funciona com ele indisponível. Só existe na **base do Brasil** (médicos, registros de janeiro e junho de 2014 a 2024); com uma planilha enviada, o
 botão fica desligado, com o motivo (em palavras que não usam o vocabulário da base brasileira, porque a planilha pode ser de
 outro país: "funcionam só com a base de médicos que vem com o Agente").
 
@@ -35,25 +36,56 @@ outro país: "funcionam só com a base de médicos que vem com o Agente").
 - **Janela:** início e fim entre as competências reais da base (`detector-janela-inicio` e `detector-janela-fim`). A situação é a
   do fim da janela; o histórico e a série de junho começam no início dela. Para um município com quebra de fonte, os indicadores
   começam depois da quebra.
-- **Tabela** (`detector-tabela`, 50 linhas por página, `detector-linha`): território; condição estrutural; trajetória; ritmo e
-  instabilidade; qualidade do registro; última observação. A intensidade aparece com o nome por extenso (`detector-intensidade`:
-  Atenção, Alta, Crítica), nunca só pela cor. As colunas da posição relativa, do contexto geográfico e dos sinais combinados
-  (fenômenos 8 a 12) entram na etapa 5 do comando.
+- **Gráfico e mapa** (`detector-visual`, acima da tabela; pedido do responsável em 10/11/2026: os fenômenos 8 a 12 também em
+  gráfico ou mapa, com os componentes que o Agente já tem, e a tabela como detalhe). Três vistas:
+  - **Distância e taxa (bolhas)** (`detector-bolhas`, a vista inicial): o gráfico de bolhas do Agente, com uma bolha por
+    território à vista que tem distância a mostrar. Na horizontal, a distância em linha reta até o município mais próximo que
+    atende ao critério (fenômeno 11); na vertical, a taxa de médicos por 1.000 habitantes (fenômeno 8); o tamanho mostra a
+    população; a linha tracejada é a taxa do critério. Tocar numa bolha abre os detalhes do território;
+  - **Mapa dos sinais** (`detector-mapa`): o mapa de pontos da Seleção. Em destaque, os municípios com o fenômeno escolhido no
+    filtro "Fenômeno" (sem filtro, os que têm sinais combinados); os conjuntos, pelo contorno dos componentes; vazados, os
+    municípios de referência do contexto geográfico. Só entram as coordenadas que o motor mandou; o estado como unidade não tem
+    ponto;
+  - **Só a tabela.**
+
+  Junto delas, a nota `detector-comparacao` diz a janela da comparação relativa e se ela é habilitada (ver "População
+  comparável", abaixo) e o critério do contexto geográfico (a taxa mínima e quantos municípios do país a atendem).
+- **Tabela** (`detector-tabela`, 50 linhas por página, `detector-linha`), com nove colunas: território; condição estrutural;
+  trajetória; ritmo e instabilidade; **comparação relativa** (fenômenos 8, 9 e 10: a taxa por 1.000 habitantes, o percentil e o
+  índice ante a referência, com a variação em 2 anos quando a comparação é habilitada); **contexto geográfico** (fenômeno 11);
+  **sinais combinados** (fenômeno 12); qualidade do registro; última observação. A intensidade aparece com o nome por extenso
+  (`detector-intensidade`: Atenção, Alta, Crítica), nunca só pela cor. Na comparação relativa não há intensidade: a tabela diz
+  "sinal forte", "sinal muito forte" ou "queda de posição", e a legenda explica que são sinais observados em 2 anos, com limites
+  provisórios.
 - **Filtros:** por fenômeno (poucos médicos; nenhum médico registrado; perda no último registro; perda com alerta; abaixo do
-  patamar anterior; declínio em junhos seguidos; desaceleração do crescimento; registro a verificar ou com descontinuidade), por
-  porte (os médicos do último registro) e pelo nome; a ordem é por intensidade (só ordena a lista: não há índice geral), por nome
-  ou por número de médicos.
+  patamar anterior; declínio em junhos seguidos; desaceleração do crescimento; registro a verificar ou com descontinuidade; queda
+  da taxa por habitante; queda da posição relativa; defasagem ante a referência; sinais combinados), por porte (os médicos do
+  último registro) e pelo nome; a ordem é por intensidade (só ordena a lista: não há índice geral), por nome ou por número de
+  médicos. O gráfico e o mapa acompanham os filtros.
 - **Detalhes** (a seta de cada linha, `detector-detalhe`): a série observada, só com os registros reais e as marcas de registro;
-  os seis fenômenos do núcleo, cada um com sete campos — **o que foi observado**, **qual critério**, **quanto difere do habitual**,
-  **o que significa**, **o que não significa**, **limitações do dado** e **qualidade do registro** —; e o **histórico de sinais**
-  (`detector-historico`), em que cada data é avaliada só com o que era conhecido nela.
-- **Parâmetros** (`detector-parametros`): os limites da escala estrutural, da perda entre registros, do patamar e do declínio
-  podem ser trocados. Qualquer valor diferente do padrão vira uma **configuração personalizada — exploratória**
-  (`detector-exploratorio`), com "Voltar aos padrões"; os padrões nunca são trocados em silêncio.
+  a **série da taxa** por 1.000 habitantes (`detector-serie-da-taxa`, a Série temporal do Agente), com a taxa da referência do
+  território tracejada; os 12 fenômenos (11 itens), cada um com sete campos — **o que foi observado**, **qual critério**,
+  **quanto difere do habitual**, **o que significa**, **o que não significa**, **limitações do dado** e **qualidade do
+  registro** —; e o **histórico de sinais** (`detector-historico`), em que cada data é avaliada só com o que era conhecido nela
+  (o histórico cobre o núcleo, os fenômenos 1 a 7).
+- **Ligação com o Simulador de Cenários** (nos detalhes de cada território):
+  - **"Abrir no Simulador"** (`detector-abrir-no-simulador`) abre o [Simulador](SIMULADOR_DE_CENARIOS.md) só com aquele
+    território na seleção local dele, com o contexto analítico: a data avaliada, os sinais à vista e, quando a pessoa escolheu
+    uma janela no Detector, essa janela (a janela padrão do Detector, a série inteira, não é levada). A seleção principal não muda;
+  - **"Simular recuperação"** (`detector-simular-recuperacao`; decisão D-B de 10/11/2026) só aparece para o território que está
+    **abaixo do patamar anterior** (fenômeno 7). Abre o Simulador com uma **meta hipotética**, que a pessoa pode trocar: voltar
+    ao patamar de X médicos. O resultado é um cenário e uma conta condicional, nunca uma recomendação.
+- **Parâmetros** (`detector-parametros`): os limites da escala estrutural, da perda entre registros, do patamar, do declínio, da
+  taxa por habitante, da posição relativa e da defasagem, e o critério do contexto geográfico (em % da taxa do Brasil) podem ser
+  trocados. Qualquer valor diferente do padrão vira uma **configuração personalizada — exploratória** (`detector-exploratorio`),
+  com "Voltar aos padrões"; os padrões nunca são trocados em silêncio.
 - **Como foi calculado** (`detector-metodo`): as notas e, para a data avaliada, a partir de que queda (e de que afastamento do
   patamar) a variação é incomum, por porte.
 - **Exportações:** a tabela em CSV (uma linha por território, com a janela, a versão da base e do método e a configuração em
-  cada linha) e o método em JSON (a fonte, a janela, os parâmetros padrão e em uso, a comparação da data e as notas).
+  cada linha; desde a etapa 5, também a janela de comparação e o estado dela, a taxa, a população, o percentil, o índice, as
+  variações em 2 anos, o estado e o sinal de cada indicador, a distância e o município do contexto geográfico, o critério e os
+  sinais combinados) e o método em JSON (a fonte, a janela, os parâmetros padrão e em uso, a comparação da data, a comparação
+  relativa e as notas).
 
 **Linguagem simples (decisão D-C).** A tela diz "sem classificação", com o motivo ("poucos municípios parecidos na base para
 dizer se esta queda é incomum"), no lugar de "não calibrado"; "limites provisórios", no lugar de "candidatos"; "incomum" e
@@ -79,6 +111,25 @@ Os números entre parênteses são os dos fenômenos do catálogo. Os limites s�
 | Trajetória | Afastamento de patamar anterior (7) | Patamar: a maior média dos 4 registros de dois anos civis completos, em blocos que terminam antes dos 4 últimos registros. Os 2 últimos registros ≤ 85% do patamar: atenção. Com afastamento na cauda de 1% da faixa de porte do patamar: alta. Crítica (4 últimos ≤ 70% e cauda de 0,1%): não calibrável na base atual. Patamar abaixo de 20 médicos: descritivo | Atenção ou alta; descritivo; sem sinal |
 | Ritmo e instabilidade | Desaceleração do crescimento (4) | A classe da Análise de Tendência (CAP-TEN-01, `trend.classify_pairs`) nos 4 junhos até o junho avaliado, com o número de médicos; atualizada só em junho. A repetição da classe um ano antes é exploratória | Sinal descritivo, sem intensidade |
 | Ritmo e instabilidade | Instabilidade temporal (5) | Desvio-padrão das variações de 7 registros ÷ c·N̄^(θ/2), com θ = 1,35 e c por tipo de intervalo (só com transições anteriores); não calculável com média abaixo de 6 | Índice descritivo (1 = a oscilação típica do porte) |
+| Comparação relativa | Deterioração da disponibilidade relativa (8) | Taxa = médicos ÷ população estimada da mesma competência × 1.000 (estado: a contagem estadual ÷ a soma das populações municipais; conjunto: a soma das contagens ÷ a soma das populações, nunca a média das taxas). Variação da taxa de junho a junho em 2 anos, com a decomposição (médicos, população e taxa). Queda de 10% ou mais: forte; de 20% ou mais: muito forte | O nível da data; sinal observado, sem intensidade; descritivo com menos de 20 médicos no início da janela |
+| Comparação relativa | Deterioração da posição relativa (9) | Percentil pela taxa = (posto médio − 0,5) ÷ n × 100, com os empates no posto médio, no universo fixo dos municípios do Brasil com taxa válida nas duas datas da janela (para estados como unidade, o universo dos estados). Queda de 10 pontos ou mais: queda de posição; de 15 ou mais, terminando até o percentil 50: forte; de 25 ou mais, terminando até o percentil 25 e repetida na janela encerrada um ano antes: muito forte | O percentil da data; sinal observado; descritivo abaixo de 20 médicos; não se aplica a conjuntos |
+| Comparação relativa | Ampliação da defasagem ante referência (10) | Índice = 100 × taxa do território ÷ taxa da referência, com a referência na mesma unidade do território e sem ele: município, os demais municípios da UF (soma municipal); estado, os demais estados; conjunto, os demais territórios das mesmas UFs. Queda de 15 pontos ou mais com o índice final abaixo de 80: forte; de 25 ou mais com o final abaixo de 60: muito forte | O índice da data; sinal observado; descritivo abaixo de 20 médicos; referência inválida quando não há outros territórios na unidade (Brasília) |
+| Contexto geográfico | Distância geográfica a territórios com maior disponibilidade de médicos (11) | Distância geodésica (SIRGAS 2000), pelas coordenadas da competência avaliada, até o município mais próximo com taxa igual ou maior que o critério (padrão: a taxa do Brasil na data; editável, em % dela). O percentil compara a distância com a dos municípios que não atendem ao critério. Num conjunto, vale o componente mais próximo | Só contexto: sem intensidade e sem sinal. "Atende ao critério", "sem coordenada válida" ou "não se aplica" (estado como unidade) |
+| Coexistência | Coexistência de sinais (12) | Quatro combinações pré-definidas: poucos médicos (intensidade alta ou crítica) e perda no último registro; poucos médicos e declínio persistente; declínio persistente e queda da disponibilidade ou da posição relativa; abaixo do patamar anterior e poucos médicos. As repercussões de uma mesma queda (perda, declínio, patamar e os três indicadores relativos) contam como **um evento**, não como evidências independentes | As combinações presentes e as frentes de sinal. **Sem soma de pontos e sem índice geral** |
+
+**População comparável (fenômenos 8, 9 e 10).** A variação em 2 anos só é calculada quando a janela de comparação (de junho a
+junho, atualizada só em junho) cabe inteira em **2014–2017** ou em **2018–2021**: a população se repete de 2021 a 2023 e muda de
+base em 2024. Na base atual, isso vale para as datas de junho de 2016, 2017, 2020 e 2021 (e para janeiro do ano seguinte, que usa
+a janela do junho anterior). Fora disso, o estado é **"comparação não habilitada"**, com o motivo, e o nível da data (a taxa, o
+percentil e o índice) continua à vista. É o caso do último registro: em jun/2024, a janela vai de jun/2022 a jun/2024. Sem o junho
+de dois anos antes, "janela insuficiente". Para o fenômeno 10, aplicar a mesma regra é uma decisão conservadora desta
+implementação: o índice usa as duas populações, e a troca de base o mudaria sem mudança real.
+
+**Sem intensidade (decisão D-A).** As convenções do anexo para os fenômenos 8, 9 e 10 não foram validadas. Elas entram como
+**limites provisórios** de um **sinal observado** (forte, muito forte, queda de posição), como no declínio persistente, e nunca
+como atenção, alta ou crítica; o campo "quanto difere do habitual" diz "Sem classificação de intensidade". O caso exato no limite
+conta (uma queda de exatamente 20% é muito forte): as comparações têm tolerância numérica explícita. O fenômeno 11 é só contexto,
+e o 12 não tem intensidade nem pontuação.
 
 **Qualidade do registro** (seção 2.4 do anexo):
 
@@ -95,11 +146,15 @@ Os números entre parênteses são os dos fenômenos do catálogo. Os limites s�
 
 **Estados que nunca viram "sem sinal" em silêncio:** valor observado; zero confirmado; ausência de dado (o registro que falta não
 é zero); não calculável; janela insuficiente; descontinuidade de registro; e sem classificação por falta de comparação (com o
-motivo).
+motivo). Nos fenômenos 8 a 12, somam-se: comparação não habilitada; descritivo (menos de 20 médicos no início da janela);
+referência inválida; não se aplica; sem coordenada válida; e atende ao critério.
 
 **Níveis.** A comparação com territórios parecidos é municipal. Para estados como unidade (a contagem estadual de médicos únicos)
 e para conjuntos (a soma das contagens dos componentes, que só existe quando todos têm registro na competência), o Detector
-mostra os fatos e os indicadores descritivos, sem intensidade.
+mostra os fatos e os indicadores descritivos, sem intensidade. Nos fenômenos 8 e 10, estados e conjuntos têm a taxa e o índice,
+com a agregação rotulada; no 9, o estado tem a posição entre os estados, e o conjunto não entra em universos de percentis; no 11,
+o estado não tem ponto único, e o conjunto vale pelo componente mais próximo. O Brasil não é uma unidade do Detector (no
+Simulador, é).
 
 ## Rota
 
@@ -112,13 +167,27 @@ nada é registrado na sessão, e nada vai ao provedor de IA. Conta nas vagas das
 | `estados_unidade` | os estados como unidade (prefixos IBGE) |
 | `conjuntos` | `[{"id", "rotulo", "membros", "versao"?}]`; membros do mesmo nível (`code:<IBGE>` ou `uf:<prefixo>`) |
 | `janela` | `{"inicio", "fim"}`, competências da base; sem ela, a série inteira |
-| `parametros` | os limites personalizados (`estrutural`, `perda`, `patamar`, `declinio`); a resposta vem com `exploratorio: true` |
-| `detalhe` | o id de um território da seleção: a resposta traz `territorio`, `serie`, `historico` e `fenomenos`, no lugar da tabela |
+| `parametros` | os limites personalizados (`estrutural`, `perda`, `patamar`, `declinio`, `disponibilidade`, `posicao`, `defasagem` e `contexto.taxa_do_brasil_pct`); a resposta vem com `exploratorio: true` |
+| `detalhe` | o id de um território da seleção: a resposta traz `territorio`, `serie`, `historico`, `comparativo`, `coordenadas` e `fenomenos`, no lugar da tabela |
 
 A tabela responde com `versao`, `fonte`, `janela`, `competencias`, `parametros` (`padrao`, `em_uso`, `personalizados`,
 `editaveis`), `linhas`, `resumo`, `calibracao` (por porte, as transições anteriores e a queda a partir da qual a variação é
-incomum; no patamar, o afastamento; e o monitoramento da data), `notas` e `limitacoes`. Erros de pedido vêm em 422, com o texto
-em português (seleção vazia, território fora da base, competência fora da base, parâmetro fora do intervalo, planilha enviada).
+incomum; no patamar, o afastamento; e o monitoramento da data), `notas` e `limitacoes`. Desde a etapa 5 (versão
+`DETECTOR-SINAIS/V2.2/2`), também:
+
+- `comparacao`: a janela da comparação relativa (`de`, `ate`), o `estado` dela (`comparavel`, `comparacao_nao_habilitada` ou
+  `janela_insuficiente`), os `trechos` com população comparável, o mínimo de médicos e o critério do contexto geográfico
+  (`taxa_minima`, `taxa_do_brasil`, `pct_da_taxa_do_brasil`, quantos municípios `atendem` e o `universo` das distâncias);
+- em cada linha, `disponibilidade` (`estado`, `taxa`, `populacao`, `variacao_pct`, `sinal`), `posicao` (`percentil`, `universo`,
+  `variacao_pp`), `defasagem` (`indice`, `variacao_pontos`), `contexto` (`distancia_km`, `referencia`, `referencia_id`,
+  `percentil`) e `coexistencia` (`combinacoes`, `textos`, `repercussoes`); num conjunto, `ids_dos_membros`; `dimensoes` ganha
+  `comparacao` e `contexto`, sempre nulas (não há intensidade);
+- `coordenadas`: `{id: [latitude, longitude]}` dos municípios da seleção (e dos componentes dos conjuntos) e dos municípios de
+  referência do contexto geográfico, na competência avaliada. Sem coordenada válida, sem ponto;
+- no detalhe, `comparativo`: por competência, a `taxa` do território, a da `referencia` (com o rótulo) e o `indice`.
+
+A limitação `COMPARACAO_SO_COM_POPULACAO_COMPARAVEL` acompanha toda resposta. Erros de pedido vêm em 422, com o texto em português
+(seleção vazia, território fora da base, competência fora da base, parâmetro fora do intervalo, planilha enviada).
 
 A seleção segue o contrato compartilhado das ferramentas (`series_brasil.selecao`): o estado como unidade (ou num conjunto de
 estados) e os municípios dele não entram juntos (RQ-DAD-30); um conjunto reúne territórios do mesmo nível.
@@ -177,6 +246,40 @@ Esses números valem para o modelo nulo, com os parâmetros estimados na base; n
 médicos e os 15% do patamar; o critério do pico que volta; θ e a forma da instabilidade. A desaceleração repetida segue
 exploratória (na base, 182 municípios com a classe em jun/2024, 16 com repetição).
 
+### Fotografia dos fenômenos 8 a 11 (11/11/2026)
+
+`scripts/calibrar_detector.py --so-comparativos` (somente leitura; versão da base `c4d82eeee4e4`, método
+`DETECTOR-SINAIS/V2.2/2`), nas quatro datas de junho em que a comparação de 2 anos é habilitada. É uma fotografia da
+**sensibilidade** dos limites provisórios, não uma validação: não há taxa de acerto, e nenhum desses indicadores tem intensidade.
+
+| Data | Janela | Avaliados (20 médicos ou mais no início) | Só descritivos | 8: forte | 8: muito forte | 9: queda de posição | 9: forte | 9: muito forte (confirmada) | 10: forte | 10: muito forte | Com sinais combinados (12) |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| jun/2016 | jun/2014 a jun/2016 | 1.863 | 3.704 | 203 | 180 | 117 | 55 | 0 | 117 | 39 | 353 |
+| jun/2017 | jun/2015 a jun/2017 | 1.876 | 3.691 | 200 | 159 | 134 | 65 | 0 | 135 | 30 | 652 |
+| jun/2020 | jun/2018 a jun/2020 | 1.978 | 3.592 | 156 | 109 | 143 | 60 | 0 | 117 | 19 | 649 |
+| jun/2021 | jun/2019 a jun/2021 | 2.013 | 3.554 | 114 | 77 | 163 | 61 | 1 | 84 | 24 | 568 |
+
+Leitura: cerca de dois terços dos municípios têm menos de 20 médicos no início da janela e ficam só descritivos. Entre os
+avaliados, de 9% a 21% têm queda da taxa de 10% ou mais em 2 anos, uma parcela alta para um "sinal": o limite de 10% é pouco
+seletivo e segue provisório. A queda de posição muito forte quase nunca se confirma em duas avaliações anuais seguidas (1 caso em
+quatro datas). Em jun/2024, os fenômenos 8, 9 e 10 ficam com "comparação não habilitada" nos 5.570 municípios (um deles,
+Brasília, com referência inválida no 10), e os sinais combinados somam 262.
+
+**Contexto geográfico em cada junho** (critério: a taxa do Brasil na data):
+
+| Data | Taxa do Brasil (por 1.000) | Municípios que atendem | Municípios com distância | Distância mediana (km) | Percentil 90 (km) | Maior (km) |
+|---|---:|---:|---:|---:|---:|---:|
+| jun/2014 | 1,59 | 1.553 | 4.012 | 32,4 | 153,1 | 838,6 |
+| jun/2016 | 1,66 | 1.417 | 4.148 | 33,8 | 145,2 | 795,1 |
+| jun/2018 | 1,79 | 1.534 | 4.031 | 32,1 | 133,5 | 985,7 |
+| jun/2020 | 1,88 | 1.619 | 3.947 | 30,9 | 129,0 | 691,3 |
+| jun/2021 | 1,98 | 1.720 | 3.846 | 30,0 | 124,2 | 1.040,9 |
+| jun/2022 | 2,08 | 1.869 | 3.698 | 28,6 | 120,1 | 985,7 |
+| jun/2024 | 2,36 | 2.002 | 3.566 | 27,1 | 112,2 | 838,6 |
+
+Em jun/2024, 2 municípios que não atendem ao critério não têm coordenada válida e ficam sem distância. A distância é em linha
+reta: não é distância por estrada, tempo de viagem nem acesso.
+
 ## Limitações
 
 - A base só tem médicos, e o registro mais recente é jun/2024: nenhum sinal descreve a situação de hoje.
@@ -184,17 +287,26 @@ exploratória (na base, 182 municípios com a classe em jun/2024, 16 com repeti�
   contagens dos componentes, nunca "médicos únicos".
 - O Detector não infere rotatividade de pessoas, desassistência, isolamento assistencial, suficiência do cuidado nem causa.
 - Estados como unidade e conjuntos não têm intensidade (a comparação é municipal).
-- Os fenômenos 8 a 12 (disponibilidade e posição relativas, defasagem ante referência, contexto geográfico e sinais combinados) e
-  a ligação com o Simulador ("Simular recuperação") entram na etapa 5 do comando V22.
+- Os fenômenos 8, 9 e 10 não têm intensidade, e os limites deles não foram validados: são sinais observados. A variação em 2 anos
+  só existe em trechos com população comparável; no último registro (jun/2024), a comparação não é habilitada.
+- A população é uma estimativa, e a taxa de um estado usa a contagem estadual sobre a soma das populações municipais.
+- O contexto geográfico é a distância em linha reta entre coordenadas: não mede acesso, deslocamento nem a organização da rede.
+- Os sinais combinados não formam um índice: efeitos da mesma queda contam como um evento.
+- O histórico de sinais cobre só o núcleo (fenômenos 1 a 7).
 
 ## Testes
 
 - pytest: `backend/tests/test_detector.py` — as regras em séries sintéticas (escala e histerese; zero e ausência; a magnitude
   arredondada para cima, os empates, só as transições anteriores e o mínimo de transições; o pico que volta, a quebra de fonte e a
   queda grande que persiste; o patamar; o declínio; a desaceleração igual à classe da Análise de Tendência; a instabilidade; os
-  níveis; os parâmetros exploratórios; os textos), a rota com um catálogo sintético e, no job `dados-reais`, a base versionada
-  (Rio Rufino/SC, o Distrito Federal antes de 2018, uma queda grande que persiste, a desaceleração igual à da Análise de Tendência
-  e os números do perfil).
+  níveis; os parâmetros exploratórios; os textos; e, dos fenômenos 8 a 12, a janela só em trechos com população comparável, o
+  percentil pelo posto médio, a taxa e a decomposição com os limites exatos, a posição no universo fixo com a confirmação em duas
+  avaliações, a defasagem ante a referência na mesma unidade, a distância ao município que atende ao critério e a coexistência
+  sem índice geral), a rota com um catálogo sintético e, no job `dados-reais`, a base versionada (Rio Rufino/SC, o Distrito
+  Federal antes de 2018, uma queda grande que persiste, a desaceleração igual à da Análise de Tendência, os números do perfil e
+  os fenômenos 8 a 12: "comparação não habilitada" em jun/2024 e os sinais observados em jun/2021).
 - Node: `frontend/tests/detector.test.mjs` — a leitura da resposta, os textos da tabela em linguagem simples, os filtros, a ordem,
-  os parâmetros e as exportações; a seleção no contrato das ferramentas.
-- Navegador: `backend/tests/ui_detector.py` (suíte `base-versionada`).
+  os parâmetros e as exportações; a seleção no contrato das ferramentas; os itens das bolhas, as camadas do mapa, a série da taxa
+  e o que o Detector leva ao Simulador.
+- Navegador: `backend/tests/ui_detector.py` (suíte `base-versionada`), com as bolhas, o mapa, a janela até jun/2021 e "Simular
+  recuperação".

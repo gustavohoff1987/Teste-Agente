@@ -8,9 +8,13 @@ Três grupos de testes:
   as intervenções (somadas à base, sem crescer com ela; a permanência; a retirada impossível); os conjuntos e os estados como
   unidade; a média aritmética, só descritiva; os avisos de horizonte; as faixas de 80% (só do M0d municipal, de 1 a 4 anos, pela
   retroprojeção com origens móveis) e a ausência de observações futuras nos ajustes;
-- **rota** POST /api/simulador, com um catálogo sintético instalado como versão governada;
+- **rota** POST /api/simulador, com um catálogo sintético instalado como versão governada; da etapa 5 do comando: o Brasil como
+  território (só no Simulador), as referências fixas, dinâmicas e por valor (o alcance, a sobreposição e a comparação por taxa com
+  a população constante), o planejamento inverso (o menor inteiro que alcança a meta, reaplicado ao Simulador), a hipótese
+  derivada da simulação e as recusas;
 - **base versionada** (job dados-reais, ADT_REAL_DATA_DIR, somente leitura): as faixas e os erros da retroprojeção do anexo
-  (seção 8.8), o Distrito Federal (a quebra de fonte), Rio Rufino (o pico fora do ajuste) e o limite de territórios.
+  (seção 8.8), o Distrito Federal (a quebra de fonte), Rio Rufino (o pico fora do ajuste) e o limite de territórios; o Brasil,
+  as referências de Manaus, o planejamento inverso e "Simular recuperação" (etapa 5).
 Nenhum valor sintético representa quantitativos reais.
 """
 import hashlib
@@ -458,17 +462,19 @@ def test_o_ajuste_nao_usa_observacoes_posteriores_a_janela():
 # --------------------------------------------------------------------------------------------- rota
 UNIDADES = {"130260": ("MANAUS", "AM", [30 + k for k in range(T)]), "130420": ("TEFE", "AM", [3] * 10 + [0] * 12),
             "130340": ("PARINTINS", "AM", [20] * 12 + [12] * 10), "150140": ("BELEM", "PA", [50] * T)}
+POPULACOES = {"130260": 2000, "130420": 1000, "130340": 1000, "150140": 4000}
 
 
 @pytest.fixture
 def catalogo(tmp_path, monkeypatch):
-    """Catálogo sintético (4 municípios, 22 competências) instalado como versão governada."""
+    """Catálogo sintético (4 municípios, 22 competências) instalado como versão governada. A contagem nacional cresce 10 médicos
+    por registro (de 900 a 1.110), e as populações são diferentes (POPULACOES), para a comparação por taxa."""
     raiz = tmp_path / "repositorio"
     raiz.mkdir()
     livro = Workbook()
     livro.active.append(["pais", "periodo_ano", "periodo_mes", "categoria_profissional", "contagem"])
-    for periodo in PERIODOS:
-        livro.active.append(["Brasil", int(periodo[:4]), int(periodo[4:]), "MEDICINA", 1000])
+    for k, periodo in enumerate(PERIODOS):
+        livro.active.append(["Brasil", int(periodo[:4]), int(periodo[4:]), "MEDICINA", 900 + 10 * k])
     livro.save(raiz / FILES["national"])
     linhas = ["regiao_geografica;uf;municipio;cod_ibge;latitude;longitude;categoria_profissional;periodo_ano;periodo_mes;"
               "quantidade;população_estimada"]
@@ -477,7 +483,7 @@ def catalogo(tmp_path, monkeypatch):
             if codigo == "130340" and periodo == "201501":
                 continue  # um registro ausente
             linhas.append(";".join(["NORTE", uf, nome, codigo, "-3", "-60", "MEDICINA", periodo[:4], str(int(periodo[4:])),
-                                    str(valores[k]), "1000"]))
+                                    str(valores[k]), str(POPULACOES[codigo])]))
     (raiz / FILES["municipal"]).write_text("\n".join(linhas) + "\n", encoding="utf-8")
     write_state_source(raiz, {(uf, periodo): contagem for periodo in PERIODOS for uf, contagem in (("AM", 40), ("PA", 45))})
     (raiz / GOVERNED_MANIFEST).parent.mkdir(parents=True, exist_ok=True)
@@ -588,6 +594,247 @@ def test_rota_do_simulador_cenarios_estatisticas_e_recusas(catalogo, monkeypatch
            "usam a base do Brasil")
 
 
+# --------------------------------------------------------------------------------------------- etapa 5: Brasil, referências e planejamento inverso
+def _comparacao(body, territorio, referencia, cenario=0):
+    item = next(item for item in body["territorios"] if item["id"] == territorio)
+    return next(c for c in item["cenarios"][cenario]["comparacoes"] if c["id"] == referencia)
+
+
+def test_rota_o_brasil_e_territorio_so_do_simulador_com_o_padrao_provisorio(catalogo):
+    body = corpo(pedir({"brasil": True, "horizonte": "202606"}))
+    [brasil] = body["territorios"]
+    assert (brasil["id"], brasil["tipo"], brasil["nivel"], brasil["rotulo"], brasil["uf"], brasil["unidade"]) == (
+        "br", "brasil", "brasil", "Brasil", None, series_brasil.UNIDADE_BRASIL)
+    cenario = brasil["cenarios"][0]
+    taxa = (1110 / 1050) ** (1 / 3) - 1   # a contagem nacional vai de 1.050 (jun/2021) a 1.110 (jun/2024)
+    assert cenario["metodo"] == {"pedido": "padrao", "usado": "M1", "rotulo": "taxa composta da janela", "padrao": True, "provisorio": True,
+                                 "voltou_ao_m0": False, "soma": None}
+    assert cenario["parametros"]["n0"] == 1110 and cenario["parametros"]["taxa_pct"] == pytest.approx(100 * taxa)
+    assert cenario["final"]["total"] == pytest.approx(1110 * (1 + taxa) ** 2) and cenario["final"]["faixa"] is None
+    assert cenario["faixa"]["estado"] == "indisponivel"
+    provisorio = next(aviso["texto"] for aviso in cenario["avisos"] if aviso["codigo"] == "PADRAO_PROVISORIO_DO_NIVEL")
+    assert provisorio.startswith("Para o Brasil, o método padrão é provisório") and "na contagem nacional" in provisorio
+    assert cenario["texto"].startswith(FIXO) and "sem intervenção, Brasil teria 1.152 médicos em jun/2026." in cenario["texto"]
+    assert "hipotetico" not in cenario   # a escala estrutural é só dos municípios
+    assert any("o Brasil, a contagem nacional" in nota for nota in body["notas"])
+    # O Brasil entra por último, ao lado dos demais territórios: cada um é simulado à parte, e ele nunca é somado a eles.
+    juntos = corpo(pedir({"base": {"municipios": {"ids": ["code:130260"]}}, "estados_unidade": ["15"], "brasil": True}))
+    assert [item["id"] for item in juntos["territorios"]] == ["code:130260", "uf:15", "br"]
+    # Sem "brasil": true, nada muda; e o Detector de Sinais não tem o Brasil como unidade.
+    assert [item["id"] for item in corpo(pedir({"estados_unidade": ["15"], "brasil": False}))["territorios"]] == ["uf:15"]
+    with pytest.raises(ValueError, match="Opção desconhecida no pedido do Detector: brasil"):
+        detector.compute(main._brazil_sources(""), {"brasil": True})
+
+
+def test_rota_referencias_fixas_dinamicas_e_valor_com_alcance_e_sobreposicao(catalogo):
+    selecao = {"base": {"municipios": {"ids": ["code:130260", "code:130340"]}}, "estados_unidade": ["15"],
+               "conjuntos": [{"id": "g1", "rotulo": "Par", "membros": ["code:130260", "code:130340"], "versao": 2}]}
+    com_reforco = {"id": "c1", "metodo": "M0", "intervencoes": [{"tipo": "acrescimo", "quantidade": 5, "em": "202501", "ate": "202601",
+                                                                 "a_cada_meses": 12}]}
+    body = corpo(pedir({**selecao, "horizonte": "202606", "cenarios": [com_reforco], "referencias": [
+        {"id": "fixa", "territorio": "code:150140"}, {"id": "din", "territorio": "code:130260", "tipo": "dinamica"},
+        {"id": "val", "tipo": "valor", "valor": 20, "rotulo": "Meta local"}, {"id": "uf", "territorio": "uf:13"},
+        {"id": "br", "territorio": "br", "tipo": "dinamica"}]}))
+    assert body["comparacao"] == {"metrica": "quantidade", "hipotese_de_populacao": None}
+    assert [(ref["id"], ref["rotulo"], ref["tipo"], ref["territorio"], ref["estado"], ref["descricao"]) for ref in body["referencias"]] == [
+        ("fixa", "BELEM (PA)", "fixa", "code:150140", "calculada", "fixa: o valor de jun/2024 mantido"),
+        ("din", "MANAUS (AM)", "dinamica", "code:130260", "calculada",
+         "dinâmica: persistência com o crescimento recente do estado, com registros até jun/2024"),
+        ("val", "Meta local", "valor", None, "calculada", "valor informado por você, mantido"),
+        ("uf", "Amazonas (AM)", "fixa", "uf:13", "calculada", "fixa: o valor de jun/2024 mantido"),
+        ("br", "Brasil", "dinamica", "br", "calculada", "dinâmica: taxa composta da janela, com registros até jun/2024")]
+    assert body["referencias"][3]["unidade"] == series_brasil.UNIDADE_ESTADO and body["referencias"][2]["unidade"] is None
+    # Parintins (12, com +5 em jan/2025 e +5 em jan/2026) diante do valor informado (20): alcança na primeira data avaliada em
+    # que o cenário fica no nível da referência.
+    alcanca = _comparacao(body, "code:130340", "val")
+    assert alcanca["alcance"] == {"estado": "alcanca", "data": "202601"}
+    assert [(p["data"], p["territorio"], p["referencia"], p["diferenca"]) for p in alcanca["pontos"]] == [
+        ("202406", 12.0, 20.0, 8.0), ("202501", 17.0, 20.0, 3.0), ("202506", 17.0, 20.0, 3.0), ("202601", 22.0, 20.0, -2.0),
+        ("202606", 22.0, 20.0, -2.0)]
+    assert alcanca["final"]["razao"] == pytest.approx(1.1) and alcanca["final"]["indice"] == pytest.approx(110.0)
+    assert alcanca["texto"] == ("Em jun/2026, PARINTINS (AM) teria 22 médicos, e a referência Meta local (valor informado por você, mantido), "
+                                "20: 2 acima da referência (índice 110; 100 é a referência). No cenário, alcança a referência em jan/2026, a "
+                                "primeira data avaliada em que isso ocorre.")
+    # Diante de Belém fixa (50): sem cruzamento no horizonte, nenhuma data é inventada.
+    nao = _comparacao(body, "code:130340", "fixa")
+    assert nao["alcance"] == {"estado": "nao_alcanca", "data": None} and nao["metodo"] == "M0" and nao["avisos"] == []
+    assert nao["texto"].endswith("50: 28 abaixo da referência (índice 44; 100 é a referência). Não alcança no horizonte simulado (até jun/2026).")
+    # A referência dinâmica segue o método dela (a persistência com o crescimento recente do estado), sem intervenções; na origem,
+    # vale o registro.
+    deriva = (63 / 57) ** (1 / 3) - 1
+    dinamica = _comparacao(body, "code:130340", "din")
+    assert dinamica["metodo"] == "M0d" and dinamica["pontos"][0]["referencia"] == 51.0
+    assert dinamica["final"]["referencia"] == pytest.approx(51 * (1 + deriva) ** 2)
+    assert "MANAUS (AM) (dinâmica: persistência com o crescimento recente do estado, com registros até jun/2024), 54,5: 32,5 abaixo" in dinamica["texto"]
+    # Na origem, o território já está no nível da referência ou acima dele.
+    acima = _comparacao(body, "code:130260", "fixa")
+    assert acima["alcance"] == {"estado": "ja_acima", "data": None} and acima["inicial"]["diferenca"] == -1.0
+    assert acima["texto"].endswith("Na origem, o território já está no nível da referência ou acima dele.")
+    # Sobreposição e unidades: nunca se declara uma independência que não há.
+    assert _comparacao(body, "code:130260", "din")["avisos"] == ["A referência é o próprio território."]
+    contem, unidades = _comparacao(body, "code:130260", "uf")["avisos"]
+    assert contem == "A referência contém o território (o estado inclui o município): a comparação não é independente."
+    assert unidades == ("As contagens têm unidades diferentes (território: " + series_brasil.UNIDADE_MUNICIPIO + "; referência: " +
+                        series_brasil.UNIDADE_ESTADO + "): a comparação é entre esses quantitativos.")
+    do_brasil = _comparacao(body, "code:130260", "br")["avisos"]
+    assert do_brasil[0] == "A referência (Brasil) contém o território: a comparação não é independente."
+    assert do_brasil[-1].startswith("Para o Brasil, o método padrão é provisório")   # o aviso do método da referência dinâmica
+    assert _comparacao(body, "uf:15", "fixa")["avisos"][0] == "O território contém a referência: a comparação não é independente."
+    assert _comparacao(body, "g1", "din")["avisos"][0] == "O território e a referência têm 1 município em comum: a comparação não é independente."
+    assert any(nota.startswith("Referências: a comparação mostra a diferença, a razão e o índice") and "nenhuma data é inventada" in nota
+               and "não é comparar a suficiência do atendimento" in nota for nota in body["notas"])
+    # Um conjunto da seleção local também serve de referência; diante de si mesmo, o valor é o mesmo.
+    conjunto = corpo(pedir({**selecao, "horizonte": "202606", "cenarios": [{"id": "c1", "metodo": "M0"}],
+                            "referencias": [{"id": "g", "territorio": "g1"}]}))
+    assert _comparacao(conjunto, "code:130260", "g")["avisos"][0] == (
+        "O território e a referência têm 1 município em comum: a comparação não é independente.")
+    assert _comparacao(conjunto, "code:130260", "g")["final"]["referencia"] == 63.0
+    proprio = _comparacao(conjunto, "g1", "g")
+    assert proprio["avisos"] == ["A referência é o próprio território."] and ": o mesmo valor (índice 100; 100 é a referência)." in proprio["texto"]
+    # Sem referências no pedido, os cenários não têm comparações.
+    sem = corpo(pedir({**selecao, "horizonte": "202606"}))
+    assert sem["referencias"] == [] and "comparacoes" not in sem["territorios"][0]["cenarios"][0]
+    assert not any(nota.startswith("Referências:") for nota in sem["notas"])
+
+
+def test_rota_comparacao_por_taxa_declara_a_populacao_constante(catalogo):
+    # Populações do catálogo: Manaus 2.000, Parintins 1.000, Belém 4.000 (o Pará soma 4.000; o Brasil, 8.000).
+    body = corpo(pedir({"base": {"municipios": {"ids": ["code:130260", "code:130340"]}}, "estados_unidade": ["15"], "horizonte": "202606",
+                        "cenarios": [{"id": "c1", "metodo": "M0"}], "comparacao": {"metrica": "taxa"},
+                        "referencias": [{"id": "fixa", "territorio": "code:150140"}, {"id": "val", "tipo": "valor", "valor": 20},
+                                        {"id": "br", "territorio": "br"}]}))
+    assert body["comparacao"] == {"metrica": "taxa", "hipotese_de_populacao": "constante: a população de jun/2024 em todas as datas simuladas"}
+    manaus = _comparacao(body, "code:130260", "fixa")
+    assert (manaus["metrica"], manaus["final"]["territorio"], manaus["final"]["referencia"]) == ("taxa", 25.5, 12.5)
+    assert manaus["texto"] == ("Em jun/2026, MANAUS (AM) teria 25,50 médicos por 1.000 habitantes, e a referência BELEM (PA) (fixa: o valor de "
+                               "jun/2024 mantido), 12,50: 13 acima da referência (índice 204; 100 é a referência). Na origem, o território já "
+                               "está no nível da referência ou acima dele. Hipótese: população constante, a de jun/2024.")
+    # O valor informado já está na métrica escolhida (uma taxa); o estado e o Brasil usam a soma das populações municipais.
+    assert _comparacao(body, "code:130340", "val")["final"] == {"data": "202606", "territorio": 12.0, "referencia": 20.0, "diferenca": 8.0,
+                                                                 "razao": pytest.approx(0.6), "indice": pytest.approx(60.0)}
+    assert _comparacao(body, "uf:15", "fixa")["final"]["territorio"] == pytest.approx(45 / 4000 * 1000)
+    assert _comparacao(body, "code:130260", "br")["final"]["referencia"] == pytest.approx(1110 / 8000 * 1000)
+    assert any("por taxa, vale a hipótese de população constante" in nota for nota in body["notas"])
+
+
+def test_rota_planejamento_inverso_e_o_menor_inteiro_que_alcanca_a_meta(catalogo):
+    parintins = {"base": {"municipios": {"ids": ["code:130340"]}}, "horizonte": "202606"}   # 12 médicos, mantidos (M0)
+
+    def plano(planejamento, extra=None, selecao=parintins, referencias=None):
+        body = corpo(pedir({**selecao, "cenarios": [{"id": "c1", "metodo": "M0", **(extra or {}), "planejamento": planejamento}],
+                            **({"referencias": referencias} if referencias else {})}))
+        return body, {item["id"]: item["cenarios"][0] for item in body["territorios"]}
+
+    body, cenarios = plano({"meta": {"tipo": "valor", "valor": 20}, "em": "202506"})
+    cenario = cenarios["code:130340"]
+    um = cenario["planejamento"]
+    assert (um["estado"], um["eventos"], um["datas"], um["por_evento"], um["total"], um["teorico_por_evento"], um["resultado"]) == (
+        "calculado", 1, ["202506"], 8, 8, 8.0, 20.0)
+    assert um["meta"] == {"tipo": "valor", "valor": 20.0, "rotulo": "Meta hipotética: 20 médicos em jun/2026"}
+    assert (um["base_na_data_final"], um["outras_intervencoes"], um["sem_o_plano"], um["falta"]) == (12.0, 0.0, 12.0, 8.0)
+    assert um["intervencao"] == {"tipo": "acrescimo", "quantidade": 8, "em": "202506", "permanencia_pct_ao_ano": 100.0}
+    assert um["texto"] == (
+        "Meta hipotética: 20 médicos em jun/2026. Menor acréscimo inteiro que alcança a meta, nas hipóteses deste cenário: 8 médicos em "
+        "jun/2025. Pela conta sem arredondar, seriam 8 por evento. " + FIXO + "com o método persistência (o último valor se mantém) e as "
+        "premissas janela de jun/2021 a jun/2024; acréscimo de 8 médicos neste território, pelo planejamento inverso, em jun/2025, com "
+        "permanência total (hipótese), PARINTINS (AM) teria 20 médicos em jun/2026. Base: registros até jun/2024. É uma conta condicional "
+        "às hipóteses do cenário, não um plano.")
+    for proibida in ("recomenda", "é preciso", "deveria", "necessário prover"):   # decisão D-B: nenhuma palavra de recomendação
+        assert proibida not in um["texto"].lower()
+    # O cenário continua sendo o do pedido: o acréscimo planejado só entra nele por comando da pessoa.
+    assert cenario["final"]["total"] == 12.0 and "sem intervenção, PARINTINS (AM) teria 12 médicos" in cenario["texto"]
+    assert any(nota.startswith("Planejamento inverso: o menor número inteiro de médicos por evento") for nota in body["notas"])
+    # A base entra sem arredondar: para 20,5, a conta dá 8,5, e o inteiro que alcança é 9.
+    meio = plano({"meta": {"tipo": "valor", "valor": 20.5}, "em": "202506"})[1]["code:130340"]["planejamento"]
+    assert (meio["teorico_por_evento"], meio["por_evento"], meio["resultado"]) == (8.5, 9, 21.0)
+    assert "9 médicos em jun/2025. Pela conta sem arredondar, seriam 8,50 por evento." in meio["texto"]
+    # Eventos iguais num calendário: x = ⌈(meta − N(T)) ÷ k⌉. Com 2 eventos e meta de 21, 4,5 vira 5 por evento (10 no total).
+    dois = plano({"meta": {"tipo": "valor", "valor": 21}, "em": "202501", "ate": "202601", "a_cada_meses": 12})[1]["code:130340"]["planejamento"]
+    assert (dois["eventos"], dois["datas"], dois["teorico_por_evento"], dois["por_evento"], dois["total"], dois["resultado"]) == (
+        2, ["202501", "202601"], 4.5, 5, 10, 22.0)
+    assert dois["intervencao"] == {"tipo": "acrescimo", "quantidade": 5, "em": "202501", "ate": "202601", "a_cada_meses": 12,
+                                   "permanencia_pct_ao_ano": 100.0}
+    assert "5 médicos em cada um dos 2 eventos, de jan/2025 a jan/2026 (10 no total)" in dois["texto"]
+    # Reaplicado ao Simulador como intervenção, o inteiro alcança a meta; com um a menos, não (seção 14.1 do anexo).
+    reaplicado = corpo(pedir({**parintins, "cenarios": [{"id": "a", "metodo": "M0", "intervencoes": [dois["intervencao"]]},
+                                                        {"id": "b", "metodo": "M0", "intervencoes": [{**dois["intervencao"], "quantidade": 4}]}]}))
+    com, sem = (c["final"]["total"] for c in reaplicado["territorios"][0]["cenarios"])
+    assert com == dois["resultado"] == 22.0 and com >= 21 > sem == 20.0
+    # Com permanência menor, cada médico acrescentado vale menos na data final: 50% ao ano, um ano antes, dobra a conta.
+    metade = plano({"meta": {"tipo": "valor", "valor": 20}, "em": "202506", "permanencia_pct_ao_ano": 50})[1]["code:130340"]["planejamento"]
+    assert (metade["por_evento"], metade["teorico_por_evento"], metade["resultado"]) == (16, pytest.approx(16.0), pytest.approx(20.0))
+    zero = plano({"meta": {"tipo": "valor", "valor": 20}, "em": "202506", "permanencia_pct_ao_ano": 0})[1]["code:130340"]["planejamento"]
+    assert zero["estado"] == "nao_alcancavel" and zero["motivo"].startswith("Com permanência zero") and "por_evento" not in zero
+    # As outras intervenções do cenário contam antes: com +3 em jan/2025, faltam 5.
+    outras = plano({"meta": {"tipo": "valor", "valor": 20}, "em": "202506"},
+                   extra={"intervencoes": [{"tipo": "acrescimo", "quantidade": 3, "em": "202501"}]})[1]["code:130340"]["planejamento"]
+    assert (outras["outras_intervencoes"], outras["sem_o_plano"], outras["por_evento"], outras["resultado"]) == (3.0, 15.0, 5, 20.0)
+    # Meta já alcançada, e calendário sem evento até a data final.
+    ja = plano({"meta": {"tipo": "valor", "valor": 10}, "em": "202506"})[1]["code:130340"]["planejamento"]
+    assert (ja["estado"], ja["por_evento"], ja["total"], ja["intervencao"]) == ("ja_alcancada", 0, 0, None)
+    assert ja["texto"] == ("Meta hipotética: 10 médicos em jun/2026. No cenário, o território já teria 12 médicos em jun/2026: a meta é "
+                           "alcançada sem acréscimo.")
+    tarde = plano({"meta": {"tipo": "valor", "valor": 20}, "em": "202701"})[1]["code:130340"]["planejamento"]
+    assert (tarde["estado"], tarde["eventos"], tarde["motivo"]) == (
+        "nao_calculavel", 0, "Nenhum evento do calendário cai depois da origem do cenário e até a data final.")
+    # "Simular recuperação" (decisão D-B): a meta hipotética de voltar ao patamar anterior. Sem valor, o patamar é o do
+    # território (Parintins teve 20 médicos); com valor, o que a pessoa informou.
+    patamar = plano({"meta": {"tipo": "patamar"}, "em": "202506"})[1]["code:130340"]["planejamento"]
+    assert patamar["meta"] == {"tipo": "patamar", "valor": 20.0, "rotulo": "Meta hipotética: voltar ao patamar de 20 médicos em jun/2026"}
+    assert patamar["por_evento"] == 8 and patamar["texto"].startswith("Meta hipotética: voltar ao patamar de 20 médicos em jun/2026. ")
+    informado = plano({"meta": {"tipo": "patamar", "valor": 18}, "em": "202506"})[1]["code:130340"]["planejamento"]
+    assert (informado["meta"]["valor"], informado["por_evento"]) == (18.0, 6)
+    # Com vários territórios, a conta é de cada um: Manaus já está acima do patamar dela; Tefé (em zero) voltaria a 3.
+    varios = plano({"meta": {"tipo": "patamar"}, "em": "202506"},
+                   selecao={"base": {"municipios": {"ids": ["code:130260", "code:130420"]}}, "estados_unidade": ["15"], "horizonte": "202606"})[1]
+    assert [(chave, c["planejamento"]["estado"], c["planejamento"]["meta"]["valor"], c["planejamento"]["por_evento"]) for chave, c in varios.items()] == [
+        ("code:130260", "ja_alcancada", 45.5, 0), ("code:130420", "calculado", 3.0, 3), ("uf:15", "ja_alcancada", 45.0, 0)]
+    assert "acréscimo de 3 médicos neste território, pelo planejamento inverso," in varios["code:130420"]["planejamento"]["texto"]
+    # A meta numa referência: o valor dela na data final.
+    da_referencia = plano({"meta": {"tipo": "referencia", "referencia": "fixa"}, "em": "202506"},
+                          referencias=[{"id": "fixa", "territorio": "code:150140"}])[1]["code:130340"]["planejamento"]
+    assert da_referencia["meta"] == {"tipo": "referencia", "valor": 50.0,
+                                     "rotulo": "Meta hipotética: alcançar a referência BELEM (PA) (50 médicos em jun/2026)"}
+    assert (da_referencia["por_evento"], da_referencia["resultado"]) == (38, 50.0)
+    ausente = plano({"meta": {"tipo": "referencia", "referencia": "x"}, "em": "202506"})[1]["code:130340"]["planejamento"]
+    assert ausente == {"estado": "nao_calculavel", "motivo": "A referência da meta não está no pedido."}
+
+
+def test_rota_hipotese_derivada_da_simulacao_so_a_dependencia_de_poucos_medicos(catalogo):
+    body = corpo(pedir({"base": {"municipios": {"ids": ["code:130420", "code:130260"]}}, "estados_unidade": ["15"], "brasil": True,
+                        "conjuntos": [{"id": "g1", "rotulo": "Par", "membros": ["code:130340", "code:150140"]}], "horizonte": "202606",
+                        "cenarios": [{"id": "c1", "metodo": "M0", "intervencoes": [{"tipo": "acrescimo", "quantidade": 4, "em": "202501"}]}]}))
+    cenarios = {item["id"]: item["cenarios"][0] for item in body["territorios"]}
+    # Tefé, em zero, teria 4 médicos no cenário: a única leitura do Detector que vale para um valor simulado é a escala estrutural.
+    assert cenarios["code:130420"]["hipotetico"] == {"rotulo": "hipótese derivada da simulação", "data": "202606", "valor": 4.0, "inteiro": 4,
+                                                     "classe": "atencao", "impacto_pct": 25.0}
+    assert cenarios["code:130260"]["hipotetico"]["classe"] is None and cenarios["code:130260"]["hipotetico"]["inteiro"] == 55
+    # Só para municípios, como a escala estrutural do Detector; e nenhum teste de evento observado (perda, patamar, declínio).
+    assert all("hipotetico" not in cenarios[chave] for chave in ("uf:15", "g1", "br"))
+    assert set(cenarios["code:130420"]["hipotetico"]) == {"rotulo", "data", "valor", "inteiro", "classe", "impacto_pct"}
+
+
+def test_rota_recusas_das_referencias_da_metrica_e_do_planejamento(catalogo):
+    so = {"base": {"municipios": {"ids": ["code:130340"]}}, "horizonte": "202606"}
+    recusa(pedir({**so, "referencias": [{"id": "r" + str(k), "tipo": "valor", "valor": 1} for k in range(6)]}), "Referências inválidas: envie uma lista de até 5.")
+    recusa(pedir({**so, "referencias": [{"territorio": "xx"}]}), "indique um município (code:…), um estado (uf:…), o Brasil (br) ou um conjunto")
+    recusa(pedir({**so, "referencias": [{"territorio": "g9"}]}), "um conjunto da seleção do Simulador")
+    recusa(pedir({**so, "referencias": [{"id": "a", "tipo": "valor", "valor": 1}, {"id": "a", "tipo": "valor", "valor": 2}]}), "Referências com o mesmo id")
+    recusa(pedir({**so, "referencias": [{"territorio": "br", "tipo": "movel"}]}), "o tipo é fixa, dinamica ou valor")
+    recusa(pedir({**so, "referencias": [{"tipo": "valor", "valor": -1}]}), "um número igual ou maior que zero")
+    recusa(pedir({**so, "referencias": [{"territorio": "br", "tipo": "dinamica", "metodo": "x"}]}), "Método desconhecido na referência: x.")
+    recusa(pedir({**so, "referencias": [{"territorio": "br", "tipo": "dinamica", "metodo": "manual"}]}), "O sistema não sugere uma taxa.")
+    recusa(pedir({**so, "referencias": [{"territorio": "code:999999"}]}), "Território fora da base Brasil")
+    recusa(pedir({**so, "comparacao": {"metrica": "indice"}}), "Comparação inválida: a métrica é quantidade ou taxa.")
+    recusa(pedir({**so, "cenarios": [{"metodo": "M0", "planejamento": {"em": "202506"}}]}), "envie a meta e o calendário dos acréscimos")
+    recusa(pedir({**so, "cenarios": [{"metodo": "M0", "planejamento": {"meta": {"tipo": "x"}, "em": "202506"}}]}),
+           "a meta é um valor, o patamar anterior ou uma referência")
+    recusa(pedir({**so, "cenarios": [{"metodo": "M0", "planejamento": {"meta": {"tipo": "valor", "valor": 0}, "em": "202506"}}]}),
+           "a meta é um número de médicos acima de zero")
+    recusa(pedir({**so, "cenarios": [{"metodo": "M0", "planejamento": {"meta": {"tipo": "referencia"}, "em": "202506"}}]}), "indique a referência da meta")
+    recusa(pedir({**so, "cenarios": [{"metodo": "M0", "planejamento": {"meta": {"tipo": "valor", "valor": 5}}}]}), "Data da intervenção inválida")
+
+
 # --------------------------------------------------------------------------------------------- base versionada
 @pytest.fixture(scope="module")
 def real(tmp_path_factory):
@@ -667,3 +914,66 @@ def test_real_cenarios_do_distrito_federal_rio_rufino_e_limites(real):
     assert estado["rotulo"] == "São Paulo (SP)" and estado["cenarios"][0]["metodo"]["usado"] == "M1"
     assert estado["cenarios"][0]["faixa"]["estado"] == "indisponivel" and estado["cenarios"][0]["horizonte"]["aviso"] == "extrapolacao"
     recusa(pedir({"base": {"municipios": {"todos": True}}}), "O Simulador compara até 100 territórios de cada vez (a seleção tem 5570)")
+
+
+
+def test_real_brasil_referencias_e_planejamento_inverso(real):
+    # O Brasil como território: a contagem nacional (502.495 médicos em jun/2024), com o padrão provisório do nível e sem faixa.
+    brasil = corpo(pedir({"brasil": True}))["territorios"][0]
+    cenario = brasil["cenarios"][0]
+    assert (brasil["id"], brasil["unidade"], cenario["metodo"]["usado"], cenario["parametros"]["n0"]) == ("br", series_brasil.UNIDADE_BRASIL, "M1", 502495.0)
+    assert cenario["parametros"]["taxa_pct"] == pytest.approx(5.9001, abs=1e-4) and cenario["final"]["total"] == pytest.approx(563539.32, abs=0.01)
+    assert cenario["faixa"]["estado"] == "indisponivel" and cenario["final"]["faixa"] is None
+    assert "PADRAO_PROVISORIO_DO_NIVEL" in [aviso["codigo"] for aviso in cenario["avisos"]]
+    assert "sem intervenção, Brasil teria 563.539 médicos em jun/2026." in cenario["texto"]
+    # Manaus diante de Florianópolis (dinâmica), do Brasil e de São Paulo (fixas) e de um valor informado, até jun/2028, com o
+    # planejamento inverso: a meta hipotética de alcançar Florianópolis, com um acréscimo por ano.
+    body = corpo(pedir({"base": {"municipios": {"ids": ["code:130260"]}}, "horizonte": "202806", "cenarios": [
+        {"id": "c1", "metodo": "padrao", "planejamento": {"meta": {"tipo": "referencia", "referencia": "floripa"}, "em": "202506",
+                                                        "ate": "202806", "a_cada_meses": 12}}],
+        "referencias": [{"id": "floripa", "territorio": "code:420540", "tipo": "dinamica"}, {"id": "br", "territorio": "br"},
+                        {"id": "sp", "territorio": "uf:35"}, {"id": "v", "tipo": "valor", "valor": 6500}]}))
+    manaus = body["territorios"][0]["cenarios"][0]
+    comparacoes = {c["id"]: c for c in manaus["comparacoes"]}
+    assert all(c["alcance"] == {"estado": "nao_alcanca", "data": None} for c in comparacoes.values())
+    floripa = comparacoes["floripa"]
+    assert (floripa["metodo"], floripa["inicial"]["territorio"], floripa["inicial"]["referencia"], floripa["avisos"]) == ("M0d", 4730.0, 5172.0, [])
+    assert floripa["final"]["referencia"] == pytest.approx(7565.57, abs=0.01) and floripa["final"]["indice"] == pytest.approx(79.54, abs=0.01)
+    assert floripa["texto"].endswith("7.565,6: 1.547,6 abaixo da referência (índice 79,5; 100 é a referência). Não alcança no horizonte simulado (até jun/2028).")
+    assert comparacoes["br"]["avisos"][0] == "A referência (Brasil) contém o território: a comparação não é independente."
+    assert comparacoes["sp"]["final"]["referencia"] == 148909.0 and len(comparacoes["sp"]["avisos"]) == 1   # só as unidades diferentes
+    assert comparacoes["v"]["final"]["diferenca"] == pytest.approx(482.02, abs=0.01)
+    plano = manaus["planejamento"]
+    assert (plano["estado"], plano["eventos"], plano["datas"], plano["por_evento"], plano["total"]) == (
+        "calculado", 4, ["202506", "202606", "202706", "202806"], 387, 1548)
+    assert plano["teorico_por_evento"] == pytest.approx(386.896, abs=1e-3) and plano["resultado"] == pytest.approx(7565.98, abs=0.01)
+    assert plano["meta"]["rotulo"] == "Meta hipotética: alcançar a referência FLORIANOPOLIS (SC) (7.565,6 médicos em jun/2028)"
+    assert "387 médicos em cada um dos 4 eventos, de jun/2025 a jun/2028 (1.548 no total). Pela conta sem arredondar, seriam 386,90 por evento." in plano["texto"]
+    assert plano["texto"].endswith("MANAUS (AM) teria 7.566 médicos em jun/2028. Base: registros até jun/2024. É uma conta condicional às "
+                                   "hipóteses do cenário, não um plano.")
+    # Reaplicado como intervenção, o inteiro alcança a meta; com um médico a menos por evento, não.
+    def reaplicar(quantidade):
+        return corpo(pedir({"base": {"municipios": {"ids": ["code:130260"]}}, "horizonte": "202806", "cenarios": [
+            {"id": "c1", "metodo": "padrao", "intervencoes": [{**plano["intervencao"], "quantidade": quantidade}]}]}))["territorios"][0]["cenarios"][0]["final"]["total"]
+    assert reaplicar(387) == pytest.approx(plano["resultado"]) and reaplicar(387) >= plano["meta"]["valor"] > reaplicar(386)
+    # Com 6.018 médicos no cenário, a escala estrutural não dá sinal, nem nos limites da faixa de 80% (calibrada, de 4 anos).
+    assert manaus["hipotetico"]["classe"] is None and manaus["hipotetico"]["na_faixa"] == {"inferior": None, "superior": None}
+    assert manaus["final"]["faixa"]["anos"] == 4 and manaus["final"]["faixa"]["validada"] is False
+    # Por taxa, com a população de jun/2024 em todas as datas simuladas: Manaus (2,34 por 1.000) diante do Brasil (2,36).
+    taxa = corpo(pedir({"base": {"municipios": {"ids": ["code:130260"]}}, "horizonte": "202606", "comparacao": {"metrica": "taxa"},
+                        "referencias": [{"id": "br", "territorio": "br"}]}))
+    do_brasil = taxa["territorios"][0]["cenarios"][0]["comparacoes"][0]
+    assert do_brasil["final"]["territorio"] == pytest.approx(2.3404, abs=1e-4) and do_brasil["final"]["referencia"] == pytest.approx(2.3638, abs=1e-4)
+    assert do_brasil["texto"].startswith("Em jun/2026, MANAUS (AM) teria 2,34 médicos por 1.000 habitantes, e a referência Brasil (fixa: o valor de "
+                                         "jun/2024 mantido), 2,36: 0,02 abaixo da referência (índice 99; 100 é a referência).")
+    assert do_brasil["texto"].endswith("Hipótese: população constante, a de jun/2024.")
+    # "Simular recuperação": Abreulândia (TO), abaixo do patamar anterior (1,75 médico), teria 1 médico no cenário; a conta
+    # condicional dá 1 médico em jun/2025, e a hipótese derivada da simulação mostra a dependência de poucos médicos.
+    abreulandia = corpo(pedir({"base": {"municipios": {"ids": ["code:170025"]}}, "cenarios": [
+        {"id": "c1", "metodo": "padrao", "planejamento": {"meta": {"tipo": "patamar"}, "em": "202506"}}]}))["territorios"][0]["cenarios"][0]
+    recuperacao = abreulandia["planejamento"]
+    assert recuperacao["meta"] == {"tipo": "patamar", "valor": 1.75, "rotulo": "Meta hipotética: voltar ao patamar de 1,8 médicos em jun/2026"}
+    assert (recuperacao["por_evento"], recuperacao["eventos"]) == (1, 1) and recuperacao["teorico_por_evento"] == pytest.approx(0.5638, abs=1e-4)
+    assert "ABREULANDIA (TO) teria 2 médicos em jun/2026." in recuperacao["texto"]
+    assert abreulandia["hipotetico"] == {"rotulo": "hipótese derivada da simulação", "data": "202606", "valor": pytest.approx(1.1862, abs=1e-4),
+                                         "inteiro": 1, "classe": "critica", "impacto_pct": 100.0, "na_faixa": {"inferior": "critica", "superior": "alta"}}

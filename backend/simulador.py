@@ -46,12 +46,13 @@ from dataclasses import dataclass
 
 import numpy as np
 
+import comparativos
 import detector
 import series_brasil
 from series_brasil import Base, Territorio, mes_da_competencia
 from territorial_levels import STATES
 
-VERSION = "SIMULADOR-CENARIOS/V2.2/1"
+VERSION = "SIMULADOR-CENARIOS/V2.2/2"   # /2: Brasil, referências, planejamento inverso e hipótese derivada (etapa 5 do V22)
 # Os nomes dos métodos nos textos (decisão D-C: linguagem simples). No anexo, a "deriva do estado" do M0d é o crescimento anual
 # composto da soma municipal da UF; na tela e nos textos de cenário, "o crescimento recente do estado".
 METODOS = ("padrao", "M0", "M0d", "M1", "M2", "M3", "manual")
@@ -71,6 +72,8 @@ PORTES_DA_FAIXA = ((1, 9), (10, 19), (20, 49), (50, 99), (100, 299), (300, None)
 ROTULOS_DOS_PORTES_DA_FAIXA = ("1 a 9", "10 a 19", "20 a 49", "50 a 99", "100 a 299", "300 ou mais")
 MINIMO_DE_CASOS_DA_FAIXA = 100
 MAX_TERRITORIOS, MAX_CENARIOS, MAX_INTERVENCOES, MAX_EVENTOS = 100, 6, 12, 240
+MAX_REFERENCIAS = 5
+METRICAS = ("quantidade", "taxa")
 ANO_LIMITE = 2100
 PREVISAO_NAO = "Cenário hipotético, não é previsão"
 
@@ -332,7 +335,7 @@ def _cenarios(brutos, base: Base, ids: set) -> list[dict]:
             raise ValueError("A taxa manual só vale com o método manual.")
         saida.append({"id": chave, "nome": str(bruto.get("nome") or "Cenário " + str(posicao + 1))[:80], "metodo": metodo,
                       "taxa": None if taxa is None else float(taxa), "janela": bruto.get("janela"),
-                      "intervencoes": _intervencoes(bruto.get("intervencoes"), ids)})
+                      "intervencoes": _intervencoes(bruto.get("intervencoes"), ids), "planejamento": _plano(bruto.get("planejamento"))})
     return saida
 
 
@@ -447,15 +450,17 @@ def _base_do_cenario(base: Base, cal: detector.Calibracao, territorio: Territori
             indices = [i for i in indices if i >= inicio]
             t = (base.meses[indices] - base.meses[origem]) / 12.0
             y = np.array([float(serie[i]) for i in indices])
-            avisos.append({"codigo": "PADRAO_PROVISORIO_DO_NIVEL", "texto": "Para estados como unidade, o método padrão é provisório: "
-                           "o crescimento médio dos 3 anos até o último registro usado, na contagem do próprio estado. Ele só foi "
-                           "conferido num período de crescimento forte."})
+            avisos.append({"codigo": "PADRAO_PROVISORIO_DO_NIVEL", "texto":
+                           ("Para o Brasil" if territorio.tipo == "brasil" else "Para estados como unidade") + ", o método padrão é "
+                           "provisório: o crescimento médio dos 3 anos até o último registro usado, na contagem " +
+                           ("nacional" if territorio.tipo == "brasil" else "do próprio estado") + ". Ele só foi conferido num período "
+                           "de crescimento forte."})
     parametros = {"n0": n0, "origem": base.periodos[origem], "janela": {"inicio": base.periodos[indices[0]], "fim": base.periodos[origem],
                                                                           "registros": len(indices)}}
     janela_do_metodo = float((base.meses[origem] - base.meses[indices[0]]) / 12.0)
     if metodo == "M0d" and territorio.nivel != "municipios":
         return {"estado": "nao_aplicavel", "motivo": "A persistência com o crescimento recente do estado vale para municípios e conjuntos de municípios; "
-                "para estados como unidade, o padrão provisório é a taxa composta de 3 anos (M1)."}
+                "para estados como unidade e para o Brasil, o padrão provisório é a taxa composta de 3 anos (M1)."}
 
     def conjunto_de_municipios():
         return territorio.tipo == "conjunto" and territorio.nivel == "municipios"
@@ -595,7 +600,8 @@ def _premissas(resultado: dict, cenario: dict, territorio: Territorio, varios: b
         quando = ("em " + detector.curta(_data(item["em"]))) if not item["periodica"] else \
             ("a cada " + str(item["a_cada_meses"]) + " meses, de " + detector.curta(_data(item["em"])) + " a " + detector.curta(_data(item["ate"])))
         permanencia = "com permanência total" if item["permanencia"] >= 100 else "com permanência de " + _br(item["permanencia"], 1) + "% ao ano"
-        onde = "" if not varios else " em cada território do cenário," if item["territorios"] is None else " só nos territórios indicados,"
+        onde = " neste território, pelo planejamento inverso," if item.get("planejada") else \
+            "" if not varios else " em cada território do cenário," if item["territorios"] is None else " só nos territórios indicados,"
         partes.append(verbo + " de " + _br(item["quantidade"], 1) + (" médico" if item["quantidade"] == 1 else " médicos") + onde + " " + quando +
                       ", " + permanencia + " (hipótese)")
     return "; ".join(partes)
@@ -737,7 +743,7 @@ def _retro_da_resposta(retro: Retroprojecao) -> dict:
             "tabela": [{**linha, "porte": ROTULOS_DOS_PORTES_DA_FAIXA[linha["porte"]]} for linha in retro.tabela]}
 
 
-def _notas(base: Base, niveis: set) -> list[str]:
+def _notas(base: Base, niveis: set, com_referencias: bool = False, com_planejamento: bool = False) -> list[str]:
     notas = ["Cenários hipotéticos e condicionais: não são previsão, observação atual, conclusão sobre o atendimento nem recomendação "
              "de provimento.",
              "O registro mais recente da base é " + detector.curta(base.periodos[-1]) + ": o que vem depois dele no gráfico é simulado, "
@@ -751,9 +757,321 @@ def _notas(base: Base, niveis: set) -> list[str]:
              "A média aritmética das taxas é só descrição do passado; o percentual médio que reproduz o crescimento ocorrido é a taxa "
              "composta (M1)."]
     if niveis - {"municipios"}:
-        notas.append("Estados como unidade usam a contagem estadual de médicos únicos, com um padrão provisório (a taxa composta de 3 "
-                     "anos). Num conjunto, o valor é a soma dos componentes, não o número de médicos diferentes.")
+        notas.append("Estados como unidade usam a contagem estadual de médicos únicos, e o Brasil, a contagem nacional, com um padrão "
+                     "provisório (a taxa composta de 3 anos). Num conjunto, o valor é a soma dos componentes, não o número de médicos "
+                     "diferentes.")
+    if com_referencias:
+        notas.append("Referências: a comparação mostra a diferença, a razão e o índice (100 é a referência), sem chamar a variação de "
+                     "convergência. Sem cruzamento, \"não alcança no horizonte simulado\": nenhuma data é inventada. Comparar "
+                     "quantitativos de territórios de portes diferentes não é comparar a suficiência do atendimento; por taxa, vale a "
+                     "hipótese de população constante.")
+    if com_planejamento:
+        notas.append("Planejamento inverso: o menor número inteiro de médicos por evento com que o cenário alcança a meta na data "
+                     "final, com a base do cenário sem arredondar. É uma conta condicional às hipóteses, não um plano.")
     return notas
+
+
+# --------------------------------------------------------------------------------------------- referências (seção 10.5)
+def _referencias(brutas, base: Base, territorios: list) -> list[dict]:
+    """As referências do pedido: um município, um estado como unidade, o Brasil ou um conjunto da seleção, **fixa** (o valor do
+    último registro usável se mantém) ou **dinâmica** (segue um método próprio, sem intervenções); ou um **valor** informado pela
+    pessoa. Podem ficar fora da seleção do Simulador."""
+    if brutas in (None, []):
+        return []
+    if not isinstance(brutas, list) or len(brutas) > MAX_REFERENCIAS:
+        raise ValueError("Referências inválidas: envie uma lista de até " + str(MAX_REFERENCIAS) + ".")
+    conjuntos = {territorio.id: territorio for territorio in territorios if territorio.tipo == "conjunto"}
+    saida, vistos = [], set()
+    for posicao, bruta in enumerate(brutas):
+        if not isinstance(bruta, dict):
+            raise ValueError("Referência inválida.")
+        chave = str(bruta.get("id") or "r" + str(posicao + 1))
+        if chave in vistos:
+            raise ValueError("Referências com o mesmo id no pedido.")
+        vistos.add(chave)
+        tipo = bruta.get("tipo", "fixa")
+        if tipo not in ("fixa", "dinamica", "valor"):
+            raise ValueError("Referência inválida: o tipo é fixa, dinamica ou valor.")
+        if tipo == "valor":
+            valor = bruta.get("valor")
+            if isinstance(valor, bool) or not isinstance(valor, (int, float)) or not math.isfinite(valor) or valor < 0:
+                raise ValueError("Referência inválida: o valor informado é um número igual ou maior que zero.")
+            saida.append({"id": chave, "tipo": "valor", "valor": float(valor), "territorio": None, "metodo": None, "taxa": None,
+                          "rotulo": str(bruta.get("rotulo") or "Valor informado por você")[:80]})
+            continue
+        alvo = bruta.get("territorio")
+        if alvo == "br":
+            territorio = series_brasil.brasil(base)
+        elif isinstance(alvo, str) and alvo.startswith("uf:"):
+            territorio = series_brasil.estado(base, series_brasil._prefixo(base, alvo))
+        elif isinstance(alvo, str) and alvo.startswith("code:"):
+            territorio = series_brasil.municipio(base, series_brasil._codigo(base, alvo))
+        elif alvo in conjuntos:
+            territorio = conjuntos[alvo]
+        else:
+            raise ValueError("Referência inválida: indique um município (code:…), um estado (uf:…), o Brasil (br) ou um conjunto da "
+                             "seleção do Simulador.")
+        metodo, taxa = bruta.get("metodo", "padrao"), bruta.get("taxa_manual_pct")
+        if tipo == "fixa":
+            metodo, taxa = "M0", None
+        elif metodo not in METODOS:
+            raise ValueError("Método desconhecido na referência: " + str(metodo) + ".")
+        elif metodo == "manual" and (isinstance(taxa, bool) or not isinstance(taxa, (int, float)) or not -99 <= taxa <= 500):
+            raise ValueError("Taxa manual inválida na referência: informe a taxa anual, em %, de −99 a 500. O sistema não sugere uma taxa.")
+        saida.append({"id": chave, "tipo": tipo, "valor": None, "territorio": territorio, "metodo": metodo,
+                      "taxa": float(taxa) if metodo == "manual" else None, "rotulo": territorio.rotulo})
+    return saida
+
+
+def _curva_da_referencia(base: Base, cal: detector.Calibracao, ref: dict, inicio: int, fim: int) -> dict:
+    """A referência ao longo do tempo: uma função do mês (None quando não há valor) e o que a descreve."""
+    if ref["tipo"] == "valor":
+        return {"estado": "calculada", "funcao": lambda mes: ref["valor"], "descricao": "valor informado por você, mantido",
+                "usado": None, "avisos": [], "origem": None}
+    resultado = _base_do_cenario(base, cal, ref["territorio"], ref["metodo"], ref["taxa"], inicio, fim)
+    if resultado["estado"] != "calculado":
+        return {"estado": "nao_calculavel", "motivo": resultado["motivo"]}
+    origem, funcao, serie = resultado["origem"], resultado["funcao"], ref["territorio"].serie
+    mes_da_origem = int(base.meses[origem])
+    por_mes = {int(base.meses[i]): float(serie[i]) for i in range(len(base.periodos)) if serie[i] == serie[i]}
+
+    def no_mes(mes: int):
+        if mes <= mes_da_origem:   # antes da origem da referência, vale o registro, se houver
+            return por_mes.get(mes)
+        return max(0.0, float(funcao((mes - mes_da_origem) / 12.0)))
+    descricao = ("fixa: o valor de " + detector.curta(base.periodos[origem]) + " mantido") if ref["tipo"] == "fixa" else \
+        ("dinâmica: " + NOMES_DOS_METODOS[resultado["usado"]] + ", com registros até " + detector.curta(base.periodos[origem]))
+    return {"estado": "calculada", "funcao": no_mes, "descricao": descricao, "usado": resultado["usado"],
+            "avisos": resultado["avisos"] if ref["tipo"] == "dinamica" else [], "origem": base.periodos[origem]}
+
+
+def _sobreposicao(base: Base, territorio: Territorio, ref: dict) -> list[str]:
+    """Os avisos de sobreposição e de unidade entre um território e uma referência: nunca se declara independência que não há."""
+    outro = ref["territorio"]
+    if outro is None:
+        return []
+    avisos = []
+
+    def municipios_de(t: Territorio) -> set | None:
+        if t.tipo == "municipio":
+            return {t.id}
+        if t.tipo == "conjunto" and t.nivel == "municipios":
+            return set(t.membros)
+        return None
+
+    def ufs_de(t: Territorio) -> set:
+        if t.tipo == "estado":
+            return {t.uf}
+        if t.tipo == "conjunto" and t.nivel == "estados":
+            return {membro[3:] for membro in t.membros}
+        return set()
+    if outro.id == territorio.id:
+        avisos.append("A referência é o próprio território.")
+    elif outro.tipo == "brasil":
+        avisos.append("A referência (Brasil) contém o território: a comparação não é independente.")
+    elif territorio.tipo == "brasil":
+        avisos.append("O território (Brasil) contém a referência: a comparação não é independente.")
+    else:
+        meus, dele = municipios_de(territorio), municipios_de(outro)
+        if meus is not None and dele is not None:
+            comuns = meus & dele
+            if comuns:
+                avisos.append("O território e a referência têm " + str(len(comuns)) + (" município em comum" if len(comuns) == 1
+                              else " municípios em comum") + ": a comparação não é independente.")
+        elif meus is not None and {"code:" + codigo for uf in ufs_de(outro) for codigo in
+                                   (base.codigos[linha] for linha in base.do_estado.get(uf, ()))} & meus:
+            avisos.append("A referência contém o território (o estado inclui o município): a comparação não é independente.")
+        elif dele is not None and {"code:" + codigo for uf in ufs_de(territorio) for codigo in
+                                   (base.codigos[linha] for linha in base.do_estado.get(uf, ()))} & dele:
+            avisos.append("O território contém a referência: a comparação não é independente.")
+        elif ufs_de(territorio) & ufs_de(outro):
+            avisos.append("O território e a referência têm estados em comum: a comparação não é independente.")
+    if outro.unidade != territorio.unidade:
+        avisos.append("As contagens têm unidades diferentes (território: " + territorio.unidade + "; referência: " + outro.unidade +
+                      "): a comparação é entre esses quantitativos.")
+    return avisos
+
+
+def _comparar(base: Base, territorio: Territorio, resultado: dict, ref: dict, curva: dict, metrica: str, populacoes: dict) -> dict:
+    """Um cenário de um território diante de uma referência: a diferença, a razão e o índice em cada data, e o alcance. Sem
+    cruzamento no horizonte, "não alcança no horizonte simulado": nenhuma data é inventada."""
+    cabecalho = {"id": ref["id"], "rotulo": ref["rotulo"], "tipo": ref["tipo"], "metrica": metrica,
+                 "avisos": _sobreposicao(base, territorio, ref)}
+    if resultado["estado"] != "calculado":
+        return {**cabecalho, "estado": "nao_calculavel", "motivo": "O cenário deste território não foi calculado."}
+    if curva["estado"] != "calculada":
+        return {**cabecalho, "estado": "nao_calculavel", "motivo": "A referência não pôde ser calculada: " + curva["motivo"]}
+    fator_a = fator_b = 1.0
+    if metrica == "taxa":
+        pop_a = populacoes.get(territorio.id)
+        pop_b = None if ref["territorio"] is None else populacoes.get(ref["territorio"].id)
+        if not pop_a or (ref["territorio"] is not None and not pop_b):
+            return {**cabecalho, "estado": "nao_calculavel", "motivo": "Sem população válida no último registro para a hipótese de "
+                    "população constante."}
+        fator_a = 1000.0 / pop_a
+        fator_b = 1.0 if ref["territorio"] is None else 1000.0 / pop_b   # o valor informado já está na métrica escolhida
+    origem = base.periodos.index(resultado["parametros"]["origem"])
+    datas = [(int(base.meses[origem]), base.periodos[origem], float(resultado["parametros"]["n0"]))] + \
+        [(mes_da_competencia(ponto["data"]), ponto["data"], float(ponto["total"])) for ponto in resultado["trajetoria"]]
+    pontos = []
+    for mes, data, a in datas:
+        b = curva["funcao"](mes)
+        if b is None:
+            continue
+        a, b = a * fator_a, b * fator_b
+        pontos.append({"data": data, "territorio": a, "referencia": b, "diferenca": b - a,
+                       "razao": (a / b) if b > 0 else None, "indice": (100.0 * a / b) if b > 0 else None})
+    if not pontos:
+        return {**cabecalho, "estado": "nao_calculavel", "motivo": "A referência não tem valor nas datas do cenário."}
+    inicial, final = pontos[0], pontos[-1]
+    if inicial["territorio"] >= inicial["referencia"]:
+        alcance = {"estado": "ja_acima", "data": None}
+    else:
+        primeiro = next((ponto for ponto in pontos[1:] if ponto["territorio"] >= ponto["referencia"]), None)
+        alcance = {"estado": "alcanca", "data": primeiro["data"]} if primeiro else {"estado": "nao_alcanca", "data": None}
+    unidade = "médicos" if metrica == "quantidade" else "médicos por 1.000 habitantes"
+    casas = 1 if metrica == "quantidade" else 2
+    diferenca = final["diferenca"]
+    texto = ("Em " + detector.curta(final["data"]) + ", " + territorio.rotulo + " teria " + _br(round(final["territorio"], casas), casas) +
+             " " + unidade + ", e a referência " + ref["rotulo"] + " (" + curva["descricao"] + "), " +
+             _br(round(final["referencia"], casas), casas) + ": " +
+             ("o mesmo valor" if abs(diferenca) < 0.5 * 10 ** -casas else _br(round(abs(diferenca), casas), casas) +
+              (" abaixo da referência" if diferenca > 0 else " acima da referência")) +
+             ("" if final["indice"] is None else " (índice " + _br(round(final["indice"], 1)) + "; 100 é a referência)") + ". " +
+             {"ja_acima": "Na origem, o território já está no nível da referência ou acima dele.",
+              "nao_alcanca": "Não alcança no horizonte simulado (até " + detector.curta(final["data"]) + ").",
+              "alcanca": "No cenário, alcança a referência em " + detector.curta(alcance["data"] or final["data"]) +
+                         ", a primeira data avaliada em que isso ocorre."}[alcance["estado"]] +
+             (" Hipótese: população constante, a de " + detector.curta(base.periodos[-1]) + "." if metrica == "taxa" else ""))
+    return {**cabecalho, "estado": "calculada", "descricao": curva["descricao"], "metodo": curva["usado"],
+            "avisos": cabecalho["avisos"] + [aviso["texto"] for aviso in curva["avisos"]],
+            "pontos": pontos, "inicial": inicial, "final": final, "alcance": alcance, "texto": texto}
+
+
+# --------------------------------------------------------------------------------------------- planejamento inverso (seção 10.3)
+def _plano(bruto) -> dict | None:
+    """O pedido de planejamento inverso de um cenário: a meta (um valor, o patamar anterior ou uma referência) e o calendário dos
+    acréscimos (uma data ou eventos periódicos, com a permanência)."""
+    if bruto in (None, {}):
+        return None
+    if not isinstance(bruto, dict) or not isinstance(bruto.get("meta"), dict):
+        raise ValueError("Planejamento inverso inválido: envie a meta e o calendário dos acréscimos.")
+    meta = bruto["meta"]
+    tipo = meta.get("tipo")
+    if tipo not in ("valor", "patamar", "referencia"):
+        raise ValueError("Planejamento inverso inválido: a meta é um valor, o patamar anterior ou uma referência.")
+    valor = meta.get("valor")
+    if tipo == "valor" or (tipo == "patamar" and valor is not None):
+        if isinstance(valor, bool) or not isinstance(valor, (int, float)) or not math.isfinite(valor) or valor <= 0 or valor > 10_000_000:
+            raise ValueError("Planejamento inverso inválido: a meta é um número de médicos acima de zero.")
+        valor = float(valor)
+    if tipo == "referencia" and not isinstance(meta.get("referencia"), str):
+        raise ValueError("Planejamento inverso inválido: indique a referência da meta.")
+    [calendario] = _intervencoes([{"tipo": "acrescimo", "quantidade": 1, "em": bruto.get("em"), "ate": bruto.get("ate"),
+                                   "a_cada_meses": bruto.get("a_cada_meses", 12),
+                                   "permanencia_pct_ao_ano": bruto.get("permanencia_pct_ao_ano", 100)}], set())
+    return {"meta": {"tipo": tipo, "valor": valor, "referencia": meta.get("referencia")}, "calendario": calendario}
+
+
+def _planejar(base: Base, cal: detector.Calibracao, retro: Retroprojecao, territorio: Territorio, cenario: dict, resultado: dict,
+              inicio: int, fim: int, horizonte: int, varios: bool, curvas: dict) -> dict | None:
+    """O planejamento inverso de um território num cenário: o menor número inteiro de médicos por evento com que N(T) alcança a
+    meta na data final T, com a base B(T) sem arredondar (seção 8.8). É uma conta condicional às hipóteses, nunca um plano."""
+    plano = cenario.get("planejamento")
+    if not plano:
+        return None
+    if resultado["estado"] != "calculado":
+        return {"estado": "nao_calculavel", "motivo": "O cenário deste território não foi calculado."}
+    origem = base.periodos.index(resultado["parametros"]["origem"])
+    mes_da_origem = int(base.meses[origem])
+    data_final = detector.curta(_data(horizonte))
+    meta = plano["meta"]
+    if meta["tipo"] == "referencia":
+        curva = curvas.get(meta["referencia"])
+        if curva is None:
+            return {"estado": "nao_calculavel", "motivo": "A referência da meta não está no pedido."}
+        if curva["estado"] != "calculada" or curva["funcao"](horizonte) is None:
+            return {"estado": "nao_calculavel", "motivo": "A referência da meta não pôde ser calculada."}
+        alvo = float(curva["funcao"](horizonte))
+        rotulo = "Meta hipotética: alcançar a referência " + curva["rotulo"] + " (" + _br(round(alvo, 1)) + " médicos em " + data_final + ")"
+    elif meta["tipo"] == "patamar":
+        alvo = meta["valor"]
+        if alvo is None:
+            alvo = detector._patamar(base, cal if territorio.tipo == "municipio" else None, cal.blocos, territorio.linha,
+                                     territorio.serie, origem, detector.PADRAO["patamar"]).get("patamar")
+        if alvo is None:
+            return {"estado": "nao_calculavel", "motivo": "Não há patamar anterior calculável para este território (faltam dois anos "
+                    "completos de registros antes dos mais recentes)."}
+        alvo = float(alvo)
+        rotulo = "Meta hipotética: voltar ao patamar de " + _br(round(alvo, 1)) + " médicos em " + data_final
+    else:
+        alvo = float(meta["valor"])
+        rotulo = "Meta hipotética: " + _br(round(alvo, 1)) + " médicos em " + data_final
+    calendario = plano["calendario"]
+    eventos = [data for data in calendario["datas"] if mes_da_origem < data <= horizonte]
+    comum = {"meta": {"tipo": meta["tipo"], "valor": alvo, "rotulo": rotulo}, "base_na_data_final": resultado["final"]["base"],
+             "outras_intervencoes": resultado["final"]["intervencao"], "sem_o_plano": resultado["final"]["total"],
+             "eventos": len(eventos), "datas": [_data(data) for data in eventos], "permanencia_pct_ao_ano": calendario["permanencia"]}
+    if not eventos:
+        return {**comum, "estado": "nao_calculavel", "motivo": "Nenhum evento do calendário cai depois da origem do cenário e até a "
+                "data final."}
+    # A conta usa a base sem arredondar e sem o piso em zero do total exibido.
+    atual = resultado["final"]["base"] + resultado["final"]["intervencao"]
+    permanencia = calendario["permanencia"]
+    peso = sum((permanencia / 100.0) ** ((horizonte - data) / 12.0) if permanencia < 100 else 1.0 for data in eventos)
+    falta = alvo - atual
+    if falta <= 1e-9:
+        return {**comum, "estado": "ja_alcancada", "falta": 0.0, "por_evento": 0, "total": 0, "teorico_por_evento": 0.0,
+                "resultado": resultado["final"]["total"], "intervencao": None,
+                "texto": rotulo + ". No cenário, o território já teria " + _br(round(atual, 1)) + " médicos em " + data_final +
+                         ": a meta é alcançada sem acréscimo."}
+    if peso <= 0:
+        return {**comum, "estado": "nao_alcancavel", "falta": falta,
+                "motivo": "Com permanência zero, nenhum médico acrescentado está no território na data final: a meta não é alcançada "
+                          "com este calendário."}
+    teorico = falta / peso
+    por_evento = max(1, math.ceil(teorico - 1e-9))
+    while atual + por_evento * peso < alvo - 1e-9:      # busca entre inteiros, contra o erro de ponto flutuante
+        por_evento += 1
+    while por_evento > 1 and atual + (por_evento - 1) * peso >= alvo - 1e-9:
+        por_evento -= 1
+    planejada = {"tipo": "acrescimo", "quantidade": float(por_evento), "em": eventos[0], "ate": eventos[-1],
+                 "a_cada_meses": calendario["a_cada_meses"], "periodica": len(eventos) > 1, "permanencia": permanencia,
+                 "territorios": {territorio.id}, "datas": eventos, "planejada": True}
+    aplicado = _simular(base, cal, retro, territorio, {**cenario, "intervencoes": cenario["intervencoes"] + [planejada]},
+                        inicio, fim, horizonte, varios)
+    quando = ("em " + detector.curta(_data(eventos[0]))) if len(eventos) == 1 else \
+        ("em cada um dos " + str(len(eventos)) + " eventos, de " + detector.curta(_data(eventos[0])) + " a " + detector.curta(_data(eventos[-1])))
+    texto = (rotulo + ". Menor acréscimo inteiro que alcança a meta, nas hipóteses deste cenário: " + _br(por_evento) +
+             (" médico " if por_evento == 1 else " médicos ") + quando +
+             ("" if len(eventos) == 1 else " (" + _br(por_evento * len(eventos)) + " no total)") +
+             ". Pela conta sem arredondar, seriam " + _br(round(teorico, 2), 2) + " por evento. " + (aplicado.get("texto") or "") +
+             " É uma conta condicional às hipóteses do cenário, não um plano.")
+    return {**comum, "estado": "calculado", "falta": falta, "por_evento": por_evento, "total": por_evento * len(eventos),
+            "teorico_por_evento": teorico, "resultado": aplicado["final"]["total"] if aplicado["estado"] == "calculado" else None,
+            "intervencao": {"tipo": "acrescimo", "quantidade": por_evento, "em": _data(eventos[0]),
+                            **({"ate": _data(eventos[-1]), "a_cada_meses": calendario["a_cada_meses"]} if len(eventos) > 1 else {}),
+                            "permanencia_pct_ao_ano": permanencia},
+            "texto": texto}
+
+
+def _hipotetico(territorio: Territorio, resultado: dict) -> dict | None:
+    """A única leitura do Detector que vale para uma trajetória hipotética (seção 3.3): a dependência de poucos médicos do valor
+    simulado, rotulada como hipótese derivada da simulação. Os testes de evento observado (perda, patamar, declínio) nunca se
+    aplicam a curvas projetadas. Só para municípios, como a escala estrutural do Detector."""
+    if territorio.tipo != "municipio" or resultado["estado"] != "calculado":
+        return None
+    limites = detector.PADRAO["estrutural"]
+
+    def classe(valor: float):
+        return detector._classe_estrutural(_inteiro_da_tela(valor), limites)
+    final = resultado["final"]
+    inteiro = _inteiro_da_tela(final["total"])
+    saida = {"rotulo": "hipótese derivada da simulação", "data": final["data"], "valor": final["total"], "inteiro": inteiro,
+             "classe": classe(final["total"]), "impacto_pct": (100.0 / inteiro) if inteiro > 0 else None}
+    if final["faixa"]:
+        saida["na_faixa"] = {"inferior": classe(final["faixa"]["inferior"]), "superior": classe(final["faixa"]["superior"])}
+    return saida
 
 
 def compute(sources, opcoes: dict) -> dict:
@@ -761,13 +1079,14 @@ def compute(sources, opcoes: dict) -> dict:
     provedor de IA."""
     if not isinstance(opcoes, dict):
         raise ValueError("Pedido do Simulador inválido.")
-    desconhecidas = set(opcoes) - {"base", "estados_unidade", "conjuntos", "janela", "horizonte", "cenarios"}
+    desconhecidas = set(opcoes) - {"base", "estados_unidade", "conjuntos", "brasil", "janela", "horizonte", "cenarios", "referencias",
+                                   "comparacao"}
     if desconhecidas:
         raise ValueError("Opção desconhecida no pedido do Simulador: " + ", ".join(sorted(desconhecidas)) + ".")
     base = series_brasil.base_de(sources)
     cal = detector.calibrar(base)
     retro = retroprojetar(base)
-    territorios = series_brasil.selecao(base, opcoes)
+    territorios = series_brasil.selecao(base, opcoes, com_brasil=True)
     if len(territorios) > MAX_TERRITORIOS:
         raise ValueError("O Simulador compara até " + str(MAX_TERRITORIOS) + " territórios de cada vez (a seleção tem " +
                          str(len(territorios)) + "): reduza a seleção local do Simulador.")
@@ -777,6 +1096,31 @@ def compute(sources, opcoes: dict) -> dict:
     if horizonte <= int(base.meses[fim]):
         raise ValueError("A data final precisa ser depois do fim da janela (" + detector.curta(base.periodos[fim]) + ").")
     cenarios = _cenarios(opcoes.get("cenarios"), base, {territorio.id for territorio in territorios})
+    referencias = _referencias(opcoes.get("referencias"), base, territorios)
+    comparacao = opcoes.get("comparacao") or {}
+    metrica = comparacao.get("metrica", "quantidade") if isinstance(comparacao, dict) else None
+    if metrica not in METRICAS:
+        raise ValueError("Comparação inválida: a métrica é quantidade ou taxa.")
+    curvas = {ref["id"]: {**_curva_da_referencia(base, cal, ref, inicio, fim), "rotulo": ref["rotulo"]} for ref in referencias}
+    populacoes = {}
+    if metrica == "taxa":   # hipótese explícita: a população do último registro vale em todas as datas simuladas
+        for alvo in territorios + [ref["territorio"] for ref in referencias if ref["territorio"] is not None]:
+            valor = comparativos.populacao_do_territorio(base, alvo)[-1]
+            populacoes[alvo.id] = float(valor) if valor == valor and valor > 0 else None
+    varios = len(territorios) > 1
+
+    def do_cenario(territorio: Territorio, cenario: dict) -> dict:
+        resultado = _simular(base, cal, retro, territorio, cenario, inicio, fim, horizonte, varios)
+        if referencias:
+            resultado["comparacoes"] = [_comparar(base, territorio, resultado, ref, curvas[ref["id"]], metrica, populacoes)
+                                        for ref in referencias]
+        planejado = _planejar(base, cal, retro, territorio, cenario, resultado, inicio, fim, horizonte, varios, curvas)
+        if planejado is not None:
+            resultado["planejamento"] = planejado
+        hipotetico = _hipotetico(territorio, resultado)
+        if hipotetico is not None:
+            resultado["hipotetico"] = hipotetico
+        return resultado
     saida = []
     for territorio in territorios:
         indices, _ = _usaveis(base, cal, territorio, inicio, fim)
@@ -788,8 +1132,7 @@ def compute(sources, opcoes: dict) -> dict:
             "observado": _observado(base, cal, territorio),
             "historico": _estatisticas(base, territorio.serie, indices),
             "lacunas": [base.periodos[i] for i in range(inicio, fim + 1) if territorio.serie[i] != territorio.serie[i]],
-            "cenarios": [_simular(base, cal, retro, territorio, cenario, inicio, fim, horizonte, len(territorios) > 1)
-                         for cenario in cenarios],
+            "cenarios": [do_cenario(territorio, cenario) for cenario in cenarios],
         })
     return {"versao": VERSION,
             "fonte": {"base": "Brasil", "categoria": "MEDICINA", "versao": base.versao, "primeira": base.periodos[0],
@@ -800,5 +1143,13 @@ def compute(sources, opcoes: dict) -> dict:
             "horizonte": {"data": _data(horizonte), "anos_desde_o_ultimo_registro": (horizonte - ultimo) / 12.0},
             "metodos": [{"chave": chave, "rotulo": rotulo} for chave, rotulo in NOMES_DOS_METODOS.items()],
             "territorios": saida, "retroprojecao": _retro_da_resposta(retro),
-            "notas": _notas(base, {territorio.nivel for territorio in territorios}),
+            "referencias": [{"id": ref["id"], "rotulo": ref["rotulo"], "tipo": ref["tipo"],
+                             "territorio": None if ref["territorio"] is None else ref["territorio"].id,
+                             "unidade": None if ref["territorio"] is None else ref["territorio"].unidade,
+                             "estado": curvas[ref["id"]]["estado"], "descricao": curvas[ref["id"]].get("descricao"),
+                             "motivo": curvas[ref["id"]].get("motivo")} for ref in referencias],
+            "comparacao": {"metrica": metrica, "hipotese_de_populacao": ("constante: a população de " + detector.curta(base.periodos[-1]) +
+                                                                          " em todas as datas simuladas") if metrica == "taxa" else None},
+            "notas": _notas(base, {territorio.nivel for territorio in territorios}, bool(referencias),
+                            any(cenario["planejamento"] for cenario in cenarios)),
             "limitacoes": ["CENARIO_HIPOTETICO", "PADRAO_PROVISORIO", "FAIXA_SO_DO_METODO_PADRAO"]}

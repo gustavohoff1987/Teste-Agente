@@ -1685,6 +1685,8 @@ SUGESTOES = {
     "pessoas": "As análises usam só contagens agregadas por território.",
     "fontes_externas": "As análises usam só os dados em uso nesta sessão.",
 }
+INDICA_O_SIMULADOR = ("Para montar cenários hipotéticos, que não são previsão, há o Simulador de Cenários, na linha Ferramentas "
+                      "da área de análise: nele, você escolhe o método, as hipóteses e a data final.")
 DESCRICAO_EXC = {"politica": ("DOC:EXC-02", "recomendação de políticas ou intervenções"),
                  "correlacao": ("DOC:EXC-05", "associação, correlação ou agrupamento automático dos territórios"),
                  "projecao": (None, "projeção"),
@@ -1753,6 +1755,10 @@ def _governanca_executa(ato: dict, amb: Ambiente) -> dict:
             doc(id_doc)
         texto = ("Isso fica fora do que faço: “" + doc("DOC:TPL-06", "mensagem", "ADM-FE") + "” (" + descricao + "). " +
                  SUGESTOES[tipo])
+        if tipo == "projecao" and amb.fonte.get("tipo", "brasil") == "brasil":
+            # A conversa continua recusando previsões livres (AT-04) e só indica o caminho (comando V22, etapa 5): o Simulador de
+            # Cenários, a ferramenta determinística da base do Brasil, monta cenários hipotéticos, que não são previsão.
+            texto += " " + INDICA_O_SIMULADOR
     elif tipo == "ignorar_parametro":
         doc("DOC:INV-06")
         competencia = (body or {}).get("competencia")

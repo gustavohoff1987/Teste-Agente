@@ -9,8 +9,9 @@ async function source(name) {
 }
 // Simulador de Cenários Territoriais (comando V22, etapa 4): o modelo puro da tela (simuladorModel.ts) — a seleção local (cópia da
 // seleção principal, editável só no Simulador), a configuração dos cenários, o pedido a POST /api/simulador (com a persistência
-// como referência), a leitura da resposta, os textos da tabela e as exportações (JSON do cenário e CSV dos resultados). Nada é
-// projetado na tela: os valores vêm do motor.
+// como referência), a leitura da resposta, os textos da tabela e as exportações (JSON do cenário e CSV dos resultados). Da etapa 5:
+// o Brasil na seleção local, as referências de comparação e a métrica, o planejamento inverso, a hipótese derivada da simulação,
+// o CSV das comparações e a configuração com que o Detector abre o Simulador. Nada é projetado na tela: os valores vêm do motor.
 const S = await source('simuladorModel');
 const COMPETENCIAS = Array.from({length: 22}, (_, k) => String(2014 + Math.floor(k / 2)) + (k % 2 ? '06' : '01'));
 const cenario = (extra = {}) => ({...S.novoCenario('c1', 'Cenário 1'), ...extra});
@@ -258,13 +259,223 @@ test('CSV dos resultados: uma linha por território, cenário e data, com a rast
   assert.equal(linhas.length, 7, 'o cabeçalho, 2 datas do cenário calculado, 3 cenários sem valor e o fim');
   assert.equal(linhas[0], 'Identificador;Território;Tipo;Unidade de contagem;Cenário;Método pedido;Método usado;Estado do cenário;Origem do cenário;' +
     'Médicos na origem;Janela: início;Janela: fim;Data;Natureza;Observado;Base do cenário;Intervenção;Total do cenário;Faixa de 80%: inferior;' +
-    'Faixa de 80%: superior;Avisos;Texto do cenário;Versão do método;Versão da base');
+    'Faixa de 80%: superior;Avisos;Texto do cenário;Planejamento inverso: meta;Planejamento inverso: médicos por evento;Planejamento inverso: eventos;' +
+    'Hipótese da simulação: intensidade estrutural;Versão do método;Versão da base');
   assert.equal(linhas[2], 'code:130260;MANAUS (AM);municipio;médicos registrados no município;Com 4 médicos;padrao;M0d;calculado;202406;51;202106;202406;202606;' +
     'cenário hipotético;;54,5189;4;58,5189;48,16;74,87;HORIZONTE_CAUTELA;"Cenário hipotético, não é previsão: …; ""MANAUS (AM)"" teria 59 médicos em jun/2026. ' +
-    'Base: registros até jun/2024.";SIMULADOR-CENARIOS/V2.2/1;abc', 'a precisão integral, com vírgula decimal, e as aspas dobradas');
+    'Base: registros até jun/2024.";;;;;SIMULADOR-CENARIOS/V2.2/1;abc', 'a precisão integral, com vírgula decimal, e as aspas dobradas');
   assert.equal(linhas[3], 'code:130260;MANAUS (AM);municipio;médicos registrados no município;Persistência (referência);M0;M0;' +
-    'retirada_acima_do_estoque: Em jan/2025, as retiradas passam…;202406;51;;;;;;;;;;;;;SIMULADOR-CENARIOS/V2.2/1;abc', 'sem valor inventado');
+    'retirada_acima_do_estoque: Em jan/2025, as retiradas passam…;202406;51;;;;;;;;;;;;;;;;;SIMULADOR-CENARIOS/V2.2/1;abc', 'sem valor inventado');
   assert.ok(linhas[4].includes(';nao_aplicavel: A taxa composta exige…;') && linhas[5].includes(';nao_calculavel: Série em zero.;'));
-  assert.ok(linhas.slice(0, 6).every(linha => linha.split(';').length >= 24));
+  assert.ok(linhas.slice(0, 6).every(linha => linha.split(';').length >= 28));
   assert.equal(linhas[6], '');
+});
+
+// ------------------------------------------------------------------------------------------------ etapa 5 do comando V22
+test('o Brasil entra só na seleção local do Simulador, pela contagem nacional', () => {
+  const local = {municipios: ['code:130260'], estados: ['35'], conjuntos: [{id: 'g1', rotulo: 'Par', membros: ['code:110001', 'code:110002'], versao: 2}]};
+  const comBrasil = S.comOBrasil(local, true);
+  assert.deepEqual(comBrasil, {...local, brasil: true});
+  assert.deepEqual([S.ID_DO_BRASIL, S.totalDaSelecaoLocal(local), S.totalDaSelecaoLocal(comBrasil)], ['br', 3, 4]);
+  assert.deepEqual(S.selecaoLocalParaOPedido(comBrasil).brasil, true);
+  assert.deepEqual(S.selecaoLocalParaOPedido(S.comOBrasil(S.SELECAO_LOCAL_VAZIA, true)), {brasil: true}, 'só o Brasil também é uma seleção');
+  assert.equal('brasil' in S.selecaoLocalParaOPedido(local), false);
+  assert.deepEqual([S.comOBrasil(comBrasil, false), S.tirarTerritorio(comBrasil, 'br')], [local, local]);
+  assert.deepEqual(S.tirarTerritorio(comBrasil, 'uf:35'), {municipios: ['code:130260'], estados: [], conjuntos: local.conjuntos, brasil: true});
+  assert.equal(S.pendenciaDoPedido({...S.configInicial(S.comOBrasil(S.SELECAO_LOCAL_VAZIA, true), '202406')}), null);
+  // A seleção principal não tem o Brasil como unidade: a cópia dela nunca o traz.
+  assert.equal('brasil' in S.copiarSelecao({base: {municipios: {todos: true, estados: [], ids: []}}}, {todasAsUnidades: ['code:1'], unidadesDoGrupo: () => []}), false);
+});
+
+const R1 = S.novaReferencia([], {alvo: 'code:420540', rotulo: 'FLORIANOPOLIS (SC)', tipo: 'dinamica'});
+const R2 = S.novaReferencia([R1], {alvo: 'br', rotulo: 'Brasil', tipo: 'fixa'});
+const R3 = S.novaReferencia([R1, R2], {alvo: 'valor', rotulo: 'Valor informado por você', tipo: 'valor', valor: '6.500'});
+const R4 = S.novaReferencia([R1, R3], {alvo: 'g1', rotulo: 'Par (conjunto)', tipo: 'fixa'});
+
+test('referências de comparação: fixas, dinâmicas ou um valor, até cinco, com a métrica declarada', () => {
+  assert.deepEqual([R1, R2, R3, R4], [{id: 'r1', alvo: 'code:420540', rotulo: 'FLORIANOPOLIS (SC)', tipo: 'dinamica', valor: ''},
+    {id: 'r2', alvo: 'br', rotulo: 'Brasil', tipo: 'fixa', valor: ''}, {id: 'r3', alvo: 'valor', rotulo: 'Valor informado por você', tipo: 'valor', valor: '6.500'},
+    {id: 'r4', alvo: 'g1', rotulo: 'Par (conjunto)', tipo: 'fixa', valor: ''}], 'o identificador livre seguinte');
+  assert.deepEqual([S.MAX_REFERENCIAS, S.novaReferencia([R1, R2, R3, R4, R1], {alvo: 'uf:35', rotulo: 'x', tipo: 'fixa'})], [5, null]);
+  // A referência a um conjunto vale enquanto ele está na seleção local; as demais não dependem dela.
+  const local = {municipios: [], estados: [], conjuntos: [{id: 'g1', rotulo: 'Par', membros: ['code:1', 'code:2']}]};
+  assert.deepEqual(S.referenciasValidas([R1, R2, R3, R4], local).map(ref => ref.id), ['r1', 'r2', 'r3', 'r4']);
+  assert.deepEqual(S.referenciasValidas([R1, R2, R3, R4], S.SELECAO_LOCAL_VAZIA).map(ref => ref.id), ['r1', 'r2', 'r3']);
+  assert.deepEqual([S.referenciasValidas(undefined, local), S.referenciasValidas([{...R4, alvo: 'uf:35'}], S.SELECAO_LOCAL_VAZIA).length], [[], 1]);
+  const inicial = S.configInicial({municipios: ['code:130260'], estados: [], conjuntos: []}, '202406');
+  // O pedido: o território de cada referência, ou o valor da pessoa (com vírgula e ponto de milhar); a métrica só vai quando é a taxa.
+  const pedido = S.pedidoDoSimulador({...inicial, local: S.comOBrasil(inicial.local, true), referencias: [R1, R2, R3], metrica: 'taxa'});
+  assert.deepEqual(pedido.referencias, [{id: 'r1', tipo: 'dinamica', territorio: 'code:420540'}, {id: 'r2', tipo: 'fixa', territorio: 'br'},
+    {id: 'r3', tipo: 'valor', valor: 6500, rotulo: 'Valor informado por você'}]);
+  assert.deepEqual([pedido.comparacao, pedido.brasil], [{metrica: 'taxa'}, true]);
+  assert.equal('comparacao' in S.pedidoDoSimulador({...inicial, referencias: [R1]}), false, 'por quantidade, a métrica padrão do motor');
+  assert.equal('comparacao' in S.pedidoDoSimulador({...inicial, metrica: 'taxa'}), false, 'sem referências, não há comparação a pedir');
+  assert.deepEqual([S.pendenciaDoPedido({...inicial, referencias: [{...R3, valor: ''}]}), S.pendenciaDoPedido({...inicial, referencias: [{...R3, valor: '-1'}]}),
+    S.pendenciaDoPedido({...inicial, referencias: [R3]})], ['Informe o valor da referência “Valor informado por você”.',
+    'Informe o valor da referência “Valor informado por você”.', null]);
+});
+
+test('planejamento inverso: a meta é uma hipótese da pessoa, e o pedido leva só a meta e o calendário', () => {
+  const inicial = S.configInicial({municipios: ['code:130260'], estados: [], conjuntos: []}, '202406');
+  assert.deepEqual(S.novoPlano('202506'), {meta: 'valor', valor: '', referencia: '', em: '202506', periodica: false, ate: '202506', aCadaMeses: '12', permanencia: '100'});
+  const comPlano = plano => ({...inicial, referencias: [R1, R2, R3], cenarios: [{...inicial.cenarios[0], planejamento: {...S.novoPlano('202506'), ...plano}}]});
+  assert.deepEqual([comPlano({}), comPlano({valor: '20'}), comPlano({meta: 'patamar'}), comPlano({meta: 'patamar', valor: 'x'}), comPlano({meta: 'referencia'}),
+    comPlano({meta: 'referencia', referencia: 'r1'}), comPlano({valor: '20', em: ''}), comPlano({valor: '20', periodica: true, ate: '202501'})].map(S.pendenciaDoPedido), [
+    'Informe a meta do planejamento inverso, em médicos.', null, null, 'Informe a meta do planejamento inverso, em médicos.',
+    'Escolha a referência que serve de meta no planejamento inverso.', null, 'Informe a data dos acréscimos do planejamento inverso.',
+    'No planejamento inverso, a data final dos acréscimos vem depois da inicial.']);
+  const [cenario, persistencia] = S.pedidoDoSimulador(comPlano({meta: 'referencia', referencia: 'r1', periodica: true, ate: '202806', permanencia: '95'})).cenarios;
+  assert.deepEqual(cenario.planejamento, {meta: {tipo: 'referencia', referencia: 'r1'}, em: '202506', ate: '202806', a_cada_meses: 12, permanencia_pct_ao_ano: 95});
+  assert.deepEqual(persistencia, {id: 'm0', nome: 'Persistência (referência)', metodo: 'M0'}, 'a persistência de comparação continua no pedido');
+  // O patamar anterior: em branco, o motor usa o de cada território; com valor, o que a pessoa informou.
+  assert.deepEqual(S.pedidoDoSimulador(comPlano({meta: 'patamar'})).cenarios[0].planejamento, {meta: {tipo: 'patamar'}, em: '202506'});
+  assert.deepEqual(S.pedidoDoSimulador(comPlano({meta: 'patamar', valor: '1,8'})).cenarios[0].planejamento, {meta: {tipo: 'patamar', valor: 1.8}, em: '202506'});
+  // O cenário que é a persistência, mas com planejamento, não dispensa a persistência de comparação.
+  assert.deepEqual(S.pedidoDoSimulador({...inicial, cenarios: [{...inicial.cenarios[0], metodo: 'M0', planejamento: {...S.novoPlano('202506'), valor: '20'}}]})
+    .cenarios.map(item => item.id), ['c1', 'm0']);
+  // Nenhuma quantidade vai no pedido: quem calcula o número de médicos é o motor.
+  assert.equal(/quantidade|por_evento/.test(JSON.stringify(S.pedidoDoSimulador(comPlano({valor: '20'})).cenarios[0].planejamento)), false);
+});
+
+test('"Abrir no Simulador" e "Simular recuperação": o Detector leva o território e o contexto, e a meta é hipotética e editável', () => {
+  const principal = {base: {municipios: {todos: false, estados: ['13'], ids: []}}, estados_unidade: ['15'],
+    conjuntos: [{id: 'c1', rotulo: 'Par', membros: ['code:1', 'code:2'], versao: 3}]};
+  assert.deepEqual([{id: 'code:130260', tipo: 'municipio'}, {id: 'uf:15', tipo: 'estado'}, {id: 'c1', tipo: 'conjunto'}, {id: 'c9', tipo: 'conjunto'},
+    {id: 'br', tipo: 'brasil'}].map(alvo => S.selecaoDoDetector(alvo, principal)), [{municipios: ['code:130260'], estados: [], conjuntos: []},
+    {municipios: [], estados: ['15'], conjuntos: []}, {municipios: [], estados: [], conjuntos: [{id: 'c1', rotulo: 'Par', membros: ['code:1', 'code:2'], versao: 3}]},
+    null, null], 'o conjunto vai com a composição e a versão; o que não está mais na seleção principal não vai');
+  assert.equal(S.selecaoDoDetector({id: 'c1', tipo: 'conjunto'}, null), null);
+  const recuperacao = S.configDoDetector({local: {municipios: ['code:170025'], estados: [], conjuntos: []}, rotulo: 'ABREULANDIA (TO)',
+    sinais: ['Poucos médicos (escala estrutural)'], fim: '202406', exploratorio: true}, '202406', null, 1.75);
+  assert.deepEqual(recuperacao, {local: {municipios: ['code:170025'], estados: [], conjuntos: []}, janela: null, horizonte: '202606', modo: 'simples', acompanha: false,
+    doDetector: {rotulo: 'ABREULANDIA (TO)', fim: '202406', sinais: ['Poucos médicos (escala estrutural)'], recuperacao: true, exploratorio: true},
+    cenarios: [{id: 'c1', nome: 'Recuperação do patamar', metodo: 'padrao', taxaManual: '', janela: null, intervencoes: [],
+      planejamento: {meta: 'patamar', valor: '1,75', referencia: '', em: '202506', periodica: false, ate: '202506', aCadaMeses: '12', permanencia: '100'}}]},
+    'a meta leva o patamar com a precisão do Detector');
+  assert.equal(S.pendenciaDoPedido(recuperacao), null);
+  assert.deepEqual(S.pedidoDoSimulador(recuperacao).cenarios[0].planejamento, {meta: {tipo: 'patamar', valor: 1.75}, em: '202506'});
+  // "Abrir no Simulador": sem planejamento, com a janela que a pessoa escolheu no Detector; a seleção não acompanha a principal.
+  const aberto = S.configDoDetector({local: {municipios: [], estados: ['15'], conjuntos: []}, rotulo: 'Pará (PA)', sinais: [], fim: '202106'}, '202406',
+    {inicio: '201801', fim: '202106'}, null);
+  assert.deepEqual([aberto.janela, aberto.acompanha, aberto.doDetector, 'planejamento' in aberto.cenarios[0], aberto.cenarios[0].nome],
+    [{inicio: '201801', fim: '202106'}, false, {rotulo: 'Pará (PA)', fim: '202106', sinais: [], recuperacao: false}, false, 'Cenário 1']);
+  // O contexto do Detector não vai ao motor nem ao cenário exportado: é só o aviso da tela.
+  assert.equal(JSON.stringify(S.pedidoDoSimulador(recuperacao)).includes('ABREULANDIA'), false);
+  assert.equal('doDetector' in JSON.parse(S.exportarCenario(recuperacao, {versaoDoMetodo: '', versaoDaBase: '', ultimoRegistro: '', quando: ''})), false);
+});
+
+const BRUTO_5 = {versao: 'SIMULADOR-CENARIOS/V2.2/2', fonte: {base: 'Brasil', categoria: 'MEDICINA', versao: 'abc', primeira: '201401', ultima: '202406'},
+  competencias: ['202406'], ultimo_registro: '202406', janela: {inicio: '202106', fim: '202406', registros: 7, anos: 3, padrao: true},
+  horizonte: {data: '202606', anos_desde_o_ultimo_registro: 2},
+  territorios: [{id: 'code:130340', tipo: 'municipio', nivel: 'municipios', rotulo: 'PARINTINS (AM)', unidade: 'médicos registrados no município', observado: [],
+    historico: {}, lacunas: [], cenarios: [
+      {id: 'c1', nome: 'Cenário 1', estado: 'calculado', metodo: {pedido: 'M0', usado: 'M0'}, parametros: {n0: 12, origem: '202406', janela: {inicio: '202106', fim: '202406'}},
+        avisos: [], trajetoria: [{data: '202606', anos: 2, base: 12, intervencao: 0, total: 12, retroprojecao: false}],
+        final: {data: '202606', base: 12, intervencao: 0, total: 12}, texto: 'Cenário hipotético, não é previsão: …',
+        comparacoes: [{id: 'r1', rotulo: 'BELEM (PA)', tipo: 'fixa', metrica: 'quantidade', avisos: ['A referência contém o território.', 3], estado: 'calculada',
+          descricao: 'fixa: o valor de jun/2024 mantido', metodo: 'M0',
+          pontos: [{data: '202406', territorio: 12, referencia: 50, diferenca: 38, razao: 0.24, indice: 24}, {data: 'x'},
+            {data: '202606', territorio: 12, referencia: 50, diferenca: 38, razao: 0.24, indice: 24}],
+          final: {data: '202606', territorio: 12, referencia: 50, diferenca: 38, razao: 0.24, indice: 24}, alcance: {estado: 'nao_alcanca', data: null}, texto: 'Em jun/2026, …'},
+        {id: 'r2', rotulo: 'Meta', tipo: 'valor', metrica: 'quantidade', avisos: [], estado: 'nao_calculavel', motivo: 'A referência não tem valor nas datas do cenário.'}],
+        planejamento: {meta: {tipo: 'valor', valor: 21, rotulo: 'Meta hipotética: 21 médicos em jun/2026'}, base_na_data_final: 12, outras_intervencoes: 0, sem_o_plano: 12,
+          eventos: 2, datas: ['202501', '202601'], permanencia_pct_ao_ano: 100, estado: 'calculado', falta: 9, por_evento: 5, total: 10, teorico_por_evento: 4.5, resultado: 22,
+          intervencao: {tipo: 'acrescimo', quantidade: 5, em: '202501', ate: '202601', a_cada_meses: 12, permanencia_pct_ao_ano: 97.5},
+          texto: 'Meta hipotética: 21 médicos em jun/2026. …'},
+        hipotetico: {rotulo: 'hipótese derivada da simulação', data: '202606', valor: 12, inteiro: 12, classe: null, impacto_pct: 8.333333333333334}},
+      {id: 'm0', nome: 'Persistência (referência)', estado: 'calculado', metodo: {pedido: 'M0', usado: 'M0'}, parametros: {n0: 12, origem: '202406'}, avisos: [], trajetoria: [],
+        final: {data: '202606', base: 12, intervencao: 0, total: 12},
+        planejamento: {estado: 'nao_alcancavel', motivo: 'Com permanência zero…', meta: {tipo: 'valor', valor: 20, rotulo: 'Meta hipotética: 20 médicos em jun/2026'},
+          eventos: 1, datas: ['202506']}}]}],
+  retroprojecao: {}, notas: [], limitacoes: [],
+  referencias: [{id: 'r1', rotulo: 'BELEM (PA)', tipo: 'fixa', territorio: 'code:150140', unidade: 'médicos registrados no município', estado: 'calculada',
+    descricao: 'fixa: o valor de jun/2024 mantido', motivo: null}],
+  comparacao: {metrica: 'quantidade', hipotese_de_populacao: null}};
+
+test('as comparações, o planejamento inverso e a hipótese derivada da simulação vêm do motor', () => {
+  const lida = S.normalizarSimulador(BRUTO_5);
+  const [c1, m0] = lida.territorios[0].cenarios;
+  const ponto = {territorio: 12, referencia: 50, diferenca: 38, razao: 0.24, indice: 24};
+  assert.deepEqual(c1.comparacoes[0], {id: 'r1', rotulo: 'BELEM (PA)', tipo: 'fixa', metrica: 'quantidade', estado: 'calculada', motivo: null,
+    avisos: ['A referência contém o território.'], descricao: 'fixa: o valor de jun/2024 mantido', pontos: [{data: '202406', ...ponto}, {data: '202606', ...ponto}],
+    final: {data: '202606', ...ponto}, alcance: {estado: 'nao_alcanca', data: null}, texto: 'Em jun/2026, …'}, 'o ponto sem valor fica de fora; nenhuma data de alcance é inventada');
+  assert.deepEqual(c1.comparacoes[1], {id: 'r2', rotulo: 'Meta', tipo: 'valor', metrica: 'quantidade', estado: 'nao_calculavel',
+    motivo: 'A referência não tem valor nas datas do cenário.', avisos: [], descricao: null, pontos: [], final: null, alcance: null, texto: null});
+  assert.deepEqual(c1.planejamento, {estado: 'calculado', motivo: null, meta: {tipo: 'valor', valor: 21, rotulo: 'Meta hipotética: 21 médicos em jun/2026'}, semOPlano: 12,
+    eventos: 2, datas: ['202501', '202601'], porEvento: 5, total: 10, teoricoPorEvento: 4.5, resultado: 22, texto: 'Meta hipotética: 21 médicos em jun/2026. …',
+    intervencao: {tipo: 'acrescimo', quantidade: 5, em: '202501', ate: '202601', aCadaMeses: 12, permanencia: 97.5}});
+  assert.deepEqual([m0.comparacoes, m0.planejamento.estado, m0.planejamento.porEvento, m0.planejamento.intervencao, m0.planejamento.texto, m0.hipotetico],
+    [[], 'nao_alcancavel', null, null, null, null], 'sem resultado, nenhum número de médicos aparece');
+  assert.deepEqual(c1.hipotetico, {rotulo: 'hipótese derivada da simulação', data: '202606', valor: 12, inteiro: 12, classe: null, impactoPct: 8.333333333333334, naFaixa: null});
+  assert.deepEqual([lida.referencias, lida.comparacao], [[{id: 'r1', rotulo: 'BELEM (PA)', tipo: 'fixa', territorio: 'code:150140',
+    unidade: 'médicos registrados no município', estado: 'calculada', descricao: 'fixa: o valor de jun/2024 mantido', motivo: null}],
+    {metrica: 'quantidade', hipoteseDePopulacao: null}]);
+  const antiga = S.normalizarSimulador(BRUTO).territorios[0].cenarios[0];   // uma resposta sem os campos da etapa 5
+  assert.deepEqual([antiga.comparacoes, antiga.planejamento, antiga.hipotetico, S.normalizarSimulador(null).referencias, S.normalizarSimulador(null).comparacao],
+    [[], null, null, [], {metrica: 'quantidade', hipoteseDePopulacao: null}]);
+  // "Usar como intervenção deste cenário": por comando da pessoa, o acréscimo calculado entra nas intervenções, e o planejamento sai.
+  const daTela = {...S.novoCenario('c1', 'Cenário 1'), planejamento: S.novoPlano('202501')};
+  assert.deepEqual(S.comOPlanoComoIntervencao(daTela, c1.planejamento), {id: 'c1', nome: 'Cenário 1', metodo: 'padrao', taxaManual: '', janela: null,
+    intervencoes: [{tipo: 'acrescimo', quantidade: '5', em: '202501', periodica: true, ate: '202601', aCadaMeses: '12', permanencia: '97,5'}]});
+  assert.equal(S.comOPlanoComoIntervencao(daTela, m0.planejamento), daTela, 'sem resultado calculado, nada muda');
+  assert.equal(S.comOPlanoComoIntervencao(daTela, null), daTela);
+  const cheio = {...daTela, intervencoes: Array.from({length: S.MAX_INTERVENCOES}, () => S.novaIntervencao('202501'))};
+  assert.equal(S.comOPlanoComoIntervencao(cheio, c1.planejamento), cheio, 'no limite de intervenções, nada muda');
+});
+
+test('a hipótese derivada da simulação é rotulada pelo motor e só aparece quando é pertinente', () => {
+  const h = extra => ({rotulo: 'hipótese derivada da simulação', data: '202606', valor: 1.19, inteiro: 1, classe: 'critica', impactoPct: 100,
+    naFaixa: {inferior: 'critica', superior: 'alta'}, ...extra});
+  assert.equal(S.textoDaHipotese(h()), 'Hipótese derivada da simulação (não é um sinal observado): com 1 médico em jun/2026, a dependência de poucos médicos teria ' +
+    'intensidade crítica (a saída de 1 tiraria 100,0%). Nos limites da faixa de 80%: intensidade crítica no inferior e intensidade alta no superior. A intensidade usa ' +
+    'os limites provisórios do Detector; os sinais de perda, de patamar e de declínio valem só para registros reais.');
+  assert.equal(S.textoDaHipotese(h({inteiro: 12, valor: 12, classe: null, impactoPct: 8.3333, naFaixa: null})), 'Hipótese derivada da simulação (não é um sinal ' +
+    'observado): com 12 médicos em jun/2026, não haveria sinal de dependência de poucos médicos por esta escala (a saída de 1 tiraria 8,3%). A intensidade usa os ' +
+    'limites provisórios do Detector; os sinais de perda, de patamar e de declínio valem só para registros reais.');
+  assert.ok(S.textoDaHipotese(h({inteiro: 6018, valor: 6017.98, classe: null, impactoPct: 0.0166, naFaixa: {inferior: null, superior: null}}))
+    .startsWith('Hipótese derivada da simulação (não é um sinal observado): com 6.018 médicos em jun/2026, não haveria sinal de dependência de poucos médicos por esta escala. A'));
+  assert.ok(S.textoDaHipotese(h({inteiro: 4, valor: 4, classe: 'atencao', impactoPct: 25, naFaixa: {inferior: 'alta', superior: null}}))
+    .includes('teria intensidade atenção (a saída de 1 tiraria 25,0%). Nos limites da faixa de 80%: intensidade alta no inferior e sem sinal no superior.'));
+  // O painel fica fora da tela quando a escala não tem o que dizer (um território grande, sem intensidade nem nos limites da faixa).
+  assert.deepEqual([null, h(), h({inteiro: 12, classe: null, naFaixa: null}), h({inteiro: 6018, classe: null, naFaixa: {inferior: null, superior: null}}),
+    h({inteiro: 30, classe: null, naFaixa: {inferior: 'atencao', superior: null}}), h({inteiro: 21, classe: null, naFaixa: null})].map(S.hipotesePertinente),
+    [false, true, true, false, true, false]);
+});
+
+test('CSV das comparações e o cenário exportado levam as referências, a métrica e o planejamento', () => {
+  const lida = S.normalizarSimulador({...BRUTO_5, comparacao: {metrica: 'taxa', hipotese_de_populacao: 'constante: a população de jun/2024 em todas as datas simuladas'}});
+  const csv = S.csvDasComparacoes(lida);
+  assert.equal(csv.charCodeAt(0), 0xFEFF);
+  const linhas = csv.slice(1).split('\r\n');
+  assert.equal(linhas.length, 5, 'o cabeçalho, as 2 datas da referência calculada, a referência sem valor e o fim');
+  assert.equal(linhas[0], 'Identificador;Território;Cenário;Referência;Tipo da referência;O que é a referência;Métrica;Data;Valor do território;Valor da referência;' +
+    'Diferença (referência − território);Razão (território ÷ referência);Índice (100 = referência);Alcance no horizonte simulado;Data do alcance;Avisos;' +
+    'Hipótese de população;Versão do método;Versão da base');
+  assert.equal(linhas[2], 'code:130340;PARINTINS (AM);Cenário 1;BELEM (PA);fixa;fixa: o valor de jun/2024 mantido;quantidade;202606;12;50;38;0,24;24;' +
+    'não alcança no horizonte simulado;;A referência contém o território.;constante: a população de jun/2024 em todas as datas simuladas;SIMULADOR-CENARIOS/V2.2/2;abc');
+  assert.equal(linhas[3], 'code:130340;PARINTINS (AM);Cenário 1;Meta;valor;A referência não tem valor nas datas do cenário.;quantidade;;;;;;;;;;' +
+    'constante: a população de jun/2024 em todas as datas simuladas;SIMULADOR-CENARIOS/V2.2/2;abc', 'sem valor inventado');
+  // O CSV dos resultados diz a meta, o número de médicos por evento (ou por que não há) e a intensidade da hipótese derivada.
+  const resultados = S.csvDoSimulador(lida).slice(1).split('\r\n');
+  assert.ok(resultados[1].endsWith(';Meta hipotética: 21 médicos em jun/2026;5;2;sem sinal por esta escala;SIMULADOR-CENARIOS/V2.2/2;abc'));
+  assert.ok(resultados[2].endsWith(';Meta hipotética: 20 médicos em jun/2026;nao_alcancavel;1;;SIMULADOR-CENARIOS/V2.2/2;abc'));
+  // Exportar e importar: o Brasil, as referências (a que aponta para um conjunto que não veio fica de fora), a métrica e o planejamento.
+  const inicial = S.configInicial({municipios: ['code:130260'], estados: [], conjuntos: [{id: 'g1', rotulo: 'Par', membros: ['code:1', 'code:2']}]}, '202406');
+  const cheio = {...inicial, local: S.comOBrasil(inicial.local, true), acompanha: false, metrica: 'taxa', referencias: [R1, R2, R3, R4, {...R4, id: 'r9', alvo: 'g9'}],
+    doDetector: {rotulo: 'x', fim: '202406', sinais: [], recuperacao: true},
+    cenarios: [{...inicial.cenarios[0], planejamento: {...S.novoPlano('202506'), meta: 'referencia', referencia: 'r1'}}]};
+  const exportado = S.exportarCenario(cheio, {versaoDoMetodo: 'v', versaoDaBase: 'abc', ultimoRegistro: '202406', quando: 'q'});
+  assert.deepEqual([JSON.parse(exportado).metrica, JSON.parse(exportado).referencias.length, JSON.parse(exportado).selecao_local.brasil], ['taxa', 5, true]);
+  const {config} = S.importarCenario(exportado);
+  assert.deepEqual(config, {local: cheio.local, janela: null, horizonte: '202606', modo: 'simples', cenarios: cheio.cenarios, referencias: [R1, R2, R3, R4], metrica: 'taxa'});
+  assert.deepEqual(S.pedidoDoSimulador(config), S.pedidoDoSimulador({...cheio, referencias: [R1, R2, R3, R4]}), 'o cenário importado pede o mesmo cálculo');
+  // Um arquivo com partes inválidas: a referência sem alvo sai, o tipo desconhecido vira fixa, e a meta desconhecida vira um valor a informar.
+  const tolerante = S.importarCenario(JSON.stringify({formato: S.FORMATO_DO_CENARIO, horizonte: '202606', selecao_local: {municipios: ['code:1'], brasil: 'sim'},
+    referencias: [{tipo: 'valor'}, {alvo: 'uf:35', tipo: 'x', rotulo: 'SP'}, {tipo: 'fixa'}, 7], metrica: 'outra',
+    cenarios: [{planejamento: {meta: 'x', em: '202506'}}, {planejamento: 'nao'}]})).config;
+  assert.deepEqual([tolerante.local, tolerante.referencias, 'metrica' in tolerante, tolerante.cenarios.map(item => item.planejamento)], [
+    {municipios: ['code:1'], estados: [], conjuntos: []},
+    [{id: 'r1', alvo: 'valor', rotulo: 'Referência', tipo: 'valor', valor: ''}, {id: 'r2', alvo: 'uf:35', rotulo: 'SP', tipo: 'fixa', valor: ''}], false,
+    [{meta: 'valor', valor: '', referencia: '', em: '202506', periodica: false, ate: '202506', aCadaMeses: '12', permanencia: '100'}, undefined]]);
+  assert.equal(S.pendenciaDoPedido(tolerante), 'Informe a meta do planejamento inverso, em médicos.', 'nada é calculado com a meta em branco');
 });

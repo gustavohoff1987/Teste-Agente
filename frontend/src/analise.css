@@ -905,6 +905,7 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-tabela.ferramenta-tabela th, .analise-tabela.ferramenta-tabela td { white-space: normal; vertical-align: top; }
 .analise-tabela.ferramenta-tabela tbody th { color: var(--cor-tinta); font-size: 14px; font-weight: 650; letter-spacing: 0; text-transform: none; }
 .ferramenta-territorio { min-width: 190px; }
+.ferramenta-coluna-larga { min-width: 220px; }
 .ferramenta-territorio .ferramenta-apoio { display: block; margin-left: 21px; font-weight: 400; }
 .ferramenta-abrir { display: inline-flex; align-items: flex-start; gap: 6px; min-height: 28px; color: var(--cor-tinta); font-weight: 650; text-align: left; }
 .ferramenta-abrir:hover { color: var(--cor-destaque-texto); }
@@ -946,6 +947,9 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .ferramenta-paginas { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; }
 .ferramenta-metodo-corpo { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .ferramenta-notas { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; color: var(--cor-texto); font-size: 13px; line-height: 1.5; }
+/* Detector, fenômenos 8 a 12 em gráfico e mapa (comando V22, etapa 5): os componentes do Agente dentro da ferramenta. */
+.ferramenta-visual { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ferramenta-grafico { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin: 0; }
 /* Simulador de Cenários Territoriais (comando V22, etapa 4): as quatro etapas, os cartões dos cenários e o gráfico. */
 .ferramenta-modos, .ferramenta-atalhos { display: flex; flex-wrap: wrap; gap: 6px; }
 .ferramenta-modos .analise-botao-secundario[aria-pressed="true"], .ferramenta-atalhos .analise-botao-secundario[aria-pressed="true"] {
@@ -977,9 +981,23 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .ferramenta-legenda { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; color: var(--cor-texto-2); font-size: 13px; line-height: 1.45; }
 .ferramenta-legenda span { display: inline-flex; align-items: center; gap: 6px; }
 .ferramenta-cenario-resultado { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; }
+/* Etapa 5 do comando V22: as referências de comparação, o planejamento inverso e a hipótese derivada da simulação (painel à parte). */
+.ferramenta-serie-referencia { fill: none; stroke: var(--cor-texto-2); stroke-width: 1.5; stroke-dasharray: 10 3 2 3; }
+.ferramenta-referencias { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ferramenta-referencia { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(170px, 1fr) auto; gap: 8px 10px; align-items: end; padding: 6px 0;
+  border-top: 1px dashed var(--cor-borda-suave); }
+.ferramenta-referencia-nome { align-self: center; color: var(--cor-tinta); font-size: 14px; font-weight: 650; }
+.ferramenta-serie-marca { font-weight: 650; }
+.ferramenta-plano { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--cor-borda-suave); }
+.ferramenta-plano .ferramenta-intervencao { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.ferramenta-plano > .analise-botao-secundario, .ferramenta-plano-resultado > .analise-botao-secundario { align-self: flex-start; }
+.ferramenta-plano-resultado, .ferramenta-hipotese { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border: 1px dashed var(--cor-borda-realce);
+  border-radius: 10px; background: var(--cor-superficie-suave); }
 .ferramenta-texto-do-cenario { margin: 0; color: var(--cor-texto); font-size: 14px; line-height: 1.55; }
 @media (max-width: 699px) {
   .ferramenta-etapas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ferramenta-referencia { grid-template-columns: minmax(0, 1fr) auto; }
+  .ferramenta-referencia-nome { grid-column: 1 / -1; }
   .analise-ferramenta-painel { padding: 12px 10px; }
   .ferramenta-fenomeno-cabeca { grid-template-columns: auto minmax(0, 1fr); }
   .ferramenta-fenomeno-situacao { grid-column: 2; }
