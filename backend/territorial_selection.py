@@ -3,6 +3,7 @@ import re
 
 import pandas as pd
 
+import nomes_anteriores
 from brazil_catalog_profile import curated_profile
 from territorial_hierarchy import describe_hierarchy, distinct_raw
 from request_memo import per_request, per_source
@@ -94,6 +95,10 @@ def territory_catalog(frame, mapping, options):
                 "state_code": code[:2] if state else ""}
         if note:
             item["hierarchy_note"] = note
+        # Base Brasil: o nome anterior de um município (13/11/2026) continua achando-o nas buscas; o que aparece é o atual.
+        former = nomes_anteriores.do_codigo(code, name) if brazil and code else []
+        if former:
+            item["former_names"] = former
         items.append(item)
     return sorted(items, key=lambda item: (item["name"], item["id"]))
 

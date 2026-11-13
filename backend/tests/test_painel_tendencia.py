@@ -283,29 +283,30 @@ def test_real_amazonas_has_no_class_in_the_long_window_by_the_change_of_directio
                           period_filters=ALL22))
     assert top["contagens"] == analysis["metadata"]["tendencia"]["contagens"]
     manaus = by_id(body)["code:130260"]["tendencia"]["velocidades"]
-    assert (sum(v > 0 for v in manaus), sum(v < 0 for v in manaus)) == (17, 4)
-    # Os estados, com as 22: 6 em crescimento e 21 sem classificação, todos por mudança de direção. Até a correção de
-    # 25/10/2026 da linha do 251365 em 2016/6 (com a população de Santarém do Pará), a densidade da PB caía em junho de
-    # 2016 e a série dela ficava sem classificação (eram 5 e 22).
+    assert (sum(v > 0 for v in manaus), sum(v < 0 for v in manaus)) == (18, 3)   # (17, 4) antes da população de 13/11/2026
+    # Os estados, com as 22: 7 em crescimento e 20 sem classificação, todos por mudança de direção (com a população anterior à
+    # troca de 13/11/2026, 6 e 21). Até a correção de 25/10/2026 da linha do 251365 em 2016/6 (com a população de Santarém do
+    # Pará), a densidade da PB caía em junho de 2016 e a série dela ficava sem classificação.
     states_body = ok(post(real, nivel="estados", indicador="densidade", competencia="202406",
                           tendencia={"competencias": ALL22}))
     states = states_body["tendencia"]
-    assert states["contagens"] == {**ZERO, "CRESCIMENTO": 6, "SEM_CLASSIFICACAO": 21}
-    assert states["sem_classificacao_por_motivo"] == {"MUDANCA_DE_DIRECAO": 21, "SERIE_ESTAVEL": 0}
+    assert states["contagens"] == {**ZERO, "CRESCIMENTO": 7, "SEM_CLASSIFICACAO": 20}
+    assert states["sem_classificacao_por_motivo"] == {"MUDANCA_DE_DIRECAO": 20, "SERIE_ESTAVEL": 0}
     assert by_id(states_body)["uf:25"]["tendencia"]["classe"] == "CRESCIMENTO"
 
 
 def test_real_amazonas_has_classes_in_the_last_four_junes_coherent_with_the_speeds(real):
     recent = ok(post(real, **AMAZONAS, tendencia={"competencias": JUNE4}))
     top = recent["tendencia"]
-    assert top["contagens"] == {**ZERO, "CRESCIMENTO": 17, "CRESCIMENTO_ACELERADO": 4, "CRESCIMENTO_DESACELERADO": 1,
-                                "DECLINIO_ACELERADO": 2, "SEM_CLASSIFICACAO": 38}
-    assert (top["sem_classificacao_por_motivo"]["MUDANCA_DE_DIRECAO"], top["desfecho"]) == (38, "RES-VAL")
+    # Com a população do Ministério da Saúde (13/11/2026), que muda todo ano, mais séries de densidade mudam de direção: 12
+    # classificadas e 50 sem classificação (com a população repetida de 2021 a 2023, eram 24 e 38).
+    assert top["contagens"] == {**ZERO, "CRESCIMENTO": 7, "CRESCIMENTO_ACELERADO": 5, "SEM_CLASSIFICACAO": 50}
+    assert (top["sem_classificacao_por_motivo"]["MUDANCA_DE_DIRECAO"], top["desfecho"]) == (50, "RES-VAL")
     assert any(item["tendencia"]["familia"] in ("CRESCIMENTO", "DECLINIO") for item in recent["itens"])
     for item in recent["itens"]:
         assert coherent(item["tendencia"]), item["id"]
-    # O resultado muda com a janela: os 24 classificados nos últimos junhos ficam sem classe com as 22 competências.
+    # O resultado muda com a janela: os 12 classificados nos últimos junhos ficam sem classe com as 22 competências.
     whole = by_id(ok(post(real, **AMAZONAS, tendencia={"competencias": ALL22})))
     changed = [item["id"] for item in recent["itens"]
                if item["tendencia"]["classe"] != whole[item["id"]]["tendencia"]["classe"]]
-    assert len(changed) == 62 - 38
+    assert len(changed) == 62 - 50

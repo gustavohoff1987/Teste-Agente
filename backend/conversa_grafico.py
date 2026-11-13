@@ -20,7 +20,7 @@ import unicodedata
 import pandas as pd
 
 from criteria_conversation import CLAUSE, OPERATORS, SYMBOL, _value
-from exploration import MONTHS, NUMBER_WORDS, RELATIVE_YEARS, WORDS, _human, _listed, normalize, relative_years
+from exploration import MONTHS, NUMBER_WORDS, RELATIVE_YEARS, WORDS, _human, _listed, normalize, relative_years, search_names
 from request_memo import per_source
 from semantic_bridge import ROLES
 from territorial_selection import REGIONS, STATES, territory_catalog, texts
@@ -736,9 +736,11 @@ class _Catalogo:
         self.itens = {item["id"]: item for item in itens}
         self.nomes = {}
         for item in itens:
-            chave = normalize(str(item["name"]))
-            if chave:
-                self.nomes.setdefault(chave, []).append(item["id"])
+            # O nome e, na base Brasil, os nomes anteriores do município (13/11/2026): "Parati" continua achando PARATY. O
+            # rótulo mostrado é sempre o atual.
+            for chave in dict.fromkeys(search_names(item)):
+                if chave:
+                    self.nomes.setdefault(chave, []).append(item["id"])
         self.grupos = {}
         if brasil:
             for item in itens:

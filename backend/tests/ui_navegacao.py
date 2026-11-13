@@ -4,7 +4,7 @@ Confere, contra as respostas de /api/painel, /api/painel/lugar e /api/painel/map
 - o todo como referência: desde o comando V22 (decisão 3), sem o "Ver por": "Só os estados", na linha do Brasil da árvore, põe
   os 27 estados como unidade, e a caixa do Brasil marca os 5.570 municípios; "Confirmar seleção" vai à análise aberta; sem o
   Brasil como unidade de análise; a faixa fixa no alto das abas de análise com os números do Brasil (502.495 médicos, 212,6
-  milhões de habitantes, 2,36 por 1.000 e a variação da densidade desde jun/2021, cerca de +19,2%), iguais aos que o motor
+  milhões de habitantes, 2,36 por 1.000 e a variação da densidade desde jun/2021, cerca de +17,4%), iguais aos que o motor
   devolveu; com os estados, 27 pontos; com os municípios, 5.570; a linha tracejada "Brasil 2,36" no gráfico;
 - a trilha, sempre à vista e igual em todas as abas: "Brasil" no todo; "Brasil › Pará" ao tocar no Pará (144 municípios, 10.307
   médicos, 1,19 por 1.000, com o Brasil como referência: "Pará 1,19 · Brasil 2,36", e a linha do estado no gráfico);
@@ -215,7 +215,7 @@ def main():
         assert (lugar_todo["quantidade"], lugar_todo["populacao"]) == (502495, 212583750), lugar_todo
         assert round(lugar_todo["densidade"], 2) == 2.36, lugar_todo["densidade"]
         variacao = lugar_todo["variacao_percentual"]["densidade"]
-        assert 19.15 <= variacao < 19.25, variacao
+        assert 17.35 <= variacao < 17.40, variacao   # +19,2% com a população anterior à troca de 13/11/2026
         itens_estado = [item for item in estados["itens"] if item["tipo"] == "estado"]
         assert len(itens_estado) == 27 == len(estados["itens"]), len(estados["itens"])
         aperta(territorios.get_by_test_id("analise-confirmar-selecao"))  # decisão 4: vai à análise aberta
@@ -232,7 +232,7 @@ def main():
         expect(numero("variacao")).to_have_attribute("data-desde", "202106")
         expect(numero("variacao")).to_have_attribute("data-valor", js(variacao))
         expect(numero("variacao")).to_contain_text("Desde jun/2021")
-        expect(numero("variacao")).to_contain_text(re.compile(r"\+19,\d+%"))
+        expect(numero("variacao")).to_contain_text(re.compile(r"\+17,\d+%"))
         expect(faixa.locator('[data-testid^="analise-ver-por"]')).to_have_count(0)
         # A linha do todo no gráfico: tracejada, com o nome e o valor do motor.
         linha_brasil = area.get_by_test_id("analise-contexto-brasil")

@@ -8,6 +8,7 @@ import {
   marcarGrupo, nomeDaUnidade, nomeDoTodo, quantos, resumoDoUniverso, textoDaAgregacao, textoTodasAsUnidadesDoGrupo,
   todoInteiro, todosOs, unidadeMarcada, type GrupoInfo, type RotulosTerritoriais, type UnidadeDoCatalogo,
 } from "./painelModel";
+import { comNomesAnteriores } from "./painelModel";
 
 // Seleção de Territórios (comando V22, 9/11/2026, seções 2 e 3; antes, desde 07/11/2026, os modos "Marcar na lista", "Por critérios"
 // e "Agrupar territórios" no alto da coluna da esquerda). À esquerda, sempre à vista, a busca e a árvore Brasil → região → estado →
@@ -357,7 +358,8 @@ export default function PainelTerritorios(p: Props) {
   const busca = useMemo(() => {
     if (!termo) return null;
     const grupos = temGrupos ? p.grupos.filter(g => sem(g.nome + " " + g.sigla).includes(termo)).slice(0, 8) : [];
-    const unidades = validas.filter(item => sem(item.name + " " + item.code + " " + item.label).includes(termo)).slice(0, LIMITE_BUSCA);
+    const unidades = validas.filter(item => sem(comNomesAnteriores(item.name + " " + item.code + " " + item.label, item.former_names)).includes(termo))
+      .slice(0, LIMITE_BUSCA);
     return { grupos, unidades };
   }, [termo, temGrupos, p.grupos, validas]);
   const placeholder = temGrupos ? "Buscar " + unidade.singular + " ou " + grupoRotulo.singular : "Buscar " + unidade.singular;

@@ -170,6 +170,8 @@ export type PainelItem = {
   /** Num conjunto, com a Escolha dos territórios (07/11/2026, item 6 do comando de 07/11/2026): o membro mais próximo, de onde vem a
    * referência do conjunto e de onde sai a ligação no mapa. */
   membroDaReferencia: { id: string; rotulo: string } | null;
+  /** Base Brasil: os nomes anteriores do município (13/11/2026), só para a busca por nome na tabela e no mapa. */
+  nomesAnteriores?: string[];
   condicoes: CondicoesItem | null;
   ordem: { posicao: number | null } | null;
   rotatividade: RotatividadeItem | null;
@@ -471,8 +473,10 @@ function itemDe(bruto: unknown): PainelItem | null {
   const tipo = o.tipo === "conjunto" || o.tipo === "estado" || o.tipo === "brasil" ? o.tipo : "municipio";
   const avaliavel = objeto(o.avaliavel);
   const ordem = objeto(o.ordem);
+  const anteriores = lista(o.nomes_anteriores).filter((nome): nome is string => typeof nome === "string");
   return {
     id, tipo, rotulo: texto(o.rotulo) ?? id, uf: texto(o.uf), grupoTerritorial: texto(o.grupo_territorial),
+    ...(anteriores.length ? { nomesAnteriores: anteriores } : {}),
     membros: Array.isArray(o.membros) ? o.membros.filter((m): m is string => typeof m === "string") : undefined,
     ...(o.nivel_dos_membros === "estados" ? { nivelDosMembros: "estados" as const } : {}),
     populacao: num(o.populacao), quantidade: num(o.quantidade), densidade: num(o.densidade),

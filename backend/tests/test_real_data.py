@@ -53,7 +53,8 @@ def test_real_municipal_density_and_all_rows_against_independent_arithmetic(real
     assert initial["capabilities"]["density"]["status"] != "available"
     profile = initial["multiplicity"]
     assert profile["exact_duplicate_excess"] == 0
-    assert profile["affected_records"] == 11528 and profile["groups"] == 5324
+    # 240 nomes repetidos por competência desde a correção de 19 nomes em 13/11/2026 (eram 242: 11.528 registros em 5.324 grupos).
+    assert profile["affected_records"] == 11462 and profile["groups"] == 5280
     # Definição expressa do usuário; não autoriza somar municípios ou períodos.
     options = {"confirmed_roles": ["territory_id", "period"], "count_unit": "pessoas",
         "population_denominator_confirmed": True}
@@ -95,7 +96,7 @@ def test_real_municipal_import_without_confirmations(real_sources):
     assert info["suggested_columns"]["territory_id"] == ["cod_ibge"]
     states = info["preflight"]["field_states"]
     assert {states[role]["origin"] for role in ("latitude", "longitude", "period")} == {"REGRA_CONFIGURADA"}
-    # 242 nomes repetidos numa competência: sem o código, a densidade fica numa escolha pendente (nunca presumida).
+    # 240 nomes repetidos numa competência: sem o código, a densidade fica numa escolha pendente (nunca presumida).
     options = {"count_unit": "pessoas", "period_filter": "202406"}
     pending = client.post("/api/preflight", files={"file": (path.name, raw)},
                           data={"mapping": json.dumps(mapping), "options": json.dumps(options)}).json()
@@ -288,7 +289,7 @@ def test_real_resident_temporal(real_catalog, denominator):
     assert engine == independent_trends(original, denominator)
     tendencia = result["metadata"]["tendencia"]
     assert tendencia["unidades_total"] == 5570 and tendencia["janela"]["intervalos"] == [5, 7]
-    assert tendencia["contagens"]["CRESCIMENTO"] == (7 if denominator else 53)
+    assert tendencia["contagens"]["CRESCIMENTO"] == (12 if denominator else 53)   # densidade: 7 antes da população de 13/11/2026
     assert tendencia["nao_avaliaveis_por_motivo"] == {"SERIE_INSUFICIENTE": 0, "INCOMPARABILIDADE": 0}
 
 
@@ -304,14 +305,16 @@ def test_real_resident_temporal_annual_june_series(real_catalog, denominator):
     assert engine == independent_trends(original, denominator, month=6)
     tendencia = result["metadata"]["tendencia"]
     assert tendencia["janela"]["serie_anual"] == "06" and tendencia["janela"]["intervalos"] == [12]
-    assert (tendencia["contagens"]["CRESCIMENTO"], tendencia["contagens"]["DECLINIO"]) == ((118, 2) if denominator else (276, 19))
+    assert (tendencia["contagens"]["CRESCIMENTO"], tendencia["contagens"]["DECLINIO"]) == ((116, 3) if denominator else (276, 19))   # densidade: (118, 2) antes da população de 13/11/2026
     assert tendencia["nao_avaliaveis_por_motivo"] == {"SERIE_INSUFICIENTE": 0, "INCOMPARABILIDADE": 0}
     assert {row["Observações da tendência"] for row in result["rows"]} <= {10, 11}   # ausências não imputadas
 
 
 def test_real_trend_anchors_brazil_and_anama(real_catalog):
     """Âncoras conferidas com a classificação independente: Brasil (contagem nacional) cresce; ANAMÃ, em densidade de
-    junho de 2021 a 2024, acelera o crescimento (o float da densidade daria só "Crescimento")."""
+    junho de 2021 a 2024, acelera o crescimento. Até 13/11/2026, a população de ANAMÃ se repetia de 2021 a 2023, duas
+    velocidades eram exatamente iguais e o float da densidade daria só "Crescimento"; com a população do Ministério da Saúde,
+    as velocidades são diferentes e o float chega à mesma classe (a aritmética exata continua coberta em test_trend.py)."""
     info, original, _ = real_catalog
     national = client.post("/api/inspect", data={"dataset": "brazil", "scope": "national"}).json()
     brazil = resident_result(national, "temporal", temporal_indicator="quantity", population_denominator_confirmed=False)
@@ -329,7 +332,8 @@ def test_real_trend_anchors_brazil_and_anama(real_catalog):
              zip(rows.periodo_ano, rows.quantidade, rows["população_estimada"])]
     assert independent_trend(exact) == ("Aceleração do crescimento", None)
     floats = [(t, Fraction(int(q) / int(p) * 1000)) for (t, _), q, p in zip(exact, rows.quantidade, rows["população_estimada"])]
-    assert independent_trend(floats) == ("Crescimento", None)   # o float separaria velocidades exatamente iguais
+    assert independent_trend(floats) == ("Aceleração do crescimento", None)   # as velocidades já não são exatamente iguais
+    assert [int(p) for p in rows["população_estimada"]] == [10408, 10380, 10343, 10318] and [int(q) for q in rows.quantidade] == [5, 6, 7, 11]
 
 
 def test_real_official_base_comparability_premises_are_internal(real_catalog):

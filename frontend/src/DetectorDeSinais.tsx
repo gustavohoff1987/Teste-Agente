@@ -5,7 +5,7 @@ import { ErroDoMotor, pedirAoMotor, type FonteDoMotor } from "./painelApi";
 import {
   FILTROS_DE_FENOMENO, NOMES_DAS_CLASSES, NOMES_DOS_PARAMETROS, ROTULOS_DOS_PORTES, SEM_FILTROS, TEXTO_LIMITES_PROVISORIOS, TEXTO_SINAIS_RELATIVOS, competenciaCurta,
   csvDoDetector, filtrarLinhas, formatarInteiro, formatarPct, metodoDoDetector, normalizarDetalhe, normalizarDetector, ordenarLinhas,
-  parametrosPersonalizados, textoDaUltima, textoDoRegistro, tipoDoTerritorio, trechoDoContexto, trechoEstrutural, criterioDoContexto, trechosCombinados,
+  parametrosPersonalizados, textoDaUltima, textoDoRegistro, tipoDoTerritorio, trechoDoContexto, trechoEstrutural, criterioDoContexto, textoDosTrechos, trechosCombinados,
   trechosDaComparacao, trechosDaTrajetoria, trechosDoRitmo, formatarTaxa, medicos, alvoDoSimulador, patamarARecuperar,
   type AlvoDoSimulador, type ClasseDoSinal, type DetalheDoDetector, type FiltrosDoDetector, type LinhaDoDetector, type OpcoesDoDetector, type OrdemDoDetector,
   type ParametrosDoDetector, type RespostaDoDetector, type SelecaoDasFerramentas, type Trecho,
@@ -375,8 +375,8 @@ export default function DetectorDeSinais(p: Props) {
           ? "variação de " + competenciaCurta(resposta.comparacao.de) + " a " + competenciaCurta(resposta.comparacao.ate) + ", em 2 anos, com população comparável."
           : resposta.comparacao.estado === "comparacao_nao_habilitada"
             ? "a variação de " + competenciaCurta(resposta.comparacao.de) + " a " + competenciaCurta(resposta.comparacao.ate) + " não é calculada (comparação não " +
-              "habilitada): a população de 2021 a 2023 é repetida, e a de 2024 é de outra base. A taxa, a posição e o índice da data continuam à vista. Para " +
-              "ver a variação, termine a janela entre jun/2016 e jan/2018 ou entre jun/2020 e jan/2022."
+              "habilitada): " + (resposta.comparacao.motivo ?? "a população da base não é comparável de um ano para o outro nesta janela") +
+              ". A taxa, a posição e o índice da data continuam à vista. A variação é calculada " + textoDosTrechos(resposta.comparacao.trechos) + "."
             : "a variação não é calculada nesta janela: falta o registro de junho de dois anos antes."}{" "}
         <strong>Contexto geográfico:</strong>{" "}
         {resposta.comparacao.contexto.taxaMinima === null ? "sem a taxa do Brasil na data, o critério não pode ser aplicado."

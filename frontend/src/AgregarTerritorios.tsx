@@ -5,6 +5,7 @@ import {
   artigo, formatarNumero, grupoDaUnidade, maiuscula, nomeDaUnidade, nomeRepetido, quantos, RESSALVA_DA_SOMA, type GrupoInfo, type RotulosTerritoriais,
   type UnidadeDoCatalogo,
 } from "./painelModel";
+import { comNomesAnteriores } from "./painelModel";
 
 // "Agrupar territórios" (07/11/2026, comando de 07/11/2026, itens 1, 7.8 e 8; antes, "Agregar territórios", do comando de navegação
 // por níveis de 06/11/2026), um dos modos da Seleção de Territórios: o mini mapa no alto, que também é um jeito de escolher (tocar num
@@ -62,7 +63,7 @@ export default function AgregarTerritorios(p: Props) {
   const nomeDoGrupo = useMemo(() => new Map(p.grupos.map(item => [item.id, item.nome])), [p.grupos]);
   const termo = sem(consulta.trim());
   const resultados = useMemo(() => termo.length < 2 ? [] : p.unidades.filter(item => sem(item.name || item.label).includes(termo) ||
-    sem(nomeDaUnidade(item)).includes(termo)).slice(0, LIMITE), [p.unidades, termo]);
+    sem(comNomesAnteriores(nomeDaUnidade(item), item.former_names)).includes(termo)).slice(0, LIMITE), [p.unidades, termo]);
   // A lista para marcar: as unidades do grupo escolhido (ou todas, numa base sem grupos), em ordem de nome.
   const lista = useMemo(() => (temGrupos ? (grupo ? p.unidades.filter(item => grupoDaUnidade(item) === grupo) : [])
     : verLista ? p.unidades : []).slice().sort((a, b) => comparar(nomeDaUnidade(a), nomeDaUnidade(b))), [p.unidades, grupo, temGrupos, verLista]);

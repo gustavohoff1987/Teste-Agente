@@ -22,6 +22,12 @@ const ehNumero = (valor: number | null): valor is number => valor !== null;
 export const numero = (valor: unknown): number | null => typeof valor === "number" && Number.isFinite(valor) ? valor : null;
 const sem = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
+/** O texto de uma unidade para a busca por nome, com os nomes anteriores dela. Em 13/11/2026, 19 municípios da base Brasil
+ * passaram ao nome oficial do IBGE; a busca pelo nome anterior continua achando o município ("Parati" acha PARATY), e o que
+ * aparece é sempre o nome atual. Os nomes anteriores vêm do motor (`former_names` no catálogo; `nomesAnteriores` nas linhas). */
+export const comNomesAnteriores = (texto: string, anteriores?: string[] | null): string =>
+  anteriores && anteriores.length ? texto + " " + anteriores.join(" ") : texto;
+
 // ================================================================================================ tipos da área (props)
 export type Familia = "distribuicao" | "espacial" | "tendencia" | "rotatividade";
 export type Visao = "mudanca" | "classes" | "series";
@@ -96,6 +102,8 @@ export type NiveisDaBase = { estados: NivelEstado[]; municipios: { total: number
 /** Unidade do catálogo para a escolha (forma de TerritorialSelection.Territory). */
 export type UnidadeDoCatalogo = { id: string; name: string; code: string; label: string; state: string; state_name: string;
   state_code?: string; selection_reason?: string;
+  /** Base Brasil: os nomes anteriores do município (13/11/2026), só para a busca por nome; o que aparece é o nome atual. */
+  former_names?: string[];
   /** Numa planilha com a coluna-mãe (grupo_territorial), o valor do grupo de cada unidade (a província de um distrito), do
    * catálogo do pré-exame. */
   parents?: string[] };

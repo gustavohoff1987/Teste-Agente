@@ -17,11 +17,13 @@ O que este módulo calcula (os textos ficam em detector.py):
 - **12, coexistência de sinais:** o perfil por dimensão e as combinações pré-definidas, sem índice geral; as repercussões de uma
   mesma queda contam como um evento, não como evidências independentes.
 
-**População comparável (seção 4.2):** a variação dos indicadores 8, 9 e 10 só é calculada em janelas inteiras dentro de 2014–2017
-ou de 2018–2021. A população se repete de 2021 a 2023 e muda de base em 2024; por isso, uma janela que cruze esses limites fica
-com o estado "comparacao_nao_habilitada", com o nível da data (taxa, percentil, índice) ainda à vista. Para o indicador 10, a
-mesma regra é uma decisão conservadora desta implementação: o índice usa as duas populações, e a troca de base mudaria o índice
-sem mudança real.
+**População comparável (seção 4.2 da V2.2; seção A.3 da V3):** a variação dos indicadores 8, 9 e 10 só é calculada em janelas
+inteiras dentro de um trecho de população comparável. Os trechos vêm da própria base (`populacao_comparavel`), que é olhada
+inteira em cada passagem de ano: quando a população se repete em boa parte dela, ou salta em boa parte dela, e isso foge do que é
+comum nas outras passagens, o trecho termina ali. Uma janela que cruze esse limite fica com o estado
+"comparacao_nao_habilitada", com o nível da data (taxa, percentil, índice) ainda à vista. Alguns territórios com o valor do ano
+anterior, ou com um salto, são normais e não desligam a comparação. Para o indicador 10, a mesma regra é uma decisão
+conservadora desta implementação: o índice usa as duas populações, e a troca de série mudaria o índice sem mudança real.
 
 **Sem intensidade (decisão D-A):** as convenções da seção 4.1 para os indicadores 8, 9 e 10 não foram validadas; entram como
 **limites provisórios** de um "sinal observado" (forte, muito forte), como no declínio persistente, sem atenção, alta ou crítica.
@@ -39,8 +41,13 @@ from series_brasil import Base, Territorio
 from territorial_levels import STATES, state_with_preposition
 
 POR = 1000.0                                 # a taxa do Agente: médicos por 1.000 habitantes
-TRECHOS_COMPARAVEIS = ((2014, 2017), (2018, 2021))
 ANOS_DA_JANELA = 2
+# População comparável: a base inteira, em cada passagem de ano (de junho a junho).
+PARTE_REPETIDA = 0.5                         # metade ou mais da base com a população do ano anterior: população repetida
+SALTO_PCT = 5.0                              # a variação de um ano para o outro que conta como salto de um território
+PARTE_COM_SALTO = 0.05                       # a parte da base com salto que termina um trecho...
+VEZES_O_COMUM = 3.0                          # ...se também for 3 vezes o que é comum nas outras passagens da mesma base
+MINIMO_COM_SALTO = 3                         # e houver pelo menos 3 territórios com salto
 MINIMO_DE_MEDICOS = 20                       # abaixo disso, no início da janela, os indicadores 8 a 10 são descritivos
 CRS = "SIRGAS2000"
 EPS = 1e-9                                   # tolerância das comparações com os limites (o caso exato no limite conta)
@@ -68,11 +75,102 @@ def conferir(em_uso: dict) -> None:
         raise ValueError("O limite mais grave não pode ser menor que o menos grave.")
 
 
+# --------------------------------------------------------------------------------------------- população comparável
+_COMPARAVEL: dict[str, dict] = {}
+_TRAVA_DO_COMPARAVEL = threading.Lock()
+
+
+def populacao_comparavel(base: Base) -> dict:
+    """Os trechos de população comparável da base, lidos dela mesma (perfil da base, seção A.3 da V3). Em cada passagem de ano
+    (de um junho ao seguinte), a base inteira é olhada: a parte dos territórios com a mesma população do ano anterior e a parte
+    com variação acima de 5%. A passagem termina um trecho quando a população é **repetida** (metade da base ou mais repete o
+    valor, e isso não é o comum nas outras passagens) ou **salta** (5% da base ou mais, pelo menos 3 territórios e 3 vezes o
+    comum nas outras passagens). Uma base com a população constante em todos os anos é um trecho só: a taxa varia só com a
+    contagem. Devolve os anos, as passagens medidas, as quebras (ano → motivo) e os trechos (início, fim)."""
+    with _TRAVA_DO_COMPARAVEL:
+        guardado = _COMPARAVEL.get(base.versao)
+    if guardado is not None:
+        return guardado
+    junhos = {int(periodo[:4]): posicao for posicao, periodo in enumerate(base.periodos) if periodo.endswith("06")}
+    anos = sorted(junhos)
+    passagens = []
+    for a, b in zip(anos, anos[1:]):
+        antes, depois = base.populacao[:, junhos[a]], base.populacao[:, junhos[b]]
+        with np.errstate(invalid="ignore"):
+            validos = ~np.isnan(antes) & ~np.isnan(depois) & (antes > 0) & (depois > 0)
+        n = int(validos.sum())
+        if not n:
+            passagens.append({"de": a, "ate": b, "territorios": 0, "repetidos": None, "saltos": None})
+            continue
+        variacao = np.abs(depois[validos] / antes[validos] - 1.0) * 100.0
+        passagens.append({"de": a, "ate": b, "territorios": n, "repetidos": float((depois[validos] == antes[validos]).mean()),
+                          "saltos": float((variacao > SALTO_PCT).mean())})
+    quebras: dict[int, str] = {}
+    for k, passagem in enumerate(passagens):
+        if not passagem["territorios"]:
+            quebras[passagem["ate"]] = "sem_populacao"
+            continue
+        outras = [outra for j, outra in enumerate(passagens) if j != k and outra["territorios"]]
+        comum_repetido = float(np.median([outra["repetidos"] for outra in outras])) if outras else passagem["repetidos"]
+        comum_salto = float(np.median([outra["saltos"] for outra in outras])) if outras else passagem["saltos"]
+        if passagem["repetidos"] >= PARTE_REPETIDA and comum_repetido < PARTE_REPETIDA:
+            quebras[passagem["ate"]] = "repetida"
+        elif passagem["saltos"] >= max(PARTE_COM_SALTO, VEZES_O_COMUM * comum_salto) and \
+                round(passagem["saltos"] * passagem["territorios"]) >= MINIMO_COM_SALTO:
+            quebras[passagem["ate"]] = "salto"
+    trechos: list[tuple[int, int]] = []
+    for ano in anos:
+        if not trechos or ano in quebras:
+            trechos.append((ano, ano))
+        else:
+            trechos[-1] = (trechos[-1][0], ano)
+    saida = {"anos": tuple(anos), "passagens": tuple(passagens), "quebras": quebras, "trechos": tuple(trechos)}
+    with _TRAVA_DO_COMPARAVEL:
+        if len(_COMPARAVEL) > 8:
+            _COMPARAVEL.clear()
+        _COMPARAVEL[base.versao] = saida
+    return saida
+
+
+def trechos_comparaveis(base: Base) -> list[list[int]]:
+    """Os trechos em que cabe uma janela de comparação inteira (2 anos): [[2014, 2024]]."""
+    return [[a, b] for a, b in populacao_comparavel(base)["trechos"] if b - a >= ANOS_DA_JANELA]
+
+
+def _anos(anos: list[int]) -> str:
+    textos = [str(ano) for ano in anos]
+    return textos[0] if len(textos) == 1 else ", ".join(textos[:-1]) + " e " + textos[-1]
+
+
+def texto_dos_trechos(base: Base) -> str:
+    """"2014–2024", "2014–2017 e 2018–2021" ou, sem um trecho de 2 anos, "nenhum trecho nesta base"."""
+    trechos = [str(a) + "–" + str(b) for a, b in trechos_comparaveis(base)]
+    return "nenhum trecho nesta base" if not trechos else trechos[0] if len(trechos) == 1 else ", ".join(trechos[:-1]) + " e " + trechos[-1]
+
+
+def motivo_da_janela(base: Base, ini: int | None, fim: int | None) -> str | None:
+    """Por que a janela não tem população comparável, com os anos: "a população de 2022 e 2023 repete a do ano anterior em boa
+    parte da base, e a de 2024 muda de patamar em boa parte da base"."""
+    if ini is None or fim is None:
+        return None
+    primeiro, ultimo = int(base.periodos[ini][:4]), int(base.periodos[fim][:4])
+    quebras = {ano: motivo for ano, motivo in populacao_comparavel(base)["quebras"].items() if primeiro < ano <= ultimo}
+    if not quebras:
+        return None
+    partes = []
+    for motivo, frase in (("repetida", " repete a do ano anterior em boa parte da base"), ("salto", " muda de patamar em boa parte da base"),
+                          ("sem_populacao", " não tem como ser comparada com a do ano anterior")):
+        anos = sorted(ano for ano, qual in quebras.items() if qual == motivo)
+        if anos:
+            partes.append("a população de " + _anos(anos) + frase)
+    return partes[0] if len(partes) == 1 else ", ".join(partes[:-1]) + ", e " + partes[-1]
+
+
 # --------------------------------------------------------------------------------------------- janela de comparação
 def janela(base: Base, e: int) -> tuple[int | None, int | None, str | None]:
     """Os dois junhos da janela de comparação (2 anos, de junho a junho) que termina no último junho até a data avaliada, e o
     motivo quando a variação não pode ser calculada: "janela_insuficiente" (falta um dos junhos) ou "comparacao_nao_habilitada"
-    (a janela não cabe inteira num trecho de população comparável)."""
+    (a janela não cabe inteira num trecho de população comparável da base)."""
     junhos = [i for i in range(e + 1) if base.periodos[i].endswith("06")]
     if not junhos:
         return None, None, "janela_insuficiente"
@@ -82,7 +180,7 @@ def janela(base: Base, e: int) -> tuple[int | None, int | None, str | None]:
     if alvo not in base.periodos:
         return None, fim, "janela_insuficiente"
     ini = base.periodos.index(alvo)
-    if not any(a <= ano - ANOS_DA_JANELA and ano <= b for a, b in TRECHOS_COMPARAVEIS):
+    if any(ano - ANOS_DA_JANELA < quebra <= ano for quebra in populacao_comparavel(base)["quebras"]):
         return ini, fim, "comparacao_nao_habilitada"
     return ini, fim, None
 

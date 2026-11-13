@@ -273,9 +273,11 @@ Situação vigente desde 02/11/2026:
    `Dados_Estados_Brasil.csv` desde 19/10/2026. SHA-256 dos arquivos versionados:
    `7caa74d7a49f2f7cd2adf87b1c0546f7755ec0291dcb0ffbfae7c387dceb91d3` (nacional),
    `7f64a828389d91228b30247787817701c8ffccdeee8b81234282c77926f936bc` (estadual) e
-   `d244906e6d09e65dc55b56c33c8e0131bf88fe66bb26f7faa39f2da384c04f5a` (municipal, desde a correção de
-   25/10/2026 da linha do 251365 em junho de 2016, a pedido do responsável pelo produto; antes,
-   `89c027c90a2d…`).
+   `4a81a28b7c1d5c1d7f10201666e51776effbeb6308c53cb6fc9702f0e6a5502d` (municipal, desde 13/11/2026, quando a
+   coluna de população passou a ser a série do Ministério da Saúde e 19 municípios tiveram o nome corrigido,
+   a pedido do responsável pelo produto; de 25/10 a 13/11/2026, `d244906e6d09…`, com a correção da linha do
+   251365 em junho de 2016; antes, `89c027c90a2d…`). A fonte da população, os valores conferidos e a lista dos
+   nomes estão em [Docs/DADOS_BRASIL_VALIDACAO.md](Docs/DADOS_BRASIL_VALIDACAO.md).
 2. **Originais preservados.** O aplicativo nunca altera esses arquivos. O instalador relê os
    bytes da origem depois da cópia, e os testes reais comparam o SHA-256 dos originais antes
    e depois de cada execução.
@@ -328,8 +330,8 @@ Situação vigente desde 02/11/2026:
 
 1. **Onde estão versionados.** `Dados_Brasil.xlsx` e `Dados_Municipios_Brasil.csv`, na raiz do
    repositório, com `Dados_Estados_Brasil.csv` desde 19/10/2026; identidade em
-   `dados/brasil/manifesto.json` (versão `c4d82eeee4e4…`, desde a correção de 25/10/2026; antes,
-   `68944004901c…` e, antes da fonte estadual, `819cf4628bff…`).
+   `dados/brasil/manifesto.json` (versão `faa54169c5b6…`, desde a troca da população de 13/11/2026; antes,
+   `c4d82eeee4e4…`, da correção de 25/10/2026, `68944004901c…` e, antes da fonte estadual, `819cf4628bff…`).
 2. **Caminho usado pelo backend.** Os próprios arquivos da raiz do repositório; uma pasta
    externa apenas com `ADT_BRASIL_DATA_DIR` explícito e versão governada ou fixada.
 3. **Prova de integridade.** Tamanho e SHA-256 de cada arquivo conferidos a cada requisição
@@ -337,10 +339,11 @@ Situação vigente desde 02/11/2026:
 4. **Cópias antigas.** Não são lidas: `.local/` é ignorada pelo carregador e o teste com uma
    cópia antiga divergente comprova; o instalador só copia a versão governada.
 5. **Camada complementar de coordenadas.** Arquivo versionado
-   `dados/brasil/complemento_coordenadas.json` (versão 1, SHA-256 `4fac87444778…`; até 25/10/2026,
-   `5db726905a91…`), validado a cada leitura e aplicado só ao ler coordenadas da base Brasil municipal,
-   na versão da fonte a que se refere (`Dados_Municipios_Brasil.csv`, SHA-256 `d244906e6d09…`; até
-   25/10/2026, `89c027c90a2d…`, com os mesmos seis pontos), apenas onde o ponto original
+   `dados/brasil/complemento_coordenadas.json` (versão 1, SHA-256 `1929129964a0…`; até 13/11/2026,
+   `4fac87444778…`; até 25/10/2026, `5db726905a91…`), validado a cada leitura e aplicado só ao ler coordenadas
+   da base Brasil municipal, na versão da fonte a que se refere (`Dados_Municipios_Brasil.csv`, SHA-256
+   `4a81a28b7c1d…`; até 13/11/2026, `d244906e6d09…`; até 25/10/2026, `89c027c90a2d…`; sempre com os mesmos
+   seis pontos), apenas onde o ponto original
    é inválido; os arquivos originais e as bases importadas não são alterados.
 6. **Municípios e competências.** Ananás/TO (170100), Pescaria Brava/SC (421265), Balneário
    Rincão/SC (422000), Jaraguari/MS (500490), Campestre da Serra/RS (430367) e Águas de
@@ -925,8 +928,8 @@ histórico de sinais de cada um. São os 12 fenômenos do catálogo, também em 
 aparece; a intensidade do sinal (atenção, alta, crítica) só existe com critério e comparação com municípios parecidos, tem
 limites provisórios e não é juízo de desassistência nem de prioridade (divergência aprovada da SPEC, só nesta ferramenta). A
 comparação relativa não tem intensidade (são sinais observados, com limites provisórios) e só calcula a variação em trechos com
-população comparável: no último registro, jun/2024, aparece "comparação não habilitada", com o nível da data à vista. Não há
-índice geral. Nos detalhes, "Abrir no Simulador" e "Simular recuperação" levam o território ao Simulador de Cenários. Os
+população comparável, lidos da própria base: com a população do Ministério da Saúde (desde 13/11/2026), a base inteira é um
+trecho só, e nenhuma data fica com "comparação não habilitada". Não há índice geral. Nos detalhes, "Abrir no Simulador" e "Simular recuperação" levam o território ao Simulador de Cenários. Os
 cálculos são do motor (`POST /api/detector`), sem o provedor de IA. Regras, rota,
 estudo de calibração e limitações: [Docs/DETECTOR_DE_SINAIS.md](Docs/DETECTOR_DE_SINAIS.md); a referência metodológica é
 [Docs/DETECTOR_E_SIMULADOR_V2_2.md](Docs/DETECTOR_E_SIMULADOR_V2_2.md).

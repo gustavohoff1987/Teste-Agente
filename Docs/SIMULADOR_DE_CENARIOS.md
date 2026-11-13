@@ -296,7 +296,9 @@ inválida, repetida ou acima de 5, métrica desconhecida, planejamento sem meta 
 `scripts/calibrar_simulador.py` (fora do CI, somente leitura) refaz o estudo com a base versionada; o motor calcula a mesma
 retroprojeção uma vez por versão da base. Em cada junho com 3 anos de história (jun/2017 a jun/2023, 7 origens), cada método é
 ajustado **só com os registros até a origem** e confrontado com o observado 1, 2, 3 e 4 anos depois. Ficam fora os registros de
-pico que volta e de quebra de fonte. Base versão `c4d82eeee4e4`, método `SIMULADOR-CENARIOS/V2.2/1`.
+pico que volta e de quebra de fonte. Base versão `c4d82eeee4e4`, método `SIMULADOR-CENARIOS/V2.2/1`. A troca da população
+de 13/11/2026 mudou a versão da base (`faa54169c5b6`) sem mudar as contagens: os números deste estudo, que só usa as contagens,
+continuam valendo.
 
 **Faixas de 80% do M0d** (P10 a P90 de observado ÷ projetado − 1), com as origens, os casos e a cobertura fora da amostra (a faixa
 calculada sem uma origem, conferida nela):

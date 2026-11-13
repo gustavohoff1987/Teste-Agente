@@ -105,6 +105,9 @@ def main():
         # 2. A seleção principal: MANAUS (AM) e RIO RUFINO (SC). O Simulador abre com a cópia dela.
         marcar_na_arvore("manaus", MANAUS)
         marcar_na_arvore("rio rufino", RIO_RUFINO)
+        # A busca pelo nome anterior continua achando o município (13/11/2026): "Parati" acha PARATY (RJ), com o nome atual.
+        territorios.get_by_test_id("analise-busca").fill("Parati")
+        expect(territorios.locator('[data-testid="analise-busca-item"][data-id="code:330380"]')).to_contain_text("PARATY")
         territorios.get_by_test_id("analise-busca").fill("")
         principal = resumo.inner_text()
         botao.click()

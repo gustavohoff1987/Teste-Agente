@@ -109,8 +109,8 @@ def _fotografia_dos_comparativos(base, cal):
         print(_linha([base.periodos[e], base.periodos[ini] + " a " + base.periodos[fim], avaliados, d.get("descritivo", 0),
                       d.get("forte", 0), d.get("muito_forte", 0), po.get("queda", 0), po.get("forte", 0), po.get("muito_forte", 0),
                       df.get("forte", 0), df.get("muito_forte", 0), combinados]))
-    print("\nNos demais junhos, a janela cruza 2017→2018 ou passa de 2021 (a população se repete de 2021 a 2023 e muda de base em "
-          "2024): \"comparação não habilitada\", com o nível da data à vista.")
+    print("\nPopulação comparável nesta base: " + comparativos.texto_dos_trechos(base) + ". Nos junhos em que a janela não cabe num "
+          "trecho, \"comparação não habilitada\", com o nível da data à vista.")
     print("\n## Fenômeno 11: contexto geográfico em cada junho (critério: a taxa do Brasil na data)\n")
     print(_linha(["Data", "Taxa do Brasil (por 1.000)", "Municípios que atendem", "Municípios com distância", "Distância mediana (km)",
                   "Distância no percentil 90 (km)", "Maior distância (km)"]))

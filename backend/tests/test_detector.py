@@ -13,7 +13,7 @@ Três grupos de testes:
 - **rota** POST /api/detector, com um catálogo sintético instalado como versão governada;
 - **base versionada** (job dados-reais, ADT_REAL_DATA_DIR, somente leitura): os casos do anexo — Rio Rufino (SC), o Distrito
   Federal antes de 2018, uma queda grande que persiste, a desaceleração igual à da Análise de Tendência e os números do perfil;
-  e os fenômenos 8 a 12 ("comparação não habilitada" em jun/2024; os sinais observados em jun/2021).
+  e os fenômenos 8 a 12 (a comparação habilitada pelos trechos de população da própria base; os sinais observados em jun/2024 e jun/2021).
 Nenhum valor sintético representa quantitativos reais.
 """
 import hashlib
@@ -483,25 +483,64 @@ def texto_do(b, av, e, chave, p=P):
     return next(item for item in detector.fenomenos(b, av, e, p) if item["chave"] == chave)
 
 
+def _populacao_por_ano(inicial, saltos=(), parados=()):
+    """Os 22 valores de uma população que cresce 1% ao ano, salta 10% nos anos de `saltos` e repete o valor nos de `parados`
+    (janeiro e junho de cada ano com o mesmo valor, como na base)."""
+    valores, atual = [], float(inicial)
+    for ano in range(2014, 2025):
+        if ano in saltos:
+            atual = float(round(atual * 1.10))
+        elif ano != 2014 and ano not in parados:
+            atual = float(round(atual * 1.01))
+        valores += [atual, atual]
+    return valores
+
+
 def test_janela_de_comparacao_so_em_trechos_com_populacao_comparavel():
-    b = base_comparavel({"110001": serie((10, T))})
-    janelas = {c: comparativos.janela(b, i(c)) for c in PERIODOS}
-    def datas(c):
+    """Comando V23 (Parte D e seção A.3 do anexo): os trechos de população comparável vêm da própria base, olhada inteira em cada
+    passagem de ano, e não de anos fixos."""
+    def datas(janelas, c):
         ini, fim, motivo = janelas[c]
         return (None if ini is None else PERIODOS[ini], None if fim is None else PERIODOS[fim], motivo)
+    # Uma base com a população constante é um trecho só (a taxa varia só com a contagem): toda janela com os dois junhos vale.
+    b = base_comparavel({"110001": serie((10, T))})
+    janelas = {c: comparativos.janela(b, i(c)) for c in PERIODOS}
     # Sem um junho, ou sem o junho de dois anos antes: janela insuficiente.
-    assert datas("201401") == (None, None, "janela_insuficiente")
-    assert datas("201406") == datas("201501") == (None, "201406", "janela_insuficiente")
-    assert datas("201506") == (None, "201506", "janela_insuficiente")
-    # De junho a junho em 2 anos, atualizada só em junho; habilitada só dentro de 2014–2017 e de 2018–2021.
-    assert datas("201606") == datas("201701") == ("201406", "201606", None)
-    assert datas("201706") == datas("201801") == ("201506", "201706", None)
-    assert datas("202006") == datas("202101") == ("201806", "202006", None)
-    assert datas("202106") == datas("202201") == ("201906", "202106", None)
-    # As janelas que cruzam 2017→2018 e as que passam de 2021 (a população se repete até 2023 e muda de base em 2024).
+    assert datas(janelas, "201401") == (None, None, "janela_insuficiente")
+    assert datas(janelas, "201406") == datas(janelas, "201501") == (None, "201406", "janela_insuficiente")
+    assert datas(janelas, "201506") == (None, "201506", "janela_insuficiente")
+    # De junho a junho em 2 anos, atualizada só em junho.
+    assert datas(janelas, "201606") == datas(janelas, "201701") == ("201406", "201606", None)
+    assert datas(janelas, "201806") == ("201606", "201806", None) and datas(janelas, "202406") == ("202206", "202406", None)
+    assert comparativos.populacao_comparavel(b)["quebras"] == {} and comparativos.populacao_comparavel(b)["trechos"] == ((2014, 2024),)
+    assert comparativos.trechos_comparaveis(b) == [[2014, 2024]] and comparativos.texto_dos_trechos(b) == "2014–2024"
+    assert comparativos.MINIMO_DE_MEDICOS == 20
+    # Quatro municípios crescem 1% ao ano; em 2018 e em 2024, todos saltam 10%; em 2022 e 2023, todos repetem o valor de 2021
+    # (o desenho da população anterior à troca de 13/11/2026). O salto e a repetição na base inteira terminam o trecho.
+    codigos = ("110001", "110002", "110003", "110004")
+    quebrada = base_comparavel({codigo: serie((30, T)) for codigo in codigos},
+                               populacoes={codigo: _populacao_por_ano(10000 * (k + 1), saltos=(2018, 2024), parados=(2022, 2023))
+                                           for k, codigo in enumerate(codigos)})
+    lido = comparativos.populacao_comparavel(quebrada)
+    assert lido["quebras"] == {2018: "salto", 2022: "repetida", 2023: "repetida", 2024: "salto"}
+    assert lido["trechos"] == ((2014, 2017), (2018, 2021), (2022, 2022), (2023, 2023), (2024, 2024))
+    assert comparativos.trechos_comparaveis(quebrada) == [[2014, 2017], [2018, 2021]]
+    assert comparativos.texto_dos_trechos(quebrada) == "2014–2017 e 2018–2021"
+    das_quebras = {c: comparativos.janela(quebrada, i(c)) for c in PERIODOS}
+    assert datas(das_quebras, "201706") == datas(das_quebras, "201801") == ("201506", "201706", None)
+    assert datas(das_quebras, "202006") == ("201806", "202006", None) and datas(das_quebras, "202106") == ("201906", "202106", None)
     for fim, ini in (("201806", "201606"), ("201906", "201706"), ("202206", "202006"), ("202306", "202106"), ("202406", "202206")):
-        assert datas(fim) == (ini, fim, "comparacao_nao_habilitada"), fim
-    assert comparativos.TRECHOS_COMPARAVEIS == ((2014, 2017), (2018, 2021)) and comparativos.MINIMO_DE_MEDICOS == 20
+        assert datas(das_quebras, fim) == (ini, fim, "comparacao_nao_habilitada"), fim
+    assert comparativos.motivo_da_janela(quebrada, i("201706"), i("201906")) == "a população de 2018 muda de patamar em boa parte da base"
+    assert comparativos.motivo_da_janela(quebrada, i("202206"), i("202406")) == (
+        "a população de 2023 repete a do ano anterior em boa parte da base, e a população de 2024 muda de patamar em boa parte da base")
+    assert comparativos.motivo_da_janela(quebrada, i("201906"), i("202106")) is None
+    # Um território parado e outro com um salto são normais e não desligam a comparação (decisão do responsável de 13/11/2026).
+    normais = base_comparavel({codigo: serie((30, T)) for codigo in codigos},
+                              populacoes={"110001": _populacao_por_ano(10000), "110002": 20000, "110003": _populacao_por_ano(30000, saltos=(2020,)),
+                                          "110004": _populacao_por_ano(40000)})
+    assert comparativos.populacao_comparavel(normais)["quebras"] == {} and comparativos.trechos_comparaveis(normais) == [[2014, 2024]]
+    assert all(comparativos.janela(normais, i(c))[2] is None for c in ("201606", "202006", "202406"))
 
 
 def test_percentil_e_o_posto_medio_menos_meio_sobre_n():
@@ -551,16 +590,24 @@ def test_disponibilidade_relativa_a_taxa_e_a_decomposicao_com_os_limites_exatos(
                                   "passou de 100 para 80 (−20,0%), e a população, de 50.000 para 50.000 (0,0%).")
     assert texto["habitual"] == detector.SEM_VALIDACAO and "Queda de 10% ou mais: sinal forte; de 20% ou mais: muito forte." in texto["criterio"]
     assert "Limites provisórios" in texto["criterio"] and "Não mede acesso, cobertura nem qualidade do atendimento" in texto["nao_significa"]
-    # Em jun/2024, a janela (jun/2022 a jun/2024) cruza a troca de base da população: o nível da data fica à vista, sem a variação.
-    em_2024 = avaliar(b, "110001", i("202406"))
-    assert em_2024["disponibilidade"] == {"taxa": 1.6, "populacao": 50000.0, "competencia": "202406", "sinal": None, "de": "202206",
+    # Com a população constante, a janela de jun/2022 a jun/2024 vale: 80 médicos nos dois junhos, e a taxa não mudou.
+    hoje = avaliar(b, "110001", i("202406"))["disponibilidade"]
+    assert (hoje["estado"], hoje["de"], hoje["ate"], hoje["sinal"]) == ("sem_sinal", "202206", "202406", None)
+    assert hoje["variacao_pct"] == pytest.approx(0.0)
+    # Quando a população da base inteira salta de um ano para o outro (aqui, +20% em 2024, nos três municípios), a janela que
+    # cruza o salto fica sem a variação: "comparação não habilitada", com o nível da data à vista e o motivo lido da base.
+    salto = [50000.0] * 20 + [60000.0] * 2
+    com_salto = base_comparavel({codigo: serie((90, T)) for codigo in ("110001", "110002", "110003")},
+                                populacoes={codigo: salto for codigo in ("110001", "110002", "110003")})
+    em_2024 = avaliar(com_salto, "110001", i("202406"))
+    assert em_2024["disponibilidade"] == {"taxa": 1.5, "populacao": 60000.0, "competencia": "202406", "sinal": None, "de": "202206",
                                           "ate": "202406", "estado": "comparacao_nao_habilitada"}
     assert em_2024["posicao"]["estado"] == em_2024["defasagem"]["estado"] == "comparacao_nao_habilitada"
     assert em_2024["posicao"]["percentil"] is not None and em_2024["defasagem"]["indice"] is not None
-    texto = texto_do(b, em_2024, i("202406"), "disponibilidade")
-    assert texto["situacao"] == "1,60 por 1.000 habitantes em jun/2024 · comparação não habilitada"
-    assert texto["habitual"] == ("Comparação não habilitada: de jun/2022 a jun/2024, a população de 2021 a 2023 é repetida e a de 2024 é de "
-                                 "outra base; só há população comparável dentro de 2014–2017 e de 2018–2021.")
+    texto = texto_do(com_salto, em_2024, i("202406"), "disponibilidade")
+    assert texto["situacao"] == "1,50 por 1.000 habitantes em jun/2024 · comparação não habilitada"
+    assert texto["habitual"] == ("Comparação não habilitada: de jun/2022 a jun/2024, a população de 2024 muda de patamar em boa parte da "
+                                 "base; população comparável nesta base: 2014–2023.")
     # Antes de haver dois anos de junhos, janela insuficiente nos três indicadores.
     cedo = avaliar(b, "110001", i("201506"))
     assert [cedo[chave]["estado"] for chave in ("disponibilidade", "posicao", "defasagem")] == ["janela_insuficiente"] * 3
@@ -839,14 +886,16 @@ def test_rota_do_detector_tabela_detalhe_e_recusas(catalogo, monkeypatch):
     assert (linhas["c1"]["tipo"], linhas["c1"]["membros"], linhas["c1"]["ultima"]["valor"]) == ("conjunto", 2, 51)
     assert {nota[:5] for nota in body["notas"]} >= {"Base:", "Fato ", "Inten", "Zero "}
     assert body["limitacoes"] == ["LIMITES_PROVISORIOS", "CALIBRACAO_SO_MUNICIPAL", "COMPARACAO_SO_COM_POPULACAO_COMPARAVEL"]
-    # Fenômenos 8 a 12 (etapa 5). Em jun/2024, a comparação de 2 anos não é habilitada: o nível da data fica à vista.
-    assert body["comparacao"] == {"de": "202206", "ate": "202406", "estado": "comparacao_nao_habilitada", "trechos": [[2014, 2017], [2018, 2021]],
+    # Fenômenos 8 a 12 (etapa 5). A população do catálogo é constante: um trecho só, lido da própria base, e a comparação de
+    # 2 anos vale em jun/2024 (comando V23, Parte D). Manaus foi de 47 para 51 médicos e passou Belém (50) na posição.
+    assert body["comparacao"] == {"de": "202206", "ate": "202406", "estado": "comparavel", "trechos": [[2014, 2024]], "motivo": None,
                                   "minimo_de_medicos": 20, "contexto": {"taxa_minima": 25.0, "taxa_do_brasil": 25.0, "pct_da_taxa_do_brasil": 100.0,
                                                                         "atendem": 2, "universo": 2}}
     manaus = linhas["code:130260"]
-    assert manaus["disponibilidade"] == {"estado": "comparacao_nao_habilitada", "taxa": 51.0, "populacao": 1000.0, "variacao_pct": None, "sinal": None}
-    assert manaus["posicao"] == {"estado": "comparacao_nao_habilitada", "percentil": 87.5, "universo": 4, "variacao_pp": None, "sinal": None}
-    assert manaus["defasagem"]["indice"] == pytest.approx(100 * 51 / 6) and manaus["defasagem"]["estado"] == "comparacao_nao_habilitada"
+    assert manaus["disponibilidade"] == {"estado": "sem_sinal", "taxa": 51.0, "populacao": 1000.0, "variacao_pct": pytest.approx(100 * (51 / 47 - 1)),
+                                         "sinal": None}
+    assert manaus["posicao"] == {"estado": "sem_sinal", "percentil": 87.5, "universo": 4, "variacao_pp": pytest.approx(25.0), "sinal": None}
+    assert manaus["defasagem"]["indice"] == pytest.approx(100 * 51 / 6) and manaus["defasagem"]["estado"] == "sem_sinal"
     assert manaus["contexto"] == {"estado": "atende_ao_criterio", "distancia_km": None, "referencia": None, "referencia_id": None, "percentil": None}
     # Parintins e Tefé não atendem: a distância em linha reta até Manaus, o município mais próximo que atende (Belém fica mais longe).
     parintins, tefe_c = linhas["code:130340"]["contexto"], tefe["contexto"]
@@ -885,7 +934,7 @@ def test_rota_do_detector_tabela_detalhe_e_recusas(catalogo, monkeypatch):
     assert [fenomeno["numero"] for fenomeno in detalhe["fenomenos"]] == ["1–2", "3", "6", "7", "4", "5", "8", "9", "10", "11", "12"]
     # As séries dos gráficos dos fenômenos 8 e 10: a taxa do território, a da referência (os demais municípios da UF) e o índice.
     comparativo = detalhe["comparativo"]
-    assert comparativo["competencias"] == list(PERIODOS) and comparativo["trechos"] == [[2014, 2017], [2018, 2021]]
+    assert comparativo["competencias"] == list(PERIODOS) and comparativo["trechos"] == [[2014, 2024]]
     assert (comparativo["taxa"][0], comparativo["taxa"][2], comparativo["taxa"][-1]) == (20.0, None, 12.0)   # o registro ausente não é zero
     assert comparativo["referencia"]["rotulo"] == "demais municípios do Amazonas (soma municipal)"
     assert comparativo["referencia"]["motivo"] is None and comparativo["referencia"]["taxa"][-1] == pytest.approx(1000 * 51 / 2000)
@@ -1023,18 +1072,30 @@ def test_real_desaceleracao_e_a_classe_da_analise_de_tendencia(real):
 
 
 def test_real_fenomenos_8_a_12_comparacao_so_com_populacao_comparavel(real):
-    # No último registro (jun/2024), a janela de jun/2022 a jun/2024 cruza a troca de base da população: os indicadores 8, 9 e 10
-    # ficam com "comparação não habilitada", com o nível da data à vista (critério de aceitação do comando, seção 14).
+    # Com a população do Ministério da Saúde (troca de 13/11/2026, comando V23), a base inteira é um trecho só de população
+    # comparável, lido dela mesma: nenhum ano de 2014 a 2024 fica com "comparação não habilitada". No último registro (jun/2024),
+    # a janela de jun/2022 a jun/2024 vale, e os indicadores 8, 9 e 10 trazem a variação.
+    def contar(resposta, chave):
+        saida = {}
+        for linha in resposta["linhas"]:
+            rotulo = linha[chave]["sinal"] or linha[chave]["estado"]
+            saida[rotulo] = saida.get(rotulo, 0) + 1
+        return saida
     hoje = corpo(pedir({"base": {"municipios": {"todos": True}}}))
-    assert hoje["comparacao"]["estado"] == "comparacao_nao_habilitada" and (hoje["comparacao"]["de"], hoje["comparacao"]["ate"]) == ("202206", "202406")
-    assert hoje["comparacao"]["trechos"] == [[2014, 2017], [2018, 2021]] and hoje["comparacao"]["minimo_de_medicos"] == 20
-    assert all(linha["disponibilidade"]["estado"] == linha["posicao"]["estado"] == "comparacao_nao_habilitada" for linha in hoje["linhas"])
+    assert hoje["comparacao"]["estado"] == "comparavel" and (hoje["comparacao"]["de"], hoje["comparacao"]["ate"]) == ("202206", "202406")
+    assert hoje["comparacao"]["trechos"] == [[2014, 2024]] and hoje["comparacao"]["motivo"] is None and hoje["comparacao"]["minimo_de_medicos"] == 20
     assert all(linha["disponibilidade"]["taxa"] is not None and linha["posicao"]["percentil"] is not None for linha in hoje["linhas"])
-    por_estado = {}
-    for linha in hoje["linhas"]:
-        por_estado[linha["defasagem"]["estado"]] = por_estado.get(linha["defasagem"]["estado"], 0) + 1
-    assert por_estado == {"comparacao_nao_habilitada": 5569, "referencia_invalida": 1}   # Brasília é o único município da UF
-    assert [hoje["resumo"]["sinais"][chave] for chave in ("disponibilidade", "posicao", "defasagem", "combinados")] == [0, 0, 0, 262]
+    assert contar(hoje, "disponibilidade") == {"sem_sinal": 2164, "descritivo": 3162, "forte": 135, "muito_forte": 109}
+    assert contar(hoje, "posicao") == {"sem_sinal": 2050, "descritivo": 3162, "queda": 237, "forte": 121}
+    assert contar(hoje, "defasagem") == {"sem_sinal": 2233, "descritivo": 3162, "forte": 136, "muito_forte": 38,
+                                        "referencia_invalida": 1}   # Brasília é o único município da UF
+    assert [hoje["resumo"]["sinais"][chave] for chave in ("disponibilidade", "posicao", "defasagem", "combinados")] == [244, 358, 174, 363]
+    # Os dois municípios de Sergipe cuja população de 2024 mudou na troca (a tabela corrigida do IBGE de 30/12/2024).
+    de_hoje = {linha["id"]: linha for linha in hoje["linhas"]}
+    assert (de_hoje["code:280120"]["rotulo"], de_hoje["code:280120"]["disponibilidade"]["populacao"]) == ("CANINDE DE SAO FRANCISCO (SE)", 33491.0)
+    assert (de_hoje["code:280540"]["rotulo"], de_hoje["code:280540"]["disponibilidade"]["populacao"]) == ("POCO REDONDO (SE)", 29117.0)
+    assert de_hoje["code:280120"]["disponibilidade"]["taxa"] == pytest.approx(1000 * 47 / 33491)
+    assert de_hoje["code:280540"]["disponibilidade"]["taxa"] == pytest.approx(1000 * 19 / 29117)
     assert hoje["limitacoes"] == ["LIMITES_PROVISORIOS", "CALIBRACAO_SO_MUNICIPAL", "COMPARACAO_SO_COM_POPULACAO_COMPARAVEL"]
     # O contexto geográfico vale em qualquer data: o critério é a taxa do Brasil (2,36 por 1.000 em jun/2024).
     contexto = hoje["comparacao"]["contexto"]
@@ -1045,45 +1106,42 @@ def test_real_fenomenos_8_a_12_comparacao_so_com_populacao_comparavel(real):
         estados[linha["contexto"]["estado"]] = estados.get(linha["contexto"]["estado"], 0) + 1
     assert estados == {"contexto": 3566, "atende_ao_criterio": 2002, "sem_coordenada": 2}
     assert len(hoje["coordenadas"]) == 5564 and all(len(par) == 2 for par in hoje["coordenadas"].values())
-    # Em jun/2021, a janela (jun/2019 a jun/2021) cabe em 2018–2021: os sinais observados, com limites provisórios e sem intensidade.
+    # Em jun/2021 (janela de jun/2019 a jun/2021): os sinais observados, com limites provisórios e sem intensidade. Os valores
+    # são os da população nova: a taxa do Brasil na data passa de 1,98 para 2,01 por 1.000.
     antes = corpo(pedir({"base": {"municipios": {"todos": True}}, "janela": {"fim": "202106"}}))
     assert (antes["comparacao"]["estado"], antes["comparacao"]["de"], antes["comparacao"]["ate"]) == ("comparavel", "201906", "202106")
-    assert antes["comparacao"]["contexto"]["taxa_do_brasil"] == pytest.approx(1.98342, abs=1e-5)
-    assert (antes["comparacao"]["contexto"]["atendem"], antes["comparacao"]["contexto"]["universo"]) == (1720, 3846)
-    assert [antes["resumo"]["sinais"][chave] for chave in ("disponibilidade", "posicao", "defasagem", "combinados")] == [191, 225, 108, 568]
-    def contar(chave):
-        saida = {}
-        for linha in antes["linhas"]:
-            rotulo = linha[chave]["sinal"] or linha[chave]["estado"]
-            saida[rotulo] = saida.get(rotulo, 0) + 1
-        return saida
-    assert contar("disponibilidade") == {"sem_sinal": 1822, "descritivo": 3554, "forte": 114, "muito_forte": 77, "nao_calculavel": 3}
-    assert contar("posicao") == {"sem_sinal": 1788, "descritivo": 3557, "queda": 163, "forte": 61, "muito_forte": 1}
-    assert contar("defasagem") == {"sem_sinal": 1904, "descritivo": 3557, "forte": 84, "muito_forte": 24, "referencia_invalida": 1}
+    assert antes["comparacao"]["contexto"]["taxa_do_brasil"] == pytest.approx(2.01377, abs=1e-5)
+    assert (antes["comparacao"]["contexto"]["atendem"], antes["comparacao"]["contexto"]["universo"]) == (1670, 3895)
+    assert [antes["resumo"]["sinais"][chave] for chave in ("disponibilidade", "posicao", "defasagem", "combinados")] == [184, 223, 108, 565]
+    assert contar(antes, "disponibilidade") == {"sem_sinal": 1829, "descritivo": 3554, "forte": 113, "muito_forte": 71, "nao_calculavel": 3}
+    assert contar(antes, "posicao") == {"sem_sinal": 1790, "descritivo": 3557, "queda": 153, "forte": 69, "muito_forte": 1}
+    assert contar(antes, "defasagem") == {"sem_sinal": 1904, "descritivo": 3557, "forte": 84, "muito_forte": 24, "referencia_invalida": 1}
     assert all(linha["dimensoes"]["comparacao"] is None and linha["dimensoes"]["contexto"] is None for linha in antes["linhas"])
     linhas = {linha["id"]: linha for linha in antes["linhas"]}
     # Barra Bonita (SP): a mesma queda aparece na perda, na taxa, na posição e no índice — quatro repercussões, nenhuma combinação.
     barra = linhas["code:350530"]
     assert barra["rotulo"] == "BARRA BONITA (SP)" and barra["sinais"] == ["perda", "alerta_perda", "registro", "disponibilidade", "posicao", "defasagem"]
     assert (barra["disponibilidade"]["sinal"], barra["posicao"]["sinal"], barra["defasagem"]["sinal"]) == ("muito_forte", "queda", "forte")
-    assert barra["disponibilidade"]["variacao_pct"] == pytest.approx(-36.205, abs=1e-3) and barra["posicao"]["variacao_pp"] == pytest.approx(-11.526, abs=1e-3)
-    assert barra["defasagem"]["indice"] == pytest.approx(72.887, abs=1e-3) and barra["posicao"]["universo"] == 5570
+    assert barra["disponibilidade"]["variacao_pct"] == pytest.approx(-35.748, abs=1e-3) and barra["posicao"]["variacao_pp"] == pytest.approx(-11.311, abs=1e-3)
+    assert barra["defasagem"]["indice"] == pytest.approx(72.098, abs=1e-3) and barra["posicao"]["universo"] == 5570
     assert barra["coexistencia"] == {"estado": "sem_combinacao", "combinacoes": [], "textos": [], "repercussoes": 4}
     assert barra["contexto"]["estado"] == "atende_ao_criterio"
-    # Manaus, abaixo da taxa do Brasil em jun/2021: o município mais próximo que atende ao critério fica a 424 km, em linha reta.
+    # Manaus, abaixo da taxa do Brasil em jun/2021: o município mais próximo que atende ao critério fica a 752 km, em linha reta
+    # (com a população nova, é Porto Velho; com a anterior, era Jacareacanga, a 424 km).
     manaus = linhas["code:130260"]["contexto"]
-    assert (manaus["estado"], manaus["referencia"], manaus["referencia_id"]) == ("contexto", "JACAREACANGA (PA)", "code:150375")
-    assert manaus["distancia_km"] == pytest.approx(423.514, abs=1e-3) and manaus["percentil"] == pytest.approx(98.271, abs=1e-3)
-    assert "code:150375" in antes["coordenadas"] and "code:130260" in antes["coordenadas"]
+    assert (manaus["estado"], manaus["referencia"], manaus["referencia_id"]) == ("contexto", "PORTO VELHO (RO)", "code:110020")
+    assert manaus["distancia_km"] == pytest.approx(752.233, abs=1e-3) and manaus["percentil"] == pytest.approx(99.012, abs=1e-3)
+    assert "code:110020" in antes["coordenadas"] and "code:130260" in antes["coordenadas"]
     # Os detalhes de um território trazem os 11 itens (os 12 fenômenos; 1 e 2 juntos) e as séries dos gráficos dos fenômenos 8 e 10.
     detalhe = corpo(pedir({"base": {"municipios": {"ids": ["code:350530"]}}, "detalhe": "code:350530", "janela": {"fim": "202106"}}))
     assert [fenomeno["numero"] for fenomeno in detalhe["fenomenos"]] == ["1–2", "3", "6", "7", "4", "5", "8", "9", "10", "11", "12"]
     oito = next(fenomeno for fenomeno in detalhe["fenomenos"] if fenomeno["chave"] == "disponibilidade")
-    assert oito["situacao"] == "−36,2% na taxa por habitante em 2 anos · sinal observado muito forte" and oito["habitual"] == detector.SEM_VALIDACAO
+    assert oito["situacao"] == "−35,7% na taxa por habitante em 2 anos · sinal observado muito forte" and oito["habitual"] == detector.SEM_VALIDACAO
     comparativo = detalhe["comparativo"]
     assert comparativo["competencias"] == list(PERIODOS[:16]) and len(comparativo["taxa"]) == len(comparativo["indice"]) == 16
     assert comparativo["referencia"]["rotulo"] == "demais municípios de São Paulo (soma municipal)"
-    assert comparativo["taxa"][-1] == pytest.approx(3.0727, abs=1e-4) and comparativo["indice"][-1] == pytest.approx(72.887, abs=1e-3)
+    assert comparativo["taxa"][-1] == pytest.approx(3.1059, abs=1e-4) and comparativo["indice"][-1] == pytest.approx(72.098, abs=1e-3)
+    assert comparativo["trechos"] == [[2014, 2024]]
     tudo = " ".join(fenomeno[campo] for fenomeno in detalhe["fenomenos"] for campo in ("situacao", "observado", "criterio", "habitual",
                                                                                         "significa", "nao_significa")).lower()
     for proibido in ("desassistid", "isolad", "sem cobertura", "recomenda", "deveria", "criticidade", "vazio assistencial"):

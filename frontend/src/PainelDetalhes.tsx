@@ -5,6 +5,7 @@ import {
   maiuscula, numero, ordenarTabela, paginar, textoDaContagem, textoDaLimitacao, variacaoDe, POR_PAGINA, type ColunaTabela, type Familia,
   type NaoAvaliavel, type Ordenacao, type RotulosTerritoriais,
 } from "./painelModel";
+import { comNomesAnteriores } from "./painelModel";
 
 // Detalhes, abaixo do gráfico: Tabela (os mesmos itens do gráfico, em páginas de 100), Não avaliáveis (à parte, com o motivo do
 // motor, RQ-REP-04) e Método e procedência. Na impressão, as três partes aparecem.
@@ -46,7 +47,7 @@ export default function PainelDetalhes(p: Props) {
   const rotatividade = p.familia === "rotatividade";
   const termo = semAcento(busca.trim());
   const linhas = useMemo(() => ordenarTabela(p.itens, ordenacao, p.indicador)
-    .filter(item => !termo || semAcento(item.rotulo).includes(termo)), [p.itens, ordenacao, p.indicador, termo]);
+    .filter(item => !termo || semAcento(comNomesAnteriores(item.rotulo, item.nomesAnteriores)).includes(termo)), [p.itens, ordenacao, p.indicador, termo]);
   useEffect(() => setPagina(0), [linhas]);
   const atual = paginar(linhas, pagina);
   const especie = INDICADORES[p.indicador];

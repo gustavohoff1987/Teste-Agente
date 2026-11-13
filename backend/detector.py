@@ -41,6 +41,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+import nomes_anteriores
 import series_brasil
 import comparativos
 from series_brasil import Base, Territorio
@@ -1170,8 +1171,16 @@ def _texto_instabilidade(base: Base, av: dict) -> dict:
 # --------------------------------------------------------------------------------------------- textos dos fenômenos 8 a 12
 SEM_VALIDACAO = ("Sem classificação de intensidade: os limites deste indicador são provisórios e ainda não foram conferidos com a "
                  "base. O fato fica como sinal observado.")
-POPULACAO_NAO_COMPARAVEL = ("a população de 2021 a 2023 é repetida e a de 2024 é de outra base; só há população comparável dentro de "
-                            "2014–2017 e de 2018–2021")
+
+
+def _populacao_nao_comparavel(base: Base, s: dict) -> str:
+    """O motivo da comparação não habilitada, lido da própria base: os anos em que a população se repete ou salta, e os trechos
+    comparáveis."""
+    periodos = base.periodos
+    motivo = comparativos.motivo_da_janela(base, periodos.index(s["de"]) if s.get("de") in periodos else None,
+                                           periodos.index(s["ate"]) if s.get("ate") in periodos else None)
+    return (motivo or "a população da base não é comparável de um ano para o outro nesta janela") + \
+        "; população comparável nesta base: " + comparativos.texto_dos_trechos(base)
 NOMES_DOS_SINAIS = {"forte": "sinal observado forte", "muito_forte": "sinal observado muito forte", "queda": "queda de posição observada"}
 
 
@@ -1191,11 +1200,11 @@ def _pontos(valor) -> str:
     return ("" if arredondado == 0 else "+" if valor > 0 else "−") + _br(arredondado) + (" ponto" if arredondado == 1 else " pontos")
 
 
-def _sem_variacao(s: dict, nivel: str) -> dict | None:
+def _sem_variacao(base: Base, s: dict, nivel: str) -> dict | None:
     """Os estados em que a variação não existe: o nível da data continua à vista, com o motivo."""
     if s["estado"] == "comparacao_nao_habilitada":
         return {"situacao": nivel + " · comparação não habilitada",
-                "habitual": "Comparação não habilitada: de " + curta(s["de"]) + " a " + curta(s["ate"]) + ", " + POPULACAO_NAO_COMPARAVEL + "."}
+                "habitual": "Comparação não habilitada: de " + curta(s["de"]) + " a " + curta(s["ate"]) + ", " + _populacao_nao_comparavel(base, s) + "."}
     if s["estado"] == "janela_insuficiente":
         return {"situacao": nivel + " · janela insuficiente", "habitual": "Janela insuficiente: falta o registro de junho de dois anos antes."}
     return None
@@ -1206,8 +1215,9 @@ def _texto_disponibilidade(base: Base, av: dict, p: dict) -> dict:
     comum = {"criterio": "Taxa de médicos por 1.000 habitantes (a contagem do território ÷ a população estimada da mesma competência; "
                          "num conjunto, a soma das contagens ÷ a soma das populações), comparada de junho a junho em 2 anos. Queda de " +
                          _pct(limites["forte"], 0) + " ou mais: sinal forte; de " + _pct(limites["muito_forte"], 0) + " ou mais: muito "
-                         "forte. " + LIMITES_PROVISORIOS + " A variação só é calculada em trechos com população comparável (2014–2017 e "
-                         "2018–2021); com menos de " + str(comparativos.MINIMO_DE_MEDICOS) + " médicos no início da janela, o indicador é "
+                         "forte. " + LIMITES_PROVISORIOS + " A variação só é calculada em trechos com população comparável (" +
+                         comparativos.texto_dos_trechos(base) + "); com menos de " + str(comparativos.MINIMO_DE_MEDICOS) +
+                         " médicos no início da janela, o indicador é "
                          "descritivo.",
              "significa": "Há menos médicos registrados por habitante do que dois anos antes, pela combinação da mudança no número "
                           "de médicos e na população.",
@@ -1220,7 +1230,7 @@ def _texto_disponibilidade(base: Base, av: dict, p: dict) -> dict:
     nivel = _taxa(s["taxa"]) + " por 1.000 habitantes em " + curta(s["competencia"])
     na_data = "Em " + curta(s["competencia"]) + ", a taxa é de " + _taxa(s["taxa"]) + " por 1.000 habitantes (" + \
         _br(s["populacao"]) + " habitantes)."
-    sem = _sem_variacao(s, nivel)
+    sem = _sem_variacao(base, s, nivel)
     if sem:
         return {**sem, "observado": na_data + " A variação em 2 anos não é calculada nesta janela.", **comum}
     m, pop = s["medicos"], s["populacao_da_janela"]
@@ -1265,7 +1275,7 @@ def _texto_posicao(base: Base, av: dict, p: dict) -> dict:
         "habitante, entre " + _br(s["universo"]) + " " + s["nome_do_universo"] + " (0 é a menor taxa; 100, a maior)."
     if s["estado"] == "nao_calculavel":
         return {"situacao": nivel + " · variação não calculável", "observado": na_data + " " + s["motivo"], "habitual": "Não calculável.", **comum}
-    sem = _sem_variacao(s, nivel)
+    sem = _sem_variacao(base, s, nivel)
     if sem:
         return {**sem, "observado": na_data + " A variação em 2 anos não é calculada nesta janela.", **comum}
     observado = "De " + curta(s["de"]) + " a " + curta(s["ate"]) + ", o território passou do percentil " + _br(round(s["percentil_inicial"], 1)) + \
@@ -1310,7 +1320,7 @@ def _texto_defasagem(base: Base, av: dict, p: dict) -> dict:
         " (100 é a taxa da referência)."
     if s["estado"] == "nao_calculavel":
         return {"situacao": nivel + " · variação não calculável", "observado": na_data + " " + s["motivo"], "habitual": "Não calculável.", **comum}
-    sem = _sem_variacao(s, nivel)
+    sem = _sem_variacao(base, s, nivel)
     if sem:
         return {**sem, "observado": na_data + " A variação em 2 anos não é calculada nesta janela.", **comum}
     observado = "De " + curta(s["de"]) + " a " + curta(s["ate"]) + ", o índice passou de " + _br(round(s["indice_inicial"], 1)) + " para " + \
@@ -1404,8 +1414,10 @@ def _linha(av: dict) -> dict:
     """A linha da tabela: só o que a tabela e os filtros usam (os detalhes vêm no pedido de um território)."""
     e, pe, pa, de, ds, ins = (av[chave] for chave in ("estrutural", "perda", "patamar", "declinio", "desaceleracao", "instabilidade"))
     di, po, df, co, cx = (av[chave] for chave in ("disponibilidade", "posicao", "defasagem", "contexto", "coexistencia"))
+    anteriores = nomes_anteriores.do_rotulo(av["id"], av["rotulo"]) if av["tipo"] == "municipio" else []
     return {
         "id": av["id"], "tipo": av["tipo"], "nivel": av["nivel"], "rotulo": av["rotulo"], "uf": av["uf"],
+        **({"nomes_anteriores": anteriores} if anteriores else {}),   # só para a busca por nome ("Parati" acha PARATY)
         "ultima": av["ultima"], "porte": av["porte"], "sinais": av["sinais"], "dimensoes": av["dimensoes"],
         "estrutural": {"estado": e["estado"], "classe": e.get("classe"), "n": e.get("n"), "impacto_pct": e.get("impacto_pct"),
                        "zeros": (e.get("zeros") or {}).get("registros"), "mantida": bool(e.get("mantida_pela_anterior"))},
@@ -1473,7 +1485,7 @@ def _notas(base: Base, personalizado: bool, niveis: set) -> list[str]:
              "suficiência do atendimento nem de prioridade de provimento.",
              "Zero é registro observado (zero confirmado); a competência sem registro é ausência de dado, nunca zero.",
              "Comparação relativa (taxa por habitante, posição e defasagem ante a referência): a variação só é calculada em janelas "
-             "de junho a junho, em 2 anos, com população comparável (2014–2017 e 2018–2021); fora disso, \"comparação não "
+             "de junho a junho, em 2 anos, dentro de um trecho de população comparável, lido da própria base; fora disso, \"comparação não "
              "habilitada\", com o nível da data à vista. Os limites são provisórios e não geram intensidade.",
              "Contexto geográfico: distância em linha reta até o município mais próximo que atende ao critério. Não é acesso, tempo "
              "de viagem nem isolamento, e não tem intensidade. Sinais combinados: sem índice geral; repercussões da mesma queda "
@@ -1557,7 +1569,7 @@ def _comparativo(base: Base, territorio: Territorio, e: int) -> dict:
     return {"competencias": list(base.periodos[:e + 1]), "taxa": [_num(v) for v in taxa[:e + 1]],
             "referencia": {"rotulo": rotulo, "motivo": motivo, "taxa": [_num(v) for v in referencia[:e + 1]]},
             "indice": [_num(v) for v in indice[:e + 1]],
-            "trechos": [list(trecho) for trecho in comparativos.TRECHOS_COMPARAVEIS]}
+            "trechos": comparativos.trechos_comparaveis(base)}
 
 
 def _coordenadas(base: Base, qd: comparativos.Quadro, territorios: list, linhas: list[dict]) -> dict:
@@ -1598,7 +1610,8 @@ def compute(sources, opcoes: dict) -> dict:
               "ultimo_registro_da_base": base.periodos[-1], "e_o_ultimo": e == len(base.periodos) - 1}
     qd = comparativos.quadro(base, e, p)
     comparacao = {"de": None if qd.ini is None else base.periodos[qd.ini], "ate": None if qd.fim is None else base.periodos[qd.fim],
-                  "estado": qd.motivo or "comparavel", "trechos": [list(trecho) for trecho in comparativos.TRECHOS_COMPARAVEIS],
+                  "estado": qd.motivo or "comparavel", "trechos": comparativos.trechos_comparaveis(base),
+                  "motivo": comparativos.motivo_da_janela(base, qd.ini, qd.fim) if qd.motivo == "comparacao_nao_habilitada" else None,
                   "minimo_de_medicos": comparativos.MINIMO_DE_MEDICOS,
                   "contexto": {"taxa_minima": qd.limiar, "taxa_do_brasil": qd.taxa_do_brasil,
                                "pct_da_taxa_do_brasil": p["contexto"]["taxa_do_brasil_pct"], "atendem": int(qd.atende.sum()),

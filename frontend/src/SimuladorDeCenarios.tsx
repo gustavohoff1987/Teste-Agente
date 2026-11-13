@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Download, LoaderCircle, Plus, Trash2, Upload, X } from "lucide-react";
 import { ErroDoMotor, pedirAoMotor, type FonteDoMotor } from "./painelApi";
 import type { GrupoInfo, UnidadeDoCatalogo } from "./painelModel";
+import { comNomesAnteriores } from "./painelModel";
 import {
   ID_DA_REFERENCIA, ID_DO_BRASIL, MAX_CENARIOS, MAX_INTERVENCOES, MAX_REFERENCIAS, MAX_TERRITORIOS, METODOS_DA_TELA, NOME_CURTO_DO_METODO, acrescentarTerritorio,
   anosDepois, cenariosEmUso, comOBrasil, comOPlanoComoIntervencao, competenciaCurta, configInicial, contasDoFinal, hipotesePertinente, metodoNaTabela, tempoDesde,
@@ -253,7 +254,8 @@ export default function SimuladorDeCenarios(props: Props) {
   const procurar = (pedido: string) => pedido.length < 2 ? null : {
     brasil: "brasil".includes(pedido),
     estados: p.grupos.filter(g => sem(g.nome + " " + g.sigla).includes(pedido)).slice(0, 4),
-    municipios: p.unidades.filter(item => !item.selection_reason && sem(item.name + " " + item.code).includes(pedido)).slice(0, 8) };
+    municipios: p.unidades.filter(item => !item.selection_reason &&
+      sem(comNomesAnteriores(item.name + " " + item.code, item.former_names)).includes(pedido)).slice(0, 8) };
   const achados = procurar(termo);
   const achadosDeReferencia = procurar(sem(buscaDeReferencia.trim()));
   /** Os territórios da seleção local que também estão na seleção principal: só eles vão a ela (o Brasil fica só no Simulador). */

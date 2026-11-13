@@ -74,11 +74,19 @@ pessoas distintas, cada uma no seu nível.
 
 ## 6. População
 
-- **Janeiro igual a junho** no mesmo ano, em praticamente todos os municípios (99,8% a 100%).
-- **Muda todo ano de 2014 a 2021**; de 2017 para 2018 a mudança total é pequena (+0,40%), com quase todos os municípios
-  revistos; **2021, 2022 e 2023 são idênticas** (213.318.141 habitantes); **2024 é uma base nova** (212.583.750, −0,34%).
-- **Consequência:** os trechos com população comparável são 2014–2017 e 2018–2021, como diz o anexo (indicadores 8 e 9); uma
-  janela que cruze 2023 → 2024 recebe "comparação não habilitada". Nenhum município tem população ausente ou zero.
+Desde 13/11/2026, a população é a série do Ministério da Saúde ("Estudo de Estimativas Populacionais por Município, Idade e
+Sexo 2000-2025"; ver [a validação da base](DADOS_BRASIL_VALIDACAO.md)).
+
+- **Janeiro igual a junho** no mesmo ano, em todos os municípios.
+- **Muda todo ano, de 2014 a 2024, sem saltos nem repetições na base inteira:** o Brasil cresce de +0,79% (2015) a +0,42% (2024)
+  ao ano; de um ano para o outro, de 7 a 30 municípios variam mais de 5% (nenhum mais de 20%), e de 23 a 55 repetem o valor.
+  Em 2024, soma 212.583.750 habitantes.
+- **Consequência:** a base inteira é um trecho só de população comparável (2014–2024). O trecho é lido da própria base
+  (`comparativos.populacao_comparavel`), que é olhada inteira em cada passagem de ano: alguns municípios parados ou com salto
+  são normais e não desligam a comparação. Nenhum município tem população ausente ou zero.
+- **Até 13/11/2026**, com a população anterior, janeiro e junho diferiam em 25 pares município × ano; 2021, 2022 e 2023 eram
+  idênticas (213.318.141 habitantes), e 2024 era de outra base. A mesma leitura dava os trechos 2014–2017 e 2018–2021, e uma
+  janela que cruzasse esses limites recebia "comparação não habilitada".
 
 ## 7. Coordenadas
 
@@ -101,9 +109,10 @@ calibrado", "limite provisório" no lugar de "candidato"); os termos técnicos f
 3. **Calibração por porte e intervalo:** possível em jun/2024 em todas as células (seção 4); nas primeiras competências,
    "não calibrado". A crítica do indicador 7 fica "não calibrável" enquanto não houver casos para estimar a cauda (seção 4.2).
 4. **População comparável:** só nos trechos da seção 6; fora deles, os indicadores 8 e 9 ficam "comparação não habilitada".
-   **Implementado em 11/11/2026** (etapa 5 do comando): a janela de 2 anos só é habilitada inteira dentro de 2014–2017 ou de
-   2018–2021; por decisão conservadora, a mesma regra vale para a variação do indicador 10, e o nível da data (taxa, percentil
-   e índice) continua à vista ([Detector de Sinais](DETECTOR_DE_SINAIS.md)).
+   **Implementado em 11/11/2026** (etapa 5 do comando V22): a janela de 2 anos só é habilitada inteira dentro de um trecho
+   de população comparável; por decisão conservadora, a mesma regra vale para a variação do indicador 10, e o nível da data
+   (taxa, percentil e índice) continua à vista ([Detector de Sinais](DETECTOR_DE_SINAIS.md)). **Desde 13/11/2026** (comando
+   V23), os trechos vêm da própria base, e não de anos fixos; com a população nova, é um trecho só (2014–2024).
 5. **Estados como unidade e conjuntos:** sem calibração própria (a da V2.2 é municipal); o Detector mostra os fatos e os
    indicadores descritivos, sem intensidade calibrada.
 6. **Faixas de 80% do Simulador:** a tabela da seção 11.2 do anexo traz valores iniciais, a recalcular na base (retroprojeções

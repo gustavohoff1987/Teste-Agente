@@ -43,6 +43,12 @@ def normalize(value):
     return "".join(c for c in unicodedata.normalize("NFD", value.lower()) if not unicodedata.combining(c)).strip()
 
 
+def search_names(item) -> list:
+    """O nome da unidade do catálogo e, na base Brasil, os nomes anteriores dela (`former_names`; 13/11/2026), normalizados: o
+    nome anterior continua achando o município, e o rótulo mostrado é sempre o atual."""
+    return [normalize(str(item["name"]))] + [normalize(str(former)) for former in item.get("former_names") or ()]
+
+
 def operation_for(message):
     text = normalize(message)
     # Referência mais próxima antes de "densidade": o comando prepara a operação e os alvos, sem criar referências.
@@ -184,8 +190,7 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
         # expressão casar: testá-lo antes evita compilar uma expressão por unidade do catálogo a cada mensagem.
         if len(item["name"]) <= 2:
             return item["name"] in message and bool(re.search(r"(?<!\w)" + re.escape(item["name"]) + r"(?!\w)", message))
-        name = normalize(item["name"])
-        return name in text and bool(re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", text))
+        return any(name in text and bool(re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", text)) for name in search_names(item))
     # Estados da base oficial (código IBGE no catálogo): nome normalizado → (prefixo, nome). A região usa todos; o nome
     # citado, só os que não são palavras comuns sem acento.
     known = {}
@@ -256,6 +261,7 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
     names = set(normalize(item["name"]) for item in catalog
                 if len(item["name"]) > 2 or (item["name"] in message and
                                              re.search(r"(?<!\w)" + re.escape(item["name"]) + r"(?!\w)", message)))
+    names |= {name for item in catalog for name in search_names(item)[1:]}   # os nomes anteriores (base Brasil)
     statewide = bool(re.search(r"\bestados?\b", text)) and not re.search(r"\b(?:municipios?|cidades?)\b", text)
     # Pedido que já cita estados (nome só de estado ou região): o nome também de município não é escolhido em silêncio.
     with_states = bool(region) or any(name not in names and re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", text)
@@ -288,7 +294,7 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
                     continue
                 if with_states or re.search(r"\b(?:de|do|da|no|na|em)\s+$", before):
                     return _ambiguous(name, operation)
-        matches = [item for item in catalog if normalize(item["name"]) == expression]
+        matches = [item for item in catalog if expression in search_names(item)]
         if len(matches) != 1:
             return {"handled": True, "clarification": "Há municípios homônimos para “" + expression + "”. Selecione os códigos desejados na pesquisa territorial."}
         explicit.append(matches[0]["id"])

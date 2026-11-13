@@ -23,6 +23,8 @@ export type OpcoesDoDetector = SelecaoDasFerramentas & { janela?: { inicio?: str
 
 export type LinhaDoDetector = {
   id: string; tipo: "municipio" | "estado" | "conjunto" | "brasil"; nivel: string; rotulo: string; uf: string | null;
+  /** Base Brasil: os nomes anteriores do município (13/11/2026), só para a busca por nome; o que aparece é o nome atual. */
+  nomesAnteriores?: string[];
   ultima: { competencia: string; valor: number; naData: boolean } | null; porte: number | null; sinais: string[];
   dimensoes: { estrutural: ClasseDoSinal | null; trajetoria: ClasseDoSinal | null; ritmo: ClasseDoSinal | null };
   estrutural: { estado: string; classe: ClasseDoSinal | null; n: number | null; impactoPct: number | null; zeros: number | null; mantida: boolean };
@@ -46,9 +48,11 @@ export type LinhaDoDetector = {
 };
 /** A janela de comparação dos fenômenos 8 a 10 e o critério do contexto geográfico (fenômeno 11), do motor. */
 export type ComparacaoDoDetector = { de: string | null; ate: string | null; estado: string; minimoDeMedicos: number;
+  /** Os trechos de população comparável da base, lidos dela mesma ([[2014, 2024]]), e o motivo quando a janela não cabe num deles. */
+  trechos: [number, number][]; motivo: string | null;
   contexto: { taxaMinima: number | null; taxaDoBrasil: number | null; pctDaTaxaDoBrasil: number | null; atendem: number; universo: number } };
 /** As séries de um território para os gráficos dos fenômenos 8 e 10: a taxa, a taxa da referência e o índice, por competência. */
-export type ComparativoDoTerritorio = { competencias: string[]; taxa: (number | null)[]; indice: (number | null)[];
+export type ComparativoDoTerritorio = { competencias: string[]; taxa: (number | null)[]; indice: (number | null)[]; trechos: [number, number][];
   referencia: { rotulo: string; motivo: string | null; taxa: (number | null)[] } };
 export type CelulaDaPerda = { porte: string; transicoes: number; quedaIncomumPct: number | null; quedaMuitoIncomumPct: number | null;
   alta: string; critica: string };
@@ -100,9 +104,12 @@ function parametrosDe(bruto: unknown): ParametrosDoDetector {
   return Object.fromEntries(Object.entries(objeto(bruto)).map(([grupo, valores]) => [grupo, numeros(valores)]));
 }
 const numerosOuNulos = (valor: unknown): (number | null)[] => lista(valor).map(num);
+const trechosDe = (bruto: unknown): [number, number][] =>
+  lista(bruto).map(par => lista(par).map(num)).filter((par): par is [number, number] => par.length === 2 && par.every(ano => ano !== null));
 function comparacaoDe(bruto: unknown): ComparacaoDoDetector {
   const c = objeto(bruto), x = objeto(c.contexto);
   return { de: texto(c.de), ate: texto(c.ate), estado: texto(c.estado) ?? "", minimoDeMedicos: num(c.minimo_de_medicos) ?? 20,
+    trechos: trechosDe(c.trechos), motivo: texto(c.motivo),
     contexto: { taxaMinima: num(x.taxa_minima), taxaDoBrasil: num(x.taxa_do_brasil), pctDaTaxaDoBrasil: num(x.pct_da_taxa_do_brasil),
       atendem: num(x.atendem) ?? 0, universo: num(x.universo) ?? 0 } };
 }
@@ -123,6 +130,7 @@ function linhaDe(bruto: unknown): LinhaDoDetector | null {
     di = objeto(o.disponibilidade), po = objeto(o.posicao), df = objeto(o.defasagem), cx = objeto(o.contexto), co = objeto(o.coexistencia);
   const tipo = o.tipo === "estado" || o.tipo === "conjunto" || o.tipo === "brasil" ? o.tipo : "municipio";
   return { id, rotulo, tipo, nivel: texto(o.nivel) ?? "municipios", uf: texto(o.uf),
+    ...(textos(o.nomes_anteriores).length ? { nomesAnteriores: textos(o.nomes_anteriores) } : {}),
     ultima: texto(ultima.competencia) && num(ultima.valor) !== null
       ? { competencia: texto(ultima.competencia)!, valor: num(ultima.valor)!, naData: ultima.na_data === true } : null,
     porte: num(o.porte), sinais: textos(o.sinais),
@@ -190,7 +198,7 @@ export function normalizarDetalhe(bruto: unknown): DetalheDoDetector {
   const o = objeto(bruto), t = objeto(o.territorio), jt = objeto(o.janela_do_territorio), cp = objeto(o.comparativo), cr = objeto(cp.referencia);
   return { id: texto(t.id) ?? "", rotulo: texto(t.rotulo) ?? "", tipo: texto(t.tipo) ?? "municipio", unidade: texto(t.unidade) ?? "",
     comparativo: textos(cp.competencias).length ? { competencias: textos(cp.competencias), taxa: numerosOuNulos(cp.taxa),
-      indice: numerosOuNulos(cp.indice), referencia: { rotulo: texto(cr.rotulo) ?? "", motivo: texto(cr.motivo), taxa: numerosOuNulos(cr.taxa) } } : null,
+      indice: numerosOuNulos(cp.indice), trechos: trechosDe(cp.trechos), referencia: { rotulo: texto(cr.rotulo) ?? "", motivo: texto(cr.motivo), taxa: numerosOuNulos(cr.taxa) } } : null,
     membros: textos(t.nomes_dos_membros), janela: janelaDe(o.janela), inicioDoTerritorio: texto(jt.inicio) ?? "",
     depoisDaQuebra: jt.depois_da_quebra === true, exploratorio: o.exploratorio === true, notas: textos(o.notas),
     serie: lista(o.serie).map(item => {
@@ -313,6 +321,13 @@ export function trechosDaComparacao(linha: LinhaDoDetector): Trecho[] {
   if (saida.length > 1 && motivos.size === 1 && ["comparacao_nao_habilitada", "janela_insuficiente", "descritivo"].includes(saida[0].estado))
     saida.forEach((trecho, indice) => { if (indice < saida.length - 1) trecho.apoio = null; });
   return saida.map(({ estado: _estado, ...trecho }) => trecho);
+}
+
+/** Os trechos de população comparável, por extenso: "de 2014 a 2024", "de 2014 a 2017 e de 2018 a 2021"; sem nenhum, "em nenhum
+ * trecho desta base". */
+export function textoDosTrechos(trechos: [number, number][]): string {
+  const partes = trechos.map(([inicio, fim]) => "de " + inicio + " a " + fim);
+  return !partes.length ? "em nenhum trecho desta base" : partes.length === 1 ? partes[0] : partes.slice(0, -1).join(", ") + " e " + partes[partes.length - 1];
 }
 
 /** O critério do contexto geográfico, para o cabeçalho da coluna: "município mais próximo com 2,36 médicos por 1.000 habitantes
@@ -464,7 +479,7 @@ export function filtrarLinhas(linhas: LinhaDoDetector[], filtros: FiltrosDoDetec
   const termo = semAcento(filtros.busca.trim());
   return linhas.filter(linha => (filtros.fenomeno === "todos" || linha.sinais.includes(filtros.fenomeno)) &&
     (filtros.porte === "todos" || (filtros.porte === "zero" ? linha.ultima?.valor === 0 : String(linha.porte) === filtros.porte)) &&
-    (!termo || semAcento(linha.rotulo).includes(termo)));
+    (!termo || semAcento([linha.rotulo, ...(linha.nomesAnteriores ?? [])].join(" ")).includes(termo)));
 }
 
 export type OrdemDoDetector = "intensidade" | "nome" | "medicos";

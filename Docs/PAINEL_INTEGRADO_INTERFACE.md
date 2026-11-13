@@ -343,7 +343,11 @@ da tela).
   `analise-abrangencia-parciais`). Nenhum total é somado na tela, e nenhum total é inferido do nome de um conjunto. Sem nada
   completo na abrangência, o quadro não aparece; com a Escolha dos territórios da Análise Espacial, também não (a base pode ter
   os filtros da consulta).
-- **Busca, no alto da área da esquerda** (`analise-busca`): "Buscar município ou estado", pelo nome ou pelo código. O resultado
+- **Busca, no alto da área da esquerda** (`analise-busca`): "Buscar município ou estado", pelo nome ou pelo código. Na base do
+  Brasil, o nome anterior de um município continua achando-o (desde 13/11/2026, quando 19 municípios passaram ao nome oficial
+  do IBGE): "Parati" acha PARATY (RJ), e o que aparece é sempre o nome atual. Vale para todas as buscas por nome (a árvore, a
+  seleção por critérios, o agrupar, a Escolha dos territórios, a tabela, o mapa, o Detector, o Simulador e a conversa); os nomes
+  anteriores ficam numa tabela do motor (`backend/nomes_anteriores.py`). O resultado
   (`analise-busca-resultado`) traz os estados (com a caixa e o botão da lista) e os municípios encontrados, com as caixas; a busca
   não muda a seleção.
 - **Uma ferramenta por vez** (07/11/2026, item 1 do comando de 07/11/2026; no lugar das Ferramentas da Seleção de 06 e

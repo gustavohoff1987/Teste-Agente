@@ -60,6 +60,13 @@ const definicao = (extra = {}) => ({...M.definicaoInicial({tipo: 'brasil', perio
   nivel: 'estados', estados: ['13', '35'], ...extra});
 const TODOS_OS_ESTADOS = {todosOsEstados: ['13', '35']};
 
+test('busca por nome: o nome anterior de um município continua achando-o (base Brasil, 13/11/2026)', () => {
+  // O texto em que a tela procura ganha os nomes anteriores que o motor mandou; sem eles, fica como estava.
+  assert.equal(M.comNomesAnteriores('PARATY 330380', ['PARATI']), 'PARATY 330380 PARATI');
+  assert.equal(M.comNomesAnteriores('CAMPO GRANDE (RN)', ['AUGUSTO SEVERO', 'X']), 'CAMPO GRANDE (RN) AUGUSTO SEVERO X');
+  assert.deepEqual([undefined, null, []].map(anteriores => M.comNomesAnteriores('MANAUS (AM)', anteriores)), Array(3).fill('MANAUS (AM)'));
+});
+
 test('variação percentual do motor em pt-BR: sinal, duas casas e nunca zero aparente (RQ-REP-05)', () => {
   assert.equal(M.formatarVariacao(12.4), '+12,40%');
   assert.equal(M.formatarVariacao(-3), '−3,00%');

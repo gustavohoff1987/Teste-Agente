@@ -35,6 +35,97 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-13 · Base do Brasil: a população passa a ser a série do Ministério da Saúde, 19 municípios têm o nome corrigido e a "comparação não habilitada" passa a ser lida da própria base (comando V23, Parte D)
+- **Classificação (regra 1):** troca de dado versionado por pedido explícito do responsável (comando V23, seções 0, 1 e 5; decisão
+  da pausa 1, em 13/11/2026, que também mandou usar os valores novos de Sergipe em 2024 e ampliou a autorização aos nomes de 19
+  municípios). São mudanças de comportamento, dentro do escopo do pedido e compatíveis com a SPEC, que não fixa a fonte da
+  população: define a densidade como a contagem dividida pela população do mesmo território. **Mudança prevista.** A SPEC não foi
+  editada. Regra 2 (integridade dos dados): arquivos substituídos, manifesto regravado, diff revisto e mudança registrada; o
+  passo 5 (os testes com dados reais no CI) depende do envio.
+- **Antes:**
+  - a coluna `população_estimada` da fonte municipal trazia uma série com um salto em 2018, os mesmos valores em 2021, 2022 e 2023
+    e outra base em 2024; em 25 pares município × ano, janeiro e junho tinham valores diferentes;
+  - 19 municípios tinham um nome diferente do oficial (por exemplo, PARATI, MOJI MIRIM e AUGUSTO SEVERO);
+  - no Detector de Sinais, a variação em 2 anos dos fenômenos 8, 9 e 10 só era calculada em janelas dentro de 2014–2017 ou de
+    2018–2021, anos fixos no motor; no último registro (jun/2024), "comparação não habilitada".
+- **Agora, na base** (`Dados_Municipios_Brasil.csv`; 9.967.844 bytes, SHA-256 `4a81a28b7c1d…`; antes, 9.968.238 e
+  `d244906e6d09…`; versão governada `faa54169c5b6…`; antes, `c4d82eeee4e4…`):
+  - **população:** a série "Estudo de Estimativas Populacionais por Município, Idade e Sexo 2000-2025" (Ministério da Saúde,
+    TabNet, acesso em 13/11/2026; arquivo exportado com SHA-256 `552841d5350e…`). O valor do ano vale para janeiro e junho, nos
+    5.570 municípios; 111.292 das 122.534 linhas mudaram de valor;
+  - **2024:** igual em 5.568 municípios. Canindé de São Francisco (33.491; antes, 27.885) e Poço Redondo (29.117; antes, 34.723),
+    em Sergipe, ficam com os valores da série nova, que são os da tabela corrigida do IBGE de 30/12/2024 (POP2024_20241230); a
+    base tinha os da tabela de 01/11/2024;
+  - **nomes:** 19 municípios, nas 22 linhas de cada um, passam ao nome oficial atual do IBGE, no formato da base (a lista, com o
+    código, o nome anterior e o atual, está em [DADOS_BRASIL_VALIDACAO.md](DADOS_BRASIL_VALIDACAO.md)). Em todos, o IBGE e o
+    Ministério coincidem. A busca pelo nome anterior continua achando o município: "Parati" acha PARATY (RJ) nas buscas por nome das telas (a árvore da seleção, a seleção por critérios, o agrupar, a
+    Escolha dos territórios, a tabela, o mapa, o Detector e o Simulador) e na conversa, e o que aparece é sempre o nome atual.
+    Os nomes anteriores ficam numa tabela do motor (`backend/nomes_anteriores.py`), chegam às telas nos campos novos
+    `former_names` (catálogo) e `nomes_anteriores` (itens do painel e linhas do Detector, só nesses 19 municípios) e nunca
+    viram linhas da base; um nome anterior igual ao nome atual de outro município continua homônimo, como antes ("Santarém"
+    traz o do Pará e JOCA CLAUDINO, na Paraíba);
+  - **nada mais mudou no arquivo**, conferido linha a linha: região, UF, código, coordenadas, categoria, datas e quantidade;
+  - a camada de coordenadas (`dados/brasil/complemento_coordenadas.json`) passa a se referir à nova versão (`aplica_se_a`), com
+    os mesmos seis pontos (SHA-256 da camada, `1929129964a0…`; antes, `4fac87444778…`), como na correção de 25/10/2026: sem isso,
+    ela ficaria `incompativel`, e os seis municípios de ponto inválido na fonte perderiam a coordenada.
+- **Agora, nos números:**
+  - as densidades de 2014 a 2023 mudam em todos os níveis; as de 2024, só nos dois municípios de Sergipe (Canindé de São
+    Francisco, de 1,69 para 1,40 por 1.000; Poço Redondo, de 0,55 para 0,65). A taxa do Brasil sobe de 0,8% a 1,5% de 2014 a 2023
+    (em jun/2021, de 1,98 para 2,01); por estado, a mudança vai de −7,4% (SC, 2023) a +11,0% (AP, 2021); em 2023, 3.122
+    municípios mudam mais de 5%;
+  - a densidade do Brasil cresce **17,4%** de junho de 2021 a junho de 2024 (antes, 19,2%), no painel e na navegação por níveis;
+  - a população do Brasil soma 202.400.797 em junho de 2015 (5.569 municípios; antes, 204.450.315) e 203.871.925 em 2016 (antes,
+    206.084.130); a da Paraíba em 2016, 3.957.455 (antes, 3.999.415);
+  - **Análise de Tendência por densidade:** com as 22 competências, 12 municípios ficam em Crescimento (antes, 7), e 7 estados
+    (antes, 6); na série anual de junho, 116 municípios em Crescimento e 3 em Declínio (antes, 118 e 2); no Amazonas, de junho de
+    2021 a junho de 2024, 12 municípios com classe e 50 sem classificação por mudança de direção (antes, 24 e 38), porque a
+    população deixou de se repetir.
+- **Agora, no Detector de Sinais:**
+  - os **trechos de população comparável vêm da própria base** (`comparativos.populacao_comparavel`): em cada passagem de ano, a
+    base inteira é olhada, e o trecho termina quando a população se repete em metade da base ou mais, ou salta em 5% dela ou
+    mais (pelo menos 3 territórios), e isso foge do comum nas outras passagens. Alguns territórios parados ou com salto não
+    desligam a comparação (decisão do responsável de 13/11/2026);
+  - com a população nova, **a base inteira é um trecho só (2014–2024)**: nenhuma data fica com "comparação não habilitada". Em
+    jun/2024, a janela de jun/2022 a jun/2024 vale: 244 municípios com queda da taxa, 358 com queda de posição e 174 com
+    defasagem ante a referência (sinais observados, sem intensidade), e os sinais combinados passam de 262 para 363. Com a
+    população anterior, a mesma leitura reproduz 2014–2017 e 2018–2021;
+  - o contexto geográfico de datas anteriores a 2024 muda com as taxas (em jun/2021, 1.670 municípios atendem ao critério;
+    antes, 1.720; Manaus fica a 752 km de Porto Velho; antes, a 424 km de Jacareacanga); o de 2024 não muda;
+  - quando a janela não cabe num trecho (outras bases), o motivo vem do motor, com os anos ("a população de 2024 muda de patamar
+    em boa parte da base"); a resposta da rota traz `comparacao.trechos` lidos da base e o campo novo `comparacao.motivo`.
+- **Permanece:** as contagens, os códigos, as coordenadas, as datas e as fontes estadual e nacional; tudo o que usa só a contagem
+  (os fenômenos 1 a 7 do Detector, o Simulador de Cenários e as faixas dele); os números de junho de 2024 fora dos dois municípios
+  de Sergipe (o Brasil com 2,36 por 1.000; os 2.002 municípios que atendem ao critério do contexto); as regras BR-POP-JUNHO-1 e
+  UF-POP-MUNICIPIOS-1; os limites provisórios e a falta de intensidade dos fenômenos 8 a 10; os campos das respostas (o
+  `comparacao.motivo` é acréscimo); nada vai ao provedor de IA. Quatro nomes que diferem do arquivo do Ministério só por hífen
+  ou apóstrofo e onze que diferem só do IBGE ficaram como estavam (fora da autorização).
+- **Motivo:** decisão 6 do comando V23 e decisão do responsável na pausa 1 (13/11/2026).
+- **Documentação e testes:** [validação da base](DADOS_BRASIL_VALIDACAO.md) (a fonte, a conferência, o que mudou, a lista dos
+  nomes e a identidade nova), [Detector](DETECTOR_DE_SINAIS.md) (os trechos lidos da base e a fotografia dos fenômenos 8 a 11
+  refeita), [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md), [Simulador](SIMULADOR_DE_CENARIOS.md),
+  [V3](DETECTOR_E_SIMULADOR_V3.md) (o Anexo A do comando, salvo com a fonte corrigida), `README.md`, `PAINEL_INTEGRADO.md`,
+  `ABRANGENCIA_TERRITORIAL.md` e `BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO.md`. **Testes que mudaram de valor por causa da troca, de
+  propósito (regra 3)**, todos com a base versionada, com os valores novos calculados em leitura com as funções do produto:
+  - `test_real_data.py`: os nomes repetidos (11.462 registros em 5.280 grupos; antes, 11.528 e 5.324); as contagens de
+    Crescimento e Declínio por densidade (12; 116 e 3); e a âncora de Anamã, cuja densidade em float chega agora à mesma classe
+    (as velocidades deixaram de ser exatamente iguais; a aritmética exata segue coberta em `test_trend.py`);
+  - `test_levels_real_data.py`: as densidades do Brasil em jan/2016, jan/2017 e jan/2020, as populações de 2015 e 2016, a do
+    251365 em junho de 2016 (2.584) e a da Paraíba; a regra "nunca a população de janeiro" passa a ser conferida em 2015,
+    porque em 2016 janeiro e junho somam o mesmo;
+  - `test_painel_tendencia.py`: as velocidades de Manaus (18 e 3), os estados (7 e 20) e os junhos de 2021 a 2024 no Amazonas;
+  - `test_painel_pagina.py` e `ui_navegacao.py`: a variação da densidade do Brasil desde jun/2021 (17,4%);
+  - `test_detector.py`: os fenômenos 8 a 12 com a base versionada (jun/2024 com a comparação; os valores de jun/2021) e, nas
+    séries sintéticas, os trechos lidos da base (o salto e a repetição na base inteira; um território parado ou com salto não
+    desliga) e a rota com a população constante (um trecho só); `ui_detector.py` (jun/2024 com a comparação);
+    `frontend/tests/detector.test.mjs` (os trechos e o motivo na leitura da resposta).
+  Nenhum teste foi afrouxado. Testes novos da busca pelo nome anterior:
+  `backend/tests/test_nomes_anteriores.py` (a tabela, o apelido que não repete o nome atual e os dois caminhos da conversa),
+  `test_levels_real_data.py` (os 19 municípios com `former_names` no catálogo da base versionada),
+  `frontend/tests/painel.test.mjs` e `detector.test.mjs` (o texto da busca) e `ui_simulador.py` ("Parati" na árvore).
+- **Limites declarados:** os testes não foram executados (o CI é o único ambiente de verificação, e o envio aguarda autorização);
+  os conjuntos de conversa adversarial (`test_dialogo_adversarial.py`), que têm metas de 90% por categoria e casos com classes
+  de tendência por densidade, só serão conferidos no CI.
+
 ### 2026-11-13 · Textos do Detector e do Simulador: estados com a preposição certa, "+ Conjunto A" e o critério do contexto geográfico (comando V23, pendências do V22)
 - **Classificação (regra 1):** os três ajustes de texto da revisão da etapa 5 do V22, pedidos pelo responsável na seção 0 do comando
   V23 (13/11/2026). São mudanças de comportamento (textos de tela e de resposta da API), dentro do escopo do pedido e compatíveis

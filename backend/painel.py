@@ -1703,6 +1703,8 @@ def _unit_item(ctx, key, final, initial, spatial, reference_ids, changes=None):
     item = {"id": key, "tipo": "municipio", "rotulo": _label(entry), "uf": entry.get("state") or None,
             "populacao": _num(values.get("populacao")), "quantidade": _num(values.get("quantidade")),
             "densidade": _num(values.get("densidade")), "distancia_km": None}
+    if entry.get("former_names"):
+        item["nomes_anteriores"] = list(entry["former_names"])   # só para a busca por nome na tabela e no mapa
     distance_ok = None
     if spatial is not None:
         value = spatial.values.get(key)
@@ -4222,8 +4224,9 @@ def territorios(sources, mapping, options, frame=None) -> dict:
                                   for key in spec["escolha"]["municipios"]]}
     if lista is not None:
         wanted = _dobrar(lista["busca"])
+        # A busca procura no nome e, na base Brasil, nos nomes anteriores do município ("Parati" acha PARATY).
         keys = [key for key in selecao[lista["lado"]]["filtrados"]
-                if not wanted or wanted in _dobrar(_label(ctx.catalog[key]))]
+                if not wanted or wanted in _dobrar(" ".join([_label(ctx.catalog[key]), *(ctx.catalog[key].get("former_names") or ())]))]
         keys.sort(key=lambda key: (_dobrar(ctx.catalog[key]["name"]), ctx.catalog[key].get("state") or "", key))
         out["lista"] = {"lado": lista["lado"], "busca": lista["busca"], "total": len(keys), "limite": lista["limite"],
                         "itens": [_unidade_da_lista(ctx, key, final) for key in keys[:lista["limite"]]]}

@@ -307,7 +307,7 @@ inicial, variacao_percentual, motivos_variacao, serie}`, e o grupo também `sigl
   base (`_reaproveitar`).
 
 Com a base versionada, em junho de 2024: o Brasil com 502.495 médicos, 212.583.750 habitantes e 2,36 por 1.000, e a densidade
-cerca de 19,2% acima da de junho de 2021; o Pará com 10.307 médicos e 1,19 por 1.000.
+cerca de 17,4% acima da de junho de 2021 (19,2% com a população anterior à troca de 13/11/2026); o Pará com 10.307 médicos e 1,19 por 1.000.
 
 ### Rota 6: `POST /api/painel/criterios` (07/11/2026)
 

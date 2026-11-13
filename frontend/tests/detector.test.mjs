@@ -134,6 +134,12 @@ test('filtros por fenômeno, porte e nome; a ordem por intensidade não é um í
   assert.deepEqual(ids(D.filtrarLinhas(linhas, {...D.SEM_FILTROS, porte: '0'})), ['a']);
   assert.deepEqual(ids(D.filtrarLinhas(linhas, {...D.SEM_FILTROS, busca: 'agua'})), ['a'], 'a busca ignora acentos e caixa');
   assert.deepEqual(ids(D.filtrarLinhas(linhas, {fenomeno: 'estrutural', porte: 'zero', busca: 'cac'})), ['c']);
+  // O nome anterior de um município continua achando-o (base Brasil, 13/11/2026): "Parati" acha PARATY, e a tela mostra o atual.
+  const renomeadas = D.normalizarDetector(resposta([linha({id: 'code:330380', rotulo: 'PARATY (RJ)', nomes_anteriores: ['PARATI']}),
+    linha({id: 'code:130260', rotulo: 'MANAUS (AM)'})])).linhas;
+  assert.deepEqual([renomeadas[0].nomesAnteriores, 'nomesAnteriores' in renomeadas[1]], [['PARATI'], false]);
+  assert.deepEqual(['parati', 'Paraty', 'manaus', 'ouro'].map(busca => ids(D.filtrarLinhas(renomeadas, {...D.SEM_FILTROS, busca}))),
+    [['code:330380'], ['code:330380'], ['code:130260'], []]);
   assert.deepEqual(ids(D.ordenarLinhas(linhas, 'intensidade')), ['c', 'a', 'b', 'd']);
   assert.deepEqual(ids(D.ordenarLinhas(linhas, 'nome')), ['a', 'b', 'c', 'd']);
   assert.deepEqual(ids(D.ordenarLinhas(linhas, 'medicos')), ['c', 'a', 'd', 'b']);
@@ -223,11 +229,17 @@ test('fenômenos 8 a 12: a linha, a janela de comparação e as coordenadas vêm
   // Uma linha sem os campos novos (uma resposta antiga) não derruba a tela nem inventa valor.
   assert.deepEqual([semDados.disponibilidade.taxa, semDados.posicao.percentil, semDados.defasagem.indice, semDados.contexto.distanciaKm,
     semDados.coexistencia.textos, semDados.idsDosMembros], [null, null, null, null, [], []]);
-  assert.deepEqual(lida.comparacao, {de: '201906', ate: '202106', estado: 'comparavel', minimoDeMedicos: 20,
+  assert.deepEqual(lida.comparacao, {de: '201906', ate: '202106', estado: 'comparavel', minimoDeMedicos: 20, trechos: [[2014, 2017], [2018, 2021]], motivo: null,
     contexto: {taxaMinima: 1.9834, taxaDoBrasil: 1.9834, pctDaTaxaDoBrasil: 100, atendem: 1720, universo: 3846}});
   assert.deepEqual(Object.keys(lida.coordenadas), ['code:130260', 'code:150375', 'code:350530', 'code:110001'], 'o par incompleto fica de fora');
   const vazia = D.normalizarDetector(null);
   assert.deepEqual([vazia.comparacao.estado, vazia.comparacao.contexto.taxaMinima, vazia.coordenadas], ['', null, {}]);
+  // Os trechos de população comparável e o motivo vêm do motor, lidos da própria base (comando V23, Parte D).
+  assert.deepEqual([vazia.comparacao.trechos, vazia.comparacao.motivo], [[], null]);
+  assert.deepEqual(D.normalizarDetector(resposta([], {comparacao: {estado: 'comparacao_nao_habilitada', trechos: [[2014, 2023], [2024], 'x'],
+    motivo: 'a população de 2024 muda de patamar em boa parte da base'}})).comparacao.trechos, [[2014, 2023]], 'só os pares de anos');
+  assert.deepEqual([[[2014, 2024]], [[2014, 2017], [2018, 2021]], [[2014, 2015], [2017, 2019], [2021, 2024]], []].map(D.textoDosTrechos),
+    ['de 2014 a 2024', 'de 2014 a 2017 e de 2018 a 2021', 'de 2014 a 2015, de 2017 a 2019 e de 2021 a 2024', 'em nenhum trecho desta base']);
 });
 
 test('fenômenos 8 a 12 na tabela: sinais observados com limites provisórios, sem intensidade', () => {
@@ -298,6 +310,7 @@ test('fenômenos 8 a 12 em gráfico e mapa: só os valores e as coordenadas do m
     comparativo: {competencias: ['201906', '202006', '202106'], taxa: [4.8, null, 3.07], indice: [128.1, null, 72.9], trechos: [[2014, 2017], [2018, 2021]],
       referencia: {rotulo: 'demais municípios de São Paulo (soma municipal)', motivo: null, taxa: [3.75, 4.0, 4.21]}}});
   assert.deepEqual(detalhe.comparativo, {competencias: ['201906', '202006', '202106'], taxa: [4.8, null, 3.07], indice: [128.1, null, 72.9],
+    trechos: [[2014, 2017], [2018, 2021]],
     referencia: {rotulo: 'demais municípios de São Paulo (soma municipal)', motivo: null, taxa: [3.75, 4, 4.21]}});
   const series = D.seriesDoComparativo(detalhe);
   assert.deepEqual([series.item.id, series.item.densidade, series.item.serie], ['code:350530', 3.07, {comparavel: true, motivo: null,

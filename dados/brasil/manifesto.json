@@ -9,8 +9,8 @@
     },
     "municipal": {
       "caminho": "Dados_Municipios_Brasil.csv",
-      "bytes": 9968238,
-      "sha256": "d244906e6d09e65dc55b56c33c8e0131bf88fe66bb26f7faa39f2da384c04f5a"
+      "bytes": 9967844,
+      "sha256": "4a81a28b7c1d5c1d7f10201666e51776effbeb6308c53cb6fc9702f0e6a5502d"
     },
     "state": {
       "caminho": "Dados_Estados_Brasil.csv",
@@ -18,5 +18,5 @@
       "sha256": "7f64a828389d91228b30247787817701c8ffccdeee8b81234282c77926f936bc"
     }
   },
-  "versao": "c4d82eeee4e44826d742be3ccfae69cd785d2fa2a43d95f2ec7dd5a7c328531b"
+  "versao": "faa54169c5b6f31bfc5d669964f49c93cc8abce386816fa57191a5566de93cb1"
 }

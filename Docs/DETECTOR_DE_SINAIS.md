@@ -120,12 +120,24 @@ Os números entre parênteses são os dos fenômenos do catálogo. Os limites s�
 | Coexistência | Coexistência de sinais (12) | Quatro combinações pré-definidas: poucos médicos (intensidade alta ou crítica) e perda no último registro; poucos médicos e declínio persistente; declínio persistente e queda da disponibilidade ou da posição relativa; abaixo do patamar anterior e poucos médicos. As repercussões de uma mesma queda (perda, declínio, patamar e os três indicadores relativos) contam como **um evento**, não como evidências independentes | As combinações presentes e as frentes de sinal. **Sem soma de pontos e sem índice geral** |
 
 **População comparável (fenômenos 8, 9 e 10).** A variação em 2 anos só é calculada quando a janela de comparação (de junho a
-junho, atualizada só em junho) cabe inteira em **2014–2017** ou em **2018–2021**: a população se repete de 2021 a 2023 e muda de
-base em 2024. Na base atual, isso vale para as datas de junho de 2016, 2017, 2020 e 2021 (e para janeiro do ano seguinte, que usa
-a janela do junho anterior). Fora disso, o estado é **"comparação não habilitada"**, com o motivo, e o nível da data (a taxa, o
-percentil e o índice) continua à vista. É o caso do último registro: em jun/2024, a janela vai de jun/2022 a jun/2024. Sem o junho
-de dois anos antes, "janela insuficiente". Para o fenômeno 10, aplicar a mesma regra é uma decisão conservadora desta
-implementação: o índice usa as duas populações, e a troca de base o mudaria sem mudança real.
+junho, atualizada só em junho) cabe inteira num **trecho de população comparável**. Desde 13/11/2026 (comando V23), os trechos
+vêm da própria base (`comparativos.populacao_comparavel`), e não de anos fixos. Em cada passagem de ano, de um junho ao
+seguinte, a base inteira é olhada:
+
+- **população repetida:** metade da base ou mais repete o valor do ano anterior, e isso não é o comum nas outras passagens;
+- **salto:** 5% da base ou mais (e pelo menos 3 territórios) varia mais de 5%, e isso é 3 vezes ou mais o comum nas outras
+  passagens.
+
+Nos dois casos, o trecho termina ali. Alguns territórios parados ou com salto são normais e não desligam a comparação; uma base
+com a população constante em todos os anos é um trecho só (a taxa varia só com a contagem). Com a população do Ministério da
+Saúde, em uso desde 13/11/2026, **a base inteira é um trecho só (2014–2024)**: toda data com o junho de dois anos antes tem a
+comparação, inclusive o último registro (jun/2024, com a janela de jun/2022 a jun/2024). Com a população anterior, a mesma
+leitura dava 2014–2017 e 2018–2021 (ela saltava em 2018, repetia-se em 2022 e 2023 e mudava de base em 2024). Quando a janela
+não cabe num trecho, o estado é **"comparação não habilitada"**, com o motivo lido da base (por exemplo, "a população de 2024
+muda de patamar em boa parte da base"), e o nível da data (a taxa, o percentil e o índice) continua à vista. Sem o junho de
+dois anos antes, "janela insuficiente". Para o fenômeno 10, aplicar a mesma regra é uma decisão conservadora desta
+implementação: o índice usa as duas populações, e uma troca de série o mudaria sem mudança real. A resposta da rota traz os
+trechos em `comparacao.trechos` e o motivo em `comparacao.motivo`.
 
 **Sem intensidade (decisão D-A).** As convenções do anexo para os fenômenos 8, 9 e 10 não foram validadas. Elas entram como
 **limites provisórios** de um **sinal observado** (forte, muito forte, queda de posição), como no declínio persistente, e nunca
@@ -248,35 +260,42 @@ Esses números valem para o modelo nulo, com os parâmetros estimados na base; n
 médicos e os 15% do patamar; o critério do pico que volta; θ e a forma da instabilidade. A desaceleração repetida segue
 exploratória (na base, 182 municípios com a classe em jun/2024, 16 com repetição).
 
-### Fotografia dos fenômenos 8 a 11 (11/11/2026)
+### Fotografia dos fenômenos 8 a 11 (13/11/2026, com a população nova)
 
-`scripts/calibrar_detector.py --so-comparativos` (somente leitura; versão da base `c4d82eeee4e4`, método
-`DETECTOR-SINAIS/V2.2/2`), nas quatro datas de junho em que a comparação de 2 anos é habilitada. É uma fotografia da
-**sensibilidade** dos limites provisórios, não uma validação: não há taxa de acerto, e nenhum desses indicadores tem intensidade.
+`scripts/calibrar_detector.py --so-comparativos` (somente leitura; versão da base `faa54169c5b6`, método
+`DETECTOR-SINAIS/V2.2/2`), nas nove datas de junho em que a comparação de 2 anos é habilitada (todas as que têm o junho de dois
+anos antes). É uma fotografia da **sensibilidade** dos limites provisórios, não uma validação: não há taxa de acerto, e nenhum
+desses indicadores tem intensidade. A fotografia de 11/11/2026, com a população anterior, só tinha quatro datas (jun/2016,
+jun/2017, jun/2020 e jun/2021).
 
 | Data | Janela | Avaliados (20 médicos ou mais no início) | Só descritivos | 8: forte | 8: muito forte | 9: queda de posição | 9: forte | 9: muito forte (confirmada) | 10: forte | 10: muito forte | Com sinais combinados (12) |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| jun/2016 | jun/2014 a jun/2016 | 1.863 | 3.704 | 203 | 180 | 117 | 55 | 0 | 117 | 39 | 353 |
-| jun/2017 | jun/2015 a jun/2017 | 1.876 | 3.691 | 200 | 159 | 134 | 65 | 0 | 135 | 30 | 652 |
-| jun/2020 | jun/2018 a jun/2020 | 1.978 | 3.592 | 156 | 109 | 143 | 60 | 0 | 117 | 19 | 649 |
-| jun/2021 | jun/2019 a jun/2021 | 2.013 | 3.554 | 114 | 77 | 163 | 61 | 1 | 84 | 24 | 568 |
+| jun/2016 | jun/2014 a jun/2016 | 1.863 | 3.704 | 214 | 174 | 110 | 53 | 0 | 114 | 43 | 353 |
+| jun/2017 | jun/2015 a jun/2017 | 1.876 | 3.691 | 211 | 150 | 136 | 61 | 0 | 143 | 26 | 653 |
+| jun/2018 | jun/2016 a jun/2018 | 1.872 | 3.694 | 143 | 112 | 137 | 66 | 0 | 119 | 24 | 606 |
+| jun/2019 | jun/2017 a jun/2019 | 1.892 | 3.674 | 187 | 112 | 140 | 62 | 0 | 142 | 28 | 726 |
+| jun/2020 | jun/2018 a jun/2020 | 1.978 | 3.592 | 153 | 107 | 132 | 62 | 1 | 117 | 19 | 646 |
+| jun/2021 | jun/2019 a jun/2021 | 2.013 | 3.554 | 113 | 71 | 153 | 69 | 1 | 84 | 24 | 565 |
+| jun/2022 | jun/2020 a jun/2022 | 2.108 | 3.459 | 103 | 89 | 203 | 89 | 1 | 125 | 22 | 482 |
+| jun/2023 | jun/2021 a jun/2023 | 2.203 | 3.366 | 125 | 99 | 223 | 100 | 1 | 121 | 32 | 448 |
+| jun/2024 | jun/2022 a jun/2024 | 2.408 | 3.162 | 135 | 109 | 237 | 121 | 0 | 136 | 38 | 363 |
 
-Leitura: cerca de dois terços dos municípios têm menos de 20 médicos no início da janela e ficam só descritivos. Entre os
-avaliados, de 9% a 21% têm queda da taxa de 10% ou mais em 2 anos, uma parcela alta para um "sinal": o limite de 10% é pouco
-seletivo e segue provisório. A queda de posição muito forte quase nunca se confirma em duas avaliações anuais seguidas (1 caso em
-quatro datas). Em jun/2024, os fenômenos 8, 9 e 10 ficam com "comparação não habilitada" nos 5.570 municípios (um deles,
-Brasília, com referência inválida no 10), e os sinais combinados somam 262.
+Leitura: de 57% a 67% dos municípios têm menos de 20 médicos no início da janela e ficam só descritivos. Entre os avaliados, de
+9% a 21% têm queda da taxa de 10% ou mais em 2 anos, uma parcela alta para um "sinal": o limite de 10% é pouco seletivo e segue
+provisório. A queda de posição muito forte quase nunca se confirma em duas avaliações anuais seguidas (no máximo 1 caso por
+data). Em jun/2024, com a comparação habilitada, há 244 municípios com queda da taxa, 358 com queda de posição e 174 com
+defasagem ante a referência (Brasília fica com referência inválida no fenômeno 10), e os sinais combinados somam 363.
 
 **Contexto geográfico em cada junho** (critério: a taxa do Brasil na data):
 
 | Data | Taxa do Brasil (por 1.000) | Municípios que atendem | Municípios com distância | Distância mediana (km) | Percentil 90 (km) | Maior (km) |
 |---|---:|---:|---:|---:|---:|---:|
-| jun/2014 | 1,59 | 1.553 | 4.012 | 32,4 | 153,1 | 838,6 |
-| jun/2016 | 1,66 | 1.417 | 4.148 | 33,8 | 145,2 | 795,1 |
-| jun/2018 | 1,79 | 1.534 | 4.031 | 32,1 | 133,5 | 985,7 |
-| jun/2020 | 1,88 | 1.619 | 3.947 | 30,9 | 129,0 | 691,3 |
-| jun/2021 | 1,98 | 1.720 | 3.846 | 30,0 | 124,2 | 1.040,9 |
-| jun/2022 | 2,08 | 1.869 | 3.698 | 28,6 | 120,1 | 985,7 |
+| jun/2014 | 1,60 | 1.565 | 4.000 | 32,5 | 160,1 | 785,8 |
+| jun/2016 | 1,68 | 1.421 | 4.144 | 33,6 | 142,7 | 816,1 |
+| jun/2018 | 1,81 | 1.499 | 4.067 | 32,2 | 138,4 | 816,1 |
+| jun/2020 | 1,91 | 1.569 | 3.996 | 31,0 | 128,0 | 816,1 |
+| jun/2021 | 2,01 | 1.670 | 3.895 | 30,3 | 128,2 | 1.494,5 |
+| jun/2022 | 2,11 | 1.837 | 3.730 | 28,5 | 124,2 | 1.009,5 |
 | jun/2024 | 2,36 | 2.002 | 3.566 | 27,1 | 112,2 | 838,6 |
 
 Em jun/2024, 2 municípios que não atendem ao critério não têm coordenada válida e ficam sem distância. A distância é em linha
@@ -290,7 +309,7 @@ reta: não é distância por estrada, tempo de viagem nem acesso.
 - O Detector não infere rotatividade de pessoas, desassistência, isolamento assistencial, suficiência do cuidado nem causa.
 - Estados como unidade e conjuntos não têm intensidade (a comparação é municipal).
 - Os fenômenos 8, 9 e 10 não têm intensidade, e os limites deles não foram validados: são sinais observados. A variação em 2 anos
-  só existe em trechos com população comparável; no último registro (jun/2024), a comparação não é habilitada.
+  só existe em trechos com população comparável, lidos da própria base (com a população atual, um trecho só, de 2014 a 2024).
 - A população é uma estimativa, e a taxa de um estado usa a contagem estadual sobre a soma das populações municipais.
 - O contexto geográfico é a distância em linha reta entre coordenadas: não mede acesso, deslocamento nem a organização da rede.
 - Os sinais combinados não formam um índice: efeitos da mesma queda contam como um evento.
@@ -306,7 +325,8 @@ reta: não é distância por estrada, tempo de viagem nem acesso.
   avaliações, a defasagem ante a referência na mesma unidade, a distância ao município que atende ao critério e a coexistência
   sem índice geral), a rota com um catálogo sintético e, no job `dados-reais`, a base versionada (Rio Rufino/SC, o Distrito
   Federal antes de 2018, uma queda grande que persiste, a desaceleração igual à da Análise de Tendência, os números do perfil e
-  os fenômenos 8 a 12: "comparação não habilitada" em jun/2024 e os sinais observados em jun/2021).
+  os fenômenos 8 a 12: os trechos de população lidos da base, com a comparação habilitada em jun/2024, e os sinais observados em
+  jun/2024 e em jun/2021).
 - Node: `frontend/tests/detector.test.mjs` — a leitura da resposta, os textos da tabela em linguagem simples, os filtros, a ordem,
   os parâmetros e as exportações; a seleção no contrato das ferramentas; os itens das bolhas, as camadas do mapa, a série da taxa
   e o que o Detector leva ao Simulador.

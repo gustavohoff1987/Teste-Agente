@@ -150,14 +150,19 @@ def test_real_brazil_density_uses_the_national_count_and_the_june_population(rea
     assert (latest["Quantidade"], latest["População"]) == (502495, 212583750)
     assert round(latest["Densidade por 1.000"], 4) == 2.3638
     assert rows["202401"]["Densidade por 1.000"] == pytest.approx(2.3026924682625083, rel=1e-12)
-    assert rows["201601"]["Densidade por 1.000"] == pytest.approx(1.6352593477236699, rel=1e-12)
+    # Valores com a população do Ministério da Saúde (troca de 13/11/2026): antes, 1,6353 em jan/2016, 1,6883 em jan/2017 e
+    # 1,8475 em jan/2020. Em 2016, janeiro e junho passam a somar o mesmo; a regra "nunca a população de janeiro" continua
+    # visível em 2015, quando janeiro tem três municípios sem registro, e junho, um.
+    assert rows["201601"]["Densidade por 1.000"] == pytest.approx(1.653003472645878, rel=1e-12)
     january_2016 = int(municipal[municipal.period == "201601"].drop_duplicates("cod_ibge").p.sum())
-    assert rows["201601"]["População"] == 206084130 != january_2016 == 206084128  # nunca a população de janeiro
-    assert rows["201701"]["Densidade por 1.000"] == pytest.approx(1.6883321334149035, rel=1e-12)
-    assert rows["202001"]["Densidade por 1.000"] == pytest.approx(1.8474653692979441, rel=1e-12)
+    assert rows["201601"]["População"] == 203871925 == january_2016
+    january_2015 = int(municipal[municipal.period == "201501"].drop_duplicates("cod_ibge").p.sum())
+    assert rows["201501"]["População"] == june_population(municipal, "2015")[0] != january_2015  # nunca a população de janeiro
+    assert rows["201701"]["Densidade por 1.000"] == pytest.approx(1.7085100134004636, rel=1e-12)
+    assert rows["202001"]["Densidade por 1.000"] == pytest.approx(1.8703569316550064, rel=1e-12)
     # 2015: a população de junho soma os 5.569 municípios com registro (430607 ausente), avaliável com limitações.
     population_2015, missing = june_population(municipal, "2015")
-    assert missing == ["430607"] and population_2015 == 204450315
+    assert missing == ["430607"] and population_2015 == 202400797
     for period in ("201501", "201506"):
         assert rows[period]["População"] == population_2015 and rows[period]["Densidade por 1.000"] is not None
         assert rows[period]["Condição"] == "Avaliável com limitações: população nacional parcial (POPULACAO_NACIONAL_PARCIAL)"
@@ -174,11 +179,11 @@ def test_real_brazil_density_uses_the_national_count_and_the_june_population(rea
                                "municípios. População: soma das populações estimadas dos municípios com registro em junho "
                                "de cada ano") for note in brazil_density["notes"])
     assert "POPULACAO_NACIONAL_PARCIAL" in brazil_density["metadata"]["evaluability"]["limitacoes"]
-    # 2016: a linha do 251365 em junho, corrigida em 25/10/2026, traz a PB e a estimativa do IBGE de 2016 (2.685, a mesma
-    # de janeiro), no lugar do PA e de 331.942; nenhuma nota de UF divergente.
+    # 2016: a linha do 251365 em junho, corrigida em 25/10/2026, traz a PB, no lugar do PA; nenhuma nota de UF divergente.
+    # Desde 13/11/2026, a população é a da série do Ministério da Saúde (2.584 em 2016; antes, 2.685) e o nome, JOCA CLAUDINO.
     santarem = municipal[(municipal.cod_ibge == "251365") & (municipal.period == "201606")]
-    assert santarem.uf.tolist() == ["PB"] and santarem.p.tolist() == [2685]
-    assert rows["201606"]["População"] == june_population(municipal, "2016")[0] == 206084130
+    assert santarem.uf.tolist() == ["PB"] and santarem.p.tolist() == [2584]
+    assert rows["201606"]["População"] == june_population(municipal, "2016")[0] == 203871925
     assert not any(UF_NOTE in note for note in brazil_density["notes"])
 
 
@@ -250,9 +255,10 @@ def test_real_states_use_the_state_source_and_the_population_of_their_municipali
     assert ("São Paulo (SP) em janeiro de 2015: população estadual incompleta, 644 de 645 municípios com registro na fonte "
             "municipal (sem registro: 353286); a população não é estimada e a densidade do estado não é avaliada."
             ) in states_density["notes"]
-    # PB em 2016/6: os 223 municípios pelo prefixo do código IBGE, com o 251365 corrigido (2.685), a mesma de janeiro.
+    # PB em 2016/6: os 223 municípios pelo prefixo do código IBGE, com o 251365 corrigido, a mesma de janeiro (3.999.415 até a
+    # troca da população de 13/11/2026).
     pb = {period: row_of(density, "Paraíba (PB)", period)["População"] for period in ("201601", "201606")}
-    assert pb == {"201601": 3999415, "201606": 3999415}
+    assert pb == {"201601": 3957455, "201606": 3957455}
     assert not any(UF_NOTE in note for note in states_density["notes"])
     # Contagem estadual acima da soma completa dos seus municípios (DF de 2014 a 2017): nota, e os valores entram como estão.
     above = sorted((sigla, period) for (sigla, period), quantity in counts.items()
@@ -310,6 +316,13 @@ def test_real_251365_belongs_to_pb_and_state_groups_expand_to_municipalities(rea
     assert block["brasil"]["densidade_nao_avaliavel"] == []
     item = next(choice for choice in real["info"]["preflight"]["territory_choices"] if choice["code"] == "251365")
     assert (item["selection_reason"], item["state"], item["state_code"]) == ("", "PB", "25")
+    # Desde 13/11/2026, o 251365 chama-se JOCA CLAUDINO (o nome oficial do IBGE); o nome anterior continua achando-o na busca.
+    # São 19 municípios com nome anterior no catálogo, e só eles (decisão do responsável na pausa 1 do comando V23).
+    assert (item["name"], item["label"], item["former_names"]) == ("JOCA CLAUDINO", "JOCA CLAUDINO [251365]", ["SANTAREM"])
+    renamed = {choice["code"]: (choice["name"], choice["former_names"]) for choice in real["info"]["preflight"]["territory_choices"]
+               if choice.get("former_names")}
+    assert len(renamed) == 19 and renamed["330380"] == ("PARATY", ["PARATI"]) and renamed["353080"] == ("MOGI MIRIM", ["MOJI MIRIM"])
+    assert renamed["240130"] == ("CAMPO GRANDE", ["AUGUSTO SEVERO"]) and renamed["140060"] == ("SAO LUIZ DO ANAUA", ["SAO LUIZ"])
     # Desde a correção de 25/10/2026, a coluna uf do 251365 traz PB em todas as competências: nenhum município tem a nota.
     assert not any("hierarchy_note" in choice for choice in real["info"]["preflight"]["territory_choices"])
     group = analyze(real, "aggregate", {"municipios": {"estados": ["25"]}}, period_filter="202406")

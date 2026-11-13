@@ -44,6 +44,14 @@ ficam em `.local/`, ignorada pelo Git; não houve publicação dos arquivos.
 > IBGE, e oito municípios (antes, nove) têm coordenadas válidas que mudam entre competências. Detalhes no
 > [registro de comportamento](REGISTRO_DE_COMPORTAMENTO.md).
 
+> **Atualização de 13/11/2026: troca da população e correção de 19 nomes.** A pedido do responsável pelo
+> produto (comando V23, Parte D, e decisão da pausa 1), a coluna `população_estimada` da fonte municipal
+> passou a ser a série do Ministério da Saúde, e 19 municípios tiveram o nome corrigido. Contagens, códigos,
+> coordenadas, datas e as fontes estadual e nacional não mudaram. Fonte municipal com 9.967.844 bytes e
+> SHA-256 `4a81a28b7c1d…` (antes, 9.968.238 e `d244906e6d09…`); versão governada `faa54169c5b6…` (antes,
+> `c4d82eeee4e4…`); a camada de coordenadas passou a se referir a essa versão, com os mesmos seis pontos.
+> Os detalhes estão na seção "Troca da população e dos nomes (13/11/2026)", abaixo.
+
 ## Alterações dos campos e consumidores
 
 | Estrutura anterior nos testes | Estrutura atual | Ajuste |
@@ -133,9 +141,86 @@ separador decimal vira escolha do usuário.
 
 Na versão governada: junho de 2024 soma 212.583.750 habitantes (densidade do Brasil 502.495 ÷ 212.583.750 ×
 1.000 = 2,3638); junho de 2015 não tem o 430607 (CRISTAL DO SUL, RS), e a população de 2015 soma os 5.569
-municípios com registro (204.450.315), com nota; nenhum ano tem população conflitante em junho. Junho
-de 2016 soma 206.084.130 habitantes desde a correção de 25/10/2026; antes, 206.413.387, com a linha do
-251365 declarada PA na coluna `uf` (331.942) e a nota de qualidade da fonte.
+municípios com registro (202.400.797), com nota; nenhum ano tem população conflitante em junho. Junho
+de 2016 soma 203.871.925 habitantes. Esses dois totais são os da série do Ministério da Saúde, em uso desde
+13/11/2026; com a população anterior, eram 204.450.315 e 206.084.130 (este, desde a correção de 25/10/2026;
+antes dela, 206.413.387, com a linha do 251365 declarada PA na coluna `uf` e a nota de qualidade da fonte).
+
+### Troca da população e dos nomes (13/11/2026)
+
+**Fonte.** "População Residente - Estudo de Estimativas Populacionais por Município, Idade e Sexo 2000-2025 - Brasil"
+(trabalho coordenado pela RIPSA; realização: CGI Demográfico/RIPSA e CGIAE/SVSA/Ministério da Saúde; dados básicos:
+IBGE), consultada no TabNet (`http://tabnet.datasus.gov.br/cgi/deftohtm.exe?ibge/cnv/popsvs2024br.def`) em 13/11/2026,
+às 15:05 (horário de Brasília). Tabela: Linha = Município, Coluna = Ano, Conteúdo = População residente, períodos de 2014
+a 2024, todas as categorias de sexo e de faixa etária. Arquivo exportado: `populacao_MS_2014_2024.csv`, 470.817 bytes,
+SHA-256 `552841d5350ebe38b3628d23e2e3f2596e921056cf3d3c8190cad0e0f5b9ac4c`. É um download único: o sistema não depende
+do TabNet, e o arquivo exportado não fica no repositório (os valores estão na fonte municipal).
+
+**Conferência antes da troca** (relatório da pausa 1 do comando V23):
+
+- os 5.570 municípios casam pelo código de 6 dígitos, sem sobra de nenhum lado; nenhum valor faltando ou igual a zero; a linha
+  "Total" do arquivo confere com a soma dos municípios em todos os anos;
+- de um ano para o outro, a série nova não tem os saltos da anterior (2018, 2021–2023 repetidos e 2024): a maior variação de um
+  município é 10,5%, e de 7 a 30 municípios por ano variam mais de 5%;
+- o total do Brasil fica de 0,76% a 1,51% abaixo do anterior de 2014 a 2023 e é igual em 2024 (212.583.750);
+- a taxa de médicos por 1.000 habitantes do Brasil sobe de 0,8% a 1,5% de 2014 a 2023; por estado, a mudança vai de −7,4% (SC,
+  2023) a +11,0% (AP, 2021); muda mais de 5% em 1.105 municípios em 2014 e em 3.122 em 2023.
+
+**O que mudou no arquivo** (`Dados_Municipios_Brasil.csv`, 122.534 linhas de dados, conferidas linha a linha contra a versão
+anterior):
+
+- **população:** o valor do ano vale para os registros de janeiro e de junho daquele ano, nos 5.570 municípios; 111.292 linhas
+  mudaram de valor. Antes, em 25 pares município × ano, janeiro e junho tinham valores diferentes;
+- **2024:** igual em 5.568 municípios. Em Canindé de São Francisco (280120; de 27.885 para 33.491) e Poço Redondo (280540; de
+  34.723 para 29.117), em Sergipe, valem os valores da série nova: são os da tabela corrigida do IBGE de 30/12/2024
+  (POP2024_20241230); a base tinha os da tabela de 01/11/2024. As duas diferenças se anulam;
+- **nomes:** 19 municípios, nas 22 linhas de cada um (418 linhas), passam ao nome oficial atual do IBGE, no formato dos outros
+  nomes da base (maiúsculas, sem acentos). Em todos, o nome do IBGE (API de localidades, consultada em 13/11/2026) é o mesmo
+  do arquivo do Ministério. A busca pelo nome anterior continua achando o município ("Parati" acha PARATY): as buscas por
+  nome das telas e a conversa procuram também na tabela dos nomes anteriores (`backend/nomes_anteriores.py`), e o que aparece
+  é sempre o nome atual. Um nome anterior igual ao nome atual de outro município continua homônimo, como antes ("Santarém"
+  traz o do Pará e JOCA CLAUDINO, na Paraíba);
+- **nada mais:** região, UF, código, coordenadas, categoria, datas e quantidade ficaram idênticos em todas as linhas.
+
+| Código | Nome anterior | Nome atual |
+|---|---|---|
+| 140060 | SAO LUIZ | SAO LUIZ DO ANAUA |
+| 170825 | FORTALEZA DO TABOCAO | TABOCAO |
+| 172049 | SAO VALERIO DA NATIVIDADE | SAO VALERIO |
+| 230630 | ITAPAGE | ITAPAJE |
+| 240020 | ACU | ASSU |
+| 240120 | ARES | AREZ |
+| 240130 | AUGUSTO SEVERO | CAMPO GRANDE |
+| 241030 | PRESIDENTE JUSCELINO | SERRA CAIADA |
+| 251365 | SANTAREM | JOCA CLAUDINO |
+| 251540 | SERIDO | SAO VICENTE DO SERIDO |
+| 260160 | BELEM DE SAO FRANCISCO | BELEM DO SAO FRANCISCO |
+| 260690 | IGUARACI | IGUARACY |
+| 260850 | LAGOA DO ITAENGA | LAGOA DE ITAENGA |
+| 292850 | SANTA TERESINHA | SANTA TEREZINHA |
+| 310890 | BRASOPOLIS | BRAZOPOLIS |
+| 330380 | PARATI | PARATY |
+| 330590 | TRAJANO DE MORAIS | TRAJANO DE MORAES |
+| 351610 | FLORINIA | FLORINEA |
+| 353080 | MOJI MIRIM | MOGI MIRIM |
+
+**Identidade depois da troca.** Fonte municipal: 9.967.844 bytes, SHA-256
+`4a81a28b7c1d5c1d7f10201666e51776effbeb6308c53cb6fc9702f0e6a5502d` (antes, 9.968.238 bytes e `d244906e6d09…`). Versão governada
+(`dados/brasil/manifesto.json`): `faa54169c5b6f31bfc5d669964f49c93cc8abce386816fa57191a5566de93cb1` (antes, `c4d82eeee4e4…`).
+A camada de coordenadas (`dados/brasil/complemento_coordenadas.json`) passou a se referir a essa versão (`aplica_se_a`), com os
+mesmos seis pontos (SHA-256 da camada, `1929129964a0…`; antes, `4fac87444778…`): sem isso, ela ficaria incompatível, e os seis
+municípios de ponto inválido na fonte perderiam a coordenada.
+
+**Efeitos.** As densidades de 2014 a 2023 mudam em todos os níveis (município, estado e Brasil); as de 2024 só mudam nos dois
+municípios de Sergipe. A densidade do Brasil cresce 17,4% de junho de 2021 a junho de 2024 (com a população anterior, 19,2%). A
+população passa a ser comparável de um ano para o outro em toda a série: o Detector de Sinais lê da própria base um trecho só
+(2014–2024), e nenhuma data fica com "comparação não habilitada" ([Detector de Sinais](DETECTOR_DE_SINAIS.md)). O que usa só a
+contagem não muda.
+
+**Fora da autorização, sem mudança.** Quatro nomes diferem do arquivo do Ministério só por hífen ou apóstrofo (PASSA-VINTE,
+BIRITIBA-MIRIM, GRAO PARA e SANTANA DO LIVRAMENTO), e onze são iguais aos do Ministério, mas diferentes do nome oficial do IBGE
+(por exemplo, ELDORADO DOS CARAJAS, SAO THOME DAS LETRAS e POXOREO): ficaram como estavam. O IBGE lista hoje 5.571 municípios; a
+base tem os 5.570 da fonte (Boa Esperança do Norte/MT não está nela).
 
 ### Fonte estadual de médicos únicos (19/10/2026)
 

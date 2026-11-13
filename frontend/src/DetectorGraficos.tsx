@@ -6,7 +6,7 @@ import type { PainelResposta } from "./painelApi";
 import { ROTULOS_BRASIL, paletaDoGrafico } from "./painelModel";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import {
-  FILTROS_DE_FENOMENO, camadasDoMapa, competenciaCurta, dominiosDoContexto, formatarInteiro, formatarTaxa, itensDoContexto, seriesDoComparativo,
+  FILTROS_DE_FENOMENO, camadasDoMapa, competenciaCurta, dominiosDoContexto, formatarInteiro, formatarTaxa, itensDoContexto, seriesDoComparativo, textoDosTrechos,
   type DetalheDoDetector, type LinhaDoDetector, type RespostaDoDetector,
 } from "./detectorModel";
 
@@ -77,7 +77,7 @@ export function SerieDaTaxa({ detalhe }: { detalhe: DetalheDoDetector }) {
       referencias={series.referencias}/>
     <figcaption className="ferramenta-apoio">Taxa de médicos por 1.000 habitantes de {detalhe.rotulo} em cada registro{series.referencias.length
       ? " e, tracejada, a dos " + detalhe.comparativo.referencia.rotulo : ""}. O valor de cada data vale nela; a variação entre datas só é
-      lida de 2014 a 2017 e de 2018 a 2021, quando a população é comparável (de 2021 a 2023 ela se repete, e a de 2024 é de outra base).
+      lida {textoDosTrechos(detalhe.comparativo.trechos)}, quando a população da base é comparável de um ano para o outro.
       {detalhe.comparativo.referencia.motivo ? " " + detalhe.comparativo.referencia.motivo : ""}</figcaption>
   </figure>;
 }

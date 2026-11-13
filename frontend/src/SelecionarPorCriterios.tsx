@@ -9,6 +9,7 @@ import {
   OPERADORES, SIMBOLOS, artigo, competenciaAbreviada, cronologica, grupoDaUnidade, maiuscula, nomeDaUnidade, quantos, unidadeMarcada,
   type GrupoInfo, type UnidadeDoCatalogo,
 } from "./painelModel";
+import { comNomesAnteriores } from "./painelModel";
 
 // "Aplicar critérios de seleção" (comando V22, 9/11/2026, seção 4; antes, o modo "Por critérios" da coluna da esquerda, de 07/11/2026),
 // aberto pela ação do painel direito da Seleção, com a árvore à vista. Passos numerados, abaixo do mini mapa: 1. Onde procurar (abre
@@ -104,7 +105,7 @@ export default function SelecionarPorCriterios(p: Props) {
   const porId = useMemo(() => new Map(p.unidades.map(item => [item.id, item])), [p.unidades]);
   const validas = useMemo(() => p.unidades.filter(item => !item.selection_reason), [p.unidades]);
   const termo = sem(consulta.trim());
-  const resultados = useMemo(() => termo.length < 2 ? [] : validas.filter(item => sem(nomeDaUnidade(item)).includes(termo)).slice(0, 8),
+  const resultados = useMemo(() => termo.length < 2 ? [] : validas.filter(item => sem(comNomesAnteriores(nomeDaUnidade(item), item.former_names)).includes(termo)).slice(0, 8),
     [validas, termo]);
   const mudar = (indice: number, parte: Partial<Rascunho>) => setLinhas(atual => atual.map((linha, i) => i === indice ? { ...linha, ...parte } : linha));
   const nomeDe = (id: string) => { const item = porId.get(id); return item ? nomeDaUnidade(item) : id; };

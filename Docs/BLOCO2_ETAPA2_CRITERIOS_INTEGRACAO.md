@@ -34,7 +34,9 @@ do arquivo junto ao servidor do IBGE: a verificação é a do usuário, no exemp
 (seção 3.5). A pendência geográfica está resolvida: os seis municípios passam a ser avaliáveis
 nas análises espaciais da base Brasil municipal. Em 25/10/2026, com a correção de uma linha da fonte
 municipal (o 251365 em junho de 2016), a camada passou a se referir à nova versão (`aplica_se_a`,
-`d244906e6d09…`), com os mesmos seis pontos (SHA-256 da camada, `4fac87444778…`).
+`d244906e6d09…`), com os mesmos seis pontos (SHA-256 da camada, `4fac87444778…`). Em 13/11/2026, com a troca da
+população e a correção de 19 nomes na fonte municipal, a camada voltou a ser religada à nova versão
+(`4a81a28b7c1d…`), de novo com os mesmos seis pontos (SHA-256 da camada, `1929129964a0…`).
 
 ## 2. Origem da base Brasil (U1)
 

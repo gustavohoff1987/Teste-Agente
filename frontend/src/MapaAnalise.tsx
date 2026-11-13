@@ -802,7 +802,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     "movem a vista; Shift e as setas vão ao ponto vizinho; Enter marca ou desmarca; + e − ampliam ou reduzem; 0 volta ao enquadramento " +
     "inicial. Os mesmos valores estão na tabela dos Detalhes.";
   // A lista da busca depende só dos itens com ponto (não da régua nem da pintura): não é refeita a cada passo da régua.
-  const pontosDaBusca = useMemo(() => base.pontos.map(ponto => ({ id: ponto.item.id, rotulo: ponto.item.rotulo }))
+  const pontosDaBusca = useMemo(() => base.pontos.map(ponto => ({ id: ponto.item.id, rotulo: ponto.item.rotulo, anteriores: ponto.item.nomesAnteriores }))
     .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR")), [base.pontos]);
 
   return <div data-testid="mapa-analise" className={"mapa" + (p.carregando ? " mapa-carregando" : "")} style={variaveis}
@@ -910,16 +910,19 @@ const CantoMiniMapa = forwardRef<CantoHandle, { pontos: DadosDoMapa["pontos"]; t
 
 // ================================================================================================ busca por nome
 /** "Achar no mapa": escolher um nome centra o mapa no ponto e mostra a dica dele (não marca nada). */
-const BuscaNoMapa = memo(function BuscaNoMapa({ pontos, rotulos, onAchar }: { pontos: { id: string; rotulo: string }[];
+const BuscaNoMapa = memo(function BuscaNoMapa({ pontos, rotulos, onAchar }: { pontos: { id: string; rotulo: string; anteriores?: string[] }[];
   rotulos: RotulosTerritoriais; onAchar: (id: string) => void }) {
   const lista = useId();
   const [texto, setTexto] = useState("");
   const [aviso, setAviso] = useState("");
-  const indice = useMemo(() => pontos.map(ponto => ({ ...ponto, chave: semAcento(ponto.rotulo) })), [pontos]);
+  // O nome anterior de um município (base Brasil, 13/11/2026) também acha o ponto: "Parati" acha PARATY.
+  const indice = useMemo(() => pontos.map(ponto => ({ ...ponto, chave: semAcento(ponto.rotulo),
+    outras: (ponto.anteriores ?? []).map(semAcento) })), [pontos]);
   function achar(valor: string, exato: boolean) {
     const chave = semAcento(valor);
     if (!chave) { setAviso(""); return; }
-    const achado = indice.find(ponto => ponto.chave === chave) ?? (exato ? undefined : indice.find(ponto => ponto.chave.includes(chave)));
+    const achado = indice.find(ponto => ponto.chave === chave) ?? indice.find(ponto => ponto.outras.includes(chave)) ??
+      (exato ? undefined : indice.find(ponto => ponto.chave.includes(chave) || ponto.outras.some(outra => outra.includes(chave))));
     if (achado) { onAchar(achado.id); setAviso(""); }
     else if (!exato) setAviso("Nenhum ponto com esse nome no mapa.");
   }

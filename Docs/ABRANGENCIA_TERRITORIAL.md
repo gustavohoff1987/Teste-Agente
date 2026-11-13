@@ -90,7 +90,7 @@ supera o total do Brasil em todas as competências).
 - **Município sem registro em junho:** a população não é estimada. Ela soma os municípios com registro,
   e o valor fica **avaliável com limitações**, motivo `POPULACAO_NACIONAL_PARCIAL`, com a lista dos
   ausentes. Na base atual, isso acontece só em 2015: falta o 430607 (CRISTAL DO SUL, RS) em junho, e a
-  população de 2015 soma os 5.569 municípios com registro (204.450.315). Nota exibida:
+  população de 2015 soma os 5.569 municípios com registro (202.400.797, com a população em uso desde 13/11/2026; antes, 204.450.315). Nota exibida:
   "Em junho de 2015, a base municipal não tem registro de 1 município (CRISTAL DO SUL, RS, 430607); a
   população do Brasil desse ano soma os 5.569 municípios com registro." A série nacional continua
   comparável para a tendência: 22 observações na série completa e 11 na série anual de junho, ambas

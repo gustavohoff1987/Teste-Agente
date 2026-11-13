@@ -1966,13 +1966,13 @@ def test_real_complete_scopes_use_the_state_and_national_sources(real):
 
 def test_real_place_numbers_of_the_navigation_command(real):
     """Navegação por níveis, base versionada (06/11/2026): os números de aceite do comando — no todo, 502.495 médicos, 212.583.750
-    habitantes, 2,36 por 1.000 e +19,2% na densidade desde junho de 2021; no Pará, 10.307 médicos e 1,19 por 1.000 —, os mesmos
+    habitantes, 2,36 por 1.000 e +17,4% na densidade desde junho de 2021; no Pará, 10.307 médicos e 1,19 por 1.000 —, os mesmos
     da linha de contexto e do nível estados."""
     body = ok(lugar(real, competencia="202406", grupo="15", desde="202106"))
     todo, para = body["todo"], body["grupo"]
     assert (todo["quantidade"], todo["populacao"]) == (502495, 212583750)
     assert round(todo["densidade"], 2) == 2.36
-    assert 19.15 <= todo["variacao_percentual"]["densidade"] < 19.25
+    assert 17.35 <= todo["variacao_percentual"]["densidade"] < 17.40   # +19,2% com a população anterior à troca de 13/11/2026
     assert (para["rotulo"], para["quantidade"]) == ("Pará (PA)", 10307) and round(para["densidade"], 2) == 1.19
     states = by_id(ok(post(real, nivel="estados", indicador="densidade", competencia="202406")))
     assert (para["quantidade"], para["populacao"], para["densidade"]) == (

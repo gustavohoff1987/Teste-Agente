@@ -11,7 +11,7 @@ Confere, contra as respostas de POST /api/detector:
 - os parâmetros personalizados, marcados como exploratórios, com "Voltar aos padrões";
 - um estado como unidade na mesma seleção: os fatos, "sem classificação neste nível";
 - "Alterar a seleção", que volta à Seleção de Territórios;
-- os fenômenos 8 a 12 (etapa 5): em jun/2024, "comparação não habilitada", com o nível da data à vista; as bolhas da distância e
+- os fenômenos 8 a 12 (etapa 5): em jun/2024, a comparação de 2 anos com a população comparável da base; as bolhas da distância e
   da taxa e o mapa dos sinais, com os valores e as coordenadas do motor; com a janela até jun/2021, os sinais observados (sem
   intensidade), a série da taxa com a referência e os textos do motor; e "Simular recuperação", que abre o Simulador de Cenários
   com a meta hipotética de voltar ao patamar anterior, sem mudar a seleção principal;
@@ -212,20 +212,20 @@ def main():
         expect(parana.get_by_test_id("detector-posicao")).to_contain_text("Percentil ")
         detector.get_by_test_id("detector-busca").fill("")
 
-        # 9. Fenômenos 8 a 12 (etapa 5). No último registro (jun/2024), a janela de jun/2022 a jun/2024 cruza a troca de base da
-        # população: "comparação não habilitada", com a taxa, a posição e o índice da data à vista.
+        # 9. Fenômenos 8 a 12 (etapa 5). Com a população do Ministério da Saúde (comando V23, 13/11/2026), a base inteira é um
+        # trecho só de população comparável, lido dela mesma: no último registro (jun/2024), a janela de jun/2022 a jun/2024 vale.
         do_motor = corpo_misto["comparacao"]
-        assert (do_motor["estado"], do_motor["de"], do_motor["ate"]) == ("comparacao_nao_habilitada", "202206", "202406"), do_motor
+        assert (do_motor["estado"], do_motor["de"], do_motor["ate"]) == ("comparavel", "202206", "202406"), do_motor
+        assert do_motor["trechos"] == [[2014, 2024]] and do_motor["motivo"] is None, do_motor
         municipais = [item for item in corpo_misto["linhas"] if item["tipo"] == "municipio"]
-        assert all(item["disponibilidade"]["estado"] == item["posicao"]["estado"] == "comparacao_nao_habilitada" for item in municipais)
+        assert not any("comparacao_nao_habilitada" in (item["disponibilidade"]["estado"], item["posicao"]["estado"]) for item in municipais)
         assert all(item["disponibilidade"]["taxa"] is not None and item["posicao"]["percentil"] is not None for item in municipais)
         comparacao = detector.get_by_test_id("detector-comparacao")
-        expect(comparacao).to_have_attribute("data-estado", "comparacao_nao_habilitada")
-        expect(comparacao).to_contain_text("a variação de jun/2022 a jun/2024 não é calculada (comparação não habilitada)")
+        expect(comparacao).to_have_attribute("data-estado", "comparavel")
+        expect(comparacao).to_contain_text("variação de jun/2022 a jun/2024, em 2 anos, com população comparável")
         expect(comparacao).to_contain_text("municípios do país atendem ao critério")
         primeira = detector.get_by_test_id("detector-linha").first
         expect(primeira.get_by_test_id("detector-disponibilidade")).to_contain_text("por 1.000 hab.")
-        expect(primeira.get_by_test_id("detector-defasagem")).to_contain_text("variação em 2 anos: comparação não habilitada")
         # As bolhas do Agente: uma por território com distância a mostrar (a distância até o município mais próximo que atende ao
         # critério e a taxa por habitante); só contexto, sem intensidade.
         visual = detector.get_by_test_id("detector-visual")
@@ -306,7 +306,8 @@ def main():
         # seleção principal. Quem está acima do patamar não tem o botão.
         principal = area.get_by_test_id("analise-aba-territorios-resumo").inner_text()
         detector.get_by_test_id("detector-janela-fim").select_option("202406")
-        expect(comparacao).to_have_attribute("data-estado", "comparacao_nao_habilitada")
+        expect(comparacao).to_have_attribute("data-estado", "comparavel")
+        expect(comparacao).to_contain_text("variação de jun/2022 a jun/2024")
         do_abelardo = next(item for item in corpo_misto["linhas"] if item["id"] == ABELARDO_LUZ)
         assert "patamar" in do_abelardo["sinais"] and do_abelardo["patamar"]["diferenca_pct"] < 0, do_abelardo["patamar"]
         acima = next(item for item in municipais if item["patamar"]["patamar"] is not None and (item["patamar"]["diferenca_pct"] or 0) > 0)
@@ -363,7 +364,7 @@ def main():
     print("DETECTOR PASS: ferramenta na navegação sem pedido sem seleção, tabela de Santa Catarina (295, 50 por página), filtro por "
           "fenômeno, RIO RUFINO com o pico que volta (série, seis fenômenos com sete campos e histórico), janela até jun/2023 "
           "(verificar registro), parâmetros exploratórios com volta aos padrões pela memória, Como foi calculado, o Paraná como "
-          "unidade sem intensidade, fenômenos 8 a 12 (comparação não habilitada em jun/2024, bolhas, mapa, sinais observados e série "
+          "unidade sem intensidade, fenômenos 8 a 12 (comparação de 2 anos em jun/2024, bolhas, mapa, sinais observados e série "
           "da taxa em jun/2021) e Simular recuperação com a meta hipotética do patamar.")
 
 
