@@ -50,7 +50,7 @@ import comparativos
 import detector
 import series_brasil
 from series_brasil import Base, Territorio, mes_da_competencia
-from territorial_levels import STATES
+from territorial_levels import STATES, state_with_preposition
 
 VERSION = "SIMULADOR-CENARIOS/V2.2/2"   # /2: Brasil, referências, planejamento inverso e hipótese derivada (etapa 5 do V22)
 # Os nomes dos métodos nos textos (decisão D-C: linguagem simples). No anexo, a "deriva do estado" do M0d é o crescimento anual
@@ -586,7 +586,7 @@ def _premissas(resultado: dict, cenario: dict, territorio: Territorio, varios: b
     p = resultado["parametros"]
     partes = ["janela de " + detector.curta(p["janela"]["inicio"]) + " a " + detector.curta(p["janela"]["fim"])]
     if resultado["usado"] == "M0d":
-        partes.append(("crescimento do estado de " + _pct(p["deriva_pct"], 2) + " ao ano (" + p["estado_da_deriva"] + ")") if "deriva_pct" in p
+        partes.append(("crescimento " + state_with_preposition(territorio.uf) + " de " + _pct(p["deriva_pct"], 2) + " ao ano") if "deriva_pct" in p
                       else "o crescimento recente do estado de cada membro")
     elif resultado["usado"] in ("M1", "M3", "manual"):
         partes.append("taxa de " + _pct(p["taxa_pct"], 2) + " ao ano" + (" informada pela pessoa" if resultado["usado"] == "manual" else ""))
@@ -887,8 +887,8 @@ def _sobreposicao(base: Base, territorio: Territorio, ref: dict) -> list[str]:
         elif ufs_de(territorio) & ufs_de(outro):
             avisos.append("O território e a referência têm estados em comum: a comparação não é independente.")
     if outro.unidade != territorio.unidade:
-        avisos.append("As contagens têm unidades diferentes (território: " + territorio.unidade + "; referência: " + outro.unidade +
-                      "): a comparação é entre esses quantitativos.")
+        avisos.append("As contagens têm unidades diferentes: no território, " + territorio.unidade + "; na referência, " + outro.unidade +
+                      ". A comparação é entre esses quantitativos.")
     return avisos
 
 

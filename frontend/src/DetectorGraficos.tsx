@@ -76,7 +76,7 @@ export function SerieDaTaxa({ detalhe }: { detalhe: DetalheDoDetector }) {
     <PainelSeries itens={[series.item]} competencias={detalhe.comparativo.competencias} indicador="densidade" rotulos={ROTULOS_BRASIL}
       referencias={series.referencias}/>
     <figcaption className="ferramenta-apoio">Taxa de médicos por 1.000 habitantes de {detalhe.rotulo} em cada registro{series.referencias.length
-      ? " e, tracejada, a da referência (" + detalhe.comparativo.referencia.rotulo + ")" : ""}. O valor de cada data vale nela; a variação entre datas só é
+      ? " e, tracejada, a dos " + detalhe.comparativo.referencia.rotulo : ""}. O valor de cada data vale nela; a variação entre datas só é
       lida de 2014 a 2017 e de 2018 a 2021, quando a população é comparável (de 2021 a 2023 ela se repete, e a de 2024 é de outra base).
       {detalhe.comparativo.referencia.motivo ? " " + detalhe.comparativo.referencia.motivo : ""}</figcaption>
   </figure>;

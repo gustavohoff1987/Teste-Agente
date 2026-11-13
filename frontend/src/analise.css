@@ -907,6 +907,7 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .ferramenta-territorio { min-width: 190px; }
 .ferramenta-coluna-larga { min-width: 220px; }
 .ferramenta-territorio .ferramenta-apoio { display: block; margin-left: 21px; font-weight: 400; }
+.ferramenta-tabela th .ferramenta-apoio { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; }
 .ferramenta-abrir { display: inline-flex; align-items: flex-start; gap: 6px; min-height: 28px; color: var(--cor-tinta); font-weight: 650; text-align: left; }
 .ferramenta-abrir:hover { color: var(--cor-destaque-texto); }
 .ferramenta-trecho { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-bottom: 4px; }

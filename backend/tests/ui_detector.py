@@ -93,9 +93,14 @@ def main():
         expect(detector.get_by_test_id("detector-linha")).to_have_count(50)
         expect(detector.get_by_test_id("detector-paginas")).to_contain_text("Página 1 de 6")
         expect(tabela.locator("thead th")).to_have_text(["Território", "Condição estrutural", "Trajetória", "Ritmo e instabilidade",
-                                                         "Comparação relativa", "Contexto geográfico", "Sinais combinados",
+                                                         "Comparação relativa",
+                                                         "Contexto geográfico município mais próximo com 2,36 médicos por 1.000 habitantes ou mais",
+                                                         "Sinais combinados",
                                                          "Qualidade do registro", "Última observação"])
         expect(tabela.locator("caption")).to_contain_text("limites provisórios")
+        # O critério do contexto geográfico aparece no cabeçalho e na célula (revisão da etapa 5, 13/11/2026).
+        expect(detector.get_by_test_id("detector-criterio-do-contexto")).to_have_text("município mais próximo com 2,36 médicos por 1.000 habitantes ou mais")
+        expect(tabela).to_contain_text("dos municípios abaixo de 2,36 médicos por 1.000 habitantes")
         expect(detector.get_by_test_id("detector-resumo")).to_contain_text("295 territórios")
         page.screenshot(path=str(OUTPUT / "detector-01-tabela-real.png"), full_page=True)
 

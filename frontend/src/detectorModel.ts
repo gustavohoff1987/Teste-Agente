@@ -315,14 +315,24 @@ export function trechosDaComparacao(linha: LinhaDoDetector): Trecho[] {
   return saida.map(({ estado: _estado, ...trecho }) => trecho);
 }
 
-/** O contexto geográfico da linha (fenômeno 11): a distância até o município mais próximo que atende ao critério. Só contexto. */
-export function trechoDoContexto(linha: LinhaDoDetector): Trecho {
+/** O critério do contexto geográfico, para o cabeçalho da coluna: "município mais próximo com 2,36 médicos por 1.000 habitantes
+ * ou mais". Sem a taxa do critério na data, não há o que dizer. */
+export const criterioDoContexto = (taxaMinima: number | null): string | null =>
+  taxaMinima === null ? null : "município mais próximo com " + formatarTaxa(taxaMinima) + " médicos por 1.000 habitantes ou mais";
+
+/** O contexto geográfico da linha (fenômeno 11): a distância até o município mais próximo que atende ao critério. Só contexto.
+ * Com a taxa do critério (`taxaMinima`), a célula diz o critério por extenso: "mais longe que 99% dos municípios abaixo de 2,36
+ * médicos por 1.000 habitantes". */
+export function trechoDoContexto(linha: LinhaDoDetector, taxaMinima: number | null = null): Trecho {
   const c = linha.contexto;
+  const criterio = taxaMinima === null ? null : formatarTaxa(taxaMinima) + " médicos por 1.000 habitantes";
   if (c.estado === "contexto" && c.distanciaKm !== null) return { chave: "contexto", classe: null,
     texto: "A " + umaCasa.format(c.distanciaKm) + " km de " + (c.referencia ?? "um município que atende ao critério"),
-    apoio: c.percentil !== null ? "mais longe que " + Math.round(c.percentil) + "% dos municípios que não atendem ao critério"
+    apoio: c.percentil !== null
+      ? "mais longe que " + Math.round(c.percentil) + "% dos municípios " + (criterio ? "abaixo de " + criterio : "que não atendem ao critério")
       : linha.tipo === "conjunto" ? "pelo componente mais próximo" : null };
-  if (c.estado === "atende_ao_criterio") return { chave: "contexto", texto: "Atende ao critério", classe: null, apoio: "taxa igual ou maior que a do critério" };
+  if (c.estado === "atende_ao_criterio") return { chave: "contexto", texto: "Atende ao critério", classe: null,
+    apoio: criterio ? "taxa de " + criterio + " ou mais" : "taxa igual ou maior que a do critério" };
   if (c.estado === "nao_aplicavel") return { chave: "contexto", texto: "Não se aplica", classe: null, apoio: "o estado como unidade não tem um ponto único" };
   if (c.estado === "sem_coordenada") return { chave: "contexto", texto: "Sem coordenada válida", classe: null, apoio: null };
   return { chave: "contexto", texto: "Não calculável", classe: null, apoio: null };
@@ -387,7 +397,7 @@ export function seriesDoComparativo(detalhe: DetalheDoDetector): { item: PainelI
     motivos: [], referencia: false, tendencia: null, grupo: null, grupoMapa: null, faixa: null, faixa_distancia: null, referenciaDoItem: null,
     membroDaReferencia: null, condicoes: null, ordem: null, rotatividade: null,
     serie: { observacoes: observacoes(c.taxa), comparavel: true, motivo: null } } as PainelItem;
-  // No desenho, o rótulo curto da referência ("demais municípios de Amazonas"); o completo fica na legenda do gráfico.
+  // No desenho, o rótulo curto da referência ("demais municípios do Amazonas"); o completo fica na legenda do gráfico.
   return { item, referencias: c.referencia.taxa.some(valor => valor !== null)
     ? [{ id: "referencia", rotulo: "Referência: " + c.referencia.rotulo.replace(/\s*\(.*$/, ""), observacoes: observacoes(c.referencia.taxa) }] : [] };
 }

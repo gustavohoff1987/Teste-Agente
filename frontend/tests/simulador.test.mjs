@@ -296,6 +296,8 @@ test('referências de comparação: fixas, dinâmicas ou um valor, até cinco, c
   assert.deepEqual([R1, R2, R3, R4], [{id: 'r1', alvo: 'code:420540', rotulo: 'FLORIANOPOLIS (SC)', tipo: 'dinamica', valor: ''},
     {id: 'r2', alvo: 'br', rotulo: 'Brasil', tipo: 'fixa', valor: ''}, {id: 'r3', alvo: 'valor', rotulo: 'Valor informado por você', tipo: 'valor', valor: '6.500'},
     {id: 'r4', alvo: 'g1', rotulo: 'Par (conjunto)', tipo: 'fixa', valor: ''}], 'o identificador livre seguinte');
+  // O nome do conjunto leva a palavra "Conjunto" uma vez só (revisão da etapa 5, 13/11/2026): "+ Conjunto A", nunca "+ Conjunto Conjunto A".
+  assert.deepEqual(['Conjunto A', ' conjunto b ', 'Par', 'Conjuntura'].map(S.comoConjunto), ['Conjunto A', 'conjunto b', 'Conjunto Par', 'Conjunto Conjuntura']);
   assert.deepEqual([S.MAX_REFERENCIAS, S.novaReferencia([R1, R2, R3, R4, R1], {alvo: 'uf:35', rotulo: 'x', tipo: 'fixa'})], [5, null]);
   // A referência a um conjunto vale enquanto ele está na seleção local; as demais não dependem dela.
   const local = {municipios: [], estados: [], conjuntos: [{id: 'g1', rotulo: 'Par', membros: ['code:1', 'code:2']}]};

@@ -201,6 +201,10 @@ hipótese derivada. O Brasil nunca é somado aos demais territórios, e não é 
   ou o estado do município; o conjunto com um município em comum; estados em comum) e quando as contagens têm unidades diferentes
   (a contagem municipal, a estadual de médicos únicos, a nacional, ou a soma dos componentes). Nunca se declara uma independência
   que não há.
+- **Nomes nos textos** (revisão de 13/11/2026): o estado como unidade aparece como "Paraná (estado)", como no resto do Agente; o
+  conjunto leva a palavra "Conjunto" uma vez só ("Conjunto A"); nas premissas do texto de cenário, o crescimento recente traz o
+  estado com a preposição certa ("crescimento do Amazonas de +6,21% ao ano"); e nenhum texto põe parênteses dentro de parênteses
+  (a unidade da contagem de cada referência vem depois de "Contagem:").
 - **Por taxa:** médicos por 1.000 habitantes, com a **população do último registro em todas as datas simuladas** (hipótese
   declarada na tela, no texto e nas exportações; a base não traz população futura). O estado e o Brasil usam a soma das
   populações municipais; sem população válida, a comparação é "não calculável".

@@ -36,7 +36,7 @@ import numpy as np
 
 import nearest_reference
 from series_brasil import Base, Territorio
-from territorial_levels import STATES
+from territorial_levels import STATES, state_with_preposition
 
 POR = 1000.0                                 # a taxa do Agente: médicos por 1.000 habitantes
 TRECHOS_COMPARAVEIS = ((2014, 2017), (2018, 2021))
@@ -277,17 +277,22 @@ def taxa_do_territorio(base: Base, territorio: Territorio) -> np.ndarray:
         return np.where(~np.isnan(territorio.serie) & ~np.isnan(pop) & (pop > 0), POR * territorio.serie / pop, np.nan)
 
 
+def _e(nomes: list[str]) -> str:
+    """"do Acre", "do Acre e do Amazonas", "do Acre, do Amazonas e do Pará"."""
+    return nomes[0] if len(nomes) == 1 else ", ".join(nomes[:-1]) + " e " + nomes[-1]
+
+
 def referencia_do_territorio(base: Base, territorio: Territorio) -> tuple[np.ndarray, str, str | None]:
     """A taxa da referência do território em cada competência, o rótulo dela e, quando não há referência, o motivo. A referência
-    fica na mesma unidade do território e não o contém (seção 4.2, indicador 10)."""
+    fica na mesma unidade do território e não o contém (seção 4.2, indicador 10). O rótulo traz o estado com a preposição certa
+    ("demais municípios do Amazonas") e um só par de parênteses, para caber em frases sem parênteses dentro de parênteses."""
     vazio = np.full(len(base.periodos), np.nan)
     q, pop = base.quantidade, base.populacao
     if territorio.tipo == "municipio":
         outros = [linha for linha in base.do_estado.get(territorio.uf, ()) if linha != territorio.linha]
         if not outros:
             return vazio, "", "A UF deste município não tem outros municípios: não há referência na mesma unidade."
-        return _taxas(base)[1][territorio.linha], "demais municípios de " + STATES[territorio.uf][1] + " (soma municipal, sem " + \
-            territorio.rotulo + ")", None
+        return _taxas(base)[1][territorio.linha], "demais municípios " + state_with_preposition(territorio.uf) + " (soma municipal)", None
     if territorio.tipo == "conjunto" and territorio.nivel == "municipios":
         dentro = set(_linhas_dos_membros(base, territorio))
         ufs = sorted({base.prefixos[linha] for linha in dentro})
@@ -298,7 +303,7 @@ def referencia_do_territorio(base: Base, territorio: Territorio) -> tuple[np.nda
         soma_q, soma_pop = np.where(valido, q[outros], 0.0).sum(axis=0), np.where(valido, pop[outros], 0.0).sum(axis=0)
         with np.errstate(invalid="ignore", divide="ignore"):
             taxa = np.where(soma_pop > 0, POR * soma_q / soma_pop, np.nan)
-        return taxa, "demais municípios de " + ", ".join(STATES[uf][1] for uf in ufs) + " (soma municipal, sem os membros do conjunto)", None
+        return taxa, "demais municípios " + _e([state_with_preposition(uf) for uf in ufs]) + " (soma municipal)", None
     if territorio.nivel == "estados":
         dentro = {territorio.uf} if territorio.tipo == "estado" else {membro[3:] for membro in territorio.membros}
         outros = [uf for uf in base.estados if uf not in dentro]
@@ -310,7 +315,7 @@ def referencia_do_territorio(base: Base, territorio: Territorio) -> tuple[np.nda
         completo = ~np.isnan(contagens).any(axis=0) & ~np.isnan(populacoes).any(axis=0)
         with np.errstate(invalid="ignore", divide="ignore"):
             taxa = np.where(completo, POR * np.nansum(contagens, axis=0) / np.nansum(populacoes, axis=0), np.nan)
-        return taxa, "demais estados (soma das contagens estaduais, sem " + territorio.rotulo + ")", None
+        return taxa, "demais estados (soma das contagens estaduais)", None
     return vazio, "", "Não há referência na mesma unidade para este território."
 
 

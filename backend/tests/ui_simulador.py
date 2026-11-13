@@ -123,7 +123,7 @@ def main():
         expect(simulador.get_by_test_id("simulador-nao-acompanha")).to_contain_text("deixou de acompanhar a seleção principal")
         expect(simulador.get_by_test_id("simulador-nao-acompanha")).to_contain_text("Copiar de novo a seleção principal")
         acrescentar("parana", "uf:" + PR)
-        expect(local("uf:" + PR)).to_contain_text("Paraná (PR) (estado)")
+        expect(local("uf:" + PR)).to_contain_text("Paraná (estado)")
         local(MANAUS).get_by_role("button").click()
         expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "3")
         expect(local(MANAUS)).to_have_count(0)

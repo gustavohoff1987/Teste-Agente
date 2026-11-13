@@ -629,7 +629,7 @@ def test_defasagem_ante_a_referencia_na_mesma_unidade_e_sem_o_territorio():
     assert resumo("130001") == ("sinal_observado", "muito_forte", 100.0, 59.0, -41.0)
     assert resumo("140001") == ("sem_sinal", None, 100.0, 84.0, -16.0)
     assert resumo("150001") == ("sinal_observado", "forte", 100.0, 79.0, -21.0)
-    assert defasagem["120001"]["referencia"] == {"rotulo": "demais municípios de Acre (soma municipal, sem M120001)", "taxa": 10.0}
+    assert defasagem["120001"]["referencia"] == {"rotulo": "demais municípios do Acre (soma municipal)", "taxa": 10.0}
     # Um município sozinho na UF (como o Distrito Federal) não tem referência na mesma unidade.
     assert (defasagem["530010"]["estado"], defasagem["530010"]["indice"]) == ("referencia_invalida", None)
     assert defasagem["530010"]["motivo"] == "A UF deste município não tem outros municípios: não há referência na mesma unidade."
@@ -637,7 +637,7 @@ def test_defasagem_ante_a_referencia_na_mesma_unidade_e_sem_o_territorio():
     texto = texto_do(b, av, e, "defasagem")
     assert texto["numero"] == "10" and texto["situacao"] == "−40 pontos no índice ante a referência em 2 anos · sinal observado forte"
     assert texto["observado"] == ("De jun/2019 a jun/2021, o índice passou de 100 para 60 (−40 pontos). Em jun/2021, a taxa do território é de "
-                                  "6,00 por 1.000 habitantes, e a da referência (demais municípios de Acre (soma municipal, sem M120001)), de "
+                                  "6,00 por 1.000 habitantes, e a dos demais municípios do Acre (soma municipal), de "
                                   "10,00: índice 60 (100 é a taxa da referência).")
     assert "A referência é uma comparação, não uma meta nem um padrão de suficiência." in texto["nao_significa"]
     # O estado como unidade: a contagem estadual ÷ a soma das populações municipais, diante dos demais estados; no universo dos
@@ -647,15 +647,15 @@ def test_defasagem_ante_a_referencia_na_mesma_unidade_e_sem_o_territorio():
         {"id": "c1", "rotulo": "Par", "membros": ["code:120001", "code:130001"]}, {"id": "c2", "rotulo": "UFs", "membros": ["uf:12", "uf:14"]}]})
     do_estado = detector.avaliar(b, cal, estado, 0, e, P)
     assert (do_estado["disponibilidade"]["taxa"], do_estado["disponibilidade"]["populacao"], do_estado["disponibilidade"]["sinal"]) == (6.0, 50000.0, "muito_forte")
-    assert do_estado["defasagem"]["referencia"] == {"rotulo": "demais estados (soma das contagens estaduais, sem Amazonas (AM))", "taxa": 9.5}
+    assert do_estado["defasagem"]["referencia"] == {"rotulo": "demais estados (soma das contagens estaduais)", "taxa": 9.5}
     assert (do_estado["defasagem"]["sinal"], do_estado["defasagem"]["indice_final"]) == ("forte", pytest.approx(100 * 6 / 9.5))
     assert (do_estado["posicao"]["universo"], do_estado["posicao"]["nome_do_universo"], do_estado["posicao"]["estado"]) == (3, "estados com taxa válida", "sem_sinal")
     assert do_estado["posicao"]["percentil"] == pytest.approx(100 * 0.5 / 3)   # a menor taxa entre os três estados
     do_par = detector.avaliar(b, cal, par, 0, e, P)["defasagem"]
-    assert do_par["referencia"]["rotulo"] == "demais municípios de Acre, Amazonas (soma municipal, sem os membros do conjunto)"
+    assert do_par["referencia"]["rotulo"] == "demais municípios do Acre e do Amazonas (soma municipal)"
     assert (do_par["sinal"], round(do_par["indice_final"], 6), round(do_par["variacao_pontos"], 6)) == ("muito_forte", 59.5, -40.5)
     dos_estados = detector.avaliar(b, cal, das_ufs, 0, e, P)
-    assert dos_estados["defasagem"]["referencia"] == {"rotulo": "demais estados (soma das contagens estaduais, sem UFs)", "taxa": 6.0}
+    assert dos_estados["defasagem"]["referencia"] == {"rotulo": "demais estados (soma das contagens estaduais)", "taxa": 6.0}
     assert dos_estados["disponibilidade"]["taxa"] == 9.5 and dos_estados["posicao"]["estado"] == "nao_aplicavel"
 
 
@@ -887,7 +887,7 @@ def test_rota_do_detector_tabela_detalhe_e_recusas(catalogo, monkeypatch):
     comparativo = detalhe["comparativo"]
     assert comparativo["competencias"] == list(PERIODOS) and comparativo["trechos"] == [[2014, 2017], [2018, 2021]]
     assert (comparativo["taxa"][0], comparativo["taxa"][2], comparativo["taxa"][-1]) == (20.0, None, 12.0)   # o registro ausente não é zero
-    assert comparativo["referencia"]["rotulo"] == "demais municípios de Amazonas (soma municipal, sem PARINTINS (AM))"
+    assert comparativo["referencia"]["rotulo"] == "demais municípios do Amazonas (soma municipal)"
     assert comparativo["referencia"]["motivo"] is None and comparativo["referencia"]["taxa"][-1] == pytest.approx(1000 * 51 / 2000)
     assert comparativo["indice"][-1] == pytest.approx(100 * 12 / 25.5)
     assert set(detalhe["coordenadas"]) == {"code:130340", "code:130260"}   # o território e o município de referência do contexto
@@ -1082,7 +1082,7 @@ def test_real_fenomenos_8_a_12_comparacao_so_com_populacao_comparavel(real):
     assert oito["situacao"] == "−36,2% na taxa por habitante em 2 anos · sinal observado muito forte" and oito["habitual"] == detector.SEM_VALIDACAO
     comparativo = detalhe["comparativo"]
     assert comparativo["competencias"] == list(PERIODOS[:16]) and len(comparativo["taxa"]) == len(comparativo["indice"]) == 16
-    assert comparativo["referencia"]["rotulo"] == "demais municípios de São Paulo (soma municipal, sem BARRA BONITA (SP))"
+    assert comparativo["referencia"]["rotulo"] == "demais municípios de São Paulo (soma municipal)"
     assert comparativo["taxa"][-1] == pytest.approx(3.0727, abs=1e-4) and comparativo["indice"][-1] == pytest.approx(72.887, abs=1e-3)
     tudo = " ".join(fenomeno[campo] for fenomeno in detalhe["fenomenos"] for campo in ("situacao", "observado", "criterio", "habitual",
                                                                                         "significa", "nao_significa")).lower()

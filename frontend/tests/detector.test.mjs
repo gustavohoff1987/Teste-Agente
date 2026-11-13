@@ -257,6 +257,11 @@ test('fenômenos 8 a 12 na tabela: sinais observados com limites provisórios, s
   assert.deepEqual(D.trechoDoContexto(manaus), {chave: 'contexto', classe: null, texto: 'A 423,5 km de JACAREACANGA (PA)',
     apoio: 'mais longe que 98% dos municípios que não atendem ao critério'});
   assert.deepEqual(D.trechoDoContexto(par), {chave: 'contexto', classe: null, texto: 'A 88,0 km de PORTO VELHO (RO)', apoio: 'pelo componente mais próximo'});
+  // Com a taxa do critério, a célula e o cabeçalho dizem o critério por extenso (revisão da etapa 5, 13/11/2026).
+  assert.equal(D.trechoDoContexto(manaus, 2.3638).apoio, 'mais longe que 98% dos municípios abaixo de 2,36 médicos por 1.000 habitantes');
+  assert.equal(D.trechoDoContexto(barra, 2.3638).apoio, 'taxa de 2,36 médicos por 1.000 habitantes ou mais');
+  assert.equal(D.trechoDoContexto(par, 2.3638).apoio, 'pelo componente mais próximo');
+  assert.deepEqual([D.criterioDoContexto(2.3638), D.criterioDoContexto(null)], ['município mais próximo com 2,36 médicos por 1.000 habitantes ou mais', null]);
   assert.deepEqual([D.trechoDoContexto(barra), D.trechoDoContexto(para)].map(trecho => [trecho.texto, trecho.apoio]),
     [['Atende ao critério', 'taxa igual ou maior que a do critério'], ['Não se aplica', 'o estado como unidade não tem um ponto único']]);
   assert.deepEqual(['sem_coordenada', 'nao_calculavel', ''].map(estado => D.trechoDoContexto(ler({contexto: {estado, distancia_km: null}})).texto),
@@ -291,9 +296,9 @@ test('fenômenos 8 a 12 em gráfico e mapa: só os valores e as coordenadas do m
   // A série da taxa do território e a da referência dele (tracejada), para a Série temporal do Agente; a ausência não vira zero.
   const detalhe = D.normalizarDetalhe({territorio: {id: 'code:350530', rotulo: 'BARRA BONITA (SP)', tipo: 'municipio', unidade: 'médicos'}, janela: resposta([]).janela,
     comparativo: {competencias: ['201906', '202006', '202106'], taxa: [4.8, null, 3.07], indice: [128.1, null, 72.9], trechos: [[2014, 2017], [2018, 2021]],
-      referencia: {rotulo: 'demais municípios de São Paulo (soma municipal, sem BARRA BONITA (SP))', motivo: null, taxa: [3.75, 4.0, 4.21]}}});
+      referencia: {rotulo: 'demais municípios de São Paulo (soma municipal)', motivo: null, taxa: [3.75, 4.0, 4.21]}}});
   assert.deepEqual(detalhe.comparativo, {competencias: ['201906', '202006', '202106'], taxa: [4.8, null, 3.07], indice: [128.1, null, 72.9],
-    referencia: {rotulo: 'demais municípios de São Paulo (soma municipal, sem BARRA BONITA (SP))', motivo: null, taxa: [3.75, 4, 4.21]}});
+    referencia: {rotulo: 'demais municípios de São Paulo (soma municipal)', motivo: null, taxa: [3.75, 4, 4.21]}});
   const series = D.seriesDoComparativo(detalhe);
   assert.deepEqual([series.item.id, series.item.densidade, series.item.serie], ['code:350530', 3.07, {comparavel: true, motivo: null,
     observacoes: [{competencia: '201906', valor: 4.8}, {competencia: '202006', valor: null}, {competencia: '202106', valor: 3.07}]}]);

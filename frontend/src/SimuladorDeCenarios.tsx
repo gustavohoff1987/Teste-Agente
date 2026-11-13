@@ -6,7 +6,7 @@ import {
   ID_DA_REFERENCIA, ID_DO_BRASIL, MAX_CENARIOS, MAX_INTERVENCOES, MAX_REFERENCIAS, MAX_TERRITORIOS, METODOS_DA_TELA, NOME_CURTO_DO_METODO, acrescentarTerritorio,
   anosDepois, cenariosEmUso, comOBrasil, comOPlanoComoIntervencao, competenciaCurta, configInicial, contasDoFinal, hipotesePertinente, metodoNaTabela, tempoDesde,
   copiarSelecao, csvDasComparacoes, csvDoSimulador, doCampoDeMes, exportarCenario, formatarMedicos, formatarPercentualInteiro, formatarTaxa, importarCenario, janelaPadrao,
-  mesDe, normalizarSimulador, novaIntervencao, novaReferencia, novoCenario, novoPlano, paraCampoDeMes, pedidoDoSimulador, pendenciaDoPedido, referenciasValidas,
+  comoConjunto, mesDe, normalizarSimulador, novaIntervencao, novaReferencia, novoCenario, novoPlano, paraCampoDeMes, pedidoDoSimulador, pendenciaDoPedido, referenciasValidas,
   textoDaFaixa, textoDaHipotese, textoDoFinal, tirarTerritorio, totalDaSelecaoLocal,
   type CenarioCalculado, type CenarioDaTela, type ConfigDoSimulador, type IntervencaoDaTela, type MetodoDoCenario, type PlanejamentoDoCenario, type PlanoDaTela,
   type ReferenciaDaTela, type RespostaDoSimulador, type SelecaoDasFerramentas, type SelecaoLocal, type TerritorioSimulado,
@@ -164,6 +164,8 @@ export default function SimuladorDeCenarios(props: Props) {
   const porId = useMemo(() => new Map(p.unidades.map(item => [item.id, item])), [p.unidades]);
   const nomeDe = (id: string) => { const item = porId.get(id); return item ? item.name + (item.state ? " (" + item.state + ")" : "") : id; };
   const nomeDoEstado = (prefixo: string) => { const g = p.grupos.find(item => item.id === prefixo); return g ? g.nome + (g.sigla ? " (" + g.sigla + ")" : "") : prefixo; };
+  // O estado como unidade, como no resto do Agente: "Paraná (estado)", sem a sigla (um só par de parênteses).
+  const estadoComoUnidade = (prefixo: string) => (p.grupos.find(item => item.id === prefixo)?.nome ?? prefixo) + " (estado)";
   const nomeDoMembro = (id: string) => id.startsWith("uf:") ? nomeDoEstado(id.slice(3)) : nomeDe(id);
   const copiaDaPrincipal = () => copiarSelecao(p.principal, { todasAsUnidades: p.unidades.filter(item => !item.selection_reason).map(item => item.id),
     unidadesDoGrupo: grupo => p.unidades.filter(item => !item.selection_reason && (item.state_code || item.id.slice(5, 7)) === grupo).map(item => item.id) });
@@ -467,7 +469,7 @@ export default function SimuladorDeCenarios(props: Props) {
           <button type="button" className="analise-icone analise-icone-pequeno" aria-label="Tirar o Brasil do Simulador"
             onClick={() => mudarLocal(tirarTerritorio(config.local, ID_DO_BRASIL))}><X size={13} aria-hidden="true"/></button></li>}
         {config.local.estados.map(prefixo => <li key={"uf:" + prefixo} data-testid="simulador-local" data-id={"uf:" + prefixo} className="analise-etiqueta">
-          {nomeDoEstado(prefixo)} (estado)<button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Tirar " + nomeDoEstado(prefixo) + " do Simulador"}
+          {estadoComoUnidade(prefixo)}<button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Tirar " + nomeDoEstado(prefixo) + " do Simulador"}
             onClick={() => mudarLocal(tirarTerritorio(config.local, "uf:" + prefixo))}><X size={13} aria-hidden="true"/></button></li>)}
         {config.local.conjuntos.map(conjunto => <li key={conjunto.id} data-testid="simulador-local" data-id={conjunto.id} className="analise-etiqueta"
           title={conjunto.rotulo + ": " + conjunto.membros.map(id => id.startsWith("uf:") ? nomeDoEstado(id.slice(3)) : nomeDe(id)).join(", ")}>
@@ -534,7 +536,7 @@ export default function SimuladorDeCenarios(props: Props) {
             disabled={referencias.length >= MAX_REFERENCIAS} onChange={event => { setBuscaDeReferencia(event.target.value); setAvisoDeReferencia(null); }}/></label>
         {achadosDeReferencia && <ul data-testid="simulador-referencia-achados" className="ferramenta-achados">
           {achadosDeReferencia.estados.map(g => <li key={"uf" + g.id}><button type="button" data-testid="simulador-referencia-acrescentar" data-id={"uf:" + g.id}
-            className="analise-botao-secundario" onClick={() => acrescentarReferencia({ alvo: "uf:" + g.id, rotulo: nomeDoEstado(g.id) + " (estado)", tipo: "fixa" })}>
+            className="analise-botao-secundario" onClick={() => acrescentarReferencia({ alvo: "uf:" + g.id, rotulo: estadoComoUnidade(g.id), tipo: "fixa" })}>
             <Plus size={13} aria-hidden="true"/>{g.nome} (estado)</button></li>)}
           {achadosDeReferencia.municipios.map(item => <li key={item.id}><button type="button" data-testid="simulador-referencia-acrescentar" data-id={item.id}
             className="analise-botao-secundario" onClick={() => acrescentarReferencia({ alvo: item.id, rotulo: nomeDe(item.id), tipo: "fixa" })}>
@@ -546,8 +548,8 @@ export default function SimuladorDeCenarios(props: Props) {
             onClick={() => acrescentarReferencia({ alvo: ID_DO_BRASIL, rotulo: "Brasil", tipo: "fixa" })}><Plus size={13} aria-hidden="true"/>Brasil</button>
           {config.local.conjuntos.map(conjunto => <button key={conjunto.id} type="button" data-testid="simulador-referencia-conjunto" data-id={conjunto.id}
             className="analise-botao-secundario" disabled={referencias.length >= MAX_REFERENCIAS}
-            onClick={() => acrescentarReferencia({ alvo: conjunto.id, rotulo: conjunto.rotulo + " (conjunto)", tipo: "fixa" })}>
-            <Plus size={13} aria-hidden="true"/>Conjunto {conjunto.rotulo}</button>)}
+            onClick={() => acrescentarReferencia({ alvo: conjunto.id, rotulo: comoConjunto(conjunto.rotulo), tipo: "fixa" })}>
+            <Plus size={13} aria-hidden="true"/>{comoConjunto(conjunto.rotulo)}</button>)}
           <button type="button" data-testid="simulador-referencia-valor-nova" className="analise-botao-secundario" disabled={referencias.length >= MAX_REFERENCIAS}
             onClick={() => acrescentarReferencia({ alvo: "valor", rotulo: "Valor informado por você", tipo: "valor" })}><Plus size={13} aria-hidden="true"/>Um valor seu</button>
         </div>
@@ -689,7 +691,7 @@ export default function SimuladorDeCenarios(props: Props) {
         Referências deste cálculo, comparadas por {resposta.comparacao.metrica === "taxa" ? "taxa por 1.000 habitantes (hipótese: população " +
           (resposta.comparacao.hipoteseDePopulacao ?? "constante") + ")" : "quantidade de médicos"}:{" "}
         {resposta.referencias.map(ref => ref.rotulo + " — " + (ref.estado === "calculada" ? ref.descricao ?? "" : "não calculável: " + (ref.motivo ?? "")) +
-          (ref.unidade ? " (" + ref.unidade + ")" : "")).join("; ")}.{" "}
+          (ref.unidade ? ". Contagem: " + ref.unidade : "")).join(". ")}.{" "}
         <button type="button" className="analise-link analise-nao-imprimir" onClick={() => setEtapa(1)}>Mudar as referências (etapa 1)</button></div>}
       {territorioEmFoco && <>
         <p className="ferramenta-apoio">Contagem: {territorioEmFoco.unidade}.{territorioEmFoco.membros.length > 0 && " Componentes: " + territorioEmFoco.membros.join(", ") + "."}</p>

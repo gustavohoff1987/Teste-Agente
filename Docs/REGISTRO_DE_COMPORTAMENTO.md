@@ -35,6 +35,37 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-13 · Textos do Detector e do Simulador: estados com a preposição certa, "+ Conjunto A" e o critério do contexto geográfico (comando V23, pendências do V22)
+- **Classificação (regra 1):** os três ajustes de texto da revisão da etapa 5 do V22, pedidos pelo responsável na seção 0 do comando
+  V23 (13/11/2026). São mudanças de comportamento (textos de tela e de resposta da API), dentro do escopo do pedido e compatíveis
+  com a SPEC, que não trata desses textos. **Mudança prevista.**
+- **Antes:**
+  - a referência do fenômeno 10 saía como "demais municípios de Amazonas (soma municipal, sem MANAUS (AM))", e os textos a punham
+    dentro de outros parênteses; no Simulador, as premissas diziam "crescimento do estado de +6,21% ao ano (Amazonas)", o estado
+    como unidade aparecia como "Paraná (PR) (estado)", e a unidade da contagem vinha entre parênteses que já tinham parênteses;
+  - o botão de referência de um conjunto dizia "+ Conjunto Conjunto A";
+  - na tabela do Detector, a célula do contexto geográfico dizia "mais longe que 99% dos municípios que não atendem ao critério", e
+    o critério só aparecia na nota acima do gráfico.
+- **Agora:**
+  - **estados:** "demais municípios do Amazonas (soma municipal)", "demais municípios do Acre e do Amazonas (soma municipal)" e
+    "demais estados (soma das contagens estaduais)", com a preposição que o Agente já usa no nome dos grupos; os textos do fenômeno 10
+    dizem "a dos demais municípios do Amazonas (soma municipal)", sem parênteses dentro de parênteses; no Simulador, "crescimento do
+    Amazonas de +6,21% ao ano", "Paraná (estado)", o aviso "As contagens têm unidades diferentes: no território, …; na referência,
+    …. A comparação é entre esses quantitativos." e, na lista das referências do cálculo, a unidade depois de "Contagem:";
+  - **conjuntos:** "+ Conjunto A"; a referência chama-se "Conjunto A" (um nome próprio ganha a palavra na frente: "Conjunto Sul");
+  - **contexto geográfico:** o cabeçalho da coluna traz "município mais próximo com 2,36 médicos por 1.000 habitantes ou mais", e
+    a célula, "mais longe que 99% dos municípios abaixo de 2,36 médicos por 1.000 habitantes" (ou "taxa de 2,36 médicos por 1.000
+    habitantes ou mais", para quem atende ao critério), com a taxa do critério na data avaliada.
+- **Permanece:** os cálculos, os valores, os campos das respostas (só o conteúdo de `referencia.rotulo`, dos textos e dos avisos
+  mudou), o campo `estado_da_deriva`, os nomes dos territórios ("MANAUS (AM)", "Amazonas (AM)") e o nome do grupo ("Municípios do
+  Amazonas").
+- **Motivo:** revisão das capturas da etapa 5 pelo responsável.
+- **Documentação e testes:** [Detector](DETECTOR_DE_SINAIS.md) e [Simulador](SIMULADOR_DE_CENARIOS.md). **Testes que mudaram porque
+  o texto mudou de propósito (regra 3):** `backend/tests/test_detector.py` (os rótulos da referência e a frase do índice),
+  `test_simulador.py` (as premissas e o aviso das unidades), `ui_detector.py` (o cabeçalho da coluna e a célula), `ui_simulador.py`
+  ("Paraná (estado)"), `frontend/tests/detector.test.mjs` (a célula e o cabeçalho com o critério) e `simulador.test.mjs` (o nome do
+  conjunto). Nenhum teste foi afrouxado.
+
 ### 2026-11-11 · Comparativos e integração do Detector e do Simulador: fenômenos 8 a 12, referências, planejamento inverso e "Simular recuperação" (comando V22, etapa 5)
 - **Classificação (regra 1):** implementa a etapa 5 do comando V22 (seções 9.2, fenômenos 8 a 12, 10.5 e planejamento inverso, e a
   ligação entre as ferramentas), mais os pedidos do responsável de 10/11/2026 (os fenômenos 8 a 12 e as referências também em

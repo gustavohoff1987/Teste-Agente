@@ -165,6 +165,10 @@ export function pendenciaDoPedido(config: ConfigDoSimulador): string | null {
 export const novoPlano = (em: string): PlanoDaTela => ({ meta: "valor", valor: "", referencia: "", em, periodica: false, ate: em, aCadaMeses: "12",
   permanencia: "100" });
 /** Uma referência nova, com o identificador livre seguinte ("r1", "r2"…); null no limite de referências. */
+/** O nome de um conjunto com a palavra "Conjunto" uma vez só: "Conjunto A" continua "Conjunto A"; um nome próprio ("Sul do Pará")
+ * ganha a palavra na frente. */
+export const comoConjunto = (rotulo: string): string => /^conjunto(\s|$)/i.test(rotulo.trim()) ? rotulo.trim() : "Conjunto " + rotulo.trim();
+
 export function novaReferencia(atuais: ReferenciaDaTela[], parte: Pick<ReferenciaDaTela, "alvo" | "rotulo" | "tipo"> & { valor?: string }): ReferenciaDaTela | null {
   if (atuais.length >= MAX_REFERENCIAS) return null;
   const n = atuais.reduce((maior, ref) => Math.max(maior, Number(/^r(\d+)$/.exec(ref.id)?.[1] ?? 0)), 0) + 1;

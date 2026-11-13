@@ -5,7 +5,7 @@ import { ErroDoMotor, pedirAoMotor, type FonteDoMotor } from "./painelApi";
 import {
   FILTROS_DE_FENOMENO, NOMES_DAS_CLASSES, NOMES_DOS_PARAMETROS, ROTULOS_DOS_PORTES, SEM_FILTROS, TEXTO_LIMITES_PROVISORIOS, TEXTO_SINAIS_RELATIVOS, competenciaCurta,
   csvDoDetector, filtrarLinhas, formatarInteiro, formatarPct, metodoDoDetector, normalizarDetalhe, normalizarDetector, ordenarLinhas,
-  parametrosPersonalizados, textoDaUltima, textoDoRegistro, tipoDoTerritorio, trechoDoContexto, trechoEstrutural, trechosCombinados,
+  parametrosPersonalizados, textoDaUltima, textoDoRegistro, tipoDoTerritorio, trechoDoContexto, trechoEstrutural, criterioDoContexto, trechosCombinados,
   trechosDaComparacao, trechosDaTrajetoria, trechosDoRitmo, formatarTaxa, medicos, alvoDoSimulador, patamarARecuperar,
   type AlvoDoSimulador, type ClasseDoSinal, type DetalheDoDetector, type FiltrosDoDetector, type LinhaDoDetector, type OpcoesDoDetector, type OrdemDoDetector,
   type ParametrosDoDetector, type RespostaDoDetector, type SelecaoDasFerramentas, type Trecho,
@@ -394,7 +394,9 @@ export default function DetectorDeSinais(p: Props) {
           {competenciaCurta(resposta.janela.inicio)}. {TEXTO_SINAIS_RELATIVOS} O contexto geográfico e os sinais combinados também não têm intensidade.</caption>
         <thead><tr>
           <th scope="col">Território</th><th scope="col">Condição estrutural</th><th scope="col">Trajetória</th>
-          <th scope="col">Ritmo e instabilidade</th><th scope="col">Comparação relativa</th><th scope="col">Contexto geográfico</th>
+          <th scope="col">Ritmo e instabilidade</th><th scope="col">Comparação relativa</th>
+          <th scope="col">Contexto geográfico{criterioDoContexto(resposta.comparacao.contexto.taxaMinima) &&
+            <>{" "}<span data-testid="detector-criterio-do-contexto" className="ferramenta-apoio">{criterioDoContexto(resposta.comparacao.contexto.taxaMinima)}</span></>}</th>
           <th scope="col">Sinais combinados</th><th scope="col">Qualidade do registro</th><th scope="col">Última observação</th>
         </tr></thead>
         <tbody>
@@ -420,7 +422,7 @@ export default function DetectorDeSinais(p: Props) {
                 <td className="ferramenta-coluna-larga">{comparacao.length ? comparacao.map(trecho => <TrechoDaLinha key={trecho.chave} trecho={trecho}/>)
                   : <span className="ferramenta-apoio">{linha.posicao.estado === "nao_aplicavel" && linha.disponibilidade.taxa === null
                     ? "sem taxa por habitante neste território" : "sem taxa por habitante nesta data"}</span>}</td>
-                <td><TrechoDaLinha trecho={trechoDoContexto(linha)}/></td>
+                <td><TrechoDaLinha trecho={trechoDoContexto(linha, resposta.comparacao.contexto.taxaMinima)}/></td>
                 <td>{combinados.length ? combinados.map((trecho, indice) => <TrechoDaLinha key={indice} trecho={trecho}/>)
                   : <span className="ferramenta-apoio">—</span>}</td>
                 <td><span data-testid="detector-registro" data-marca={registro.marca} className={"ferramenta-registro ferramenta-registro-" + registro.marca}>

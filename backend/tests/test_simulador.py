@@ -95,7 +95,7 @@ def test_persistencia_e_persistencia_com_a_deriva_do_estado():
     assert padrao["final"]["total"] == pytest.approx(12.1) and padrao["final"]["data"] == "202606"
     # O texto é o do modelo fixo: o método, as premissas, o valor (inteiro) e a data, com "Base: registros até…".
     assert padrao["texto"] == (FIXO + "com o método persistência com o crescimento recente do estado e as premissas janela de jun/2021 a "
-                               "jun/2024; crescimento do estado de +10,00% ao ano (Rondônia); sem intervenção, M110001 teria 12 médicos em "
+                               "jun/2024; crescimento de Rondônia de +10,00% ao ano; sem intervenção, M110001 teria 12 médicos em "
                                "jun/2026. Base: registros até jun/2024.")
     # Data final em qualquer mês: 4,5 anos depois, com o tempo real.
     assert simular(b, alvo, {"metodo": "M0d"}, "202812")["final"]["base"] == pytest.approx(10 * 1.1 ** 4.5)
@@ -674,8 +674,8 @@ def test_rota_referencias_fixas_dinamicas_e_valor_com_alcance_e_sobreposicao(cat
     assert _comparacao(body, "code:130260", "din")["avisos"] == ["A referência é o próprio território."]
     contem, unidades = _comparacao(body, "code:130260", "uf")["avisos"]
     assert contem == "A referência contém o território (o estado inclui o município): a comparação não é independente."
-    assert unidades == ("As contagens têm unidades diferentes (território: " + series_brasil.UNIDADE_MUNICIPIO + "; referência: " +
-                        series_brasil.UNIDADE_ESTADO + "): a comparação é entre esses quantitativos.")
+    assert unidades == ("As contagens têm unidades diferentes: no território, " + series_brasil.UNIDADE_MUNICIPIO + "; na referência, " +
+                        series_brasil.UNIDADE_ESTADO + ". A comparação é entre esses quantitativos.")
     do_brasil = _comparacao(body, "code:130260", "br")["avisos"]
     assert do_brasil[0] == "A referência (Brasil) contém o território: a comparação não é independente."
     assert do_brasil[-1].startswith("Para o Brasil, o método padrão é provisório")   # o aviso do método da referência dinâmica

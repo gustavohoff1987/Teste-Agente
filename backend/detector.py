@@ -1287,9 +1287,10 @@ def _texto_posicao(base: Base, av: dict, p: dict) -> dict:
 
 def _texto_defasagem(base: Base, av: dict, p: dict) -> dict:
     s, limites = av["defasagem"], p["defasagem"]
-    referencia = s["referencia"]["rotulo"] or "a referência na mesma unidade do território"
+    rotulo = s["referencia"]["rotulo"]   # "demais municípios do Amazonas (soma municipal)": nunca dentro de outros parênteses
     comum = {"criterio": "Índice = 100 × taxa do território ÷ taxa da referência, com a referência na mesma unidade do território e "
-                         "sem ele (" + referencia + "), de junho a junho em 2 anos. Queda de " + _br(limites["forte"]) + " pontos ou "
+                         "sem ele" + (": " + rotulo if rotulo else "") + ". A variação vai de junho a junho, em 2 anos. Queda de " +
+                         _br(limites["forte"]) + " pontos ou "
                          "mais, com o índice final abaixo de " + _br(limites["forte_final"]) + ": sinal forte; de " +
                          _br(limites["muito_forte"]) + " ou mais, com o final abaixo de " + _br(limites["muito_forte_final"]) +
                          ": muito forte. " + LIMITES_PROVISORIOS + " Só em trechos com população comparável; com menos de " +
@@ -1304,8 +1305,8 @@ def _texto_defasagem(base: Base, av: dict, p: dict) -> dict:
     if s["estado"] == "nao_calculavel" and s["indice"] is None:
         return {"situacao": "Não calculável.", "observado": s["motivo"], "habitual": "Não calculável.", **comum}
     nivel = "Índice " + _br(round(s["indice"], 1)) + " ante a referência em " + curta(s["competencia"])
-    na_data = "Em " + curta(s["competencia"]) + ", a taxa do território é de " + _taxa(s["taxa"]) + " por 1.000 habitantes, e a da " \
-        "referência (" + referencia + "), de " + _taxa(s["referencia"]["taxa"]) + ": índice " + _br(round(s["indice"], 1)) + \
+    na_data = "Em " + curta(s["competencia"]) + ", a taxa do território é de " + _taxa(s["taxa"]) + " por 1.000 habitantes, e a " + \
+        ("dos " + rotulo if rotulo else "da referência") + ", de " + _taxa(s["referencia"]["taxa"]) + ": índice " + _br(round(s["indice"], 1)) + \
         " (100 é a taxa da referência)."
     if s["estado"] == "nao_calculavel":
         return {"situacao": nivel + " · variação não calculável", "observado": na_data + " " + s["motivo"], "habitual": "Não calculável.", **comum}

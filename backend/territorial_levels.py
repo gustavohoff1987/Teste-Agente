@@ -167,8 +167,13 @@ def uf_label(prefix: str) -> str:
     return STATES[prefix][1] + " (" + STATES[prefix][0] + ")"
 
 
+def state_with_preposition(prefix: str) -> str:
+    """"do Amazonas", "da Bahia", "de Goiás": o nome do estado com a preposição certa, para os textos."""
+    return _PREPOSITIONS.get(prefix, "de") + " " + STATES[prefix][1]
+
+
 def group_label(prefix: str) -> str:
-    return "Municípios " + _PREPOSITIONS.get(prefix, "de") + " " + STATES[prefix][1]
+    return "Municípios " + state_with_preposition(prefix)
 
 
 def _plural(n: int, singular: str, plural: str) -> str:
