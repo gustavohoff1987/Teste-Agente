@@ -285,7 +285,9 @@ def main():
         expect(serie_da_taxa).to_have_attribute("data-referencias", "1")
         expect(serie_da_taxa.locator('[data-testid="analise-serie-referencia"]')).to_have_count(1)
         expect(serie_da_taxa).to_contain_text(detalhe_2021["comparativo"]["referencia"]["rotulo"])
-        expect(serie_da_taxa).to_contain_text("a variação entre datas só é lida de 2014 a 2017 e de 2018 a 2021")
+        # Os trechos de população comparável vêm do motor, lidos da própria base: com a população nova, um trecho só.
+        assert detalhe_2021["comparativo"]["trechos"] == [[2014, 2024]], detalhe_2021["comparativo"]["trechos"]
+        expect(serie_da_taxa).to_contain_text("a variação entre datas só é lida de 2014 a 2024, quando a população da base é comparável")
         for chave in ("disponibilidade", "posicao", "defasagem", "contexto", "coexistencia"):
             do_fenomeno = next(item for item in detalhe_2021["fenomenos"] if item["chave"] == chave)
             item = detalhe.locator('[data-testid="detector-fenomeno"][data-chave="' + chave + '"]')

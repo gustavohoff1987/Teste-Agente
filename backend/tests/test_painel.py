@@ -487,7 +487,11 @@ def test_real_panel_with_all_municipalities(real):
                    referencia={"membros": [AM3[0]], "criterio": {"atributo": "densidade", "ordem": "desc"}}))
     units = [item for item in body["itens"] if item["tipo"] == "municipio"]
     assert [item["id"] for item in units] == sorted("code:" + code for code in codes)
-    assert all(set(item) == UNIT for item in units)
+    # Desde 13/11/2026, os 19 municípios que mudaram de nome trazem também `nomes_anteriores` (só para a busca por nome, em que o
+    # nome anterior continua achando o município); os demais itens têm exatamente as chaves de sempre.
+    renomeados = {item["id"]: item["nomes_anteriores"] for item in units if "nomes_anteriores" in item}
+    assert all(set(item) - {"nomes_anteriores"} == UNIT for item in units)
+    assert len(renomeados) == 19 and renomeados["code:330380"] == ["PARATI"] and renomeados["code:251365"] == ["SANTAREM"]
     low, high = body["dominios"]["densidade"]
     assert low <= round(by_id(body)[AM3[0]]["densidade"], 4) == 2.0748 <= high
     assert body["referencia"]["origem"].startswith("Escolhida pelo critério densidade (maior para menor), ")
