@@ -589,9 +589,10 @@ def test_rota_do_simulador_cenarios_estatisticas_e_recusas(catalogo, monkeypatch
     recusa(pedir({**selecao, "cenarios": [{"metodo": "M0", "intervencoes": [{"tipo": "acrescimo", "quantidade": 1, "em": "202501",
                                                                              "territorios": ["code:150140"]}]}]}), "precisam estar na seleção")
     recusa(pedir({"base": {"municipios": {"ids": ["code:150140"]}}, "estados_unidade": ["15"]}), "junto com o estado inteiro")
-    recusa(client.post("/api/simulador", data={"dataset": "", "options": "{}"}), "usam a base do Brasil")
+    # O Simulador continua só com a base do Brasil (o Detector aceita planilhas desde o comando V23, e a mensagem diz isso).
+    recusa(client.post("/api/simulador", data={"dataset": "", "options": "{}"}), "O Simulador de Cenários Territoriais usa a base do Brasil")
     recusa(client.post("/api/simulador", data={"options": "{}"}, files={"file": ("p.csv", b"a;b\n1;2\n", "text/csv")}),
-           "usam a base do Brasil")
+           "com uma planilha enviada, ainda não está disponível")
 
 
 # --------------------------------------------------------------------------------------------- etapa 5: Brasil, referências e planejamento inverso

@@ -5,6 +5,7 @@ Confere, contra as respostas de POST /api/detector:
 - a primeira tela para os municípios de Santa Catarina: a lista de quatro colunas (Território · Alerta · Por quê · Último
   registro), 50 por página, com a data do registro mais recente à vista; o resumo dos níveis, clicável como filtro; os filtros numa
   linha (Até, Nível, Sinal e Buscar); a ordem pelos cabeçalhos; o nível sempre escrito, com o tipo de critério;
+- o perfil da base antes da ferramenta: fechado na base do Brasil (sem pedido ao motor) e, aberto, com o "dá para / não dá para";
 - os detalhes de RIO RUFINO (SC): a série observada com o registro do pico marcado, os 12 sinais (11 itens: 1 e 2 juntos) em
   quatro grupos mais Juntos, cada um com o nível, uma frase e o "Entenda" (mouse, teclado e "Ver explicação completa"), a
   explicação completa com os sete campos e o histórico de sinais;
@@ -160,6 +161,29 @@ def main():
         expect(detector.get_by_test_id("detector-linha").first).to_have_attribute("data-id", min(corpo["linhas"], key=lambda item: item["rotulo"])["id"])
         detector.get_by_test_id("detector-ordem-nivel").click()
         expect(detector.get_by_test_id("detector-linha").first).to_have_attribute("data-alerta", "critico")
+
+        # 2b. O perfil da base (comando V23, seção A.3) vem antes da ferramenta. Na base do Brasil, fica fechado e só é lido quando
+        # a pessoa pede; aberto, mostra o que o Agente leu dela e o resumo "dá para / não dá para", como o motor mandou.
+        perfil = area.get_by_test_id("perfil-da-base")
+        expect(perfil).to_have_attribute("data-estado", "fechado")
+        expect(perfil.get_by_test_id("perfil-da-base-botao")).to_have_attribute("aria-expanded", "false")
+        assert not [pedido for pedido in pedidos if options_of(pedido).get("perfil")], "fechado, o perfil não é pedido ao motor"
+        do_perfil, _ = do_detector(lambda: perfil.get_by_test_id("perfil-da-base-botao").click(), lambda opcoes: opcoes.get("perfil") is True)
+        expect(perfil).to_have_attribute("data-estado", "pronto")
+        expect(perfil).to_have_attribute("data-origem", "brasil")
+        expect(perfil.get_by_test_id("perfil-da-base-resumo")).to_have_text("5.570 territórios · 22 registros, de jan/2014 a jun/2024.")
+        assert len(do_perfil["perfil"]["da_para"]) == 8 and do_perfil["perfil"]["da_para"][0] == "Alertas moderados desde jun/2015 (o 2º ano da base).", (
+            do_perfil["perfil"]["da_para"])
+        expect(perfil.get_by_test_id("perfil-da-para").locator("li")).to_have_text(do_perfil["perfil"]["da_para"])
+        expect(perfil.get_by_test_id("perfil-nao-da-para").locator("li")).to_have_text(
+            ["Alertas críticos nos estados como unidade: eles pedem 999 comparações, e esta base chega a 270."])
+        expect(perfil.locator('[data-testid="perfil-da-base-itens"] tbody tr')).to_have_count(8)
+        expect(perfil.locator('[data-testid="perfil-da-base-itens"] tr[data-chave="serie_anual"]')).to_contain_text(
+            "Usa os registros de junho, o mês presente em todos os anos (11 anos, de 2014 a 2024).")
+        page.screenshot(path=str(OUTPUT / "detector-01b-perfil-da-base-real.png"), full_page=False)
+        perfil.get_by_test_id("perfil-da-base-botao").click()
+        expect(perfil).to_have_attribute("data-estado", "fechado")
+        expect(perfil.get_by_test_id("perfil-da-base-corpo")).to_have_count(0)
 
         # 3. O filtro "Sinal": a linha passa quando o sinal tem nível nela (não só o sinal principal do alerta).
         com_poucos = [item for item in corpo["linhas"] if com_o_sinal(item, "estrutural")]

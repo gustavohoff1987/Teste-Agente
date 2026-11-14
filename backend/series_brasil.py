@@ -29,8 +29,11 @@ from brazil_catalog_profile import FIELDS, TRUSTED_CATEGORY
 from territorial_levels import SIGLAS, STATES, human_period
 
 VERSION = "SERIES-BRASIL/1"
-OFFICIAL_ONLY = ("O Detector de Sinais Territoriais e o Simulador de Cenários Territoriais usam a base do Brasil (médicos, "
-                 "registros de janeiro e junho de 2014 a 2024); com uma planilha enviada, não estão disponíveis.")
+# O Detector de Sinais vale para qualquer base desde o comando V23 (a do Brasil ou uma planilha enviada); o Simulador de Cenários
+# continua só com a base do Brasil até ganhar a mesma estrutura (Parte C da Proposta V3).
+OFFICIAL_ONLY = ("O Simulador de Cenários Territoriais usa a base do Brasil (médicos, registros de janeiro e junho de 2014 a 2024); "
+                 "com uma planilha enviada, ainda não está disponível.")
+SEM_BASE = "Escolha a base do Brasil ou envie uma planilha: a ferramenta lê a base que estiver em uso."
 UNIDADE_MUNICIPIO = "médicos registrados no município (fonte municipal; quem atua em mais de um município conta em cada um)"
 UNIDADE_ESTADO = "médicos únicos no estado (fonte estadual)"
 UNIDADE_BRASIL = "médicos únicos no Brasil (fonte nacional)"
@@ -39,11 +42,92 @@ UNIDADE_CONJUNTO = "soma das contagens dos componentes (não é o número de mé
 # planilha enviada, os nomes vêm dela (perfil da base).
 ROTULOS_DO_BRASIL = {"profissional": "médico", "profissionais": "médicos", "unidade": "município", "unidades": "municípios",
                      "grupo": "estado", "grupos": "estados", "todo": "Brasil"}
+# As formas com artigo e preposição, para a concordância ("o município", "a unidade"; "do Brasil", "da Solária", "de toda a
+# base"). Ficam fora de `fonte.rotulos` da resposta, que traz só os sete nomes.
+FORMAS_DO_BRASIL = {"o_unidade": "o município", "os_unidades": "os municípios", "o_grupo": "o estado", "os_grupos": "os estados",
+                    "dos_grupos": "dos estados", "do_todo": "do Brasil", "no_todo": "no Brasil", "o_todo": "o Brasil"}
+NOMES_PUBLICOS = ("profissional", "profissionais", "unidade", "unidades", "grupo", "grupos", "todo")
 
 
 def rotulos(base) -> dict:
-    """Os nomes que os textos usam para esta base."""
-    return getattr(base, "rotulos", None) or ROTULOS_DO_BRASIL
+    """Os nomes que os textos usam para esta base: os sete nomes e as formas com artigo e preposição."""
+    return {**ROTULOS_DO_BRASIL, **FORMAS_DO_BRASIL, **(getattr(base, "rotulos", None) or {})}
+
+
+def rotulos_publicos(base) -> dict:
+    """Os sete nomes da base, como a resposta das rotas os traz (`fonte.rotulos`)."""
+    r = rotulos(base)
+    return {chave: r[chave] for chave in NOMES_PUBLICOS}
+
+
+def nome_do_grupo(base, chave: str) -> tuple[str, str]:
+    """(nome curto, nome) de um grupo de cima: na base do Brasil, a sigla e o nome do estado; numa planilha, o valor da coluna."""
+    proprios = getattr(base, "grupos", None) or {}
+    if chave in proprios:
+        return proprios[chave]
+    return (STATES[chave][0], STATES[chave][1]) if chave in STATES else (str(chave), str(chave))
+
+
+# --------------------------------------------------------------------------------------------- calendário de qualquer base
+def mes_ancora(periodos) -> str | None:
+    """O mês âncora da série anual (seção A.3): o mês presente em todos os anos da base. Vale o mês do último registro, quando ele
+    aparece em todos os anos desde a primeira vez (sem falha) e cobre a base inteira ou falta só um ano numa das pontas; senão,
+    entre os meses que cumprem isso, o mais próximo do último registro. Sem nenhum, None: a base não tem série anual. Na base do
+    Brasil (janeiro e junho de 2014 a 2024), é junho ("06")."""
+    if not periodos:
+        return None
+    anos_da_base = sorted({int(periodo[:4]) for periodo in periodos})
+    por_mes: dict[str, set[int]] = {}
+    for periodo in periodos:
+        por_mes.setdefault(periodo[4:], set()).add(int(periodo[:4]))
+
+    def serve(mes: str) -> bool:
+        anos = sorted(por_mes[mes])
+        sem_falha = anos == list(range(anos[0], anos[-1] + 1))
+        return sem_falha and len(anos) >= 2 and len(anos) >= len(anos_da_base) - 1
+    ultimo = periodos[-1][4:]
+    if serve(ultimo):
+        return ultimo
+    candidatos = [mes for mes in por_mes if serve(mes)]
+    if not candidatos:
+        return None
+    distancia = lambda mes: (int(ultimo) - int(mes)) % 12   # noqa: E731 — o mês mais recente antes do último registro
+    return min(candidatos, key=lambda mes: (distancia(mes), mes))
+
+
+def meses_de_registro(periodos) -> tuple[str, ...]:
+    """Os meses do ano em que a base tem registro em todos os anos completos (na base do Brasil, "01" e "06"): os que formam os
+    "dois anos completos" do patamar. Vazio quando nenhum mês se repete em todos os anos do meio da base."""
+    anos = sorted({int(periodo[:4]) for periodo in periodos})
+    if len(anos) < 2:
+        return ()
+    por_ano: dict[int, set[str]] = {}
+    for periodo in periodos:
+        por_ano.setdefault(int(periodo[:4]), set()).add(periodo[4:])
+    # Os anos das pontas podem estar incompletos (a base começa ou termina no meio do ano): valem os meses dos anos do meio,
+    # ou, com dois anos só, os comuns aos dois.
+    meio = anos[1:-1] or anos
+    comuns = set.intersection(*(por_ano[ano] for ano in meio))
+    return tuple(sorted(comuns))
+
+
+def tipos_de_intervalo(meses) -> tuple[np.ndarray, tuple]:
+    """O tipo do intervalo de cada transição (seção A.3: "compara só intervalos iguais; com intervalos irregulares, agrupa os de
+    duração parecida"). Devolve, para cada registro, o tipo da transição que termina nele (−1 no primeiro) e os tipos, cada um
+    com o menor e o maior intervalo, em meses. Durações com até 1 mês de diferença da menor do grupo ficam juntas: na base do
+    Brasil, 5 e 7 meses são dois tipos."""
+    intervalos = np.diff(np.asarray(meses, dtype=float))
+    distintos = sorted({float(valor) for valor in intervalos if valor > 0})
+    grupos: list[list[float]] = []
+    for valor in distintos:
+        if grupos and valor - grupos[-1][0] <= 1.0 + 1e-9:
+            grupos[-1].append(valor)
+        else:
+            grupos.append([valor])
+    tipo = np.full(len(meses), -1, dtype=int)
+    for posicao, valor in enumerate(intervalos, start=1):
+        tipo[posicao] = next((k for k, grupo in enumerate(grupos) if grupo[0] - 1e-9 <= valor <= grupo[-1] + 1e-9), -1)
+    return tipo, tuple((grupo[0], grupo[-1]) for grupo in grupos)
 
 
 MAX_CONJUNTOS = 60
@@ -84,6 +168,19 @@ class Base:
     brasil: np.ndarray                     # contagem nacional por competência (NaN ausente)
     indice: dict = field(repr=False, default_factory=dict)      # código → linha
     do_estado: dict = field(repr=False, default_factory=dict)   # prefixo → linhas dos municípios
+    # Proposta V3 (qualquer base, seção A.3): o que era fixo da base do Brasil passa a ser dito pela base.
+    origem: str = "brasil"                                      # "brasil" | "planilha"
+    ancora: str | None = "06"                                   # o mês âncora da série anual; None: sem série anual
+    rotulos: dict | None = None                                 # os nomes da base (None: os do Brasil)
+    grupos: dict = field(repr=False, default_factory=dict)      # grupo de cima → (nome curto, nome); vazio: os estados do Brasil
+    prefixo_do_id: str = "code:"                                # o prefixo dos identificadores das unidades ("code:" ou "name:")
+    contagens: dict | None = None                               # o que a contagem conta, por tipo de território (None: Brasil)
+    descricao: dict | None = None                               # {"base", "categoria"}: como a fonte se apresenta
+    avisos: tuple = ()                                          # o que a leitura da base teve a dizer (perfil da base)
+
+    @property
+    def do_brasil(self) -> bool:
+        return self.origem == "brasil"
 
     @property
     def anos(self) -> np.ndarray:
@@ -94,8 +191,10 @@ class Base:
         try:
             return self.periodos.index(str(competencia))
         except ValueError:
+            # Numa planilha com um registro por ano ("202400"), a data é o ano.
+            extenso = lambda periodo: periodo[:4] if periodo.endswith("00") else human_period(periodo)   # noqa: E731
             raise ValueError("Competência fora da base: " + str(competencia) + ". Escolha uma das competências com registro, de " +
-                             human_period(self.periodos[0]) + " a " + human_period(self.periodos[-1]) + ".") from None
+                             extenso(self.periodos[0]) + " a " + extenso(self.periodos[-1]) + ".") from None
 
     def soma_municipal_do_estado(self, prefixo: str) -> np.ndarray:
         """Soma das contagens municipais da UF por competência (a mesma unidade da série municipal). Com município ausente na
@@ -117,7 +216,7 @@ _LOCK = threading.Lock()
 def _montar(sources) -> Base:
     municipal = sources.frame("municipal")
     if municipal is None:
-        raise ValueError(OFFICIAL_ONLY)
+        raise ValueError(SEM_BASE)
     campos = FIELDS["municipal"]
     quadro = municipal[municipal[campos["category"]].astype(str).str.strip().str.upper() == TRUSTED_CATEGORY]
     if quadro.empty:
@@ -178,13 +277,14 @@ def _montar(sources) -> Base:
                 codigos=codigos, nomes=nomes, prefixos=prefixos, quantidade=quantidade, populacao=populacao,
                 latitude=latitude, longitude=longitude, estados=estados, brasil=brasil,
                 indice={codigo: posicao for posicao, codigo in enumerate(codigos)},
-                do_estado={prefixo: tuple(linhas) for prefixo, linhas in do_estado.items()})
+                do_estado={prefixo: tuple(linhas) for prefixo, linhas in do_estado.items()},
+                ancora=mes_ancora(periodos))   # lido da própria base: junho, na base do Brasil
 
 
 def base_de(sources) -> Base:
     """As séries da versão da base em uso (montadas uma vez por versão)."""
     if sources is None:
-        raise ValueError(OFFICIAL_ONLY)
+        raise ValueError(SEM_BASE)
     with _LOCK:
         guardada = _BASES.get(sources.version)
     if guardada is not None:
@@ -214,17 +314,33 @@ class Territorio:
     ausentes: np.ndarray | None = None  # conjunto: membros sem registro em cada competência
 
 
-def id_do_municipio(codigo: str) -> str:
-    return "code:" + codigo
+def id_do_municipio(codigo: str, base: Base | None = None) -> str:
+    """O identificador de uma unidade: "code:<código>" (na base do Brasil, o código IBGE) ou, numa planilha sem a coluna de
+    código, "name:<nome>"."""
+    return (base.prefixo_do_id if base is not None else "code:") + codigo
+
+
+def contagem_de(base: Base, tipo: str) -> str:
+    """O que a contagem conta num território do tipo pedido (município, estado, conjunto ou o todo)."""
+    proprias = base.contagens or {}
+    padrao = {"municipio": UNIDADE_MUNICIPIO, "estado": UNIDADE_ESTADO, "conjunto": UNIDADE_CONJUNTO, "brasil": UNIDADE_BRASIL}
+    return proprias.get(tipo) or padrao[tipo]
 
 
 def _codigo(base: Base, valor) -> str:
-    if not isinstance(valor, str) or not valor.startswith("code:") or valor[5:] not in base.indice:
-        raise ValueError("Território fora da base Brasil: " + str(valor) + ".")
-    return valor[5:]
+    prefixo = base.prefixo_do_id
+    if not isinstance(valor, str) or not valor.startswith(prefixo) or valor[len(prefixo):] not in base.indice:
+        raise ValueError(("Território fora da base Brasil: " if base.do_brasil else "Território fora da base: ") + str(valor) + ".")
+    return valor[len(prefixo):]
 
 
 def _prefixo(base: Base, valor) -> str:
+    """A chave de um grupo de cima no pedido: na base do Brasil, o prefixo da UF ("13" ou "uf:13"); numa planilha, o valor da
+    coluna de grupo."""
+    if not base.do_brasil:
+        if str(valor) not in base.do_estado:
+            raise ValueError(rotulos(base)["grupo"].capitalize() + " sem registro na base: " + str(valor) + ".")
+        return str(valor)
     texto = str(valor)[3:] if isinstance(valor, str) and valor.startswith("uf:") else str(valor)
     if texto not in STATES:
         raise ValueError("Estado sem registro: " + str(valor) + ".")
@@ -233,20 +349,25 @@ def _prefixo(base: Base, valor) -> str:
 
 def municipio(base: Base, codigo: str) -> Territorio:
     linha = base.indice[codigo]
-    return Territorio(id=id_do_municipio(codigo), tipo="municipio", nivel="municipios", rotulo=base.nomes[linha],
-                      uf=base.prefixos[linha], serie=base.quantidade[linha], unidade=UNIDADE_MUNICIPIO, linha=linha)
+    return Territorio(id=id_do_municipio(codigo, base), tipo="municipio", nivel="municipios", rotulo=base.nomes[linha],
+                      uf=base.prefixos[linha] or None, serie=base.quantidade[linha], unidade=contagem_de(base, "municipio"), linha=linha)
 
 
 def estado(base: Base, prefixo: str) -> Territorio:
     serie = base.estados.get(prefixo)
     if serie is None:
+        if not base.do_brasil:
+            raise ValueError("Esta base não tem uma contagem própria d" + rotulos(base)["o_grupo"] + ": " + rotulos(base)["o_grupo"] +
+                             " não entra como unidade. Use um conjunto com " + rotulos(base)["os_unidades"] + " desse grupo.")
         raise ValueError("Estado sem registro na fonte estadual: " + STATES[prefixo][1] + ".")
     return Territorio(id="uf:" + prefixo, tipo="estado", nivel="estados", rotulo=STATES[prefixo][1] + " (" + STATES[prefixo][0] + ")",
-                      uf=prefixo, serie=serie, unidade=UNIDADE_ESTADO)
+                      uf=prefixo, serie=serie, unidade=contagem_de(base, "estado"))
 
 
 def brasil(base: Base) -> Territorio:
-    return Territorio(id="br", tipo="brasil", nivel="brasil", rotulo="Brasil", uf=None, serie=base.brasil, unidade=UNIDADE_BRASIL)
+    """O todo da base: na base do Brasil, o país, pela contagem nacional; numa planilha, a soma das unidades ("a base toda")."""
+    nome = "Brasil" if base.do_brasil else rotulos(base)["todo"][:1].upper() + rotulos(base)["todo"][1:]
+    return Territorio(id="br", tipo="brasil", nivel="brasil", rotulo=nome, uf=None, serie=base.brasil, unidade=contagem_de(base, "brasil"))
 
 
 def _conjunto(base: Base, bruto) -> Territorio:
@@ -255,18 +376,18 @@ def _conjunto(base: Base, bruto) -> Territorio:
     membros = list(dict.fromkeys(bruto["membros"]))
     if len(membros) < 2 or len(membros) > MAX_MEMBROS:
         raise ValueError("O conjunto " + bruto["id"] + " precisa de dois ou mais territórios.")
-    de_estados = [isinstance(m, str) and m.startswith("uf:") for m in membros]
+    de_estados = [base.do_brasil and isinstance(m, str) and m.startswith("uf:") for m in membros]
     if any(de_estados) and not all(de_estados):
         raise ValueError("O conjunto " + bruto["id"] + " mistura estados e municípios: um conjunto reúne territórios do mesmo nível.")
     rotulo = str(bruto.get("rotulo") or bruto["id"]).strip() or bruto["id"]
     versao = bruto.get("versao") if isinstance(bruto.get("versao"), int) and not isinstance(bruto.get("versao"), bool) else None
-    if all(de_estados):
+    if all(de_estados) and base.do_brasil:
         partes = [estado(base, _prefixo(base, m)) for m in membros]
         unidade = "soma das contagens estaduais dos componentes (quem atua em mais de um estado conta em cada um)"
         nivel = "estados"
     else:
         partes = [municipio(base, _codigo(base, m)) for m in membros]
-        unidade, nivel = UNIDADE_CONJUNTO, "municipios"
+        unidade, nivel = contagem_de(base, "conjunto"), "municipios"
     matriz = np.vstack([parte.serie for parte in partes])
     ausentes = np.isnan(matriz).sum(axis=0)
     # A soma só existe quando todos os membros têm registro na competência: um conjunto parcial não é o conjunto.
@@ -302,7 +423,7 @@ def selecao(base: Base, opcoes: dict, com_brasil: bool = False) -> list[Territor
     inteiros = set(unidades) | {membro[3:] for conjunto in conjuntos if conjunto.nivel == "estados" for membro in conjunto.membros}
     sobrepostos = sorted({base.prefixos[linha] for linha in linhas} & inteiros)
     if sobrepostos:
-        raise ValueError("Municípios de " + ", ".join(STATES[p][1] for p in sobrepostos[:5]) + " estão na seleção junto com o "
+        raise ValueError("Municípios de " + ", ".join(nome_do_grupo(base, p)[1] for p in sobrepostos[:5]) + " estão na seleção junto com o "
                          "estado inteiro (como unidade ou num conjunto de estados): o estado já está na análise e não é somado "
                          "a eles (RQ-DAD-30).")
     territorios = [municipio(base, base.codigos[linha]) for linha in sorted(linhas)]

@@ -130,3 +130,54 @@ calibrado", "limite provisório" no lugar de "candidato"); os termos técnicos f
 7. **"Simular recuperação"** (meta = patamar do indicador 7, por planejamento inverso; etapa 5). **Resolvido em 10/11/2026**
    (decisão D-B do [anexo](DETECTOR_E_SIMULADOR_V2_2.md)): a meta é hipótese editável ("meta hipotética: voltar ao patamar de
    X médicos"), com o texto fixo de cenário e sem palavras de recomendação.
+
+## 9. O perfil que o Agente lê (qualquer base)
+
+Desde o comando V23 (14/11/2026; Proposta V3, seção A.3), o que as seções acima registram à mão para a base do Brasil é **lido
+pelo próprio Agente**, antes das ferramentas, em qualquer base: a do Brasil ou uma planilha enviada. O perfil sai do motor
+(`backend/perfil_da_base.py`, por `POST /api/detector` com `{"perfil": true}`), sem o provedor de IA, e a tela o mostra antes da
+ferramenta (`frontend/src/PerfilDaBase.tsx`): aberto numa planilha, que é uma base nova; fechado na base do Brasil, até a pessoa
+pedir.
+
+| O quê | Como o Agente lê | Se faltar |
+|---|---|---|
+| Datas e intervalos | Mede os meses entre registros e só compara mudanças com o mesmo tempo entre eles; durações com até 1 mês de diferença ficam juntas | — |
+| Série anual | O mês presente em todos os anos (o mês do último registro, quando ele se repete em todos); numa planilha só com anos, um registro por ano | Ficam indisponíveis os sinais anuais (3, 4 e 8 a 10) |
+| Portes | As 10 faixas pelo número de profissionais, no último registro de cada território; faltando casos, a faixa junta-se às vizinhas | — |
+| Grupo de cima | Na base do Brasil, o estado (pelo prefixo do código IBGE); numa planilha, a coluna de grupo escolhida | O sinal 10 fica indisponível |
+| População | Os trechos de população comparável, lidos da própria base | Ficam indisponíveis os sinais 8 a 11 |
+| Coordenadas | Com o referencial informado (na base do Brasil, SIRGAS 2000, do perfil oficial) | O sinal 11 fica indisponível |
+| O que a contagem conta | A unidade de contagem informada, como nas análises: pessoas, vínculos, postos ou outra | Aviso de dupla contagem |
+| Nomes | Os do painel "Colunas" (a unidade, o grupo e o todo), com a concordância | — |
+
+O resumo **"com esta base, dá para… / não dá para… (motivo)"** vem da régua do Detector: desde que data a maioria dos territórios
+com registro pôde ser comparada em cada nível (19, 99 e 999 comparações, com a retaguarda das faixas vizinhas e, só no moderado,
+de todas as faixas) e, do que a base não sustenta, quantas comparações ela tem e quantas o nível pede. As linhas do Simulador de
+Cenários (a retroprojeção e as faixas) entram no perfil quando o Simulador ganhar a mesma estrutura (Parte C da Proposta V3).
+
+**Base do Brasil** (5.570 municípios, 22 registros, de jan/2014 a jun/2024; 5 ou 7 meses entre eles; a série anual é a de junho):
+
+- Dá para:
+  - alertas moderados, elevados e críticos nos municípios desde jun/2015 (o 2º ano da base); no último registro, 43 de 5.570
+    municípios ficam sem comparações suficientes para o crítico (os de 3.000 médicos ou mais);
+  - sinais por habitante (8 a 10), de 2014 a 2024, e a distância (sinal 11, só contexto);
+  - alertas moderados nos estados como unidade desde jun/2015 e elevados desde jun/2019;
+  - sinais anuais (declínio persistente e desaceleração), pela série de junho.
+- Não dá para:
+  - alertas críticos nos estados como unidade: eles pedem 999 comparações, e esta base chega a 270.
+
+**Planilha de teste** (`backend/tests/planilha_das_ferramentas.csv`: 20 distritos fictícios, registros de seis em seis meses
+durante 10 anos, de jan/2014 a jul/2023, sem grupo de cima, sem população e sem coordenadas; a série anual é a de julho):
+
+- Dá para:
+  - alertas moderados desde jan/2015 (o 2º ano da base);
+  - alertas elevados desde jan/2018 (o 5º ano da base);
+  - sinais anuais (declínio persistente e desaceleração), pela série de julho.
+- Não dá para:
+  - alertas críticos: eles pedem 999 comparações, e esta base chega a 360;
+  - "Mais longe da referência" (sinal 10): a base não tem grupo de cima;
+  - sinais por habitante (8 a 11): a base não tem população.
+
+Com essa planilha, o Detector mostra, em jul/2023, 1 território em elevado, 4 em moderado e 15 sem alerta; os sinais 8 a 11
+aparecem como "Indisponível nesta base", com o motivo, e a queda recente diz "Sem comparações suficientes para o crítico: há 360,
+e ele pede 999."

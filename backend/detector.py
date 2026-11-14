@@ -51,15 +51,13 @@ import reguas
 import series_brasil
 import comparativos
 from series_brasil import Base, Territorio
-from territorial_levels import STATES, human_period
-from trend import FAMILY as FAMILIA_DA_TENDENCIA, LABELS as ROTULOS_DA_TENDENCIA, classify_pairs
+from trend import LABELS as ROTULOS_DA_TENDENCIA, classify_pairs
 
 VERSION = "DETECTOR-SINAIS/V3/1"   # Proposta V3 (comando V23): régua comum, níveis moderado, elevado e crítico
 # Faixas de porte da régua comum (Proposta V3, seção A.2.2): pelo número de profissionais no registro anterior (ou pelo
 # patamar, no sinal 7). As quatro faixas acima de 300 substituem o antigo "300 ou mais".
 PORTES = reguas.PORTES
 ROTULOS_DOS_PORTES = reguas.ROTULOS_DOS_PORTES
-INTERVALOS = (5, 7)  # meses da base do Brasil (janeiro → junho e junho → janeiro): só para a oscilação típica do sinal 5
 ORIGENS = 6          # k e n de cada origem da régua: o porte, o porte com as vizinhas e todas as faixas
 SEM_DATA = 10 ** 6   # "nunca conhecido"
 
@@ -172,12 +170,14 @@ class Calibracao:
     c_instabilidade: np.ndarray  # [6, município, competência]: as comparações do índice (maior é pior), pelo porte da média da janela
     porte_da_janela: np.ndarray  # faixa de porte da média dos 7 registros da janela do sinal 5 (−1: nenhuma)
     escala: np.ndarray          # [competência, tipo de intervalo]: c do tipo, estimado só com transições anteriores
-    blocos: tuple               # (ano inicial, índices dos 4 registros, índice do último registro)
+    blocos: tuple               # (ano inicial, índices dos registros de dois anos completos, índice do último registro)
     relativa: np.ndarray        # variação relativa de cada transição (NaN quando não se aplica)
-    regular: np.ndarray         # transição com os dois registros, N anterior ≥ 1 e intervalo de 5 ou 7 meses
+    regular: np.ndarray         # transição com os dois registros e N anterior ≥ 1
     porte: np.ndarray           # faixa de porte do N anterior de cada transição (−1: nenhuma)
     porte_do_patamar: np.ndarray
     intervalo: np.ndarray       # meses de cada transição
+    tipo: np.ndarray = None     # o tipo do intervalo de cada transição (durações parecidas juntas; −1 no primeiro registro)
+    tipos: tuple = ()           # os tipos de intervalo da base: (menor, maior), em meses
 
 
 _CALIBRACOES: dict[str, Calibracao] = {}
@@ -185,16 +185,25 @@ _LOCK = threading.Lock()
 
 
 def _blocos(base: Base) -> tuple:
-    """Blocos de dois anos civis completos: janeiro e junho do ano Y e do ano Y + 1."""
+    """Blocos de dois anos civis completos: os registros dos meses de registro da base no ano Y e no ano Y + 1 (na base do
+    Brasil, janeiro e junho dos dois anos). Sem meses que se repitam em todos os anos, não há blocos (nem patamar)."""
     posicao = {periodo: indice for indice, periodo in enumerate(base.periodos)}
+    meses = series_brasil.meses_de_registro(base.periodos)
+    if not meses:
+        return ()
     anos = sorted({int(periodo[:4]) for periodo in base.periodos})
     blocos = []
     for ano in anos:
-        chaves = [str(ano) + "01", str(ano) + "06", str(ano + 1) + "01", str(ano + 1) + "06"]
+        chaves = [str(a) + mes for a in (ano, ano + 1) for mes in meses]
         if all(chave in posicao for chave in chaves):
             indices = tuple(posicao[chave] for chave in chaves)
             blocos.append((ano, indices, max(indices)))
     return tuple(blocos)
+
+
+def _registros_de_dois_anos(base: Base) -> int:
+    """Quantos registros a base tem em dois anos completos (4 na base do Brasil): o patamar vem de antes deles."""
+    return max(2 * len(series_brasil.meses_de_registro(base.periodos)), 2)
 
 
 def calibrar(base: Base, guardar: bool = True) -> Calibracao:
@@ -218,6 +227,9 @@ def calibrar(base: Base, guardar: bool = True) -> Calibracao:
         queda_grande = (delta <= -QUEDA_GRANDE) & (q <= QUEDA_FRACAO * anterior)
     intervalo = np.zeros(t, dtype=int)
     intervalo[1:] = np.diff(meses)
+    # O tipo de cada intervalo: só se comparam mudanças com o mesmo tempo entre registros (durações parecidas ficam juntas).
+    tipo, tipos = series_brasil.tipos_de_intervalo(meses)
+    recentes = _registros_de_dois_anos(base)
 
     # Picos que voltam: do salto até a volta (em até dois registros, a até 125% do valor anterior ao salto).
     pico = np.zeros((n, t), dtype=bool)
@@ -265,7 +277,7 @@ def calibrar(base: Base, guardar: bool = True) -> Calibracao:
     c_perda = np.zeros((ORIGENS, n, t), dtype=np.int32)
     for j in range(1, t):
         atuais = np.flatnonzero(regular[:, j])
-        colunas = [i for i in range(1, j) if intervalo[i] == intervalo[j]]   # só o mesmo tempo entre registros
+        colunas = [i for i in range(1, j) if tipo[i] == tipo[j]]   # só o mesmo tempo entre registros
         if not atuais.size or not colunas:
             continue
         usavel = regular[:, colunas] & ~(marca_conhecida[:, colunas] <= j)
@@ -279,14 +291,14 @@ def calibrar(base: Base, guardar: bool = True) -> Calibracao:
     blocos = _blocos(base)
     medias = np.full((n, len(blocos)), np.nan)
     for b, (_, indices, _) in enumerate(blocos):
-        medias[:, b] = q[:, list(indices)].mean(axis=1)  # NaN quando falta um dos 4 registros
+        medias[:, b] = q[:, list(indices)].mean(axis=1)  # NaN quando falta um dos registros do bloco
     patamar = np.full((n, t), np.nan)
     patamar_ano = np.full((n, t), -1, dtype=np.int32)
     for e in range(t):
         melhores = np.full(n, -np.inf)
         anos = np.full(n, -1, dtype=np.int32)
         for b, (ano, indices, fim) in enumerate(blocos):
-            if fim > e - 4:
+            if fim > e - recentes:
                 continue
             indices = list(indices)
             # Fora do patamar: o bloco com um registro de pico já conhecido na data ou em quebra de fonte.
@@ -324,13 +336,13 @@ def calibrar(base: Base, guardar: bool = True) -> Calibracao:
     # Instabilidade (descritiva): as variações de 7 registros pela oscilação típica do porte, por tipo de intervalo.
     instabilidade = np.full((n, t), np.nan)
     media_da_janela = np.full((n, t), np.nan)
-    escala = np.full((t, len(INTERVALOS)), np.nan)
+    escala = np.full((t, max(len(tipos), 1)), np.nan)
     with np.errstate(invalid="ignore", divide="ignore"):
         padronizada = delta / np.power(anterior, THETA / 2)
     grande = regular & (anterior >= MEDIA_MINIMA_DA_INSTABILIDADE)
     for e in range(REGISTROS_DA_INSTABILIDADE - 1, t):
-        for k, meses_do_tipo in enumerate(INTERVALOS):
-            colunas = [i for i in range(1, e) if intervalo[i] == meses_do_tipo]
+        for k in range(len(tipos)):
+            colunas = [i for i in range(1, e) if tipo[i] == k]
             if not colunas:
                 continue
             usavel = grande[:, colunas] & ~(marca_conhecida[:, colunas] <= e)
@@ -340,9 +352,9 @@ def calibrar(base: Base, guardar: bool = True) -> Calibracao:
                 escala[e, k] = 1.4826 * np.median(np.abs(valores - mediana))
         janela = list(range(e - REGISTROS_DA_INSTABILIDADE + 1, e + 1))
         transicoes = janela[1:]
-        if any(intervalo[i] not in INTERVALOS for i in transicoes):
+        if any(tipo[i] < 0 for i in transicoes):
             continue
-        c = np.array([escala[e, INTERVALOS.index(int(intervalo[i]))] for i in transicoes])
+        c = np.array([escala[e, int(tipo[i])] for i in transicoes])
         if not np.isfinite(c).all() or (c <= 0).any():
             continue
         valores = q[:, janela]
@@ -375,7 +387,7 @@ def calibrar(base: Base, guardar: bool = True) -> Calibracao:
 
     for matriz in (pico, pico_conhecido, marca, marca_conhecida, salto, queda_grande, quebra, c_perda, patamar,
                    patamar_ano, afastamento, c_patamar, instabilidade, c_instabilidade, porte_da_janela, escala, relativa, regular,
-                   porte, porte_do_patamar, intervalo):
+                   porte, porte_do_patamar, intervalo, tipo):
         matriz.setflags(write=False)
     calibracao = Calibracao(versao=base.versao, pico=pico, pico_conhecido=pico_conhecido, marca=marca,
                             marca_conhecida=marca_conhecida, salto=salto, queda_grande=queda_grande, quebra=quebra,
@@ -383,7 +395,7 @@ def calibrar(base: Base, guardar: bool = True) -> Calibracao:
                             afastamento=afastamento, c_patamar=c_patamar, instabilidade=instabilidade,
                             c_instabilidade=c_instabilidade, porte_da_janela=porte_da_janela,
                             escala=escala, blocos=blocos, relativa=relativa, regular=regular, porte=porte,
-                            porte_do_patamar=porte_do_patamar, intervalo=intervalo)
+                            porte_do_patamar=porte_do_patamar, intervalo=intervalo, tipo=tipo, tipos=tipos)
     if guardar:
         with _LOCK:
             _CALIBRACOES.clear()
@@ -411,9 +423,10 @@ def _anterior_valido(serie: np.ndarray, e: int) -> int | None:
     return None
 
 
-def _ancora(base: Base) -> str:
-    """O mês âncora da série anual da base ("06" na base do Brasil): o mês presente em todos os anos (perfil da base)."""
-    return getattr(base, "ancora", None) or "06"
+def _ancora(base: Base) -> str | None:
+    """O mês âncora da série anual da base ("06" na base do Brasil): o mês presente em todos os anos (perfil da base). None
+    quando a base não tem série anual: os sinais anuais (3, 4 e 8 a 10) ficam sem janela."""
+    return base.ancora
 
 
 def _raridade(matriz: np.ndarray, linha: int, e: int, p: dict) -> dict:
@@ -530,7 +543,7 @@ def _patamar_da_serie(base: Base, blocos: tuple, serie: np.ndarray, e: int) -> t
     """O patamar de uma série fora da calibração (conjunto): o mesmo cálculo, na própria série."""
     melhor, ano_do_melhor = None, None
     for ano, indices, fim in blocos:
-        if fim > e - 4:
+        if fim > e - _registros_de_dois_anos(base):
             continue
         valores = serie[list(indices)]
         if np.isnan(valores).any():
@@ -609,7 +622,7 @@ def _patamar(base: Base, cal: Calibracao | None, blocos: tuple, linha: int | Non
 def _anuais(base: Base, inicio: int, e: int) -> list[int]:
     """Os registros do mês âncora (a série anual) da janela."""
     ancora = _ancora(base)
-    return [i for i in range(inicio, e + 1) if base.periodos[i].endswith(ancora)]
+    return [i for i in range(inicio, e + 1) if base.periodos[i].endswith(ancora)] if ancora else []
 
 
 _junhos = _anuais   # o nome antigo, da base do Brasil
@@ -874,7 +887,8 @@ def avaliar(base: Base, cal: Calibracao, territorio: Territorio, inicio: int, e:
         for chave in ("disponibilidade", "posicao", "defasagem"):
             situacao[chave]["sinal"] = situacao[chave].get("classe")   # o campo anterior, com o nível da V3
         sinais += [chave for chave in ("disponibilidade", "posicao", "defasagem") if situacao[chave].get("classe")]
-        situacao["coexistencia"] = comparativos.coexistencia(sinais, situacao["estrutural"].get("classe"))
+        situacao["coexistencia"] = comparativos.coexistencia(sinais, situacao["estrutural"].get("classe"),
+                                                             series_brasil.rotulos(base)["profissionais"])
         if situacao["coexistencia"]["combinacoes"]:
             sinais.append("combinados")
     alerta = _alerta(situacao, territorio.tipo)
@@ -889,7 +903,7 @@ def avaliar(base: Base, cal: Calibracao, territorio: Territorio, inicio: int, e:
     }
     return {
         "id": territorio.id, "tipo": territorio.tipo, "nivel": territorio.nivel, "rotulo": territorio.rotulo,
-        "uf": STATES[territorio.uf][0] if territorio.uf else None, "unidade": territorio.unidade,
+        "uf": series_brasil.nome_do_grupo(base, territorio.uf)[0] if territorio.uf else None, "unidade": territorio.unidade,
         "ultima": None if ultima is None else {"competencia": base.periodos[ultima], "valor": int(serie[ultima]),
                                                "na_data": ultima == e},
         "porte": porte_de(serie[ultima]) if ultima is not None else None,
@@ -918,7 +932,7 @@ def limiares(base: Base, cal: Calibracao, e: int, p: dict) -> dict:
     meses = int(cal.intervalo[e]) if e > 0 else None
     celulas = []
     if e > 0 and meses:
-        colunas = [i for i in range(1, e) if int(cal.intervalo[i]) == meses]
+        colunas = [i for i in range(1, e) if cal.tipo[i] == cal.tipo[e]]
         if colunas:
             usavel = cal.regular[:, colunas] & ~(cal.marca_conhecida[:, colunas] <= e)
             valores, faixas = cal.relativa[:, colunas][usavel], cal.porte[:, colunas][usavel]
@@ -1006,8 +1020,9 @@ INCOMUM_NAO_E_PIOR = "\"Raro\" quer dizer incomum nesta base, não comprovadamen
 
 
 def curta(competencia: str) -> str:
-    """"jun/2024", como na tela."""
-    return MESES_CURTOS[int(competencia[4:]) - 1] + "/" + competencia[:4]
+    """"jun/2024", como na tela; numa planilha com um registro por ano ("202400"), "2024"."""
+    mes = int(competencia[4:])
+    return competencia[:4] if mes == 0 else MESES_CURTOS[mes - 1] + "/" + competencia[:4]
 
 
 def _br(valor, casas: int = 1) -> str:
@@ -1040,13 +1055,16 @@ def _medicos(n) -> str:
     return _br(n) + (" médico" if n == 1 else " médicos")
 
 
-def _mes_ancora(base: Base) -> str:
-    return MESES[int(_ancora(base)) - 1]
+def _anual(base: Base, com_mes: str, sem_mes: str) -> str:
+    """Um trecho de texto que cita o mês âncora da série anual: em `com_mes`, "{mes}" vira o mês por extenso ("junho"). Numa base
+    com um registro por ano (âncora "00") ou sem série anual, vale `sem_mes`, que não cita mês nenhum."""
+    ancora = _ancora(base)
+    return com_mes.replace("{mes}", MESES[int(ancora) - 1]) if ancora and ancora != "00" else sem_mes
 
 
 def _quem(base: Base, av: dict) -> str:
     r = _rotulos(base)
-    return {"municipio": "o " + r["unidade"], "estado": "o " + r["grupo"], "conjunto": "o conjunto", "brasil": "o " + r["todo"]}[av["tipo"]]
+    return {"municipio": r["o_unidade"], "estado": r["o_grupo"], "conjunto": "o conjunto", "brasil": r["o_todo"]}[av["tipo"]]
 
 
 def _os_parecidos(base: Base, av: dict) -> str:
@@ -1198,25 +1216,26 @@ def _texto_estrutural(base: Base, av: dict, e: int, p: dict) -> dict:
 
 def _texto_declinio(base: Base, av: dict, p: dict) -> dict:
     s, limites, r = av["declinio"], p["declinio"], _rotulos(base)
-    mes = _mes_ancora(base)
-    regra = ("Por convenção, pelas quedas seguidas na série anual (de " + mes + " a " + mes + ") e pela perda acumulada desde o início da "
+    de_a, anuais = _anual(base, "de {mes} a {mes}", "de um ano para o outro"), _anual(base, "registros de {mes}", "registros anuais")
+    regra = ("Por convenção, pelas quedas seguidas na série anual (" + de_a + ") e pela perda acumulada desde o início da "
              "sequência: " + str(limites["moderado_quedas"]) + " quedas e perda de " + _pct(limites["moderado_perda"], 0) + " ou mais, "
              "moderado; " + str(limites["elevado_quedas"]) + " quedas e " + _pct(limites["elevado_perda"], 0) + " ou mais, elevado; " +
              str(limites["critico_quedas"]) + " quedas e " + _pct(limites["critico_perda"], 0) + " ou mais, crítico. Registros de pico "
              "que volta ficam fora da sequência.")
-    entenda = ("Olha a série de " + mes + " de cada ano e conta quantos anos seguidos o número caiu. Vira alerta quando as quedas se "
+    entenda = ("Olha " + _anual(base, "a série de {mes} de cada ano", "o registro de cada ano") + " e conta quantos anos seguidos o número "
+               "caiu. Vira alerta quando as quedas se "
                "repetem e a perda somada é grande.")
     exemplo = "De 50 para 46, depois 42 e depois 38 " + r["profissionais"] + ": três quedas seguidas e perda de 24%, nível elevado."
     significa = "O número de " + r["profissionais"] + " vem caindo ano após ano, e não só num registro."
     nao = NAO_SIGNIFICA_GERAL + " Não diz por que caiu nem que vai continuar caindo."
     if s["estado"] in ("janela_insuficiente", "ausencia_de_dado"):
-        motivo = "Faltam registros de " + mes + " para comparar." if s["estado"] == "janela_insuficiente" else \
+        motivo = "Faltam " + anuais + " para comparar." if s["estado"] == "janela_insuficiente" else \
             "Não há registro em " + curta(s["ate"]) + " (ausência de dado não é zero)."
         return _item(None, "sem_dado", POR_CONVENCAO, "Sem a série anual para avaliar", motivo, regra, "Não avaliável.", significa, nao,
                      entenda, exemplo)
     if not s["reducoes"]:
         return _item(None, _estado_do_nivel(s), POR_CONVENCAO, "Sem queda no último ano",
-                     "Até " + curta(s["ate"]) + ", o número não caiu no último ano da série anual (de " + mes + " a " + mes + ").", regra,
+                     "Até " + curta(s["ate"]) + ", o número não caiu no último ano da série anual (" + de_a + ").", regra,
                      "Por convenção. Sem quedas seguidas.", significa, nao, entenda, exemplo)
     quedas = str(s["reducoes"]) + (" queda anual" if s["reducoes"] == 1 else " quedas anuais seguidas")
     frase = quedas + ": −" + _pct(s["perda_pct"]) + " desde " + curta(s["de"])
@@ -1230,9 +1249,9 @@ def _texto_declinio(base: Base, av: dict, p: dict) -> dict:
 
 def _texto_desaceleracao(base: Base, av: dict, p: dict) -> dict:
     s, r = av["desaceleracao"], _rotulos(base)
-    mes = _mes_ancora(base)
-    regra = ("A classe \"" + ROTULOS_DA_TENDENCIA["CRESCIMENTO_DESACELERADO"] + "\" da Análise de Tendência do Agente nos 4 registros de " +
-             mes + " até o último. Moderado, por convenção e exploratório, quando a classe se repete em " + str(p["desaceleracao"]["anos"]) +
+    anuais = _anual(base, "registros de {mes}", "registros anuais")
+    regra = ("A classe \"" + ROTULOS_DA_TENDENCIA["CRESCIMENTO_DESACELERADO"] + "\" da Análise de Tendência do Agente nos 4 " + anuais +
+             " até o último. Moderado, por convenção e exploratório, quando a classe se repete em " + str(p["desaceleracao"]["anos"]) +
              " anos seguidos.")
     entenda = ("O número ainda cresce, mas cada ano cresce menos que o anterior. Este sinal mostra uma mudança de ritmo; não indica o "
                "que vem depois.")
@@ -1242,9 +1261,10 @@ def _texto_desaceleracao(base: Base, av: dict, p: dict) -> dict:
         NAO_SIGNIFICA_GERAL
     if s["estado"] in ("janela_insuficiente", "ausencia_de_dado"):
         return _item(None, "sem_dado", POR_CONVENCAO, "Sem os 4 registros anuais para avaliar",
-                     "Faltam registros de " + mes + " nos 4 últimos anos.", regra, "Não avaliável.", significa, nao, entenda, exemplo, True)
+                     "Faltam " + anuais + " nos 4 últimos anos.", regra, "Não avaliável.", significa, nao, entenda, exemplo, True)
     valores = " → ".join(_br(v) for v in s["valores"])
-    observado = ("De " + curta(s["de"]) + " a " + curta(s["ate"]) + ", os valores de " + mes + " foram " + valores + ". A Análise de "
+    observado = ("De " + curta(s["de"]) + " a " + curta(s["ate"]) + ", " + _anual(base, "os valores de {mes}", "os valores anuais") +
+                 " foram " + valores + ". A Análise de "
                  "Tendência classifica essa série como \"" + s["rotulo"] + "\".")
     if not s["desacelera"]:
         return _item(None, "sem_alerta", POR_CONVENCAO, "Sem desaceleração (tendência: " + s["rotulo"].lower() + ")", observado, regra,
@@ -1430,8 +1450,8 @@ def _pontos(valor) -> str:
 
 def _regra_relativa(base: Base, limites: dict, o_que: str) -> str:
     r = _rotulos(base)
-    mes = _mes_ancora(base)
-    return ("A variação " + o_que + " em 2 anos (de " + mes + " a " + mes + "), comparada com as variações anteriores de territórios do "
+    return ("A variação " + o_que + " em 2 anos (" + _anual(base, "de {mes} a {mes}", "de um ano para o outro") +
+            "), comparada com as variações anteriores de territórios do "
             "mesmo porte (o número de " + r["profissionais"] + " no início da janela). Moderado: rara, " + _um_em(limites["moderado_um_em"]) +
             "; elevado: " + _um_em(limites["elevado_um_em"]) + "; crítico: " + _um_em(limites["critico_um_em"]) + ". Só em janelas com "
             "população comparável (" + comparativos.texto_dos_trechos(base) + ") e com pelo menos " + str(comparativos.MINIMO_DE_MEDICOS) +
@@ -1457,7 +1477,8 @@ def _relativo(base: Base, av: dict, chave: str, p: dict, nivel_da_data: str, var
                      _populacao_nao_comparavel(base, s) + ".", significa, nao, entenda, exemplo)
     if estado == "janela_insuficiente":
         return _item(None, "sem_dado", COMPARADO, nivel_da_data + " · sem o registro de dois anos antes", observado, regra,
-                     "Janela insuficiente: falta o registro de " + _mes_ancora(base) + " de dois anos antes.", significa, nao, entenda,
+                     "Janela insuficiente: falta " + _anual(base, "o registro de {mes}", "o registro") + " de dois anos antes.", significa,
+                     nao, entenda,
                      exemplo)
     frase = variacao or nivel_da_data
     if estado == "descritivo":
@@ -1525,6 +1546,8 @@ def _texto_posicao(base: Base, av: dict, p: dict) -> dict:
 
 def _texto_defasagem(base: Base, av: dict, p: dict) -> dict:
     s, r = av["defasagem"], _rotulos(base)
+    # "a dos demais municípios", "a das demais comunas": o artigo do que a referência reúne (os estados, no estado como unidade).
+    dos = "d" + (r["os_grupos"] if av["tipo"] == "estado" else r["os_unidades"]).split(" ")[0] + " "
     rotulo = s["referencia"]["rotulo"]   # "demais municípios do Amazonas (soma municipal)": nunca dentro de outros parênteses
     regra = _regra_relativa(base, p["defasagem"], "do índice ante a referência (100 × taxa do território ÷ taxa da referência, com a "
                             "referência no grupo de cima e sem o território" + (": " + rotulo if rotulo else "") + ")")
@@ -1538,7 +1561,7 @@ def _texto_defasagem(base: Base, av: dict, p: dict) -> dict:
     na_data = ""
     if s.get("indice") is not None:
         na_data = ("Em " + curta(s["competencia"]) + ", a taxa do território é de " + _taxa(s["taxa"]) + " por 1.000 habitantes, e a " +
-                   ("dos " + rotulo if rotulo else "da referência") + ", de " + _taxa(s["referencia"]["taxa"]) + ": índice " +
+                   (dos + rotulo if rotulo else "da referência") + ", de " + _taxa(s["referencia"]["taxa"]) + ": índice " +
                    _br(round(s["indice"], 1)) + " (100 é a taxa da referência).")
     variacao = None
     observado = na_data
@@ -1554,7 +1577,7 @@ def _texto_contexto(base: Base, av: dict, p: dict) -> dict:
     s, r = av["contexto"], _rotulos(base)
     c = s["criterio"]
     limiar = "" if c["taxa_minima"] is None else _taxa(c["taxa_minima"]) + " " + r["profissionais"] + " por 1.000 habitantes em " + \
-        curta(c["competencia"]) + " (" + _pct(p["contexto"]["taxa_do_brasil_pct"], 0) + " da taxa do " + r["todo"] + ", de " + \
+        curta(c["competencia"]) + " (" + _pct(p["contexto"]["taxa_do_brasil_pct"], 0) + " da taxa " + r["do_todo"] + ", de " + \
         _taxa(c["taxa_do_brasil"]) + ")"
     regra = ("Distância em linha reta entre as coordenadas do território e as do mais próximo com taxa igual ou maior que " +
              (limiar or "o critério") + ". O critério pode ser trocado, de 10% a 500% da taxa da base toda. A posição compara essa "
@@ -1644,10 +1667,46 @@ def fenomenos(base: Base, av: dict, e: int, p: dict) -> list[dict]:
     itens = [{"chave": chave, "numero": numero, "nome": nomes[chave], "grupo": grupo, "dimensao": dimensao, **textos[chave](),
               "sem_comparacoes": _sem_comparacoes_do_sinal(av.get(chave)), "limitacoes": limitacoes, "qualidade": qualidade}
              for chave, numero, grupo, dimensao in FENOMENOS if chave in av or chave == "coexistencia" and "coexistencia" in av]
+    faltas = falta_na_base(base)
     for item in itens:
         # Os campos que a resposta já trazia: o estado do sinal no motor e a classe (o nível).
         item["estado"], item["classe"] = (av.get(item["chave"]) or {}).get("estado"), item["nivel"]
+        if item["chave"] in faltas and not item["nivel"]:
+            # O que a base não tem (seção A.3): o sinal fica indisponível, com o motivo, em vez de "não calculável".
+            item.update({"estado_do_nivel": "indisponivel", "situacao": "Indisponível nesta base", "observado": faltas[item["chave"]],
+                         "habitual": "Não avaliado: " + faltas[item["chave"]][:1].lower() + faltas[item["chave"]][1:],
+                         "sem_comparacoes": None})
     return itens
+
+
+_FALTAS: dict[str, dict] = {}
+
+
+def falta_na_base(base: Base) -> dict:
+    """O que falta na base para cada sinal existir (seção A.3 da Proposta V3, coluna "Se faltar"): a série anual (sinais 3, 4 e 8 a
+    10), a população (8 a 11), o grupo de cima (10) e as coordenadas (11). Devolve {sinal: motivo}; vazio na base do Brasil."""
+    with _LOCK:
+        guardada = _FALTAS.get(base.versao)
+    if guardada is not None:
+        return guardada
+    faltas: dict[str, str] = {}
+    if not base.ancora:
+        for chave in ("declinio", "desaceleracao", "disponibilidade", "posicao", "defasagem"):
+            faltas[chave] = "A base não tem série anual: nenhum mês se repete em todos os anos."
+    if not _blocos(base):
+        faltas["patamar"] = "A base não tem dois anos completos de registros, nos mesmos meses, para o patamar."
+    if not np.isfinite(base.populacao).any():
+        for chave in ("disponibilidade", "posicao", "defasagem", "contexto"):
+            faltas.setdefault(chave, "A base não tem população: sem ela, não há taxa por habitante.")
+    if not base.do_estado:
+        faltas.setdefault("defasagem", "A base não tem grupo de cima: não há referência para comparar.")
+    if not np.isfinite(base.latitude).any():
+        faltas.setdefault("contexto", "A base não tem coordenadas com o referencial informado: a distância não pode ser medida.")
+    with _LOCK:
+        if len(_FALTAS) > 4:
+            _FALTAS.clear()
+        _FALTAS[base.versao] = faltas
+    return faltas
 
 
 def _sem_comparacoes_do_sinal(s) -> dict | None:
@@ -1711,7 +1770,7 @@ def _linha(base: Base, av: dict, e: int, p: dict) -> dict:
     gráfico usam. Os detalhes vêm no pedido de um território."""
     es, pe, pa, de, ds, ins = (av[chave] for chave in ("estrutural", "perda", "patamar", "declinio", "desaceleracao", "instabilidade"))
     di, po, df, co, cx = (av[chave] for chave in ("disponibilidade", "posicao", "defasagem", "contexto", "coexistencia"))
-    anteriores = nomes_anteriores.do_rotulo(av["id"], av["rotulo"]) if av["tipo"] == "municipio" else []
+    anteriores = nomes_anteriores.do_rotulo(av["id"], av["rotulo"]) if av["tipo"] == "municipio" and base.do_brasil else []
     alerta = av["alerta"]
     return {
         "id": av["id"], "tipo": av["tipo"], "nivel": av["nivel"], "rotulo": av["rotulo"], "uf": av["uf"],
@@ -1790,7 +1849,8 @@ def base_dos_estados(base: Base) -> Base | None:
     quantidade = np.vstack([base.estados[uf] for uf in ufs])
     quantidade.setflags(write=False)
     vazio.setflags(write=False)
-    montada = replace(base, versao=base.versao + ":estados", codigos=ufs, nomes=tuple(STATES[uf][1] for uf in ufs), prefixos=ufs,
+    montada = replace(base, versao=base.versao + ":estados", codigos=ufs,
+                      nomes=tuple(series_brasil.nome_do_grupo(base, uf)[1] for uf in ufs), prefixos=ufs,
                       quantidade=quantidade, populacao=vazio, latitude=vazio, longitude=vazio, estados={},
                       indice={uf: linha for linha, uf in enumerate(ufs)}, do_estado={})
     with _LOCK:
@@ -1819,10 +1879,18 @@ def calibrar_estados(base: Base) -> Calibracao | None:
 
 
 def _fonte(base: Base) -> dict:
-    return {"base": "Brasil", "categoria": "MEDICINA", "versao": base.versao, "primeira": base.periodos[0],
-            "ultima": base.periodos[-1], "competencias": len(base.periodos), "rotulos": dict(_rotulos(base)),
-            "unidades": {"municipio": series_brasil.UNIDADE_MUNICIPIO, "estado": series_brasil.UNIDADE_ESTADO,
-                         "conjunto": series_brasil.UNIDADE_CONJUNTO}}
+    descricao = base.descricao or {"base": "Brasil", "categoria": "MEDICINA"}
+    contagens = {tipo: series_brasil.contagem_de(base, tipo) for tipo in (("municipio", "estado", "conjunto") if base.do_brasil else
+                                                                           ("municipio", "conjunto"))}
+    return {"base": descricao["base"], "categoria": descricao["categoria"], "versao": base.versao, "primeira": base.periodos[0],
+            "ultima": base.periodos[-1], "competencias": len(base.periodos), "rotulos": series_brasil.rotulos_publicos(base),
+            "origem": base.origem, "ancora": base.ancora,
+            # As formas com artigo e preposição dos nomes ("o município", "a área", "do Brasil"), para a concordância na tela.
+            "formas": {chave: series_brasil.rotulos(base)[chave] for chave in series_brasil.FORMAS_DO_BRASIL},
+            # O que a base tem (perfil da base, seção A.3): a tela desliga o mapa e o gráfico quando falta o insumo, com o motivo.
+            "tem": {"populacao": bool(np.isfinite(base.populacao).any()), "coordenadas": bool(np.isfinite(base.latitude).any()),
+                    "grupo": bool(base.do_estado), "serie_anual": bool(base.ancora)},
+            "unidades": {chave: contagens[chave] for chave in ("municipio", "estado", "conjunto") if chave in contagens}}
 
 
 def _notas(base: Base, personalizado: bool, niveis: set) -> list[str]:
@@ -1953,8 +2021,8 @@ def _coordenadas(base: Base, qd: comparativos.Quadro, territorios: list, linhas:
     for linha in linhas:
         referencia = linha["contexto"].get("referencia_id")
         if referencia:
-            marcados.add(base.indice[referencia[5:]])
-    return {"code:" + base.codigos[i]: [float(base.latitude[i, qd.e]), float(base.longitude[i, qd.e])]
+            marcados.add(base.indice[referencia[len(base.prefixo_do_id):]])
+    return {base.prefixo_do_id + base.codigos[i]: [float(base.latitude[i, qd.e]), float(base.longitude[i, qd.e])]
             for i in sorted(marcados) if bool(qd.com_coordenada[i])}
 
 
@@ -1968,17 +2036,22 @@ def _aviso_da_base(base: Base, regua: dict) -> str | None:
             "base, e não nos territórios.")
 
 
-def compute(sources, opcoes: dict) -> dict:
+def compute(sources, opcoes: dict, base: Base | None = None) -> dict:
     """POST /api/detector. Sem `detalhe`: a lista da situação mais recente da janela, de todos os territórios da seleção, com o
     alerta de cada um, o resumo dos níveis, a régua da data e os critérios em uso. Com `detalhe` (o id de um território da
     seleção): a série, o histórico de sinais e os textos de cada sinal. Nada é registrado na sessão, e nada vai ao provedor de IA."""
     if not isinstance(opcoes, dict):
         raise ValueError("Pedido do Detector inválido.")
-    desconhecidas = set(opcoes) - {"base", "estados_unidade", "conjuntos", "janela", "parametros", "detalhe"}
+    desconhecidas = set(opcoes) - {"base", "estados_unidade", "conjuntos", "janela", "parametros", "detalhe", "perfil"}
     if desconhecidas:
         raise ValueError("Opção desconhecida no pedido do Detector: " + ", ".join(sorted(desconhecidas)) + ".")
-    base = series_brasil.base_de(sources)
+    # A base das ferramentas: a do Brasil (pelas fontes verificadas) ou a de uma planilha enviada (series_da_planilha).
+    base = base if base is not None else series_brasil.base_de(sources)
     cal = calibrar(base)
+    if opcoes.get("perfil") is True:
+        # O perfil da base (seção A.3), antes de abrir a ferramenta: o que a base tem e o resumo "dá para / não dá para".
+        import perfil_da_base  # importação tardia: o perfil usa este módulo
+        return {"versao": VERSION, "fonte": _fonte(base), "perfil": perfil_da_base.perfil(base, cal)}
     p, personalizado = parametros(opcoes.get("parametros"))
     inicio, e, padrao = _janela(base, opcoes.get("janela"))
     territorios = series_brasil.selecao(base, opcoes)
@@ -1989,9 +2062,12 @@ def compute(sources, opcoes: dict) -> dict:
               "meses": int(base.meses[e] - base.meses[inicio]), "padrao": padrao,
               "ultimo_registro_da_base": base.periodos[-1], "e_o_ultimo": e == len(base.periodos) - 1}
     qd = comparativos.quadro(base, e, p)
+    faltas = falta_na_base(base)
     comparacao = {"de": None if qd.ini is None else base.periodos[qd.ini], "ate": None if qd.fim is None else base.periodos[qd.fim],
-                  "estado": qd.motivo or "comparavel", "trechos": comparativos.trechos_comparaveis(base),
-                  "motivo": comparativos.motivo_da_janela(base, qd.ini, qd.fim) if qd.motivo == "comparacao_nao_habilitada" else None,
+                  "estado": "indisponivel" if "disponibilidade" in faltas else qd.motivo or "comparavel",
+                  "trechos": comparativos.trechos_comparaveis(base),
+                  "motivo": faltas["disponibilidade"] if "disponibilidade" in faltas else
+                  comparativos.motivo_da_janela(base, qd.ini, qd.fim) if qd.motivo == "comparacao_nao_habilitada" else None,
                   "minimo_de_medicos": comparativos.MINIMO_DE_MEDICOS,
                   "contexto": {"taxa_minima": qd.limiar, "taxa_do_brasil": qd.taxa_do_brasil,
                                "pct_da_taxa_do_brasil": p["contexto"]["taxa_do_brasil_pct"], "atendem": int(qd.atende.sum()),
@@ -2007,6 +2083,8 @@ def compute(sources, opcoes: dict) -> dict:
                         for chave, nome in GRUPOS_DOS_SINAIS],
              "portes": list(ROTULOS_DOS_PORTES),
              "entenda": entenda_da_ferramenta(base),
+             # O que a base não tem para algum sinal existir (vazio na base do Brasil): {sinal: motivo}.
+             "indisponiveis": faltas,
              "exploratorio": personalizado}
     detalhe = opcoes.get("detalhe")
     if detalhe is not None:

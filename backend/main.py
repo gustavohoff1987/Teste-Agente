@@ -62,6 +62,7 @@ import painel
 import detector
 import simulador
 import series_brasil
+import series_da_planilha
 import conversa_gemini
 import contexto_conversa
 import definicoes
@@ -1981,20 +1982,42 @@ def integrated_panel_place(file: UploadFile | None = File(None), mapping: str = 
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+def _base_da_planilha(file, sheet, dataset, mapping, requested):
+    """A base das ferramentas (Detector e Simulador) para uma planilha enviada (comando V23, seção 2): o arquivo é lido como em
+    /api/painel (limite de 15 MB, a aba escolhida, nada persistido) e vira séries com o mesmo mapeamento de colunas, as mesmas
+    premissas e os mesmos nomes das análises (series_da_planilha). Devolve a base e o pedido sem as opções que descrevem a planilha."""
+    fields = json.loads(mapping)
+    if not isinstance(fields, dict) or not isinstance(requested, dict):
+        raise ValueError("Pedido inválido: envie o mapeamento de colunas e as opções da ferramenta.")
+    if dataset:
+        raise ValueError("Escolha uma base do catálogo ou importe um arquivo.")
+    frame, _ = _dataset_do_pedido(file, sheet, "", "auto")
+    if frame is None:
+        raise ValueError("Escolha a planilha (aba) do arquivo antes de abrir a ferramenta.")
+    base = series_da_planilha.base_da_planilha(frame, fields, requested)
+    return base, {chave: valor for chave, valor in requested.items() if chave not in series_da_planilha.OPCOES_DA_BASE}
+
+
 @app.post("/api/detector")
-def territorial_signal_detector(file: UploadFile | None = File(None), options: str = Form("{}"), dataset: str = Form(""),
-                                scope: str = Form("municipal"), dataset_version: str = Form(""),
-                                context_revision: int = Form(0)):
-    """Detector de Sinais Territoriais (comando V22; Docs/DETECTOR_DE_SINAIS.md): a situação mais recente da janela para os
-    territórios da seleção (escala estrutural, declínio, desaceleração, instabilidade, perda abrupta e afastamento de patamar,
-    com a qualidade do registro) ou, com `detalhe`, a série, o histórico de sinais e os textos de um território. Só a base do
-    Brasil (médicos, 2014–2024). Só lê e calcula: nada é registrado na sessão, e nada vai ao provedor de IA."""
+def territorial_signal_detector(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
+                                sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),
+                                dataset_version: str = Form(""), context_revision: int = Form(0)):
+    """Detector de Sinais Territoriais (comandos V22 e V23; Docs/DETECTOR_DE_SINAIS.md): para os territórios da seleção, o alerta
+    de cada um na data avaliada (um nível só, pelos 12 sinais), a régua da data e os critérios em uso; com `detalhe`, a série, o
+    histórico de sinais e os textos de um território; com `perfil`, o perfil da base ("dá para / não dá para"). Vale para a base do
+    Brasil e, desde o comando V23, para uma planilha enviada (o arquivo, a aba e o mapeamento de colunas, como em /api/painel).
+    Só lê e calcula: nada é registrado na sessão, e nada vai ao provedor de IA."""
     try:
-        if file is not None or dataset != "brazil":
-            raise ValueError(series_brasil.OFFICIAL_ONLY)
         requested = json.loads(options)
+        if file is not None:
+            base, requested = _base_da_planilha(file, sheet, dataset, mapping, requested)
+            return _PanelJSON(detector.compute(None, requested, base=base))
+        if dataset != "brazil":
+            raise ValueError(series_brasil.SEM_BASE)
         _, _, sources = _dataset_do_pedido(None, "", "brazil", "municipal", "", dataset_version, with_sources=True)
         return _PanelJSON(detector.compute(sources, requested))
+    except ChoiceRequired as exc:
+        return _panel_pending(exc)
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

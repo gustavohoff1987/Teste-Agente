@@ -981,10 +981,11 @@ def test_rota_do_detector_lista_detalhe_e_recusas(catalogo, monkeypatch):
     recusa(pedir({"base": {"municipios": {"ids": ["code:999999"]}}}), "Território fora da base Brasil")
     recusa(pedir({"base": {"municipios": {"todos": True}}, "janela": {"inicio": "202406", "fim": "201401"}}), "o início vem depois do fim")
     recusa(pedir({"base": {"municipios": {"todos": True}}, "janela": {"fim": "202407"}}), "Competência fora da base")
-    # Só a base do Brasil: sem ela, ou com uma planilha enviada, a rota recusa (a recusa que a resposta já dava).
-    recusa(client.post("/api/detector", data={"dataset": "", "options": "{}"}), "usam a base do Brasil")
+    # Sem base nenhuma, a rota diz o que fazer. Uma planilha enviada é aceita desde o comando V23 (seção 2, "qualquer base") e
+    # passa pelo mesmo portão das análises, que pede as colunas; a planilha inteira está em test_ferramentas_qualquer_base.py.
+    recusa(client.post("/api/detector", data={"dataset": "", "options": "{}"}), "Escolha a base do Brasil ou envie uma planilha")
     recusa(client.post("/api/detector", data={"options": "{}"}, files={"file": ("p.csv", b"a;b\n1;2\n", "text/csv")}),
-           "usam a base do Brasil")
+           "Escolha a coluna territorial")
 
 
 # --------------------------------------------------------------------------------------------- base versionada

@@ -53,9 +53,10 @@ import EscolhaDosTerritorios from "./EscolhaDosTerritorios";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import IconeVassoura from "./IconeVassoura";
 import DetectorDeSinais from "./DetectorDeSinais";
+import PerfilDaBase from "./PerfilDaBase";
 import SimuladorDeCenarios from "./SimuladorDeCenarios";
 import { configDoDetector, selecaoDoDetector, type ConfigDoSimulador, type SelecaoLocal } from "./simuladorModel";
-import type { AlvoDoSimulador } from "./detectorModel";
+import type { AlvoDoSimulador, OpcoesDaBase } from "./detectorModel";
 import "./analise.css";
 
 // Área de análise da página única (22/10/2026). Numa linha de abas (23/10/2026), que aparece só com os dados prontos
@@ -2183,12 +2184,29 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // A aba de uma análise que não pode ser executada com estes dados: a apresentação e o motivo, sem os ajustes.
   const dispDaAba = aba !== "territorios" ? disponivelDe(aba) : null;
   const motivoDaAba = fonte && dispDaAba && !dispDaAba.disponivel ? dispDaAba : null;
-  // A seleção em uso, no contrato das ferramentas (só a base do Brasil: médicos, registros de janeiro e junho de 2014 a 2024).
-  const selecaoParaFerramentas = useMemo(() => tipo === "brasil" && !semSelecao(def) ? selecaoDasFerramentas(def, grupoDe) : null,
-    [tipo, def.nivel, def.base, def.estados, def.conjuntos, grupoDe]);
-  const motivoDasFerramentas = tipo === "brasil" ? null
-    // Com uma planilha (que pode ser de outro país), nenhum texto à vista usa o vocabulário da base brasileira (28/10/2026).
-    : "O Detector e o Simulador funcionam só com a base de médicos que vem com o Agente (registros de janeiro e junho de 2014 a 2024). Com uma planilha enviada, não estão disponíveis.";
+  // A seleção em uso, no contrato das ferramentas. Na base do Brasil, os municípios, os estados como unidade e os conjuntos. Numa
+  // planilha enviada (comando V23, "qualquer base"), as unidades e os conjuntos delas: o grupo de cima como unidade não tem contagem
+  // própria na planilha e fica fora da ferramenta, com o aviso.
+  const gruposComoUnidade = tipo === "arquivo" && !semSelecao(def) && (def.nivel !== "municipios" || def.estados.length > 0);
+  const selecaoParaFerramentas = useMemo(() => {
+    if (!tipo || semSelecao(def)) return null;
+    const completa = selecaoDasFerramentas(def, grupoDe);
+    if (tipo === "brasil") return completa;
+    if (def.nivel !== "municipios") return null;
+    const { estados_unidade: _semContagemPropria, ...daPlanilha } = completa;
+    return Object.keys(daPlanilha).length ? daPlanilha : null;
+  }, [tipo, def.nivel, def.base, def.estados, def.conjuntos, grupoDe]);
+  // O que o pedido das ferramentas diz da planilha, como o do painel: os nomes do painel "Colunas", as premissas e a categoria.
+  const baseDasFerramentas: OpcoesDaBase | undefined = useMemo(() => tipo !== "arquivo" ? undefined : {
+    ...(rotulosDoPedido ? { rotulos: rotulosDoPedido } : {}), ...(Object.keys(def.premissas).length ? { premissas: def.premissas } : {}),
+    ...(def.categoria ? { categoria: def.categoria } : {}) }, [tipo, rotulosDoPedido, def.premissas, def.categoria]);
+  const avisoDasFerramentas = gruposComoUnidade ? "Numa planilha, o grupo de cima como unidade (" + (rotulos.grupo?.plural ?? "grupos") +
+    ") não tem contagem própria: a ferramenta avalia " + rotulos.unidade.plural + " e os conjuntos. Para avaliar um grupo, selecione os territórios " +
+    "dele ou monte um conjunto." : null;
+  // O Simulador de Cenários continua só com a base que vem com o Agente até ganhar a mesma estrutura do Detector (Parte C da
+  // Proposta V3). Com uma planilha (que pode ser de outro país), o motivo não usa o vocabulário da base brasileira (28/10/2026).
+  const motivoDoSimulador = tipo === "brasil" ? null
+    : "O Simulador de Cenários ainda funciona só com a base que vem com o Agente. Com uma planilha enviada, use o Detector de Sinais.";
   const resumoDaSelecao = !fonte ? "Escolha os dados primeiro" : !pronto ? "Preparando os dados…"
     : semUnidades ? "Nenhum território selecionado"
     : resumoDoUniverso({ nivel: def.nivel, base: def.base, estados: def.estados, conjuntos: def.conjuntos.length, grupos, regioes, rotulos,
@@ -2268,14 +2286,14 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       {/* As ferramentas (comando V22): na navegação principal, acima das abas; usam a seleção em uso. */}
       <div data-testid="analise-ferramentas-novas" role="group" aria-label="Ferramentas" className="analise-ferramentas-novas analise-nao-imprimir">
         <span className="analise-ferramentas-novas-rotulo">Ferramentas</span>
-        <button type="button" data-testid="analise-ferramenta-detector" aria-pressed={ferramenta === "detector"} disabled={!!motivoDasFerramentas}
-          title={motivoDasFerramentas ?? "A situação mais recente de cada território da seleção, fenômeno a fenômeno"} className="analise-ferramenta-nova"
+        <button type="button" data-testid="analise-ferramenta-detector" aria-pressed={ferramenta === "detector"}
+          title="A situação mais recente de cada território da seleção, sinal a sinal" className="analise-ferramenta-nova"
           onClick={() => setFerramenta(atual => atual === "detector" ? null : "detector")}><Radar size={15} aria-hidden="true"/>Detector de Sinais</button>
-        <button type="button" data-testid="analise-ferramenta-simulador" aria-pressed={ferramenta === "simulador"} disabled={!!motivoDasFerramentas}
-          title={motivoDasFerramentas ?? "Cenários hipotéticos para os territórios da seleção: método, intervenções e data final à sua escolha"}
+        <button type="button" data-testid="analise-ferramenta-simulador" aria-pressed={ferramenta === "simulador"} disabled={!!motivoDoSimulador}
+          title={motivoDoSimulador ?? "Cenários hipotéticos para os territórios da seleção: método, intervenções e data final à sua escolha"}
           className="analise-ferramenta-nova" onClick={() => setFerramenta(atual => atual === "simulador" ? null : "simulador")}>
           <LineChart size={15} aria-hidden="true"/>Simulador de Cenários</button>
-        {motivoDasFerramentas && <span data-testid="analise-ferramentas-motivo" className="analise-ferramentas-novas-motivo">{motivoDasFerramentas}</span>}
+        {motivoDoSimulador && <span data-testid="analise-ferramentas-motivo" className="analise-ferramentas-novas-motivo">{motivoDoSimulador}</span>}
       </div>
       <div role="tablist" aria-label="Seleção de territórios e análises" className="analise-familias analise-nao-imprimir">
         {ABAS.map((item, indice) => {
@@ -2296,11 +2314,17 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           </button>;
         })}
       </div>
+      {/* O perfil da base vem antes da ferramenta (seção A.3): numa base nova (a planilha enviada), aberto; na base do Brasil,
+          fechado até a pessoa pedir. */}
       {ferramenta === "detector" && fonteMotor && <div data-testid="analise-ferramenta-painel" data-ferramenta={ferramenta} className="analise-ferramenta-painel">
-        <DetectorDeSinais fonte={fonteMotor} selecao={selecaoParaFerramentas} resumoDaSelecao={resumoDaSelecao} onAlterarSelecao={irParaTerritorios}
-          onAbrirNoSimulador={alvo => abrirNoSimulador(alvo, null)} onSimularRecuperacao={abrirNoSimulador}/>
+        <PerfilDaBase fonte={fonteMotor} daBase={baseDasFerramentas} abertoDeInicio={tipo === "arquivo"}/>
+        <DetectorDeSinais fonte={fonteMotor} selecao={selecaoParaFerramentas} daBase={baseDasFerramentas} rotulosDoPainel={tipo === "arquivo" ? rotulos : undefined}
+          avisoDaSelecao={avisoDasFerramentas} resumoDaSelecao={resumoDaSelecao} onAlterarSelecao={irParaTerritorios}
+          onAbrirNoSimulador={motivoDoSimulador ? undefined : alvo => abrirNoSimulador(alvo, null)}
+          onSimularRecuperacao={motivoDoSimulador ? undefined : abrirNoSimulador}/>
       </div>}
-      {ferramenta === "simulador" && fonteMotor && <div data-testid="analise-ferramenta-painel" data-ferramenta={ferramenta} className="analise-ferramenta-painel">
+      {ferramenta === "simulador" && fonteMotor && !motivoDoSimulador && <div data-testid="analise-ferramenta-painel" data-ferramenta={ferramenta} className="analise-ferramenta-painel">
+        <PerfilDaBase fonte={fonteMotor} daBase={baseDasFerramentas} abertoDeInicio={false}/>
         <SimuladorDeCenarios fonte={fonteMotor} principal={selecaoParaFerramentas} resumoDaPrincipal={resumoDaSelecao} unidades={municipios} grupos={grupos}
           competencias={periodos} config={configDoSimulador} onConfig={setConfigDoSimulador} onAplicarSelecao={aplicarSelecaoDoSimulador}/>
       </div>}

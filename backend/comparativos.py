@@ -39,8 +39,9 @@ import numpy as np
 
 import nearest_reference
 import reguas
+import series_brasil
 from series_brasil import Base, Territorio
-from territorial_levels import STATES, state_with_preposition
+from territorial_levels import state_with_preposition
 
 POR = 1000.0                                 # a taxa do Agente: médicos por 1.000 habitantes
 ANOS_DA_JANELA = 2
@@ -93,7 +94,8 @@ def populacao_comparavel(base: Base) -> dict:
         guardado = _COMPARAVEL.get(base.versao)
     if guardado is not None:
         return guardado
-    junhos = {int(periodo[:4]): posicao for posicao, periodo in enumerate(base.periodos) if periodo.endswith("06")}
+    # A série anual é a do mês âncora da base (junho, na base do Brasil); sem ela, não há passagens de ano a medir.
+    junhos = {int(periodo[:4]): posicao for posicao, periodo in enumerate(base.periodos) if base.ancora and periodo.endswith(base.ancora)}
     anos = sorted(junhos)
     passagens = []
     for a, b in zip(anos, anos[1:]):
@@ -173,12 +175,12 @@ def janela(base: Base, e: int) -> tuple[int | None, int | None, str | None]:
     """Os dois junhos da janela de comparação (2 anos, de junho a junho) que termina no último junho até a data avaliada, e o
     motivo quando a variação não pode ser calculada: "janela_insuficiente" (falta um dos junhos) ou "comparacao_nao_habilitada"
     (a janela não cabe inteira num trecho de população comparável da base)."""
-    junhos = [i for i in range(e + 1) if base.periodos[i].endswith("06")]
+    junhos = [i for i in range(e + 1) if base.ancora and base.periodos[i].endswith(base.ancora)]
     if not junhos:
         return None, None, "janela_insuficiente"
     fim = junhos[-1]
     ano = int(base.periodos[fim][:4])
-    alvo = str(ano - ANOS_DA_JANELA) + "06"
+    alvo = str(ano - ANOS_DA_JANELA) + base.ancora
     if alvo not in base.periodos:
         return None, fim, "janela_insuficiente"
     ini = base.periodos.index(alvo)
@@ -296,7 +298,7 @@ def quadro(base: Base, e: int, p: dict, guardar: bool = True) -> Quadro:
     if motivo is None:
         percentil_ini, percentil_fim, universo = do_par(ini, fim)
         # A janela encerrada um ano antes, para a confirmação em duas avaliações anuais (só quando também é comparável).
-        junhos = [i for i in range(fim) if base.periodos[i].endswith("06")]
+        junhos = [i for i in range(fim) if base.periodos[i].endswith(base.ancora)]
         if junhos:
             ia, fa, motivo_anterior = janela(base, junhos[-1])
             if motivo_anterior is None:
@@ -341,7 +343,7 @@ def _num(valor) -> float | None:
 
 
 def _linhas_dos_membros(base: Base, territorio: Territorio) -> list[int]:
-    return [base.indice[membro[5:]] for membro in territorio.membros]
+    return [base.indice[membro[len(base.prefixo_do_id):]] for membro in territorio.membros]
 
 
 linhas_dos_membros = _linhas_dos_membros
@@ -382,6 +384,12 @@ def _e(nomes: list[str]) -> str:
     return nomes[0] if len(nomes) == 1 else ", ".join(nomes[:-1]) + " e " + nomes[-1]
 
 
+def _do_grupo(base: Base, chave: str) -> str:
+    """O grupo de cima com a preposição: "do Amazonas", na base do Brasil; numa planilha, "de <nome do grupo>" (o nome vem da
+    coluna de grupo, e a base não diz o artigo dele)."""
+    return state_with_preposition(chave) if base.do_brasil else "de " + series_brasil.nome_do_grupo(base, chave)[1]
+
+
 def referencia_do_territorio(base: Base, territorio: Territorio) -> tuple[np.ndarray, str, str | None]:
     """A taxa da referência do território em cada competência, o rótulo dela e, quando não há referência, o motivo. A referência
     fica na mesma unidade do território e não o contém (seção 4.2, indicador 10). O rótulo traz o estado com a preposição certa
@@ -389,21 +397,29 @@ def referencia_do_territorio(base: Base, territorio: Territorio) -> tuple[np.nda
     vazio = np.full(len(base.periodos), np.nan)
     q, pop = base.quantidade, base.populacao
     if territorio.tipo == "municipio":
+        r = series_brasil.rotulos(base)
+        if not base.do_estado:
+            return vazio, "", "A base não tem grupo de cima: não há referência para comparar " + r["o_unidade"] + "."
         outros = [linha for linha in base.do_estado.get(territorio.uf, ()) if linha != territorio.linha]
         if not outros:
-            return vazio, "", "A UF deste município não tem outros municípios: não há referência na mesma unidade."
-        return _taxas(base)[1][territorio.linha], "demais municípios " + state_with_preposition(territorio.uf) + " (soma municipal)", None
+            return vazio, "", ("A UF deste município não tem outros municípios: não há referência na mesma unidade." if base.do_brasil else
+                               "O grupo de cima deste território não tem outros territórios: não há referência na mesma unidade.")
+        soma = " (soma municipal)" if base.do_brasil else " (soma)"
+        return _taxas(base)[1][territorio.linha], "demais " + r["unidades"] + " " + _do_grupo(base, territorio.uf) + soma, None
     if territorio.tipo == "conjunto" and territorio.nivel == "municipios":
         dentro = set(_linhas_dos_membros(base, territorio))
         ufs = sorted({base.prefixos[linha] for linha in dentro})
         outros = [linha for uf in ufs for linha in base.do_estado.get(uf, ()) if linha not in dentro]
+        r = series_brasil.rotulos(base)
         if not outros:
-            return vazio, "", "As UFs do conjunto não têm outros municípios: não há referência na mesma unidade."
+            return vazio, "", ("As UFs do conjunto não têm outros municípios: não há referência na mesma unidade." if base.do_brasil else
+                               "Os grupos de cima do conjunto não têm outros territórios: não há referência na mesma unidade.")
         valido = ~np.isnan(q[outros]) & ~np.isnan(pop[outros]) & (pop[outros] > 0)
         soma_q, soma_pop = np.where(valido, q[outros], 0.0).sum(axis=0), np.where(valido, pop[outros], 0.0).sum(axis=0)
         with np.errstate(invalid="ignore", divide="ignore"):
             taxa = np.where(soma_pop > 0, POR * soma_q / soma_pop, np.nan)
-        return taxa, "demais municípios " + _e([state_with_preposition(uf) for uf in ufs]) + " (soma municipal)", None
+        return taxa, "demais " + r["unidades"] + " " + _e([_do_grupo(base, uf) for uf in ufs]) + \
+            (" (soma municipal)" if base.do_brasil else " (soma)"), None
     if territorio.nivel == "estados":
         dentro = {territorio.uf} if territorio.tipo == "estado" else {membro[3:] for membro in territorio.membros}
         outros = [uf for uf in base.estados if uf not in dentro]
@@ -569,7 +585,8 @@ def posicao(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
     if territorio.tipo == "municipio":
         linha = territorio.linha
         saida.update({"percentil": _num(qd.percentil_na_data[linha]), "universo": qd.universo_na_data,
-                      "nome_do_universo": "municípios do Brasil com taxa válida"})
+                      "nome_do_universo": series_brasil.rotulos(base)["unidades"] + " " + series_brasil.rotulos(base)["do_todo"] +
+                      " com taxa válida"})
         if saida["percentil"] is None:
             return {**saida, "estado": "nao_calculavel", "motivo": "Sem taxa válida na data."}
         if qd.motivo:
@@ -608,7 +625,8 @@ def posicao(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
 
 
 def _estado(base: Base, uf: str) -> Territorio:
-    return Territorio(id="uf:" + uf, tipo="estado", nivel="estados", rotulo=STATES[uf][1], uf=uf, serie=base.estados[uf], unidade="")
+    return Territorio(id="uf:" + uf, tipo="estado", nivel="estados", rotulo=series_brasil.nome_do_grupo(base, uf)[1], uf=uf,
+                      serie=base.estados[uf], unidade="")
 
 
 def defasagem(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
@@ -647,7 +665,8 @@ def contexto(base: Base, qd: Quadro, territorio: Territorio) -> dict:
     saida = {"distancia_km": None, "referencia": None, "percentil_da_distancia": None, "criterio": criterio,
              "universo": qd.universo_da_distancia}
     if qd.limiar is None:
-        return {**saida, "estado": "nao_calculavel", "motivo": "Sem a taxa do Brasil na data: o critério não pode ser aplicado."}
+        return {**saida, "estado": "nao_calculavel", "motivo": "Sem a taxa " + series_brasil.rotulos(base)["do_todo"] +
+                " na data: o critério não pode ser aplicado."}
     if territorio.nivel != "municipios":
         return {**saida, "estado": "nao_aplicavel", "motivo": "O estado como unidade não tem um ponto único: a distância é medida "
                 "de cada município."}
@@ -664,23 +683,23 @@ def contexto(base: Base, qd: Quadro, territorio: Territorio) -> dict:
     alvo = int(qd.referencia[perto])
     return {**saida, "estado": "contexto", "distancia_km": float(qd.distancia_km[perto]),
             "percentil_da_distancia": _num(qd.percentil_da_distancia[perto]) if territorio.tipo == "municipio" else None,
-            "referencia": {"id": "code:" + base.codigos[alvo], "rotulo": base.nomes[alvo], "taxa": _num(qd.taxa[alvo, qd.e])},
+            "referencia": {"id": base.prefixo_do_id + base.codigos[alvo], "rotulo": base.nomes[alvo], "taxa": _num(qd.taxa[alvo, qd.e])},
             **({"membro": base.nomes[perto]} if territorio.tipo == "conjunto" else {})}
 
 
 # --------------------------------------------------------------------------------------------- fenômeno 12
 COMBINACOES = (
-    ("estrutural_e_perda", "Poucos médicos e perda no último registro"),
-    ("estrutural_e_declinio", "Poucos médicos e declínio persistente"),
+    ("estrutural_e_perda", "Poucos {profissionais} e perda no último registro"),
+    ("estrutural_e_declinio", "Poucos {profissionais} e declínio persistente"),
     ("declinio_e_relativa", "Declínio persistente e queda da disponibilidade ou da posição relativa"),
-    ("patamar_e_estrutural", "Abaixo do patamar anterior e poucos médicos"),
+    ("patamar_e_estrutural", "Abaixo do patamar anterior e poucos {profissionais}"),
 )
 REPERCUSSOES = (("perda", "perda no último registro"), ("declinio", "declínio persistente"), ("patamar", "afastamento de patamar"),
                 ("disponibilidade", "queda da taxa por habitante"), ("posicao", "queda da posição relativa"),
                 ("defasagem", "ampliação da defasagem ante a referência"))
 
 
-def coexistencia(sinais: list[str], classe_estrutural: str | None) -> dict:
+def coexistencia(sinais: list[str], classe_estrutural: str | None, profissionais: str = "médicos") -> dict:
     """Fenômeno 12: o perfil e as combinações pré-definidas, sem índice geral. As repercussões de quedas no número de médicos
     (perda, declínio, patamar e os três indicadores relativos) são efeitos que se sobrepõem: contam como uma frente de sinal, não
     como evidências independentes."""
@@ -691,10 +710,10 @@ def coexistencia(sinais: list[str], classe_estrutural: str | None) -> dict:
         "declinio_e_relativa": "declinio" in tem and bool(tem & {"disponibilidade", "posicao"}),
         "patamar_e_estrutural": "patamar" in tem and classe_estrutural is not None,
     }
-    combinacoes = [{"chave": chave, "texto": texto} for chave, texto in COMBINACOES if presentes[chave]]
+    combinacoes = [{"chave": chave, "texto": texto.format(profissionais=profissionais)} for chave, texto in COMBINACOES if presentes[chave]]
     repercussoes = [texto for chave, texto in REPERCUSSOES if chave in tem]
     frentes = [nome for nome, vale in (("condição estrutural", classe_estrutural is not None or "ausencia" in tem),
-                                       ("queda no número de médicos", bool(repercussoes)),
+                                       ("queda no número de " + profissionais, bool(repercussoes)),
                                        ("ritmo", "desaceleracao" in tem)) if vale]
     return {"estado": "sinais_combinados" if combinacoes else "sem_combinacao", "combinacoes": combinacoes,
             "repercussoes": repercussoes, "frentes": frentes}

@@ -35,6 +35,78 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-14 · Detector de Sinais com qualquer base: planilha enviada, perfil da base antes das ferramentas e "Indisponível nesta base" (comando V23, seção 2 e Parte A)
+- **Classificação (regra 1):** mudança de comportamento pedida pelo responsável no comando V23 (13/11/2026, seções 0, 1 — decisão
+  5 — e 2; Proposta V3, seções A.2.6 e A.3). Decorre do pedido (escopo): o comando autoriza as duas ferramentas com planilhas
+  enviadas e as rotas a aceitar planilhas, "sem mudar o endereço das rotas nem os campos que as respostas já trazem". Na
+  compatibilidade, não contraria a SPEC nem uma divergência aprovada: o nível do alerta continua sendo a divergência aprovada D-A
+  (só no Detector), agora também com uma planilha. É a primeira parte da estrutura comum; o Simulador de Cenários ganha a mesma
+  estrutura na etapa seguinte do comando (Parte C) e, até lá, continua só com a base do Brasil.
+- **Antes:**
+  - o Detector de Sinais e o Simulador de Cenários só existiam na base do Brasil: com uma planilha enviada, os dois botões ficavam
+    desligados, com o motivo "O Detector e o Simulador funcionam só com a base de médicos que vem com o Agente (registros de
+    janeiro e junho de 2014 a 2024). Com uma planilha enviada, não estão disponíveis.";
+  - `POST /api/detector` recusava um arquivo enviado e o pedido sem `dataset=brazil` com "O Detector de Sinais Territoriais e o
+    Simulador de Cenários Territoriais usam a base do Brasil (médicos, registros de janeiro e junho de 2014 a 2024); com uma
+    planilha enviada, não estão disponíveis.";
+  - o motor tinha fixos o mês da série anual (junho), os meses de registro (janeiro e junho), os intervalos de 5 e 7 meses, o
+    estado como grupo de cima e os nomes "médicos", "município", "estado" e "Brasil";
+  - não havia perfil da base na tela: o perfil era só o documento escrito à mão para a base do Brasil.
+- **Agora:**
+  - **o Detector de Sinais abre com qualquer base:** a do Brasil ou uma planilha enviada. A planilha é lida com o mesmo
+    mapeamento de colunas, as mesmas premissas e os mesmos nomes das análises (`backend/series_da_planilha.py`, pelo portão de
+    `/api/painel`); nada é gravado, e nada vai ao provedor de IA;
+  - **rota:** `POST /api/detector` aceita `file`, `sheet` e `mapping` (como `/api/painel`), no mesmo endereço e com os campos de
+    antes; a opção `perfil: true` devolve só o perfil da base; `rotulos`, `premissas` e `categoria` descrevem a planilha, como no
+    pedido do painel. A resposta ganhou `fonte.origem`, `fonte.ancora`, `fonte.tem`, `fonte.formas` e `indisponiveis` (vazio na
+    base do Brasil); no detalhe, `estado_do_nivel` pode ser `indisponivel`; e `comparacao.estado`, `indisponivel`, com o motivo;
+  - **o que era fixo é lido da base:** as datas (`AAAAMM`, `AAAA-MM`, `AAAA-MM-DD` ou só o ano; com só o ano, um registro por
+    ano, e as datas aparecem como "2023"), os intervalos (só se comparam mudanças com o mesmo tempo entre registros; durações com
+    até 1 mês de diferença ficam juntas), o mês da série anual (o presente em todos os anos), o grupo de cima (a coluna
+    escolhida), a população, as coordenadas, o que a contagem conta e os nomes, com a concordância ("a comuna mais próxima",
+    "das demais comunas", "a base toda");
+  - **perfil da base, antes da ferramenta** (`perfil-da-base`): o que o Agente leu da base e o resumo "Com esta base, dá para" /
+    "Não dá para", com o motivo e os números ("Alertas críticos: eles pedem 999 comparações, e esta base chega a 360."). Numa
+    planilha, aparece aberto; na base do Brasil, fechado, e só é pedido ao motor quando a pessoa o abre;
+  - **o que a base não tem:** sem população, os sinais 8 a 11 dizem "Indisponível nesta base", com o motivo, em vez de "não
+    calculável"; sem grupo de cima, o sinal 10; sem coordenadas, o sinal 11; sem série anual, os sinais 3, 4 e 8 a 10. O filtro
+    "Sinal" e "Ajustar critérios" ficam só com os sinais que existem na base; o Mapa fica desligado sem coordenadas, e o
+    Gráfico, sem a distância, com o motivo;
+  - **seleção com uma planilha:** as unidades e os conjuntos delas. O grupo de cima como unidade não tem contagem própria na
+    planilha: fica fora da ferramenta, com o aviso na tela, e a rota recusa `estados_unidade` com o motivo;
+  - **o Simulador de Cenários** continua só com a base do Brasil: com uma planilha, o botão fica desligado, com o motivo "O
+    Simulador de Cenários ainda funciona só com a base que vem com o Agente. Com uma planilha enviada, use o Detector de
+    Sinais.", e o detalhe do Detector não oferece "Abrir no Simulador" nem "Simular recuperação". `POST /api/simulador` recusa
+    a planilha com "O Simulador de Cenários Territoriais usa a base do Brasil (médicos, registros de janeiro e junho de 2014 a
+    2024); com uma planilha enviada, ainda não está disponível.";
+  - **sem base nenhuma**, `POST /api/detector` responde "Escolha a base do Brasil ou envie uma planilha: a ferramenta lê a base
+    que estiver em uso." (antes, a mensagem das duas ferramentas);
+  - o texto de ajuda do botão do Detector diz "sinal a sinal" (antes, "fenômeno a fenômeno").
+- **Permanece:**
+  - **na base do Brasil, os resultados do Detector são os mesmos:** conferidos por exploração somente leitura em jun/2024,
+    jun/2021 e jan/2017, nos municípios e nos estados (níveis, régua e linhas idênticos aos do commit anterior). Os textos
+    continuam dizendo "médicos", "município", "estado", "junho" e "Brasil";
+  - os 12 sinais, os três níveis, os mínimos de 19, 99 e 999 comparações, a retaguarda, um nível por território, os critérios
+    ajustáveis, o "Entenda" e as exportações;
+  - o endereço das rotas e os campos que as respostas já traziam; os estados como unidade e a régua própria deles, na base do
+    Brasil;
+  - o Simulador de Cenários, na base do Brasil, como estava;
+  - nada vai ao provedor de IA: o Detector e o perfil são calculados no motor.
+- **Motivo:** decisão 5 do comando V23 ("Qualquer base. Nomes, mês âncora, grupo de cima, portes e trechos de população
+  comparável vêm do perfil da base") e seção 2 ("Perfil da base (A.3). Antes de abrir as ferramentas, o Agente lê a base […]
+  Mostra o resumo 'com esta base, dá para… / não dá para… (motivo)', na base do Brasil e em planilhas enviadas").
+- **Documentação e testes:** [Detector de Sinais](DETECTOR_DE_SINAIS.md) (seção "Qualquer base", a rota, as limitações e os
+  testes), [Perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md) (seção 9: o perfil que o Agente lê, com o da base do Brasil e
+  o da planilha de teste), [interface](PAINEL_INTEGRADO_INTERFACE.md) (a linha das ferramentas e o perfil) e `README.md`. Testes
+  novos: `backend/tests/test_ferramentas_qualquer_base.py`, com a planilha de teste `backend/tests/planilha_das_ferramentas.csv`
+  (20 distritos fictícios, de seis em seis meses durante 10 anos, sem grupo e sem população), e um teste em
+  `frontend/tests/detector.test.mjs`. **Testes que mudaram porque o comportamento mudou de propósito (regra 3):**
+  `backend/tests/test_detector.py` e `backend/tests/test_simulador.py` (as mensagens de recusa: a planilha no Detector passa
+  pelo portão das análises; o Simulador diz que ainda não aceita planilha), `backend/tests/ui_planilha_ficticia.py` (o trecho
+  que conferia as duas ferramentas desligadas confere agora o Detector aberto com a planilha, o perfil antes dele e o Simulador
+  desligado, com o motivo novo) e `backend/tests/ui_detector.py` (ganhou o perfil da base do Brasil, fechado até a pessoa pedir).
+  Nenhum teste foi afrouxado.
+
 ### 2026-11-13 · Detector de Sinais na Proposta V3: níveis moderado, elevado e crítico pela régua comum, lista de quatro colunas, critérios em frases e "Entenda" (comando V23, Partes A e B)
 - **Classificação (regra 1):** mudança de comportamento pedida pelo responsável no comando V23 (13/11/2026, seções 1 a 3, com o
   Anexo A salvo em [Detector e Simulador V3](DETECTOR_E_SIMULADOR_V3.md)). Decorre do pedido (escopo). Na compatibilidade, o nível

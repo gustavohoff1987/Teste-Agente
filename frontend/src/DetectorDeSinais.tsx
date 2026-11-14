@@ -2,14 +2,14 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownUp, ChartScatter, ChevronDown, ChevronRight, Download, List, LoaderCircle, Map as IconeDoMapa, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { BolhasDoContexto, MapaDosNiveis, SerieDaTaxa } from "./DetectorGraficos";
 import Entenda from "./Entenda";
-import { ErroDoMotor, pedirAoMotor, type FonteDoMotor } from "./painelApi";
+import { ErroDoMotor, pedirAoMotor, type FonteDoMotor, type RotulosTerritoriais } from "./painelApi";
 import {
-  ESTADOS_DO_ALERTA, NIVEIS, NOMES_DOS_NIVEIS, SEM_FILTROS, alvoDoSimulador, competenciaCurta, criteriosEmFrases, csvDoDetector, estadoDoAlerta,
+  ESTADOS_DO_ALERTA, NIVEIS, NOMES_DOS_NIVEIS, SEM_FILTROS, alvoDoSimulador, artigoDaUnidade, competenciaCurta, criteriosEmFrases, csvDoDetector, estadoDoAlerta,
   filtrarLinhas, filtrosDeSinal, formatarInteiro, formatarPct, formatarTaxa, metodoDoDetector, nomeDoEstado, nomeDoSinal, normalizarDetalhe,
   normalizarDetector, ordenarLinhas, parametrosPersonalizados, patamarARecuperar, profissionais, rotuloDoCampo, textoDaContagem, textoDaMesmaQueda,
   textoDaUltima, textoDoAlerta, textoDoCorte, textoDoPorQue, textoDoRegistro, textoDosTrechos, tipoDoTerritorio,
   type AlvoDoSimulador, type DetalheDoDetector, type EstadoDoAlerta, type FaixaDaRegua, type FenomenoDoDetalhe, type FiltrosDoDetector,
-  type LinhaDoDetector, type NivelDoAlerta, type OpcoesDoDetector, type OrdemDoDetector, type ParametrosDoDetector, type ReguaDaData,
+  type LinhaDoDetector, type NivelDoAlerta, type OpcoesDaBase, type OpcoesDoDetector, type OrdemDoDetector, type ParametrosDoDetector, type ReguaDaData,
   type RespostaDoDetector, type RotulosDaBase, type SelecaoDasFerramentas,
 } from "./detectorModel";
 
@@ -23,12 +23,21 @@ import {
 // sinais em quatro grupos (Quantos há, Como mudou, Comparado com outros, Onde fica), mais Juntos; em cada sinal, o nível, uma
 // frase e o "Entenda" (Entenda.tsx), com a explicação inteira em "Ver explicação completa". Todo número e todo texto de resultado
 // vêm do motor (POST /api/detector), que calcula sem o provedor de IA. A tela só filtra, ordena e desenha.
+// Vale para qualquer base (seção A.3): com uma planilha enviada, o pedido leva o que descreve a planilha (os nomes, as premissas e
+// a categoria, como no painel); o que a base não sustenta aparece como "Indisponível nesta base", com o motivo, e o mapa e o
+// gráfico ficam desligados, também com o motivo, quando faltam as coordenadas ou a população.
 
 const POR_PAGINA = 50;
 type Props = {
   fonte: FonteDoMotor;
   /** A seleção em uso (a da Seleção de Territórios); null sem territórios. */
   selecao: SelecaoDasFerramentas | null;
+  /** Numa planilha enviada, o que o pedido diz dela (os nomes, as premissas e a categoria), como no pedido do painel. */
+  daBase?: OpcoesDaBase;
+  /** Numa planilha enviada, os nomes do painel "Colunas", para o gráfico e a série da taxa (na base do Brasil, os do Brasil). */
+  rotulosDoPainel?: RotulosTerritoriais;
+  /** O que da seleção ficou fora da ferramenta, e por quê (numa planilha, o grupo de cima como unidade não tem contagem própria). */
+  avisoDaSelecao?: string | null;
   resumoDaSelecao: string;
   onAlterarSelecao: () => void;
   /** Abre o território no Simulador de Cenários, com o contexto analítico (a data avaliada, a janela escolhida e os sinais com nível). */
@@ -100,7 +109,7 @@ const CAMPOS_DA_EXPLICACAO: [keyof FenomenoDoDetalhe, string][] = [
   ["observado", "O que foi observado"], ["criterio", "Qual critério"], ["habitual", "Comparado com o comum"], ["significa", "O que significa"],
   ["naoSignifica", "O que não significa"], ["limitacoes", "Limitações do dado"], ["qualidade", "Qualidade do registro"]];
 const ESTADOS_DO_NIVEL: Record<string, string> = { sem_alerta: "Sem alerta", sem_comparacoes: "Sem comparações suficientes", sem_nivel: "Sem nível (conjunto)",
-  sem_dado: "Sem dado para avaliar", nao_avaliado: "Não avaliado", contexto: "Só contexto", juntos: "" };
+  sem_dado: "Sem dado para avaliar", nao_avaliado: "Não avaliado", contexto: "Só contexto", juntos: "", indisponivel: "Indisponível nesta base" };
 
 /** Um sinal no detalhe: o nível (com o tipo de critério), uma frase, o "Entenda" e, quando pedida, a explicação completa. */
 function SinalDoTerritorio({ sinal, aberto, onAlternar }: { sinal: FenomenoDoDetalhe; aberto: boolean; onAlternar: (abrir?: boolean) => void }) {
@@ -114,7 +123,8 @@ function SinalDoTerritorio({ sinal, aberto, onAlternar }: { sinal: FenomenoDoDet
           {sinal.criterioDoNivel}{sinal.exploratorio ? " · exploratório" : ""}</span></>
           : estado ? <span className="ferramenta-sem-nivel">{estado}</span> : null}
       </span>
-      <span data-testid="detector-fenomeno-situacao" className="ferramenta-sinal-frase">{sinal.situacao}
+      {/* O sinal que a base não sustenta (sem população, coordenadas, grupo de cima ou série anual): a frase é o motivo. */}
+      <span data-testid="detector-fenomeno-situacao" className="ferramenta-sinal-frase">{sinal.estadoDoNivel === "indisponivel" ? sinal.observado : sinal.situacao}
         {sinal.semComparacoes && <span data-testid="detector-fenomeno-sem-comparacoes" className="ferramenta-apoio ferramenta-sinal-falta">
           {sinal.semComparacoes.texto}</span>}</span>
       <span className="ferramenta-sinal-acoes">
@@ -130,8 +140,8 @@ function SinalDoTerritorio({ sinal, aberto, onAlternar }: { sinal: FenomenoDoDet
   </li>;
 }
 
-function DetalheDoTerritorio({ detalhe, linha, resposta, patamar, onAbrirNoSimulador, onSimularRecuperacao }: { detalhe: DetalheDoDetector;
-  linha: LinhaDoDetector; resposta: RespostaDoDetector;
+function DetalheDoTerritorio({ detalhe, linha, resposta, patamar, rotulosDoPainel, onAbrirNoSimulador, onSimularRecuperacao }: { detalhe: DetalheDoDetector;
+  linha: LinhaDoDetector; resposta: RespostaDoDetector; rotulosDoPainel?: RotulosTerritoriais;
   /** O patamar do território (sinal 7), quando ele está abaixo dele: a meta hipotética de "Simular recuperação". */
   patamar: number | null; onAbrirNoSimulador?: () => void; onSimularRecuperacao?: () => void }) {
   const r = resposta.fonte.rotulos;
@@ -150,7 +160,7 @@ function DetalheDoTerritorio({ detalhe, linha, resposta, patamar, onAbrirNoSimul
     <p className="ferramenta-apoio">Contagem: {detalhe.unidade}.{detalhe.membros.length > 0 && " Componentes: " + detalhe.membros.join(", ") + "."}
       {detalhe.depoisDaQuebra && " Os indicadores deste território começam em " + competenciaCurta(detalhe.inicioDoTerritorio) + ", depois da quebra de fonte."}</p>
     <SerieObservada detalhe={detalhe}/>
-    <SerieDaTaxa detalhe={detalhe} profissionais={r.profissionais}/>
+    <SerieDaTaxa detalhe={detalhe} profissionais={r.profissionais} rotulosDoPainel={rotulosDoPainel} feminino={artigoDaUnidade(r) === "a"}/>
     {resposta.grupos.map(grupo => {
       const sinais = detalhe.fenomenos.filter(sinal => sinal.grupo === grupo.chave);
       return sinais.length ? <section key={grupo.chave} data-testid="detector-grupo" data-grupo={grupo.chave} className="ferramenta-grupo"
@@ -231,9 +241,12 @@ export default function DetectorDeSinais(p: Props) {
   const cache = useRef(new Map<string, RespostaDoDetector>());
   const metodo = useRef<HTMLDivElement>(null);
 
-  const pedido: OpcoesDoDetector | null = useMemo(() => p.selecao ? { ...p.selecao, ...(janela.inicio || janela.fim ? { janela } : {}),
-    ...(parametros ? { parametros } : {}) } : null, [p.selecao, janela, parametros]);
-  const chave = pedido ? p.fonte.datasetVersion + "::" + JSON.stringify(pedido) : "";
+  const pedido: OpcoesDoDetector | null = useMemo(() => p.selecao ? { ...p.selecao, ...(p.daBase ?? {}), ...(janela.inicio || janela.fim ? { janela } : {}),
+    ...(parametros ? { parametros } : {}) } : null, [p.selecao, p.daBase, janela, parametros]);
+  // A planilha enviada é identificada pelo arquivo, pela aba e pelo mapeamento: trocar qualquer um deles é outra base.
+  const daPlanilha = p.fonte.tipo === "arquivo" ? JSON.stringify([p.fonte.arquivo ? [p.fonte.arquivo.name, p.fonte.arquivo.size, p.fonte.arquivo.lastModified] : null,
+    p.fonte.sheet, p.fonte.mapping]) + "::" : "";
+  const chave = pedido ? p.fonte.datasetVersion + "::" + daPlanilha + JSON.stringify(pedido) : "";
 
   // A lista: pedida ao motor a cada mudança da seleção, da janela ou dos critérios; a resposta de um pedido igual vem da memória.
   useEffect(() => {
@@ -322,7 +335,13 @@ export default function DetectorDeSinais(p: Props) {
       <button type="button" className="analise-link" onClick={p.onAlterarSelecao}>Selecionar os territórios</button></p>
   </section>;
 
-  const criterios = r ? criteriosEmFrases(r) : [];
+  // O que a base não sustenta (sinal → motivo): os critérios e o filtro "Sinal" ficam só com os sinais que existem nela; o mapa
+  // pede coordenadas, e o gráfico, a distância (população e coordenadas).
+  const indisponiveis = resposta?.indisponiveis ?? {};
+  const criterios = r ? criteriosEmFrases(r).filter(criterio => !indisponiveis[criterio.sinal]) : [];
+  const semMapa = resposta && !resposta.fonte.tem.coordenadas ? "A base não tem coordenadas com o referencial informado: não há pontos para o mapa." : null;
+  const semGrafico = resposta ? indisponiveis.contexto ?? null : null;
+  const vistaEmUso: Vista = (vista === "mapa" && semMapa) || (vista === "grafico" && semGrafico) ? "lista" : vista;
   const cabecaDeOrdem = (rotulo: string, valor: OrdemDoDetector, testid: string) => <button type="button" data-testid={testid}
     className="ferramenta-ordenar" aria-pressed={ordem === valor} title={"Ordenar por " + rotulo.toLowerCase()}
     onClick={() => { setOrdem(valor); setPagina(0); }}>{rotulo}<ArrowDownUp size={12} aria-hidden="true"/></button>;
@@ -333,6 +352,7 @@ export default function DetectorDeSinais(p: Props) {
       Os sinais descrevem a situação até {competenciaCurta(resposta.janela.fim)}, não a de hoje.</p>}
     {resposta?.avisoDaBase && <p data-testid="detector-aviso-da-base" role="status" className="ferramenta-exploratorio"><strong>Aviso da base.</strong>{" "}
       {resposta.avisoDaBase}</p>}
+    {p.avisoDaSelecao && <p data-testid="detector-aviso-da-selecao" role="note" className="ferramenta-aviso">{p.avisoDaSelecao}</p>}
     {resposta?.exploratorio && <p data-testid="detector-exploratorio" role="status" className="ferramenta-exploratorio">
       <strong>Configuração exploratória.</strong> Os critérios em uso são diferentes do padrão, e estes resultados não substituem os da configuração padrão.{" "}
       <button type="button" data-testid="detector-padroes" className="analise-link" onClick={voltarAoPadrao}>Voltar ao padrão</button></p>}
@@ -350,7 +370,7 @@ export default function DetectorDeSinais(p: Props) {
         </select></label>
       <label className="analise-rotulo-campo">Sinal
         <select data-testid="detector-filtro-sinal" className="analise-campo" value={filtros.sinal} onChange={event => mudarFiltros({ sinal: event.target.value })}>
-          {filtrosDeSinal(r).map(item => <option key={item.chave} value={item.chave}>{item.rotulo}</option>)}
+          {filtrosDeSinal(r).filter(item => !indisponiveis[item.chave]).map(item => <option key={item.chave} value={item.chave}>{item.rotulo}</option>)}
         </select></label>
       <label className="analise-rotulo-campo ferramenta-filtro-busca">Buscar território
         <input type="search" data-testid="detector-busca" className="analise-campo" value={filtros.busca} autoComplete="off"
@@ -393,6 +413,9 @@ export default function DetectorDeSinais(p: Props) {
       </fieldset>)}
       <p className="ferramenta-apoio">Sinal 12 (sinais juntos): mostra quais sinais com nível coincidem no território e não tem limite a ajustar. Passe o
         mouse num campo para ver o padrão e o intervalo aceito.</p>
+      {Object.keys(indisponiveis).length > 0 && r && <p data-testid="detector-criterios-indisponiveis" className="ferramenta-apoio">Sem critérios a ajustar
+        nesta base: {Object.keys(indisponiveis).map(sinal => nomeDoSinal(sinal, r).toLowerCase()).join(", ")}. O motivo de cada um está no detalhe do
+        território e no perfil da base.</p>}
       <div className="ferramenta-detalhe-acoes">
         <button type="submit" data-testid="detector-parametros-aplicar" className="analise-botao-primario">Aplicar como configuração exploratória</button>
         <button type="button" data-testid="detector-parametros-padrao" className="analise-botao-secundario" onClick={voltarAoPadrao}>
@@ -418,12 +441,12 @@ export default function DetectorDeSinais(p: Props) {
 
     {resposta && <div className="ferramenta-acoes analise-nao-imprimir">
       <div role="group" aria-label="Lista, mapa ou gráfico" className="ferramenta-modos">
-        <button type="button" data-testid="detector-vista-lista" className="analise-botao-secundario" aria-pressed={vista === "lista"}
+        <button type="button" data-testid="detector-vista-lista" className="analise-botao-secundario" aria-pressed={vistaEmUso === "lista"}
           onClick={() => setVista("lista")}><List size={14} aria-hidden="true"/>Lista</button>
-        <button type="button" data-testid="detector-vista-mapa" className="analise-botao-secundario" aria-pressed={vista === "mapa"}
-          onClick={() => setVista("mapa")}><IconeDoMapa size={14} aria-hidden="true"/>Mapa</button>
-        <button type="button" data-testid="detector-vista-grafico" className="analise-botao-secundario" aria-pressed={vista === "grafico"}
-          onClick={() => setVista("grafico")}><ChartScatter size={14} aria-hidden="true"/>Gráfico</button>
+        <button type="button" data-testid="detector-vista-mapa" className="analise-botao-secundario" aria-pressed={vistaEmUso === "mapa"}
+          disabled={!!semMapa} title={semMapa ?? undefined} onClick={() => setVista("mapa")}><IconeDoMapa size={14} aria-hidden="true"/>Mapa</button>
+        <button type="button" data-testid="detector-vista-grafico" className="analise-botao-secundario" aria-pressed={vistaEmUso === "grafico"}
+          disabled={!!semGrafico} title={semGrafico ?? undefined} onClick={() => setVista("grafico")}><ChartScatter size={14} aria-hidden="true"/>Gráfico</button>
       </div>
       <button type="button" data-testid="detector-exportar-csv" className="analise-botao-secundario" disabled={!filtradas.length}
         onClick={() => baixar("detector_de_sinais_" + resposta.janela.fim + ".csv", csvDoDetector(resposta, filtradas), "text/csv;charset=utf-8")}>
@@ -435,9 +458,12 @@ export default function DetectorDeSinais(p: Props) {
         <button type="button" data-testid="detector-alterar-selecao" className="analise-link" onClick={p.onAlterarSelecao}>Alterar a seleção</button></span>
     </div>}
 
-    {resposta && vista !== "lista" && <div data-testid="detector-visual" data-vista={vista} className="ferramenta-visual">
-      {vista === "mapa" && <MapaDosNiveis resposta={resposta} linhas={filtradas} sinal={filtros.sinal} onAbrir={abrirDoDesenho}/>}
-      {vista === "grafico" && <BolhasDoContexto resposta={resposta} linhas={filtradas} sinal={filtros.sinal} onAbrir={abrirDoDesenho}/>}
+    {resposta && (semMapa || semGrafico) && <p data-testid="detector-vistas-motivo" className="ferramenta-apoio analise-nao-imprimir">
+      {[semMapa ? "Mapa indisponível: " + semMapa : "", semGrafico ? "Gráfico indisponível: " + semGrafico : ""].filter(Boolean).join(" ")}</p>}
+    {resposta && vistaEmUso !== "lista" && <div data-testid="detector-visual" data-vista={vistaEmUso} className="ferramenta-visual">
+      {vistaEmUso === "mapa" && <MapaDosNiveis resposta={resposta} linhas={filtradas} sinal={filtros.sinal} onAbrir={abrirDoDesenho}/>}
+      {vistaEmUso === "grafico" && <BolhasDoContexto resposta={resposta} linhas={filtradas} sinal={filtros.sinal} onAbrir={abrirDoDesenho}
+        rotulosDoPainel={p.rotulosDoPainel}/>}
     </div>}
 
     {resposta && r && <div className="ferramenta-rolagem">
@@ -451,7 +477,10 @@ export default function DetectorDeSinais(p: Props) {
           {resposta.comparacao.estado === "comparavel" && <span data-testid="detector-comparacao" data-estado="comparavel">
             {" "}Os sinais comparados em 2 anos (8 a 10) usam a variação de {competenciaCurta(resposta.comparacao.de)} a{" "}
             {competenciaCurta(resposta.comparacao.ate)}.</span>}
+          {resposta.comparacao.estado === "indisponivel" && <span data-testid="detector-comparacao" data-estado="indisponivel">
+            {" "}Os sinais comparados em 2 anos (8 a 10) não estão disponíveis nesta base. {resposta.comparacao.motivo ?? indisponiveis.disponibilidade ?? ""}</span>}
           {resposta.comparacao.estado !== "comparavel" && resposta.comparacao.estado !== "comparacao_nao_habilitada" &&
+            resposta.comparacao.estado !== "indisponivel" &&
             <span data-testid="detector-comparacao" data-estado={resposta.comparacao.estado}>{" "}Os sinais comparados em 2 anos (8 a 10) não são avaliados
               nesta data: falta o registro de dois anos antes.</span>}
         </caption>
@@ -494,6 +523,7 @@ export default function DetectorDeSinais(p: Props) {
                 {!detalhe ? <p role="status" className="ferramenta-apoio"><LoaderCircle size={14} className="animate-spin inline" aria-hidden="true"/> Abrindo os detalhes…</p>
                   : "erro" in detalhe ? <p role="alert" className="analise-motivo">{detalhe.erro}</p>
                     : <DetalheDoTerritorio detalhe={detalhe} linha={linha} resposta={resposta} patamar={patamarARecuperar(linha)}
+                      rotulosDoPainel={p.rotulosDoPainel}
                       onAbrirNoSimulador={p.onAbrirNoSimulador ? () => p.onAbrirNoSimulador!(alvoDoSimulador(linha, resposta)) : undefined}
                       onSimularRecuperacao={p.onSimularRecuperacao && patamarARecuperar(linha) !== null
                         ? () => p.onSimularRecuperacao!(alvoDoSimulador(linha, resposta), patamarARecuperar(linha)!) : undefined}/>}

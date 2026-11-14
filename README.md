@@ -919,8 +919,14 @@ classe da tendência; com vários, sem faixas artificiais nem contagens zeradas)
 
 ## Detector de Sinais Territoriais (comandos V22 e V23)
 
-Na base do Brasil, o botão **Detector de Sinais**, na navegação principal, **compara cada território da seleção com o que é comum
-na própria base**: territórios de tamanho parecido e só o que veio antes de cada data. A primeira tela é uma lista de quatro
+O botão **Detector de Sinais**, na navegação principal, **compara cada território da seleção com o que é comum na própria
+base**: territórios de tamanho parecido e só o que veio antes de cada data. Vale para **qualquer base**: a do Brasil e, desde
+14/11/2026 (comando V23), uma planilha enviada, lida com o mesmo mapeamento de colunas das análises. Antes da ferramenta, o
+**perfil da base** diz o que o Agente leu dela (datas e intervalos, série anual, portes, grupo de cima, população, coordenadas, o
+que a contagem conta e os nomes) e resume **"com esta base, dá para… / não dá para…"**, com o motivo: numa planilha sem
+população, por exemplo, os sinais por habitante ficam "Indisponível nesta base", e numa base curta o crítico fica "sem
+comparações suficientes", com os números. Com uma planilha, nenhum texto usa "médicos", "município", "estado", "junho" ou
+"Brasil" que não venha dela, e o grupo de cima não entra como unidade. A primeira tela é uma lista de quatro
 colunas (Território · Alerta · Por quê · Último registro), com o resumo dos níveis no alto, clicável, os filtros numa linha
 (Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico. Cada território tem **um nível só** — **moderado, elevado ou
 crítico**, o maior entre os seus 12 sinais, sem soma nem índice —, sempre escrito e com o tipo de critério: "comparado com a
@@ -934,7 +940,7 @@ números; abre com o mouse, com um toque ou pelo teclado). "Ajustar critérios" 
 delas: trocar um valor torna a configuração exploratória, e "Voltar ao padrão" fica sempre à vista. Os sinais comparados em 2
 anos só calculam a variação em trechos com população comparável, lidos da própria base (com a população do Ministério da Saúde,
 desde 13/11/2026, a base inteira é um trecho só). Nos detalhes, "Abrir no Simulador" e "Simular recuperação" levam o território
-ao Simulador de Cenários. Os cálculos são do motor (`POST /api/detector`), sem o provedor de IA. Regras, rota, estudo de
+ao Simulador de Cenários (na base do Brasil: o Simulador ainda não funciona com planilhas). Os cálculos são do motor (`POST /api/detector`), sem o provedor de IA. Regras, rota, estudo de
 calibração e limitações: [Docs/DETECTOR_DE_SINAIS.md](Docs/DETECTOR_DE_SINAIS.md); a referência metodológica é
 [Docs/DETECTOR_E_SIMULADOR_V3.md](Docs/DETECTOR_E_SIMULADOR_V3.md) (a [V2.2](Docs/DETECTOR_E_SIMULADOR_V2_2.md) continua valendo
 no que a V3 não muda).

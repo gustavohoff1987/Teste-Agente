@@ -256,11 +256,18 @@ Pedidos pelo responsável ao conferir as capturas da etapa 2; onde divergem, val
 
 Acima das abas, a linha "Ferramentas" (`analise-ferramentas-novas`) traz os botões das ferramentas do Eixo II do comando V22. Cada
 uma abre no lugar do painel da aba e do desenho da análise (`analise-ferramenta-painel`; `area-de-analise` leva `data-ferramenta`)
-e fecha quando a pessoa escolhe uma aba, vai à Seleção de Territórios ou faz um pedido pela conversa. Só existem na base do
-Brasil; com uma planilha enviada, ficam desligadas, com o motivo (`analise-ferramentas-motivo`): "O Detector e o Simulador
-funcionam só com a base de médicos que vem com o Agente (registros de janeiro e junho de 2014 a 2024). Com uma planilha enviada,
-não estão disponíveis." O texto não cita o Brasil: com uma planilha, nenhum texto à vista usa o vocabulário da base brasileira
-(regra de 28/10/2026).
+e fecha quando a pessoa escolhe uma aba, vai à Seleção de Territórios ou faz um pedido pela conversa. Desde o comando V23
+(14/11/2026), o **Detector de Sinais abre com qualquer base**: a do Brasil ou uma planilha enviada. O **Simulador de Cenários**
+ainda existe só na base do Brasil; com uma planilha, o botão dele fica desligado, com o motivo (`analise-ferramentas-motivo`): "O
+Simulador de Cenários ainda funciona só com a base que vem com o Agente. Com uma planilha enviada, use o Detector de Sinais." O
+texto não cita o Brasil: com uma planilha, nenhum texto à vista usa o vocabulário da base brasileira (regra de 28/10/2026).
+
+Antes da ferramenta aberta vem o **perfil da base** (`perfil-da-base`; `frontend/src/PerfilDaBase.tsx`): o que o Agente leu da
+base (datas e intervalos, série anual, portes, grupo de cima, população, coordenadas, o que a contagem conta e os nomes) e o
+resumo "Com esta base, dá para" / "Não dá para", com o motivo. Numa planilha (uma base nova), ele aparece aberto; na base do
+Brasil, fechado, e só é pedido ao motor quando a pessoa o abre (`POST /api/detector` com `{"perfil": true}`). Com uma planilha,
+as ferramentas avaliam as unidades e os conjuntos: o grupo de cima como unidade fica fora, com o aviso
+(`detector-aviso-da-selecao`).
 
 - **Detector de Sinais** (`analise-ferramenta-detector`): [Detector de Sinais Territoriais](DETECTOR_DE_SINAIS.md). Usa a seleção
   em uso. Desde 13/11/2026 (comando V23, Proposta V3), a primeira tela é uma lista de quatro colunas (Território · Alerta · Por

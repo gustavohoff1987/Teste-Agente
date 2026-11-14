@@ -22,7 +22,9 @@ export const CORES_DOS_NIVEIS: Record<NivelDoAlerta, string> = { moderado: "#fab
 export type EstadoDoAlerta = NivelDoAlerta | "sem_alerta" | "sem_comparacoes" | "sem_nivel";
 export const ESTADOS_DO_ALERTA: EstadoDoAlerta[] = ["critico", "elevado", "moderado", "sem_alerta", "sem_comparacoes", "sem_nivel"];
 /** Os nomes da base (seção A.2.6): na base do Brasil, "médicos", "estado" e "Brasil"; numa planilha, os dela. */
-export type RotulosDaBase = { profissional: string; profissionais: string; unidade: string; unidades: string; grupo: string; grupos: string; todo: string };
+export type RotulosDaBase = { profissional: string; profissionais: string; unidade: string; unidades: string; grupo: string; grupos: string; todo: string;
+  /** As formas com artigo que o motor manda (`fonte.formas`), para a concordância: "o município", "a área". Sem elas, o masculino. */
+  oUnidade?: string; oGrupo?: string };
 export const ROTULOS_DO_BRASIL: RotulosDaBase = { profissional: "médico", profissionais: "médicos", unidade: "município", unidades: "municípios",
   grupo: "estado", grupos: "estados", todo: "Brasil" };
 
@@ -32,7 +34,10 @@ export type SelecaoDasFerramentas = { base?: { municipios: PainelMunicipios }; e
 export type JanelaDoDetector = { inicio: string; fim: string; registros: number; meses: number; padrao: boolean;
   ultimoRegistroDaBase: string; eOUltimo: boolean };
 export type ParametrosDoDetector = Record<string, Record<string, number>>;
-export type OpcoesDoDetector = SelecaoDasFerramentas & { janela?: { inicio?: string; fim?: string }; parametros?: ParametrosDoDetector;
+/** O que o pedido das ferramentas diz de uma planilha enviada, como no pedido do painel: os nomes (painel "Colunas"), as
+ * premissas confirmadas e a categoria. Na base do Brasil, nada disso vai. */
+export type OpcoesDaBase = { rotulos?: unknown; premissas?: unknown; categoria?: string };
+export type OpcoesDoDetector = SelecaoDasFerramentas & OpcoesDaBase & { janela?: { inicio?: string; fim?: string }; parametros?: ParametrosDoDetector;
   detalhe?: string };
 
 export type SinalComNivel = { sinal: string; nivel: NivelDoAlerta; criterio: string };
@@ -85,7 +90,9 @@ export type ReguaDaData = { competencia: string; intervaloMeses: number | null; 
 export type TextoDoEntenda = { texto: string; exemplo: string };
 export type RespostaDoDetector = {
   versao: string; fonte: { base: string; categoria: string; versao: string; primeira: string; ultima: string; competencias: number;
-    rotulos: RotulosDaBase; unidades: Record<string, string> };
+    rotulos: RotulosDaBase; unidades: Record<string, string>;
+    /** De onde vem a base ("brasil" ou "planilha") e o que ela tem: sem coordenadas, não há mapa; sem população, não há gráfico. */
+    origem: "brasil" | "planilha"; tem: { populacao: boolean; coordenadas: boolean; grupo: boolean; serieAnual: boolean } };
   janela: JanelaDoDetector; competencias: string[];
   parametros: { padrao: ParametrosDoDetector; emUso: ParametrosDoDetector; personalizados: boolean;
     editaveis: Record<string, Record<string, { minimo: number; maximo: number; inteiro: boolean }>> };
@@ -105,8 +112,14 @@ export type RespostaDoDetector = {
   comparacao: ComparacaoDoDetector;
   /** As coordenadas autorizadas do motor (id → [latitude, longitude]) para o mapa: os municípios da seleção e os de referência. */
   coordenadas: Record<string, [number, number]>;
+  /** Os sinais que esta base não sustenta (sinal → motivo): sem população, sem coordenadas, sem grupo de cima ou sem série anual. */
+  indisponiveis: Record<string, string>;
   notas: string[]; limitacoes: string[];
 };
+/** O perfil da base (seção A.3): o que o Agente leu dela e o resumo "com esta base, dá para… / não dá para… (motivo)". */
+export type PerfilDaBase = { origem: "brasil" | "planilha"; base: string; categoria: string; territorios: number; registros: number;
+  primeira: string; ultima: string; itens: { chave: string; titulo: string; lido: string; falta: string | null }[];
+  daPara: string[]; naoDaPara: { oQue: string; motivo: string }[]; avisos: string[] };
 export type PontoDaSerie = { competencia: string; valor: number | null; estado: string; marca: string | null; membrosSemRegistro: number | null };
 export type PassoDoHistorico = { competencia: string; valor: number | null; alerta: NivelDoAlerta | null; estrutural: NivelDoAlerta | null;
   perda: { delta: number; pct: number | null; estado: string; classe: NivelDoAlerta | null } | null;
@@ -160,9 +173,10 @@ function coordenadasDe(bruto: unknown): Record<string, [number, number]> {
   }
   return saida;
 }
-function rotulosDe(bruto: unknown): RotulosDaBase {
-  const r = objeto(bruto);
-  return Object.fromEntries(Object.entries(ROTULOS_DO_BRASIL).map(([chave, padrao]) => [chave, texto(r[chave]) ?? padrao])) as RotulosDaBase;
+function rotulosDe(bruto: unknown, formas?: unknown): RotulosDaBase {
+  const r = objeto(bruto), f = objeto(formas);
+  return { ...Object.fromEntries(Object.entries(ROTULOS_DO_BRASIL).map(([chave, padrao]) => [chave, texto(r[chave]) ?? padrao])) as RotulosDaBase,
+    ...(texto(f.o_unidade) ? { oUnidade: texto(f.o_unidade)! } : {}), ...(texto(f.o_grupo) ? { oGrupo: texto(f.o_grupo)! } : {}) };
 }
 function alertaDe(bruto: unknown): AlertaDoTerritorio {
   const a = objeto(bruto);
@@ -227,7 +241,7 @@ const entendaDe = (bruto: unknown): TextoDoEntenda => { const e = objeto(bruto);
 
 /** A resposta da lista de POST /api/detector nos tipos da tela. */
 export function normalizarDetector(bruto: unknown): RespostaDoDetector {
-  const o = objeto(bruto), fonte = objeto(o.fonte), p = objeto(o.parametros), resumo = objeto(o.resumo);
+  const o = objeto(bruto), fonte = objeto(o.fonte), p = objeto(o.parametros), resumo = objeto(o.resumo), tem = objeto(fonte.tem);
   const editaveis = Object.fromEntries(Object.entries(objeto(p.editaveis)).map(([grupo, chaves]) => [grupo,
     Object.fromEntries(Object.entries(objeto(chaves)).map(([chave, faixa]) => {
       const f = objeto(faixa);
@@ -236,8 +250,11 @@ export function normalizarDetector(bruto: unknown): RespostaDoDetector {
   return { versao: texto(o.versao) ?? "",
     fonte: { base: texto(fonte.base) ?? "", categoria: texto(fonte.categoria) ?? "", versao: texto(fonte.versao) ?? "",
       primeira: texto(fonte.primeira) ?? "", ultima: texto(fonte.ultima) ?? "", competencias: num(fonte.competencias) ?? 0,
-      rotulos: rotulosDe(fonte.rotulos),
-      unidades: Object.fromEntries(Object.entries(objeto(fonte.unidades)).filter((par): par is [string, string] => typeof par[1] === "string")) },
+      rotulos: rotulosDe(fonte.rotulos, fonte.formas),
+      unidades: Object.fromEntries(Object.entries(objeto(fonte.unidades)).filter((par): par is [string, string] => typeof par[1] === "string")),
+      // Uma resposta sem `tem` (a de antes do comando V23) é a da base do Brasil, que tem tudo.
+      origem: fonte.origem === "planilha" ? "planilha" : "brasil",
+      tem: { populacao: tem.populacao !== false, coordenadas: tem.coordenadas !== false, grupo: tem.grupo !== false, serieAnual: tem.serie_anual !== false } },
     janela: janelaDe(o.janela), competencias: textos(o.competencias),
     parametros: { padrao: parametrosDe(p.padrao), emUso: parametrosDe(p.em_uso), personalizados: p.personalizados === true, editaveis },
     exploratorio: o.exploratorio === true,
@@ -252,7 +269,23 @@ export function normalizarDetector(bruto: unknown): RespostaDoDetector {
     calibracao: reguaDe(o.calibracao), calibracaoDosEstados: o.calibracao_dos_estados ? reguaDe(o.calibracao_dos_estados) : null,
     avisoDaBase: texto(o.aviso_da_base),
     comparacao: comparacaoDe(o.comparacao), coordenadas: coordenadasDe(o.coordenadas),
+    indisponiveis: Object.fromEntries(Object.entries(objeto(o.indisponiveis)).filter((par): par is [string, string] => typeof par[1] === "string")),
     notas: textos(o.notas), limitacoes: textos(o.limitacoes) };
+}
+
+/** O perfil da base, da resposta de POST /api/detector com `{"perfil": true}`; null quando a resposta não o traz. */
+export function normalizarPerfil(bruto: unknown): PerfilDaBase | null {
+  const perfil = objeto(objeto(bruto).perfil);
+  if (!lista(perfil.itens).length) return null;
+  return { origem: perfil.origem === "planilha" ? "planilha" : "brasil", base: texto(perfil.base) ?? "", categoria: texto(perfil.categoria) ?? "",
+    territorios: num(perfil.territorios) ?? 0, registros: num(perfil.registros) ?? 0, primeira: texto(perfil.primeira) ?? "",
+    ultima: texto(perfil.ultima) ?? "",
+    itens: lista(perfil.itens).map(item => { const i = objeto(item); return { chave: texto(i.chave) ?? "", titulo: texto(i.titulo) ?? "",
+      lido: texto(i.lido) ?? "", falta: texto(i.falta) }; }).filter(item => item.titulo && item.lido),
+    daPara: textos(perfil.da_para),
+    naoDaPara: lista(perfil.nao_da_para).map(item => { const n = objeto(item); return { oQue: texto(n.o_que) ?? "", motivo: texto(n.motivo) ?? "" }; })
+      .filter(item => item.oQue),
+    avisos: textos(perfil.avisos) };
 }
 
 /** A resposta de um território (com `detalhe`) nos tipos da tela. */
@@ -294,8 +327,9 @@ export function normalizarDetalhe(bruto: unknown): DetalheDoDetector {
 
 // ------------------------------------------------------------------------------------------------ apresentação
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-/** "jun/2024". */
-export const competenciaCurta = (c: string | null | undefined): string => c && /^\d{6}$/.test(c) ? MESES[Number(c.slice(4)) - 1] + "/" + c.slice(0, 4) : c ?? "";
+/** "jun/2024"; numa planilha com um registro por ano ("202400"), "2024". */
+export const competenciaCurta = (c: string | null | undefined): string => !c || !/^\d{6}$/.test(c) ? c ?? ""
+  : c.endsWith("00") ? c.slice(0, 4) : MESES[Number(c.slice(4)) - 1] + "/" + c.slice(0, 4);
 const inteiro = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const umaCasa = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 export const formatarInteiro = (n: number) => inteiro.format(n);
@@ -358,7 +392,11 @@ export function textoDosTrechos(trechos: [number, number][]): string {
 /** O critério da distância (sinal 11), para a legenda do gráfico: "município mais próximo com 2,36 médicos por 1.000 habitantes ou
  * mais". Sem a taxa do critério na data, não há o que dizer. */
 export const criterioDoContexto = (taxaMinima: number | null, r: RotulosDaBase = ROTULOS_DO_BRASIL): string | null =>
-  taxaMinima === null ? null : r.unidade + " mais próximo com " + formatarTaxa(taxaMinima) + " " + r.profissionais + " por 1.000 habitantes ou mais";
+  taxaMinima === null ? null : maisProximo(r) + " com " + formatarTaxa(taxaMinima) + " " + r.profissionais + " por 1.000 habitantes ou mais";
+/** O artigo da unidade da base ("o" município, "a" área), pelas formas que o motor manda; sem elas, o masculino. */
+export const artigoDaUnidade = (r: RotulosDaBase = ROTULOS_DO_BRASIL): "o" | "a" => r.oUnidade?.startsWith("a ") ? "a" : "o";
+/** "município mais próximo", "área mais próxima". */
+export const maisProximo = (r: RotulosDaBase = ROTULOS_DO_BRASIL): string => r.unidade + (artigoDaUnidade(r) === "a" ? " mais próxima" : " mais próximo");
 
 // ------------------------------------------------------------------------------------------------ gráfico e mapa
 const SEM_VALORES = { populacao: null, quantidade: null, densidade: null };

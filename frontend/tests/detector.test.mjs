@@ -475,3 +475,73 @@ test('"Entenda": abre com o mouse, com um toque e pelo teclado; fecha ao sair; a
     assert.ok(tela.includes('testid="' + testid + '"'), testid);
   assert.match(tela, /<Entenda sobre=\{sinal\.nome\} texto=\{sinal\.entenda\.texto\} exemplo=\{sinal\.entenda\.exemplo\}/);
 });
+
+test('qualquer base (seção A.3): o que a base tem, os sinais indisponíveis nela, as datas só com ano e o perfil da base', () => {
+  // A resposta de antes do comando V23 (sem `tem`, `origem`, `formas` e `indisponiveis`) é a da base do Brasil, que tem tudo.
+  const doBrasil = D.normalizarDetector(resposta([linha()]));
+  assert.deepEqual([doBrasil.fonte.origem, doBrasil.fonte.tem, doBrasil.indisponiveis, doBrasil.fonte.rotulos.oUnidade],
+    ['brasil', {populacao: true, coordenadas: true, grupo: true, serieAnual: true}, {}, undefined]);
+  // Uma planilha sem população nem coordenadas: os sinais por habitante e a distância ficam indisponíveis, com o motivo do motor.
+  const SEM = 'A base não tem população: sem ela, não há taxa por habitante.';
+  const daPlanilha = D.normalizarDetector(resposta([linha({id: 'name:Área 13', rotulo: 'Área 13'})], {
+    fonte: {base: 'planilha enviada', categoria: 'Enfermeiros', versao: 'planilha:abc', primeira: '201401', ultima: '202307', competencias: 20,
+      rotulos: {profissional: 'posto', profissionais: 'postos', unidade: 'área', unidades: 'áreas', grupo: 'zona', grupos: 'zonas', todo: 'Solária'},
+      origem: 'planilha', ancora: '07', formas: {o_unidade: 'a área', o_grupo: 'a zona', do_todo: 'da Solária'},
+      tem: {populacao: false, coordenadas: false, grupo: false, serie_anual: true}, unidades: {municipio: 'postos registrados em cada área'}},
+    indisponiveis: {disponibilidade: SEM, posicao: SEM, defasagem: SEM, contexto: SEM, outro: 5},
+    comparacao: {de: '202107', ate: '202307', estado: 'indisponivel', trechos: [], motivo: SEM, minimo_de_medicos: 20,
+      contexto: {taxa_minima: null, taxa_do_brasil: null, pct_da_taxa_do_brasil: 100, atendem: 0, universo: 0}}}));
+  assert.deepEqual([daPlanilha.fonte.origem, daPlanilha.fonte.tem], ['planilha', {populacao: false, coordenadas: false, grupo: false, serieAnual: true}]);
+  assert.deepEqual(daPlanilha.indisponiveis, {disponibilidade: SEM, posicao: SEM, defasagem: SEM, contexto: SEM}, 'só os motivos em texto');
+  assert.deepEqual([daPlanilha.comparacao.estado, daPlanilha.comparacao.motivo, daPlanilha.comparacao.trechos], ['indisponivel', SEM, []]);
+  // A concordância vem das formas com artigo que o motor manda: "a área mais próxima", "o município mais próximo".
+  const r = daPlanilha.fonte.rotulos;
+  assert.deepEqual([r.oUnidade, r.oGrupo, D.artigoDaUnidade(r), D.maisProximo(r)], ['a área', 'a zona', 'a', 'área mais próxima']);
+  assert.equal(D.criterioDoContexto(2.5, r), 'área mais próxima com 2,50 postos por 1.000 habitantes ou mais');
+  assert.deepEqual([D.artigoDaUnidade(ROTULOS), D.artigoDaUnidade(), D.maisProximo(), D.criterioDoContexto(2.36)],
+    ['o', 'o', 'município mais próximo', 'município mais próximo com 2,36 médicos por 1.000 habitantes ou mais']);
+  // No detalhe, o sinal que a base não sustenta chega como "indisponivel", com o motivo no que foi observado.
+  const detalhe = D.normalizarDetalhe({territorio: {id: 'name:Área 13', rotulo: 'Área 13'}, janela: {},
+    fenomenos: [{chave: 'disponibilidade', numero: '8', nome: 'Menos postos por habitante', grupo: 'comparado', nivel: null, estado_do_nivel: 'indisponivel',
+      situacao: 'Indisponível nesta base', observado: SEM, sem_comparacoes: null}]});
+  assert.deepEqual([detalhe.fenomenos[0].estadoDoNivel, detalhe.fenomenos[0].nivel, detalhe.fenomenos[0].situacao, detalhe.fenomenos[0].observado],
+    ['indisponivel', null, 'Indisponível nesta base', SEM]);
+  // Uma planilha com um registro por ano: "202300" é 2023, nunca um mês.
+  assert.deepEqual([D.competenciaCurta('202300'), D.competenciaCurta('202307'), D.competenciaCurta(null), D.competenciaCurta('2023')],
+    ['2023', 'jul/2023', '', '2023']);
+  const doAno = lerLinha({ultima: {competencia: '202300', valor: 32, na_data: true}});
+  assert.equal(D.textoDaUltima(doAno, '202300', ENF), '2023 · 32 enfermeiros');
+  assert.equal(D.textoDaUltima(lerLinha({ultima: {competencia: '202200', valor: 1, na_data: false}}), '202300', ENF), '2022 · 1 enfermeiro (sem registro em 2023)');
+  // O perfil da base: o que o Agente leu e o resumo "dá para / não dá para", só com o que o motor mandou.
+  const perfil = D.normalizarPerfil({versao: 'DETECTOR-SINAIS/V3/1', fonte: {}, perfil: {origem: 'planilha', base: 'planilha enviada', categoria: 'Enfermeiros',
+    territorios: 20, registros: 20, primeira: '201401', ultima: '202307',
+    itens: [{chave: 'datas', titulo: 'Datas e intervalos', lido: '20 registros.', falta: null},
+      {chave: 'grupo', titulo: 'Grupo de cima', lido: 'A base não tem coluna de grupo.', falta: 'O sinal 10 fica indisponível.'}, {chave: 'x'}],
+    da_para: ['Alertas moderados desde jan/2015 (o 2º ano da base).', 7],
+    nao_da_para: [{o_que: 'Alertas críticos', motivo: 'eles pedem 999 comparações, e esta base chega a 360.'}, {motivo: 'sem o quê'}],
+    avisos: ['A contagem é de postos.', null]}});
+  assert.deepEqual(perfil, {origem: 'planilha', base: 'planilha enviada', categoria: 'Enfermeiros', territorios: 20, registros: 20, primeira: '201401',
+    ultima: '202307', itens: [{chave: 'datas', titulo: 'Datas e intervalos', lido: '20 registros.', falta: null},
+      {chave: 'grupo', titulo: 'Grupo de cima', lido: 'A base não tem coluna de grupo.', falta: 'O sinal 10 fica indisponível.'}],
+    daPara: ['Alertas moderados desde jan/2015 (o 2º ano da base).'],
+    naoDaPara: [{oQue: 'Alertas críticos', motivo: 'eles pedem 999 comparações, e esta base chega a 360.'}], avisos: ['A contagem é de postos.']});
+  assert.deepEqual([D.normalizarPerfil({versao: 'x'}), D.normalizarPerfil(null), D.normalizarPerfil({perfil: {itens: []}})], [null, null, null]);
+  // Na tela: o perfil vem antes da ferramenta (aberto numa planilha; na base do Brasil, só quando a pessoa pede), pedido à mesma
+  // rota; o que a base não sustenta aparece como "Indisponível nesta base"; o mapa e o gráfico ficam desligados, com o motivo.
+  const painel = ler('PerfilDaBase.tsx'), area = ler('AreaDeAnalise.tsx'), tela = ler('DetectorDeSinais.tsx');
+  assert.match(painel, /pedirAoMotor\(fonte, "\/api\/detector", \{ \.\.\.\(daBase \?\? \{\}\), perfil: true \}/);
+  assert.match(painel, /if \(!aberto \|\| guardado\) return;/, 'fechado, o perfil não é pedido');
+  for (const trecho of ['data-testid="perfil-da-para"', 'data-testid="perfil-nao-da-para"', 'data-testid="perfil-da-base-itens"', 'Com esta base, dá para', 'Não dá para'])
+    assert.ok(painel.includes(trecho), trecho);
+  assert.ok(area.includes('<PerfilDaBase fonte={fonteMotor} daBase={baseDasFerramentas} abertoDeInicio={tipo === "arquivo"}/>'));
+  assert.ok(area.includes('<DetectorDeSinais fonte={fonteMotor} selecao={selecaoParaFerramentas} daBase={baseDasFerramentas}'));
+  assert.ok(!area.includes('disabled={!!motivoDasFerramentas}'), 'o Detector não fica mais desligado com uma planilha');
+  assert.match(area, /data-testid="analise-ferramenta-simulador"[^>]*disabled=\{!!motivoDoSimulador\}/);
+  assert.ok(tela.includes('indisponivel: "Indisponível nesta base"') && tela.includes('sinal.estadoDoNivel === "indisponivel" ? sinal.observado : sinal.situacao'));
+  assert.ok(tela.includes('disabled={!!semMapa}') && tela.includes('disabled={!!semGrafico}') && tela.includes('data-testid="detector-vistas-motivo"'));
+  assert.ok(tela.includes('{ ...p.selecao, ...(p.daBase ?? {}),'), 'o pedido leva o que descreve a planilha');
+  // Com uma planilha, nenhum nome fixo da base do Brasil nos desenhos: os rótulos vêm do painel "Colunas".
+  const graficos = ler('DetectorGraficos.tsx');
+  assert.equal((graficos.match(/rotulos=\{ROTULOS_BRASIL\}/g) ?? []).length, 0);
+  assert.equal((graficos.match(/rotulos=\{rotulosDoPainel\}/g) ?? []).length, 2);
+});

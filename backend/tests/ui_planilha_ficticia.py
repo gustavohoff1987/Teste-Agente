@@ -5,7 +5,9 @@ condados, com códigos, coordenadas no Atlântico Sul e cinco competências; os 
 5.307 nomes de municípios e estados da base do Brasil, sem nenhuma coincidência), envia, dá os nomes no painel "Colunas"
 (comuna/comunas, condado/condados) e percorre a página: a Seleção de Territórios, a Análise de Distribuição (Condições e
 Exportar, com o CSV e o método), a Análise Espacial (a Escolha dos territórios, o resultado e "Entenda esta análise"), a
-Análise de Tendência e a conversa. Onde a base do Brasil fala de município, estado e Brasil, a planilha fala de comuna,
+Análise de Tendência, a conversa e, desde o comando V23, o Detector de Sinais com a planilha (o perfil da base antes dele, com
+o "dá para / não dá para", a lista e o detalhe com os nomes da planilha; o Simulador de Cenários continua só com a base que
+vem com o Agente, com o motivo). Onde a base do Brasil fala de município, estado e Brasil, a planilha fala de comuna,
 condado e o todo pelo nome (a Solária), com a concordância (comuna é feminino): "Todas que atendem", "Só as que eu marcar", "cada uma
 ligada", "a referência mais próxima dela", "As demais"; o CSV tem a coluna "Condado"; a conversa reconhece o condado pelo
 nome ("mostre só o condado Costa Ondina") e, desde 07/11/2026, mostra os condados ("Mostre os condados"; desde o comando V22,
@@ -25,7 +27,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 from playwright.sync_api import expect, sync_playwright
-from ui_support import AREA, URL, abrir_regiao, accept_privacy, is_post, offline, open_chat, options_of, send
+from ui_support import AREA, URL, abrir_regiao, accept_privacy, is_post, offline, open_chat, options_of, send, uploaded_filename
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 CONDADOS = {
@@ -423,13 +425,85 @@ def main():
             "data-valor", "999", timeout=60000)
         guarda("total-informado")
 
-        # 7c. As ferramentas do comando V22 (Detector e Simulador) ficam desligadas com uma planilha, com o motivo em palavras que
-        # não usam o vocabulário da base brasileira (CI 42895759046).
-        for ferramenta in ("detector", "simulador"):
-            expect(area.get_by_test_id("analise-ferramenta-" + ferramenta)).to_be_disabled()
+        # 7c. As ferramentas com uma planilha (comando V23, "qualquer base"; muda de propósito este trecho, que conferia as duas
+        # ferramentas desligadas): o Simulador de Cenários continua só com a base que vem com o Agente, com o motivo em palavras que
+        # não usam o vocabulário da base brasileira; o Detector de Sinais abre com a planilha, e o perfil da base vem antes dele,
+        # aberto (é uma base nova), com o "dá para / não dá para" que o motor leu dela.
+        expect(area.get_by_test_id("analise-ferramenta-simulador")).to_be_disabled()
         expect(area.get_by_test_id("analise-ferramentas-motivo")).to_have_text(
-            "O Detector e o Simulador funcionam só com a base de médicos que vem com o Agente (registros de janeiro e junho de 2014 a "
-            "2024). Com uma planilha enviada, não estão disponíveis.")
+            "O Simulador de Cenários ainda funciona só com a base que vem com o Agente. Com uma planilha enviada, use o Detector de Sinais.")
+        do_detector = []
+        page.on("response", lambda r: do_detector.append(r) if is_post(r, "/api/detector") else None)
+        botao = area.get_by_test_id("analise-ferramenta-detector")
+        expect(botao).to_be_enabled()
+        with page.expect_response(lambda r: is_post(r, "/api/detector") and "perfil" not in options_of(r.request), timeout=180000) as evento:
+            aperta(botao)
+        assert evento.value.status == 200, evento.value.text()[:2000]
+        lista, pedido = evento.value.json(), options_of(evento.value.request)
+        # O pedido leva a planilha, a seleção em uso e o que descreve a planilha (os nomes e as premissas), como o do painel.
+        assert uploaded_filename(evento.value.request) == "solaria_comunas.xlsx", uploaded_filename(evento.value.request)
+        assert pedido["base"]["municipios"]["todos"] is True and "estados_unidade" not in pedido, pedido
+        assert pedido["rotulos"]["unidade"]["plural"] == "comunas" and pedido["premissas"], pedido
+        fonte = lista["fonte"]
+        assert (fonte["origem"], fonte["base"], fonte["ancora"], fonte["competencias"]) == ("planilha", "planilha enviada", "06", 5), fonte
+        assert (fonte["rotulos"]["unidades"], fonte["rotulos"]["grupos"], fonte["rotulos"]["todo"]) == ("comunas", "condados", "Solária"), fonte
+        assert fonte["formas"]["o_unidade"] == "a comuna" and fonte["formas"]["do_todo"] == "da Solária", fonte["formas"]
+        assert fonte["tem"] == {"populacao": True, "coordenadas": True, "grupo": True, "serie_anual": True} and lista["indisponiveis"] == {}, fonte
+        assert len(lista["linhas"]) == 16 and lista["janela"]["fim"] == "202406" and len(lista["coordenadas"]) == 15, lista["janela"]
+        # Cinco registros não sustentam o elevado nem o crítico: a base é curta, e a tela diz isso em vez de inventar um nível.
+        assert lista["resumo"]["niveis"]["critico"] == lista["resumo"]["niveis"]["elevado"] == 0, lista["resumo"]["niveis"]
+        detector = area.get_by_test_id("detector")
+        expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
+        expect(detector.get_by_test_id("detector-linha")).to_have_count(16)
+        for estado, quantos in lista["resumo"]["niveis"].items():
+            if estado != "sem_nivel":
+                expect(detector.get_by_test_id("detector-resumo-" + estado)).to_have_attribute("data-quantos", str(quantos))
+        expect(detector.get_by_test_id("detector-data")).to_contain_text("Registro mais recente da base: jun/2024.")
+        expect(detector.get_by_test_id("detector-comparacao")).to_have_attribute("data-estado", "comparavel")
+        expect(detector.get_by_test_id("detector-vista-mapa")).to_be_enabled()
+        expect(detector.get_by_test_id("detector-vista-grafico")).to_be_enabled()
+        expect(detector.get_by_test_id("detector-vistas-motivo")).to_have_count(0)
+        # O perfil da base, antes da ferramenta: o que o Agente leu e o resumo, iguais aos do motor.
+        perfil = area.get_by_test_id("perfil-da-base")
+        expect(perfil).to_have_attribute("data-estado", "pronto", timeout=180000)
+        do_perfil = next(r for r in do_detector if options_of(r.request).get("perfil") is True).json()["perfil"]
+        assert (do_perfil["origem"], do_perfil["territorios"], do_perfil["registros"]) == ("planilha", 16, 5), do_perfil
+        assert [item["o_que"] for item in do_perfil["nao_da_para"]] == ["Alertas elevados", "Alertas críticos"], do_perfil["nao_da_para"]
+        assert do_perfil["nao_da_para"][1]["motivo"].startswith("eles pedem 999 comparações, e esta base chega a "), do_perfil["nao_da_para"]
+        assert any(frase.startswith("Alertas moderados desde ") for frase in do_perfil["da_para"]), do_perfil["da_para"]
+        expect(perfil).to_have_attribute("data-origem", "planilha")
+        expect(perfil.get_by_test_id("perfil-da-base-botao")).to_have_attribute("aria-expanded", "true")
+        expect(perfil.get_by_test_id("perfil-da-base-resumo")).to_have_text("16 territórios · 5 registros, de jun/2022 a jun/2024.")
+        expect(perfil.get_by_test_id("perfil-da-para").locator("li")).to_have_text(do_perfil["da_para"])
+        expect(perfil.get_by_test_id("perfil-nao-da-para").locator("li")).to_have_text(
+            [item["o_que"] + ": " + item["motivo"] for item in do_perfil["nao_da_para"]])
+        expect(perfil.get_by_test_id("perfil-da-base-itens").locator("tbody tr")).to_have_count(len(do_perfil["itens"]))
+        expect(perfil.locator('[data-testid="perfil-da-base-itens"] tr[data-chave="grupo"]')).to_contain_text("4 condados")
+        expect(perfil.locator('[data-testid="perfil-da-base-itens"] tr[data-chave="nomes"]')).to_contain_text(
+            "os territórios são as comunas; o grupo de cima, os condados; o todo, a Solária.")
+        # O detalhe de uma comuna: os 12 sinais nos grupos, com os nomes da planilha; o que a base curta não sustenta fica sem nível.
+        primeira = detector.get_by_test_id("detector-linha").first
+        aperta(primeira.get_by_test_id("detector-abrir"))
+        detalhe = detector.get_by_test_id("detector-detalhe")
+        expect(detalhe).to_be_visible(timeout=180000)
+        expect(detalhe.get_by_test_id("detector-fenomeno")).to_have_count(11)
+        # Sem o Simulador para a planilha, o detalhe não oferece "Abrir no Simulador" nem "Simular recuperação".
+        expect(detalhe.get_by_test_id("detector-historico-botao")).to_be_visible()
+        expect(detalhe.get_by_test_id("detector-abrir-no-simulador")).to_have_count(0)
+        expect(detalhe.get_by_test_id("detector-simular-recuperacao")).to_have_count(0)
+        expect(detalhe.get_by_test_id("detector-grupo")).to_have_count(5)
+        expect(detalhe.locator('[data-testid="detector-fenomeno"][data-chave="estrutural"]')).to_contain_text("profissionais")
+        expect(detalhe.locator('[data-testid="detector-fenomeno"][data-chave="contexto"]')).to_have_attribute("data-estado", "contexto")
+        guarda("detector")
+        # Fechar o perfil e abrir de novo não pede outra vez: o que foi lido fica na página.
+        pedidos_do_perfil = sum(1 for r in do_detector if options_of(r.request).get("perfil") is True)
+        aperta(perfil.get_by_test_id("perfil-da-base-botao"))
+        expect(perfil).to_have_attribute("data-estado", "fechado")
+        expect(perfil.get_by_test_id("perfil-da-base-corpo")).to_have_count(0)
+        aperta(perfil.get_by_test_id("perfil-da-base-botao"))
+        expect(perfil).to_have_attribute("data-estado", "pronto")
+        page.wait_for_timeout(500)
+        assert sum(1 for r in do_detector if options_of(r.request).get("perfil") is True) == pedidos_do_perfil == 1, pedidos_do_perfil
 
         # 8. Nada do Brasil e nenhuma concordância de antes em tudo o que esteve à vista.
         for nome, texto in vistos.items():

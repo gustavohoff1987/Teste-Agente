@@ -32,6 +32,12 @@ sempre com o tipo de critério). Fora do Detector, o assistente continua recusan
 O Detector calcula no motor (`backend/detector.py`, `backend/comparativos.py` e a régua comum `backend/reguas.py`, sobre
 `backend/series_brasil.py`), sem o provedor de IA, e funciona com ele indisponível.
 
+**Vale para qualquer base** (comando V23, seção 2; Proposta V3, seção A.3): a base do Brasil ou uma planilha enviada, lida com o
+mesmo mapeamento de colunas das análises. O que era fixo da base do Brasil passou a ser lido da própria base: as datas e os
+intervalos, o mês da série anual, o grupo de cima, a população, as coordenadas, o que a contagem conta e os nomes. Na base do
+Brasil, os textos continuam dizendo "médicos", "município", "estado", "junho" e "Brasil", e os resultados são os mesmos de antes.
+Numa planilha, nenhum desses nomes aparece se não vier dela. A seção [Qualquer base](#qualquer-base) descreve o que muda.
+
 ## Os três níveis e a régua
 
 | Nível | Raridade padrão | Comparações anteriores necessárias | Cor |
@@ -197,10 +203,43 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
 **Nomes da base.** Os textos usam os nomes que a base dá (`fonte.rotulos`): na base do Brasil, "médicos", "município", "estado"
 e "Brasil". **Linguagem:** sem termos técnicos na primeira tela; "porte", "patamar", "percentil" e "1 em cada N" têm "Entenda".
 
+## Qualquer base
+
+Antes das ferramentas, o Agente lê a base e mostra o **perfil da base**, com o resumo "com esta base, dá para… / não dá para…
+(motivo)". O perfil, com o da base do Brasil e o de uma planilha de teste, está em
+[Perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md#9-o-perfil-que-o-agente-lê-qualquer-base).
+
+Com uma **planilha enviada**:
+
+- **Leitura.** O arquivo passa pelo mesmo portão das análises (`painel._upload_context`): as colunas do painel "Colunas", as
+  premissas confirmadas, a categoria e os nomes. `backend/series_da_planilha.py` monta daí a mesma estrutura da base do Brasil.
+  Nada é gravado, e nada vai ao provedor de IA.
+- **Datas.** A coluna de período pode trazer `AAAAMM`, `AAAA-MM`, `AAAA-MM-DD` ou só o ano. Com só o ano, a base tem um registro
+  por ano, as datas aparecem como "2023" e os textos não citam mês ("de um ano para o outro"). Sem datas reconhecíveis, com dois
+  registros no mesmo mês ou com um registro só no tempo, a ferramenta recusa, dizendo por quê.
+- **Intervalos.** Só se comparam mudanças com o mesmo tempo entre registros; durações com até 1 mês de diferença ficam juntas.
+- **Série anual.** Usa o mês presente em todos os anos (o mês do último registro, quando ele se repete em todos). Sem nenhum, os
+  sinais anuais (3, 4 e 8 a 10) ficam indisponíveis.
+- **Territórios.** As unidades da planilha (pelo código, quando há a coluna; senão, pelo nome) e os conjuntos delas. O **grupo de
+  cima não entra como unidade**: a planilha não tem uma contagem própria do grupo. A tela avisa e avalia as unidades e os conjuntos.
+- **O que a base não tem.** Sem população, os sinais 8 a 11 ficam **"Indisponível nesta base"**, com o motivo, em vez de "não
+  calculável"; sem grupo de cima, o sinal 10; sem coordenadas com o referencial informado, o sinal 11. Na lista, o filtro
+  "Sinal" e "Ajustar critérios" ficam só com os sinais que existem na base. O Mapa fica desligado sem coordenadas, e o
+  Gráfico, sem a distância, cada um com o motivo.
+- **O que a base não sustenta.** Os níveis continuam pedindo 19, 99 e 999 comparações: numa base curta, o elevado e o crítico
+  aparecem como "sem comparações suficientes", com os números ("há 360, e ele pede 999").
+- **Nomes.** Os do painel "Colunas" (a unidade, o grupo e o todo), com a concordância ("a comuna mais próxima", "das demais
+  comunas"). A contagem é de "profissionais", "vínculos" ou "postos", pela unidade de contagem informada.
+
+O **Simulador de Cenários** ainda funciona só com a base do Brasil; com uma planilha, o botão dele fica desligado, com o motivo, e
+o detalhe do Detector não oferece "Abrir no Simulador" nem "Simular recuperação".
+
 ## Rota
 
-`POST /api/detector` (formulário, como `/api/painel`): `dataset=brazil`, `dataset_version` e `options` (JSON). Só lê e calcula:
-nada é registrado na sessão, e nada vai ao provedor de IA. Conta nas vagas das operações pesadas (`carga.PESADAS`).
+`POST /api/detector` (formulário, como `/api/painel`): `options` (JSON) e a base — `dataset=brazil` com `dataset_version`, ou,
+desde o comando V23, uma planilha enviada, com `file`, `sheet` e `mapping` (o mapeamento de colunas, como em `/api/painel`). O
+endereço e os campos que a resposta já trazia não mudaram. Só lê e calcula: nada é registrado na sessão, e nada vai ao provedor
+de IA. Conta nas vagas das operações pesadas (`carga.PESADAS`).
 
 | Opção | Conteúdo |
 |---|---|
@@ -210,6 +249,8 @@ nada é registrado na sessão, e nada vai ao provedor de IA. Conta nas vagas das
 | `janela` | `{"inicio", "fim"}`, competências da base; sem ela, a série inteira |
 | `parametros` | os critérios trocados, por grupo: `estrutural` (`critico`, `elevado`, `moderado`), `declinio` (`<nível>_quedas`, `<nível>_perda`), `desaceleracao` (`anos`), `instabilidade` (`moderado_um_em`), `perda` (`<nível>_um_em`, `<nível>_minimo`, `<nível>_fracao`), `patamar` (`moderado`, `critico`, `minimo`, `elevado_um_em`, `critico_um_em`), `disponibilidade`, `posicao` e `defasagem` (`<nível>_um_em`) e `contexto` (`taxa_do_brasil_pct`); a resposta vem com `exploratorio: true` |
 | `detalhe` | o id de um território da seleção: a resposta traz `territorio`, `linha`, `serie`, `historico`, `comparativo`, `coordenadas` e `fenomenos`, no lugar da lista |
+| `perfil` | `true`: a resposta traz só `versao`, `fonte` e `perfil` (o perfil da base, com `itens`, `da_para`, `nao_da_para`, `regua`, `tem`, `nomes` e `avisos`); não pede seleção |
+| `rotulos`, `premissas`, `categoria` | só com uma planilha: os nomes do painel "Colunas", as premissas confirmadas e a categoria, como no pedido de `/api/painel` |
 
 A lista responde (versão `DETECTOR-SINAIS/V3/1`) com `versao`, `fonte` (com `rotulos`, os nomes da base), `janela`,
 `competencias`, `parametros` (`padrao`, `em_uso`, `personalizados`, `editaveis`), `niveis` (o "1 em cada N" e as comparações que
@@ -218,7 +259,10 @@ cada nível pede), `grupos` (os grupos dos sinais), `portes`, `entenda` (os text
 porte, as `comparacoes` e, em cada nível, `um_em`, `pede` e `queda_pct` — ou `afastamento_pct`, no sinal 7; e o `monitoramento`,
 com `aviso_da_base`), `calibracao_dos_estados` (quando a seleção tem estados como unidade), `aviso_da_base`, `comparacao` (a
 janela dos sinais 8 a 10, o estado dela, os trechos de população comparável e o critério da distância), `coordenadas`, `notas` e
-`limitacoes`.
+`limitacoes`. Desde o comando V23, `fonte` traz também `origem` (`brasil` ou `planilha`), `ancora` (o mês da série anual; `00` com
+um registro por ano), `tem` (`populacao`, `coordenadas`, `grupo` e `serie_anual`) e `formas` (os nomes com artigo e preposição:
+"o município", "a comuna", "do Brasil"); e a lista traz `indisponiveis` (sinal → motivo; vazio na base do Brasil). Com população
+ausente, `comparacao.estado` é `indisponivel`, com o `motivo`.
 
 Em cada linha:
 
@@ -230,7 +274,8 @@ Em cada linha:
   `porte`; num conjunto, `ids_dos_membros`; num município que mudou de nome, `nomes_anteriores`.
 
 No detalhe, cada item de `fenomenos` traz `chave`, `numero`, `nome`, `grupo`, `nivel`, `estado_do_nivel` (`alerta`,
-`sem_alerta`, `sem_comparacoes`, `sem_nivel`, `sem_dado`, `nao_avaliado`, `contexto` ou `juntos`), `criterio_do_nivel`,
+`sem_alerta`, `sem_comparacoes`, `sem_nivel`, `sem_dado`, `nao_avaliado`, `contexto`, `juntos` ou `indisponivel` — o sinal que a
+base não sustenta, com o motivo em `observado`), `criterio_do_nivel`,
 `exploratorio`, `situacao` (a frase), `entenda` (`texto` e `exemplo`), `sem_comparacoes` (os níveis que a base não sustenta, com
 `comparacoes`, `pede` e `texto`) e os sete campos da explicação completa.
 
@@ -244,10 +289,13 @@ Os nomes dos critérios em `parametros` são os da tabela acima; um nome antigo 
 As limitações `RARO_E_INCOMUM_NA_BASE`, `CONJUNTO_SEM_NIVEL` e `COMPARACAO_SO_COM_POPULACAO_COMPARAVEL` acompanham toda resposta;
 `CONFIGURACAO_EXPLORATORIA`, a que usa critérios diferentes do padrão. Erros de pedido vêm em 422, com o texto em português
 (seleção vazia, território fora da base, competência fora da base, critério fora do intervalo ou fora de ordem — o nível mais
-grave não pode ser mais comum que o menos grave).
+grave não pode ser mais comum que o menos grave). Sem base nenhuma, a rota responde "Escolha a base do Brasil ou envie uma
+planilha: a ferramenta lê a base que estiver em uso." Com uma planilha, valem também as recusas do portão das análises (a coluna
+territorial, o período e a contagem; as premissas pendentes voltam em `pendencia`, como em `/api/painel`) e as das datas.
 
 A seleção segue o contrato compartilhado das ferramentas (`series_brasil.selecao`): o estado como unidade (ou num conjunto de
-estados) e os municípios dele não entram juntos (RQ-DAD-30); um conjunto reúne territórios do mesmo nível.
+estados) e os municípios dele não entram juntos (RQ-DAD-30); um conjunto reúne territórios do mesmo nível. Numa planilha, os
+identificadores são `code:<código>` (com a coluna de código) ou `name:<nome>`, e o grupo de cima em `estados_unidade` é recusado.
 
 ## Calibração
 
@@ -345,8 +393,10 @@ exploratória.
 - **O mapa não desenha divisas:** o produto não tem a malha territorial (só as coordenadas dos municípios). O mapa mostra os
   pontos pelo nível e a sigla do grupo de cima junto aos pontos dele.
 - O histórico de sinais cobre os sinais 1 a 7.
-- A ferramenta ainda funciona só com a base do Brasil; a leitura de planilhas enviadas (a estrutura comum da Proposta V3) é a
-  etapa seguinte do comando V23.
+- Numa planilha enviada, o grupo de cima não entra como unidade (a planilha não tem a contagem própria dele), e não há régua
+  própria dos grupos. O que a planilha não tem (população, coordenadas, grupo de cima ou série anual) deixa os sinais que dependem
+  disso indisponíveis, com o motivo.
+- O Simulador de Cenários ainda funciona só com a base do Brasil: com uma planilha, o Detector não leva o território a ele.
 
 ## Testes
 
@@ -359,12 +409,21 @@ exploratória.
   efeitos da mesma queda; os sinais 8 a 10 pela raridade; a distância; os sinais juntos; os textos, com o "Entenda" de duas ou
   três frases), a rota com um catálogo sintético e, no job `dados-reais`, a base versionada (as taxas da régua por nível e por
   porte, a régua dos estados, a lista inteira com um nível por território, Rio Rufino/SC, o Distrito Federal antes de 2018, uma
-  queda grande que persiste e a desaceleração igual à da Análise de Tendência).
+  queda grande que persiste, a desaceleração igual à da Análise de Tendência e os sinais 8 a 12 com a população comparável);
+  `backend/tests/test_ferramentas_qualquer_base.py` — o calendário lido da base (o mês da série anual, os meses de registro e os
+  tipos de intervalo), a base montada de uma planilha (a planilha de teste `planilha_das_ferramentas.csv`, 20 distritos
+  fictícios de seis em seis meses durante 10 anos, sem grupo e sem população; uma planilha com código, grupo, população e
+  coordenadas; as datas aceitas e as recusas), o Detector e o perfil com a planilha (os níveis que ela sustenta, "Indisponível
+  nesta base" e "sem comparações suficientes" com os números, a planilha só com anos, nenhum vocabulário da base do Brasil), a
+  rota com o arquivo e, no job `dados-reais`, o perfil da base do Brasil.
 - Node: `frontend/tests/detector.test.mjs` — a leitura da resposta, a lista de quatro colunas, o resumo dos níveis, os filtros,
   a ordem, os critérios em frases (todos os parâmetros do motor, uma vez cada), a régua em palavras, as exportações, o mapa e o
-  gráfico pelos níveis, o que o Detector leva ao Simulador e o "Entenda" (mouse, toque e teclado);
+  gráfico pelos níveis, o que o Detector leva ao Simulador, o "Entenda" (mouse, toque e teclado) e qualquer base (o que a base
+  tem, os sinais indisponíveis, as datas só com ano, a concordância e o perfil da base);
   `frontend/tests/modoEscuro.test.mjs` — o contraste dos níveis no modo escuro.
 - Navegador: `backend/tests/ui_detector.py` (suíte `base-versionada`) — a lista, o resumo clicável, os filtros e a ordem; o
   detalhe com os quatro grupos, o "Entenda" por mouse e teclado e a explicação completa; os critérios em frases e a configuração
   exploratória; a régua por porte; o estado como unidade; o mapa e o gráfico; os sinais comparados em jun/2021; "Simular
-  recuperação"; e a tela de celular, com o "Entenda" pelo toque e a lista em cartões.
+  recuperação"; a tela de celular, com o "Entenda" pelo toque e a lista em cartões; e o perfil da base do Brasil, fechado até a
+  pessoa pedir. `backend/tests/ui_planilha_ficticia.py` (suíte `bloco1`) — o Detector com uma planilha enviada: o perfil aberto
+  antes da ferramenta, a lista e o detalhe com os nomes da planilha e o Simulador desligado, com o motivo.
