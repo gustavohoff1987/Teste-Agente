@@ -632,12 +632,13 @@ test('modo simples: o que testar — só continuar, acrescentar, retirar ou cheg
   assert.deepEqual(S.comOTeste(digitado, 'continuar', '202506'), c1);
   // O teste em uso, pelo que o cenário tem: a meta, a primeira intervenção ou nada.
   assert.deepEqual([c1, acrescentar, retirar, meta, comMeta].map(S.testeDoCenario), ['continuar', 'acrescentar', 'retirar', 'meta', 'meta']);
-  // O pedido de cada teste: os números digitados, sem a repetição; a meta, com a data do acréscimo. Em branco, falta a meta.
+  // O pedido de cada teste: os números digitados, numa data, com permanência total (a repetição e a permanência são do modo
+  // avançado e não vão no pedido do modo simples); a meta, com a data do acréscimo. Em branco, falta a meta.
   const inicial = S.configInicial({municipios: ['code:130260'], estados: [], conjuntos: []}, '202406');
   const doPedido = cenario => S.pedidoDoSimulador({...inicial, cenarios: [cenario]}).cenarios[0];
   assert.deepEqual([acrescentar, retirar, comMeta, c1].map(doPedido), [
     {id: 'c1', nome: 'Cenário 1', metodo: 'padrao', intervencoes: [{tipo: 'acrescimo', quantidade: 1, em: '202506'}]},
-    {id: 'c1', nome: 'Cenário 1', metodo: 'padrao', intervencoes: [{tipo: 'retirada', quantidade: 7, em: '202601', permanencia_pct_ao_ano: 90}]},
+    {id: 'c1', nome: 'Cenário 1', metodo: 'padrao', intervencoes: [{tipo: 'retirada', quantidade: 7, em: '202601'}]},
     {id: 'c1', nome: 'Cenário 1', metodo: 'padrao', planejamento: {meta: {tipo: 'valor', valor: 40}, em: '202601'}},
     {id: 'c1', nome: 'Cenário 1', metodo: 'padrao'}]);
   assert.deepEqual([meta, comMeta, acrescentar, {...acrescentar, intervencoes: [{...acrescentar.intervencoes[0], quantidade: ''}]}]
