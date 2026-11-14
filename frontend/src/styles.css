@@ -31,6 +31,9 @@
   --tom-amber-300: 252 211 77;
   --tom-amber-800: 146 64 14;
   --tom-amber-900: 120 53 15;
+  --tom-orange-50: 255 247 237;
+  --tom-orange-300: 253 186 116;
+  --tom-orange-900: 124 45 18;
   --tom-rose-50: 255 241 242;
   --tom-rose-200: 254 205 211;
   --tom-rose-600: 225 29 72;
@@ -129,6 +132,9 @@
     --tom-amber-300: 122 95 28;
     --tom-amber-800: 242 196 109;
     --tom-amber-900: 246 210 138;
+    --tom-orange-50: 46 28 16;
+    --tom-orange-300: 133 77 32;
+    --tom-orange-900: 253 186 116;
     --tom-rose-50: 46 23 25;
     --tom-rose-200: 107 44 53;
     --tom-rose-600: 240 98 124;

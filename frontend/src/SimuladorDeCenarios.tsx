@@ -426,8 +426,8 @@ export default function SimuladorDeCenarios(props: Props) {
       observado; as datas simuladas, mesmo as que já passaram, não descrevem a situação de hoje.</p>
     {config.doDetector && <p data-testid="simulador-do-detector" data-recuperacao={config.doDetector.recuperacao ? "true" : "false"} role="note" className="ferramenta-aviso">
       Aberto pelo <strong>Detector de Sinais</strong>: {config.doDetector.rotulo}, avaliado em {competenciaCurta(config.doDetector.fim)}
-      {config.doDetector.exploratorio ? ", com parâmetros personalizados (exploratórios)" : ""}. {config.doDetector.sinais.length
-        ? "Sinais à vista lá: " + config.doDetector.sinais.join("; ") + "." : "Sem sinais à vista lá."} Os sinais descrevem registros reais; aqui, o que vem
+      {config.doDetector.exploratorio ? ", com critérios diferentes do padrão (configuração exploratória)" : ""}. {config.doDetector.sinais.length
+        ? "Sinais com nível lá: " + config.doDetector.sinais.join("; ") + "." : "Sem sinais com nível lá."} Os sinais descrevem registros reais; aqui, o que vem
       depois do último registro é cenário hipotético.{config.doDetector.recuperacao && " “Simular recuperação” trouxe, como meta hipotética que você pode " +
         "trocar, a volta ao patamar anterior (etapa 3)."}{" "}
       <button type="button" data-testid="simulador-do-detector-dispensar" className="analise-link analise-nao-imprimir" onClick={() => mudar({ doDetector: undefined })}>

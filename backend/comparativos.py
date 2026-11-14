@@ -1,33 +1,34 @@
-"""Fenômenos 8 a 12 do Detector de Sinais Territoriais (comando V22, etapa 5): disponibilidade relativa, posição relativa,
-defasagem ante referência, contexto geográfico e coexistência de sinais. Referência metodológica:
-Docs/DETECTOR_E_SIMULADOR_V2_2.md, seções 4 (catálogo), 4.1 (itens 8 a 12), 4.2 (definições operacionais, que prevalecem) e 5.2.
+"""Sinais 8 a 12 do Detector de Sinais Territoriais (comando V23, Proposta V3, tabela B.2): menos profissionais por habitante,
+perda de posição, mais longe da referência, distância e sinais juntos. Referência metodológica: Docs/DETECTOR_E_SIMULADOR_V3.md
+(Partes A e B); as definições operacionais da V2.2 (Docs/DETECTOR_E_SIMULADOR_V2_2.md, seções 4.1 e 4.2) continuam valendo no
+que a V3 não muda.
 
 O que este módulo calcula (os textos ficam em detector.py):
 
-- **8, disponibilidade relativa:** a taxa de médicos por 1.000 habitantes e a variação dela numa janela de junho a junho em 2
-  anos, com a decomposição (médicos, população e taxa).
-- **9, posição relativa:** o percentil do território pela taxa, (posto médio − 0,5) ÷ n, num universo fixo na janela (os
-  municípios do Brasil com taxa válida nas duas datas; para estados como unidade, os estados), e a variação em pontos.
-- **10, defasagem ante referência:** o índice 100 × taxa do território ÷ taxa da referência, com a referência na mesma unidade
-  do território e sem ele (município: os demais municípios da UF, pela soma municipal; estado: os demais estados; conjunto: os
-  demais territórios das mesmas UFs), e a variação em pontos.
-- **11, contexto geográfico:** a distância geodésica até o município mais próximo com taxa igual ou maior que o critério (padrão:
-  a taxa do Brasil na data), com o percentil dessa distância entre os municípios que não atendem ao critério. Só contexto: nunca
-  intensidade nem juízo assistencial.
-- **12, coexistência de sinais:** o perfil por dimensão e as combinações pré-definidas, sem índice geral; as repercussões de uma
-  mesma queda contam como um evento, não como evidências independentes.
+- **8, menos profissionais por habitante:** a taxa por 1.000 habitantes e a variação dela numa janela de 2 anos na série anual,
+  com a decomposição (profissionais, população e taxa).
+- **9, perda de posição:** o percentil do território pela taxa, (posto médio − 0,5) ÷ n, num universo fixo na janela (os
+  municípios com taxa válida nas duas datas; para estados como unidade, os estados), e a variação em pontos.
+- **10, mais longe da referência:** o índice 100 × taxa do território ÷ taxa da referência, com a referência no grupo de cima,
+  na mesma unidade do território e sem ele, e a variação em pontos.
+- **11, distância:** a distância geodésica até o território mais próximo com taxa igual ou maior que o critério (padrão: a taxa
+  da base toda na data; ajustável de 10% a 500% dela), com a posição dessa distância entre os que não atendem ao critério. Só
+  contexto: nunca vira alerta nem juízo assistencial.
+- **12, sinais juntos:** quais sinais coincidem no território, sem soma e sem índice; os efeitos de uma mesma queda contam como
+  um evento, não como evidências independentes.
 
-**População comparável (seção 4.2 da V2.2; seção A.3 da V3):** a variação dos indicadores 8, 9 e 10 só é calculada em janelas
-inteiras dentro de um trecho de população comparável. Os trechos vêm da própria base (`populacao_comparavel`), que é olhada
-inteira em cada passagem de ano: quando a população se repete em boa parte dela, ou salta em boa parte dela, e isso foge do que é
-comum nas outras passagens, o trecho termina ali. Uma janela que cruze esse limite fica com o estado
-"comparacao_nao_habilitada", com o nível da data (taxa, percentil, índice) ainda à vista. Alguns territórios com o valor do ano
-anterior, ou com um salto, são normais e não desligam a comparação. Para o indicador 10, a mesma regra é uma decisão
-conservadora desta implementação: o índice usa as duas populações, e a troca de série mudaria o índice sem mudança real.
+**Os níveis dos sinais 8 a 10 (comparado com a base):** a variação em 2 anos é comparada com as variações anteriores de territórios
+do mesmo porte (o número de profissionais no início da janela): moderado, 1 em cada 20; elevado, 1 em cada 100; crítico, 1 em
+cada 1.000, com os mínimos de comparações da régua comum (reguas.py) e "sem comparações suficientes" quando a base não os tem.
+Abaixo de 20 profissionais no início da janela, os sinais são descritivos.
 
-**Sem intensidade (decisão D-A):** as convenções da seção 4.1 para os indicadores 8, 9 e 10 não foram validadas; entram como
-**limites provisórios** de um "sinal observado" (forte, muito forte), como no declínio persistente, sem atenção, alta ou crítica.
-Abaixo de 20 médicos no início da janela, os indicadores são descritivos.
+**População comparável (seção A.3 da V3):** a variação dos sinais 8, 9 e 10 só é calculada em janelas inteiras dentro de um
+trecho de população comparável. Os trechos vêm da própria base (`populacao_comparavel`), que é olhada inteira em cada passagem de
+ano: quando a população se repete em boa parte dela, ou salta em boa parte dela, e isso foge do que é comum nas outras passagens,
+o trecho termina ali. Uma janela que cruze esse limite fica com o estado "comparacao_nao_habilitada", com o valor da data (taxa,
+percentil, índice) ainda à vista. Alguns territórios com o valor do ano anterior, ou com um salto, são normais e não desligam a
+comparação. Para o sinal 10, a mesma regra é uma decisão conservadora desta implementação: o índice usa as duas populações, e a
+troca de série mudaria o índice sem mudança real.
 """
 from __future__ import annotations
 
@@ -37,6 +38,7 @@ from dataclasses import dataclass
 import numpy as np
 
 import nearest_reference
+import reguas
 from series_brasil import Base, Territorio
 from territorial_levels import STATES, state_with_preposition
 
@@ -52,27 +54,27 @@ MINIMO_DE_MEDICOS = 20                       # abaixo disso, no início da janel
 CRS = "SIRGAS2000"
 EPS = 1e-9                                   # tolerância das comparações com os limites (o caso exato no limite conta)
 
-# Limites provisórios (convenções da seção 4.1, não validadas) e o critério do contexto geográfico.
+# Sinais 8, 9 e 10 (Proposta V3, tabela B.2): a raridade da variação em 2 anos na própria base — 1 em cada 20 (moderado), 1 em
+# cada 100 (elevado) e 1 em cada 1.000 (crítico) —, e o critério do sinal 11 (X% da taxa da base toda).
+UM_EM = {"moderado_um_em": 20, "elevado_um_em": 100, "critico_um_em": 1000}
 PADRAO = {
-    "disponibilidade": {"forte": 10.0, "muito_forte": 20.0},
-    "posicao": {"queda": 10.0, "forte": 15.0, "forte_final": 50.0, "muito_forte": 25.0, "muito_forte_final": 25.0},
-    "defasagem": {"forte": 15.0, "forte_final": 80.0, "muito_forte": 25.0, "muito_forte_final": 60.0},
+    "disponibilidade": dict(UM_EM),
+    "posicao": dict(UM_EM),
+    "defasagem": dict(UM_EM),
     "contexto": {"taxa_do_brasil_pct": 100.0},
 }
+COMPARADO = "comparado com a base"
+_UM_EM = (2, 100000, True)
 EDITAVEIS = {
-    "disponibilidade": {"forte": (1.0, 90.0, False), "muito_forte": (1.0, 90.0, False)},
-    "posicao": {"queda": (1.0, 90.0, False), "forte": (1.0, 90.0, False), "muito_forte": (1.0, 90.0, False)},
-    "defasagem": {"forte": (1.0, 90.0, False), "muito_forte": (1.0, 90.0, False)},
+    "disponibilidade": {chave: _UM_EM for chave in UM_EM},
+    "posicao": {chave: _UM_EM for chave in UM_EM},
+    "defasagem": {chave: _UM_EM for chave in UM_EM},
     "contexto": {"taxa_do_brasil_pct": (10.0, 500.0, False)},
 }
 
 
 def conferir(em_uso: dict) -> None:
-    """A ordem dos limites: o mais grave nunca é mais frouxo que o menos grave."""
-    if em_uso["disponibilidade"]["muito_forte"] < em_uso["disponibilidade"]["forte"] or \
-            em_uso["defasagem"]["muito_forte"] < em_uso["defasagem"]["forte"] or \
-            not em_uso["posicao"]["queda"] <= em_uso["posicao"]["forte"] <= em_uso["posicao"]["muito_forte"]:
-        raise ValueError("O limite mais grave não pode ser menor que o menos grave.")
+    """A ordem dos limites dos sinais 8 a 10 é conferida com os demais, em detector.parametros (moderado ≤ elevado ≤ crítico)."""
 
 
 # --------------------------------------------------------------------------------------------- população comparável
@@ -418,23 +420,113 @@ def referencia_do_territorio(base: Base, territorio: Territorio) -> tuple[np.nda
 
 
 # --------------------------------------------------------------------------------------------- fenômenos 8 a 11
-def _sinal(_valor: float, limites: tuple) -> str | None:
-    """O primeiro limite alcançado. `limites`: ((nome, condição)…), do mais grave ao menos grave."""
-    return next((nome for nome, vale in limites if vale), None)
+# --------------------------------------------------------------------------------------------- a régua dos sinais 8 a 10
+@dataclass(frozen=True)
+class ReguaRelativa:
+    """A régua dos sinais 8, 9 e 10 de um nível (municípios ou estados como unidade), por versão da base: a variação em 2 anos de
+    cada unidade em cada janela com população comparável e as comparações dela na régua comum, só com as janelas anteriores."""
+    unidades: tuple    # municípios: os códigos, na ordem da base; estados: os prefixos, em ordem
+    valor: dict        # chave → [unidade, competência]: a variação na janela que termina na competência (NaN: não se aplica)
+    porte: np.ndarray  # [unidade, competência]: a faixa de porte pelo número no início da janela (−1: abaixo de 20 ou sem registro)
+    c: dict            # chave → [6, unidade, competência]: k e n do porte, do porte com as vizinhas e de todas as faixas
 
 
-def _caiu(variacao: float, limite: float) -> bool:
-    """Queda igual ou maior que o limite. O caso exato conta: uma queda de exatamente 20% sai da divisão como −19,999999999999996,
-    e sem a tolerância ficaria um degrau abaixo (seção 14.1 do anexo: comparações de ponto flutuante não podem ser frágeis)."""
-    return variacao <= -limite + EPS
+_REGUAS: dict[tuple, ReguaRelativa] = {}
+CHAVES_RELATIVAS = ("disponibilidade", "posicao", "defasagem")
 
 
-def _ate(valor: float, limite: float) -> bool:
-    return valor <= limite + EPS
+def regua_relativa(base: Base, nivel: str = "municipios", guardar: bool = True) -> ReguaRelativa:
+    """A régua dos sinais 8 a 10 (montada uma vez por versão da base e nível). Em cada registro anual com a janela de 2 anos
+    habilitada, a variação da taxa (8), do percentil no universo fixo da janela (9) e do índice ante a referência (10) de cada
+    unidade com pelo menos 20 profissionais no início da janela; cada uma é comparada só com as das janelas anteriores, de
+    unidades do mesmo porte (o número no início da janela)."""
+    chave = (base.versao, nivel)
+    with _LOCK:
+        guardada = _REGUAS.get(chave) if guardar else None
+    if guardada is not None:
+        return guardada
+    t = len(base.periodos)
+    if nivel == "municipios":
+        unidades = tuple(base.codigos)
+        taxa, referencia = _taxas(base, guardar)
+        contagem = base.quantidade
+    else:
+        unidades = tuple(sorted(base.estados))
+        estados = [_estado(base, uf) for uf in unidades]
+        taxa = np.vstack([taxa_do_territorio(base, estado) for estado in estados]) if estados else np.empty((0, t))
+        referencia = np.vstack([referencia_do_territorio(base, estado)[0] for estado in estados]) if estados else np.empty((0, t))
+        contagem = np.vstack([estado.serie for estado in estados]) if estados else np.empty((0, t))
+    n = len(unidades)
+    valor = {nome: np.full((n, t), np.nan) for nome in CHAVES_RELATIVAS}
+    porte = np.full((n, t), -1, dtype=np.int8)
+    janelas = []
+    for fim in range(t):
+        ini, ultimo, motivo = janela(base, fim)
+        if motivo is not None or ultimo != fim or not n:
+            continue
+        janelas.append(fim)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            no_inicio = contagem[:, ini]
+            validos = ~np.isnan(no_inicio) & ~np.isnan(contagem[:, fim]) & (no_inicio >= MINIMO_DE_MEDICOS)
+            porte[:, fim] = np.where(validos, reguas.portes(no_inicio), -1)
+            valor["disponibilidade"][:, fim] = np.where(taxa[:, ini] > 0, 100.0 * (taxa[:, fim] / taxa[:, ini] - 1.0), np.nan)
+            juntos = ~np.isnan(taxa[:, ini]) & ~np.isnan(taxa[:, fim])   # o universo fixo na janela
+            pa, _ = percentis(np.where(juntos, taxa[:, ini], np.nan))
+            pb, _ = percentis(np.where(juntos, taxa[:, fim], np.nan))
+            valor["posicao"][:, fim] = pb - pa
+            indice_ini = np.where(referencia[:, ini] > 0, 100.0 * taxa[:, ini] / referencia[:, ini], np.nan)
+            indice_fim = np.where(referencia[:, fim] > 0, 100.0 * taxa[:, fim] / referencia[:, fim], np.nan)
+            valor["defasagem"][:, fim] = indice_fim - indice_ini
+    c = {nome: np.zeros((6, n, t), dtype=np.int32) for nome in CHAVES_RELATIVAS}
+    um = np.ones((n, t))
+    for nome in CHAVES_RELATIVAS:
+        medida = valor[nome]
+        usavel = np.isfinite(medida) & (porte >= 0)
+        for posicao_da_janela, fim in enumerate(janelas):
+            atuais = np.flatnonzero(usavel[:, fim])
+            antes = janelas[:posicao_da_janela]
+            if not atuais.size or not antes:
+                continue
+            passado = usavel[:, antes]
+            if not passado.any():
+                continue
+            # A medida já é relativa (variação percentual, pontos de percentil ou de índice): entre todas as faixas, é comparada
+            # como está.
+            comparadas = reguas.comparar_com_o_passado(
+                medida[atuais, fim], medida[atuais, fim], um[atuais, fim], porte[atuais, fim], medida[:, antes][passado],
+                medida[:, antes][passado], um[:, antes][passado], porte[:, antes][passado])
+            for origem in range(6):
+                c[nome][origem, atuais, fim] = comparadas[origem]
+    for matriz in (porte, *valor.values(), *c.values()):
+        matriz.setflags(write=False)
+    saida = ReguaRelativa(unidades=unidades, valor=valor, porte=porte, c=c)
+    if guardar:
+        with _LOCK:
+            if len(_REGUAS) > 4:
+                _REGUAS.clear()
+            _REGUAS[chave] = saida
+    return saida
 
 
-def _abaixo_de(valor: float, limite: float) -> bool:
-    return valor < limite - EPS
+def _nivel_relativo(base: Base, qd: Quadro, territorio: Territorio, nome: str, p: dict) -> dict:
+    """O nível de um dos sinais 8 a 10 pela raridade da variação na base: o estado, a classe, a raridade lida e os níveis que a
+    base ainda não sustenta. Municípios pela régua dos municípios; estados como unidade, pela dos estados; um conjunto não tem
+    régua (não há outros iguais para comparar)."""
+    if territorio.tipo == "conjunto":
+        return {"estado": "nivel_sem_classificacao", "classe": None, "criterio": COMPARADO}
+    if territorio.tipo == "municipio":
+        regua, linha = regua_relativa(base, "municipios"), territorio.linha
+    else:
+        regua = regua_relativa(base, "estados")
+        linha = regua.unidades.index(territorio.uf)
+    limites = {nivel: p[nome][nivel + "_um_em"] for nivel, _, _ in reguas.NIVEIS}
+    lida = reguas.nivel_da_raridade(*(int(x) for x in regua.c[nome][:, linha, qd.fim]), limites=limites)
+    faixa = int(regua.porte[linha, qd.fim])
+    saida = {"classe": lida["nivel"], "criterio": COMPARADO, "raridade": lida, "sem_comparacoes": reguas.sem_comparacoes(lida),
+             "porte": faixa if faixa >= 0 else None}
+    saida["estado"] = "classificado" if lida["nivel"] else "sem_comparacoes" if not any(
+        dados["avaliado"] for dados in lida["niveis"].values()) else "sem_sinal"
+    return saida
 
 
 def _comum(base: Base, qd: Quadro) -> dict:
@@ -444,7 +536,7 @@ def _comum(base: Base, qd: Quadro) -> dict:
 def disponibilidade(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
     """Fenômeno 8: a taxa na data e a variação dela na janela de comparação, com a decomposição."""
     taxa, pop, serie = taxa_do_territorio(base, territorio), populacao_do_territorio(base, territorio), territorio.serie
-    saida = {"taxa": _num(taxa[qd.e]), "populacao": _num(pop[qd.e]), "competencia": base.periodos[qd.e], "sinal": None, **_comum(base, qd)}
+    saida = {"taxa": _num(taxa[qd.e]), "populacao": _num(pop[qd.e]), "competencia": base.periodos[qd.e], "classe": None, **_comum(base, qd)}
     if serie[qd.e] != serie[qd.e]:
         return {**saida, "estado": "ausencia_de_dado"}
     if saida["taxa"] is None:
@@ -462,21 +554,18 @@ def disponibilidade(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> 
                   "populacao_da_janela": {"inicial": float(pop[a]), "final": float(pop[b]), "variacao_pct": float(100.0 * (pop[b] / pop[a] - 1))}})
     if serie[a] < MINIMO_DE_MEDICOS:
         return {**saida, "estado": "descritivo"}
-    limites = p["disponibilidade"]
-    sinal = _sinal(variacao, (("muito_forte", _caiu(variacao, limites["muito_forte"])), ("forte", _caiu(variacao, limites["forte"]))))
-    return {**saida, "estado": "sinal_observado" if sinal else "sem_sinal", "sinal": sinal}
+    return {**saida, **_nivel_relativo(base, qd, territorio, "disponibilidade", p)}
 
 
 def posicao(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
     """Fenômeno 9: o percentil do território pela taxa e a variação dele num universo fixo na janela. Municípios no universo
     dos municípios do Brasil; estados como unidade, no dos estados; conjuntos não entram em universos de percentis."""
-    saida = {"percentil": None, "universo": None, "competencia": base.periodos[qd.e], "sinal": None, **_comum(base, qd)}
+    saida = {"percentil": None, "universo": None, "competencia": base.periodos[qd.e], "classe": None, **_comum(base, qd)}
     if territorio.tipo == "conjunto":
         return {**saida, "estado": "nao_aplicavel", "motivo": "Conjuntos não entram no universo de percentis: a posição relativa "
                 "compara territórios do mesmo tipo, um a um."}
     if territorio.serie[qd.e] != territorio.serie[qd.e]:
         return {**saida, "estado": "ausencia_de_dado"}
-    limites = p["posicao"]
     if territorio.tipo == "municipio":
         linha = territorio.linha
         saida.update({"percentil": _num(qd.percentil_na_data[linha]), "universo": qd.universo_na_data,
@@ -489,10 +578,6 @@ def posicao(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
         if pa != pa or pb != pb:
             return {**saida, "estado": "nao_calculavel", "motivo": "O território não está no universo fixo da janela (falta a taxa "
                     "numa das datas)."}
-        anterior = None
-        if qd.anterior is not None:
-            aa, ab = qd.percentil_ini_anterior[linha], qd.percentil_fim_anterior[linha]
-            anterior = None if aa != aa or ab != ab else (float(aa), float(ab))
         inicial = base.quantidade[linha, qd.ini]
         universo = qd.universo
     else:   # estado como unidade: o universo dos estados com taxa válida
@@ -514,25 +599,12 @@ def posicao(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
         pa, pb, universo = do_par(qd.ini, qd.fim)
         if pa != pa or pb != pb:
             return {**saida, "estado": "nao_calculavel", "motivo": "O território não está no universo fixo da janela."}
-        anterior = None
-        if qd.anterior is not None:
-            aa, ab, _ = do_par(*qd.anterior)
-            anterior = None if aa != aa or ab != ab else (float(aa), float(ab))
         inicial = territorio.serie[qd.ini]
     variacao = float(pb - pa)
     saida.update({"percentil_inicial": float(pa), "percentil_final": float(pb), "variacao_pp": variacao, "universo_da_janela": universo})
     if inicial < MINIMO_DE_MEDICOS:
         return {**saida, "estado": "descritivo"}
-    muito_forte = _caiu(variacao, limites["muito_forte"]) and _ate(pb, limites["muito_forte_final"])
-    confirmada = None
-    if muito_forte:
-        # A queda muito forte pede confirmação em duas avaliações anuais: a janela encerrada um ano antes também precisa mostrá-la.
-        confirmada = anterior is not None and _caiu(anterior[1] - anterior[0], limites["muito_forte"]) and             _ate(anterior[1], limites["muito_forte_final"])
-    sinal = _sinal(variacao, (("muito_forte", muito_forte and bool(confirmada)),
-                              ("forte", _caiu(variacao, limites["forte"]) and _ate(pb, limites["forte_final"])),
-                              ("queda", _caiu(variacao, limites["queda"]))))
-    return {**saida, "estado": "sinal_observado" if sinal else "sem_sinal", "sinal": sinal,
-            **({"confirmada": bool(confirmada)} if muito_forte else {})}
+    return {**saida, **_nivel_relativo(base, qd, territorio, "posicao", p)}
 
 
 def _estado(base: Base, uf: str) -> Territorio:
@@ -544,7 +616,7 @@ def defasagem(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
     taxa = taxa_do_territorio(base, territorio)
     da_referencia, rotulo, sem_referencia = referencia_do_territorio(base, territorio)
     saida = {"indice": None, "referencia": {"rotulo": rotulo, "taxa": _num(da_referencia[qd.e])}, "taxa": _num(taxa[qd.e]),
-             "competencia": base.periodos[qd.e], "sinal": None, **_comum(base, qd)}
+             "competencia": base.periodos[qd.e], "classe": None, **_comum(base, qd)}
     if sem_referencia:
         return {**saida, "estado": "referencia_invalida", "motivo": sem_referencia}
     if territorio.serie[qd.e] != territorio.serie[qd.e]:
@@ -566,10 +638,7 @@ def defasagem(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
     saida.update({"indice_inicial": inicial, "indice_final": final, "variacao_pontos": variacao})
     if territorio.serie[qd.ini] < MINIMO_DE_MEDICOS:
         return {**saida, "estado": "descritivo"}
-    limites = p["defasagem"]
-    sinal = _sinal(variacao, (("muito_forte", _caiu(variacao, limites["muito_forte"]) and _abaixo_de(final, limites["muito_forte_final"])),
-                              ("forte", _caiu(variacao, limites["forte"]) and _abaixo_de(final, limites["forte_final"]))))
-    return {**saida, "estado": "sinal_observado" if sinal else "sem_sinal", "sinal": sinal}
+    return {**saida, **_nivel_relativo(base, qd, territorio, "defasagem", p)}
 
 
 def contexto(base: Base, qd: Quadro, territorio: Territorio) -> dict:
@@ -617,8 +686,8 @@ def coexistencia(sinais: list[str], classe_estrutural: str | None) -> dict:
     como evidências independentes."""
     tem = set(sinais)
     presentes = {
-        "estrutural_e_perda": classe_estrutural in ("alta", "critica") and "perda" in tem,
-        "estrutural_e_declinio": classe_estrutural in ("alta", "critica") and "declinio" in tem,
+        "estrutural_e_perda": classe_estrutural in ("elevado", "critico") and "perda" in tem,
+        "estrutural_e_declinio": classe_estrutural in ("elevado", "critico") and "declinio" in tem,
         "declinio_e_relativa": "declinio" in tem and bool(tem & {"disponibilidade", "posicao"}),
         "patamar_e_estrutural": "patamar" in tem and classe_estrutural is not None,
     }

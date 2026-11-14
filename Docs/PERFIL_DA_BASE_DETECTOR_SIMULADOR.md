@@ -55,7 +55,10 @@ pessoas distintas, cada uma no seu nível.
 - **Células da calibração** (porte × intervalo): antes de jun/2024, toda célula tem de 2.769 (300 ou mais, 5 meses) a 16.652
   (4–9, 5 meses) transições anteriores, acima dos mínimos da seção 4.2 (100 transições para α = 1% e 1.000 para α = 0,1%). Nas
   primeiras competências da série, as células ainda não têm esses mínimos: o Detector mostra "não calibrado" até a célula
-  alcançá-los (só transições anteriores, sem dados futuros).
+  alcançá-los (só transições anteriores, sem dados futuros). **Desde 13/11/2026** (comando V23, Proposta V3), a régua do
+  Detector usa dez faixas de porte (as quatro acima de 300 no lugar de "300 ou mais"), a raridade com o "+1" e os mínimos de 19,
+  99 e 999 comparações; o que a base não sustenta aparece como "sem comparações suficientes", com os números
+  ([Detector de Sinais](DETECTOR_DE_SINAIS.md), "Calibração").
 - **O movimento de fundo:** a soma municipal sobe em todas as 21 transições (de +0,77% a +4,86%), e, em cada transição, de 18% a
   33% dos municípios caem. A variação relativa mediana, nos municípios com N ≥ 10, é +1,49% nas transições de 5 meses e +2,26%
   nas de 7 meses (médias de +2,77% e +3,74%). As transições de 5 e 7 meses diferem e não se misturam na calibração.
@@ -105,16 +108,23 @@ calibrado", "limite provisório" no lugar de "candidato"); os termos técnicos f
 2. **Intensidade do sinal com limiares candidatos** (decisão 1 do comando: atenção, alta e crítica): a SPEC (CFG-NOR, 4.4.19)
    não traz critério normativo pré-configurado, e o diálogo recusa "crítico" sem critério. **Resolvido em 10/11/2026**
    (decisão D-A do [anexo](DETECTOR_E_SIMULADOR_V2_2.md)): divergência aprovada, só no Detector, com "limite provisório" e
-   "sem classificação" (com o motivo) onde faltar calibração.
+   "sem classificação" (com o motivo) onde faltar calibração. **Desde 13/11/2026** (comando V23, decisão 2), os níveis são
+   moderado, elevado e crítico, "alerta" vale para os três, sempre com o tipo de critério, e a tela diz "sem comparações
+   suficientes" no lugar de "sem classificação" e de "não calibrado".
 3. **Calibração por porte e intervalo:** possível em jun/2024 em todas as células (seção 4); nas primeiras competências,
    "não calibrado". A crítica do indicador 7 fica "não calibrável" enquanto não houver casos para estimar a cauda (seção 4.2).
+   **Desde 13/11/2026** (Proposta V3): com as faixas acima de 300 separadas, o crítico fica "sem comparações suficientes" de
+   3.000 médicos para cima (a base não tem 999 comparações de tamanho parecido); o crítico do sinal 7 passa a valer onde há 999
+   comparações (0,04% das avaliações, para uma meta de 0,1%).
 4. **População comparável:** só nos trechos da seção 6; fora deles, os indicadores 8 e 9 ficam "comparação não habilitada".
    **Implementado em 11/11/2026** (etapa 5 do comando V22): a janela de 2 anos só é habilitada inteira dentro de um trecho
    de população comparável; por decisão conservadora, a mesma regra vale para a variação do indicador 10, e o nível da data
    (taxa, percentil e índice) continua à vista ([Detector de Sinais](DETECTOR_DE_SINAIS.md)). **Desde 13/11/2026** (comando
    V23), os trechos vêm da própria base, e não de anos fixos; com a população nova, é um trecho só (2014–2024).
 5. **Estados como unidade e conjuntos:** sem calibração própria (a da V2.2 é municipal); o Detector mostra os fatos e os
-   indicadores descritivos, sem intensidade calibrada.
+   indicadores descritivos, sem intensidade calibrada. **Desde 13/11/2026** (Proposta V3): os estados como unidade têm régua
+   própria, com a base dos estados (moderado desde jun/2015, elevado desde jun/2019 e crítico nunca: em jun/2024 há 270
+   comparações, e o crítico pede 999); os conjuntos continuam sem nível, com os fatos e o motivo.
 6. **Faixas de 80% do Simulador:** a tabela da seção 11.2 do anexo traz valores iniciais, a recalcular na base (retroprojeções
    com origens móveis) antes de exibir; sem o recálculo, "indisponível".
 7. **"Simular recuperação"** (meta = patamar do indicador 7, por planejamento inverso; etapa 5). **Resolvido em 10/11/2026**

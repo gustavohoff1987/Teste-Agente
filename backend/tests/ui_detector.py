@@ -1,20 +1,24 @@
-"""Detector de Sinais Territoriais na página única (comando V22, etapas 3 e 5), com a base versionada (somente leitura).
+"""Detector de Sinais Territoriais na página única (comando V23, Proposta V3, Parte B), com a base versionada (somente leitura).
 
 Confere, contra as respostas de POST /api/detector:
 - a ferramenta na navegação principal ("Detector de Sinais"), que não pede nada ao motor sem territórios selecionados;
-- a tabela da situação mais recente da janela para os municípios de Santa Catarina (uma linha por território, 50 por página),
-  com a data do registro mais recente à vista;
-- os filtros por fenômeno e pelo nome, e os detalhes de RIO RUFINO (SC): a série observada com o registro do pico marcado, os
-  12 fenômenos (11 itens: 1 e 2 juntos) com os sete campos (o que foi observado, qual critério, quanto difere do habitual, o que
-  significa, o que não significa, limitações do dado e qualidade do registro) e o histórico de sinais;
+- a primeira tela para os municípios de Santa Catarina: a lista de quatro colunas (Território · Alerta · Por quê · Último
+  registro), 50 por página, com a data do registro mais recente à vista; o resumo dos níveis, clicável como filtro; os filtros numa
+  linha (Até, Nível, Sinal e Buscar); a ordem pelos cabeçalhos; o nível sempre escrito, com o tipo de critério;
+- os detalhes de RIO RUFINO (SC): a série observada com o registro do pico marcado, os 12 sinais (11 itens: 1 e 2 juntos) em
+  quatro grupos mais Juntos, cada um com o nível, uma frase e o "Entenda" (mouse, teclado e "Ver explicação completa"), a
+  explicação completa com os sete campos e o histórico de sinais;
 - a janela entre competências reais: com o fim em jun/2023, o salto de RIO RUFINO ainda é "verificar registro";
-- os parâmetros personalizados, marcados como exploratórios, com "Voltar aos padrões";
-- um estado como unidade na mesma seleção: os fatos, "sem classificação neste nível";
-- "Alterar a seleção", que volta à Seleção de Territórios;
-- os fenômenos 8 a 12 (etapa 5): em jun/2024, a comparação de 2 anos com a população comparável da base; as bolhas da distância e
-  da taxa e o mapa dos sinais, com os valores e as coordenadas do motor; com a janela até jun/2021, os sinais observados (sem
-  intensidade), a série da taxa com a referência e os textos do motor; e "Simular recuperação", que abre o Simulador de Cenários
-  com a meta hipotética de voltar ao patamar anterior, sem mudar a seleção principal;
+- "Ajustar critérios": os limites em frases, com os campos dentro delas; trocar um valor torna a configuração exploratória, com
+  aviso no alto e "Voltar ao padrão" sempre à vista;
+- "Como foi calculado": os três níveis e a régua da data por porte, com "sem comparações suficientes" no crítico de 1.000 para cima;
+- um estado como unidade na mesma seleção, com a régua própria dos estados e "sem comparações suficientes" com os números;
+- as visões Mapa (os pontos pelo nível, com a legenda escrita) e Gráfico (a distância e a taxa, pelo nível);
+- com a janela até jun/2021, os sinais comparados em 2 anos (8 a 10) com nível, a série da taxa com a referência e os textos do
+  motor; e "Simular recuperação", que abre o Simulador de Cenários com a meta hipotética de voltar ao patamar, sem mudar a
+  seleção principal;
+- numa tela de celular, com toque: o "Entenda" abre pelo toque, cabe na largura e fecha com um toque fora; a lista vira cartões e
+  nada passa da largura;
 - nenhuma chamada ao provedor de IA e nenhum erro na página.
 
 Base Brasil versionada (suíte base-versionada, ADT_BLOCK1_REAL=1); servidor serve_ui_offline.py, sem o provedor de IA.
@@ -27,6 +31,18 @@ from ui_support import URL, linha_do_estado, offline, options_of
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 SC, PR, RIO_RUFINO, ABELARDO_LUZ = "42", "41", "code:421505", "code:420010"
+ESTADOS = ("critico", "elevado", "moderado", "sem_alerta", "sem_comparacoes", "sem_nivel")
+NOMES = {"critico": "Crítico", "elevado": "Elevado", "moderado": "Moderado"}
+SINAIS = ["estrutural", "declinio", "desaceleracao", "instabilidade", "perda", "patamar", "disponibilidade", "posicao", "defasagem", "contexto",
+          "coexistencia"]
+
+
+def estado_do_alerta(item):
+    return item["alerta"]["nivel"] or item["alerta"]["estado"]
+
+
+def com_o_sinal(item, sinal):
+    return any(dado["sinal"] == sinal for dado in item["alerta"]["sinais"])
 
 
 def main():
@@ -48,9 +64,9 @@ def main():
         botao = area.get_by_test_id("analise-ferramenta-detector")
         detector = area.get_by_test_id("detector")
 
-        def do_detector(acao, condicao=None):
+        def do_detector(acao, condicao=None, da_pagina=None):
             """A resposta de /api/detector que a ação provocou e as opções do pedido."""
-            with page.expect_response(lambda r: r.url.endswith("/api/detector") and r.request.method == "POST" and (
+            with (da_pagina or page).expect_response(lambda r: r.url.endswith("/api/detector") and r.request.method == "POST" and (
                     condicao is None or condicao(options_of(r.request))), timeout=180000) as evento:
                 acao()
             assert evento.value.status == 200, evento.value.text()[:2000]
@@ -58,6 +74,9 @@ def main():
 
         def linha(codigo):
             return detector.locator('[data-testid="detector-linha"][data-id="' + codigo + '"]')
+
+        def sinal_da_tela(detalhe, chave):
+            return detalhe.locator('[data-testid="detector-fenomeno"][data-chave="' + chave + '"]')
 
         chat = page.get_by_test_id("painel-chat")
         if chat.count() and chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
@@ -79,12 +98,13 @@ def main():
         botao.click()
         expect(area).to_have_attribute("data-ferramenta", "")
 
-        # 2. Os municípios de Santa Catarina: a tabela da situação mais recente, uma linha por território, 50 por página.
+        # 2. Os municípios de Santa Catarina: a lista de quatro colunas, uma linha por território, 50 por página, na visão Lista.
         with page.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST", timeout=180000):
             linha_do_estado(territorios, SC).get_by_test_id("analise-grupo-todos").check()
         corpo, enviado = do_detector(lambda: botao.click())
         assert enviado == {"base": {"municipios": {"todos": False, "estados": [SC], "ids": []}}}, enviado
         assert len(corpo["linhas"]) == 295 and corpo["janela"]["fim"] == "202406" and corpo["exploratorio"] is False, corpo["janela"]
+        assert corpo["versao"] == "DETECTOR-SINAIS/V3/1", corpo["versao"]
         expect(detector).to_have_attribute("data-estado", "pronto")
         expect(detector.get_by_test_id("detector-data")).to_contain_text("Registro mais recente da base: jun/2024")
         expect(detector.get_by_test_id("detector-data")).to_contain_text("não a de hoje")
@@ -92,70 +112,151 @@ def main():
         expect(tabela).to_have_attribute("data-linhas", "295")
         expect(detector.get_by_test_id("detector-linha")).to_have_count(50)
         expect(detector.get_by_test_id("detector-paginas")).to_contain_text("Página 1 de 6")
-        expect(tabela.locator("thead th")).to_have_text(["Território", "Condição estrutural", "Trajetória", "Ritmo e instabilidade",
-                                                         "Comparação relativa",
-                                                         "Contexto geográfico município mais próximo com 2,36 médicos por 1.000 habitantes ou mais",
-                                                         "Sinais combinados",
-                                                         "Qualidade do registro", "Última observação"])
-        expect(tabela.locator("caption")).to_contain_text("limites provisórios")
-        # O critério do contexto geográfico aparece no cabeçalho e na célula (revisão da etapa 5, 13/11/2026).
-        expect(detector.get_by_test_id("detector-criterio-do-contexto")).to_have_text("município mais próximo com 2,36 médicos por 1.000 habitantes ou mais")
-        expect(tabela).to_contain_text("dos municípios abaixo de 2,36 médicos por 1.000 habitantes")
-        expect(detector.get_by_test_id("detector-resumo")).to_contain_text("295 territórios")
-        page.screenshot(path=str(OUTPUT / "detector-01-tabela-real.png"), full_page=True)
-
-        # 3. O filtro por fenômeno usa os sinais do motor; cada linha filtrada tem a intensidade por extenso.
-        com_escala = [item for item in corpo["linhas"] if "estrutural" in item["sinais"]]
-        assert com_escala, "há municípios de Santa Catarina com poucos médicos em jun/2024"
-        detector.get_by_test_id("detector-filtro-fenomeno").select_option("estrutural")
-        expect(tabela).to_have_attribute("data-linhas", str(len(com_escala)))
+        cabecalhos = tabela.locator("thead th")
+        expect(cabecalhos).to_have_count(4)
+        for indice, nome in enumerate(("Território", "Alerta", "Por quê", "Último registro")):
+            expect(cabecalhos.nth(indice)).to_contain_text(nome)
+        expect(detector.get_by_test_id("detector-visual")).to_have_count(0)   # a Lista é a visão padrão
+        expect(detector.get_by_test_id("detector-vista-lista")).to_have_attribute("aria-pressed", "true")
+        expect(detector.get_by_test_id("detector-comparacao")).to_contain_text("usam a variação de jun/2022 a jun/2024")
+        expect(detector.get_by_test_id("detector-aviso-da-base")).to_have_count(0)
+        assert corpo["aviso_da_base"] is None, corpo["aviso_da_base"]
+        # O resumo dos níveis: um nível por território (o maior entre os sinais), com os números do motor; sem conjuntos, não há
+        # "sem nível". O nível vem sempre escrito, com o tipo de critério.
+        niveis = corpo["resumo"]["niveis"]
+        assert sum(niveis.values()) == 295 and niveis["critico"] >= 1 and niveis["elevado"] >= 1 and niveis["moderado"] >= 1, niveis
+        assert niveis == {estado: sum(1 for item in corpo["linhas"] if estado_do_alerta(item) == estado) for estado in ESTADOS}, niveis
+        resumo = detector.get_by_test_id("detector-resumo")
+        expect(resumo).to_have_attribute("data-territorios", "295")
+        for estado in ESTADOS[:5]:
+            expect(resumo.get_by_test_id("detector-resumo-" + estado)).to_have_attribute("data-quantos", str(niveis[estado]))
+        expect(resumo.get_by_test_id("detector-resumo-sem_nivel")).to_have_count(0)
+        expect(resumo.get_by_test_id("detector-resumo-sem_alerta")).to_have_text(str(niveis["sem_alerta"]) + " sem alerta")
         primeira = detector.get_by_test_id("detector-linha").first
-        expect(primeira).not_to_have_attribute("data-estrutural", "")
-        expect(primeira.get_by_test_id("detector-intensidade").first).to_have_text(["Crítica", "Alta", "Atenção"][
-            ["critica", "alta", "atencao"].index(primeira.get_attribute("data-estrutural"))])
-        detector.get_by_test_id("detector-filtro-fenomeno").select_option("todos")
+        expect(tabela).to_have_attribute("data-ordem", "nivel")
+        expect(primeira).to_have_attribute("data-alerta", "critico")
+        expect(primeira.get_by_test_id("detector-nivel")).to_have_text("Crítico")
+        do_primeiro = next(item for item in corpo["linhas"] if item["id"] == primeira.get_attribute("data-id"))
+        expect(primeira.get_by_test_id("detector-criterio")).to_have_text(do_primeiro["alerta"]["criterio"])
+        expect(primeira.get_by_test_id("detector-por-que")).to_have_text(do_primeiro["alerta"]["por_que"])
+        assert do_primeiro["alerta"]["criterio"] in ("por convenção", "comparado com a base"), do_primeiro["alerta"]
+        page.screenshot(path=str(OUTPUT / "detector-01-lista-real.png"), full_page=True)
+        # O resumo é clicável e funciona como o filtro "Nível".
+        resumo.get_by_test_id("detector-resumo-elevado").click()
+        expect(detector.get_by_test_id("detector-filtro-nivel")).to_have_value("elevado")
+        expect(tabela).to_have_attribute("data-linhas", str(niveis["elevado"]))
+        assert set(detector.get_by_test_id("detector-linha").evaluate_all("els => els.map(e => e.dataset.alerta)")) == {"elevado"}
+        assert set(detector.get_by_test_id("detector-nivel").all_text_contents()) == {"Elevado"}
+        resumo.get_by_test_id("detector-resumo-elevado").click()
+        expect(detector.get_by_test_id("detector-filtro-nivel")).to_have_value("todos")
+        detector.get_by_test_id("detector-filtro-nivel").select_option("sem_alerta")
+        expect(tabela).to_have_attribute("data-linhas", str(niveis["sem_alerta"]))
+        expect(detector.get_by_test_id("detector-linha").first.get_by_test_id("detector-alerta")).to_have_text("Sem alerta")
+        expect(detector.get_by_test_id("detector-linha").first.get_by_test_id("detector-nivel")).to_have_count(0)
+        detector.get_by_test_id("detector-filtro-nivel").select_option("todos")
+        # A ordem pelos cabeçalhos: pelo nome e de volta ao nível (a ordem não é um índice).
+        detector.get_by_test_id("detector-ordem-nome").click()
+        expect(tabela).to_have_attribute("data-ordem", "nome")
+        expect(detector.get_by_test_id("detector-linha").first).to_have_attribute("data-id", min(corpo["linhas"], key=lambda item: item["rotulo"])["id"])
+        detector.get_by_test_id("detector-ordem-nivel").click()
+        expect(detector.get_by_test_id("detector-linha").first).to_have_attribute("data-alerta", "critico")
 
-        # 4. RIO RUFINO (SC), pelo nome: o pico que volta (4 → 87 → 5) é descontinuidade de registro, sem alerta; os detalhes
-        # trazem a série com o registro do pico marcado, os 12 fenômenos (11 itens) com os sete campos e o histórico de sinais.
+        # 3. O filtro "Sinal": a linha passa quando o sinal tem nível nela (não só o sinal principal do alerta).
+        com_poucos = [item for item in corpo["linhas"] if com_o_sinal(item, "estrutural")]
+        assert com_poucos and len(com_poucos) == corpo["resumo"]["com_nivel"]["estrutural"], "há municípios de Santa Catarina com poucos médicos em jun/2024"
+        detector.get_by_test_id("detector-filtro-sinal").select_option("estrutural")
+        expect(tabela).to_have_attribute("data-linhas", str(len(com_poucos)))
+        assert all("estrutural" in sinais.split() for sinais in detector.get_by_test_id("detector-linha").evaluate_all("els => els.map(e => e.dataset.sinais)"))
+        detector.get_by_test_id("detector-filtro-sinal").select_option("todos")
+
+        # 4. RIO RUFINO (SC), pelo nome: o pico que volta (4 → 87 → 5) é descontinuidade de registro, sem alerta de queda; os
+        # detalhes trazem a série com o registro do pico marcado e os 12 sinais (11 itens) em quatro grupos, mais Juntos.
         detector.get_by_test_id("detector-busca").fill("rio rufino")
         expect(tabela).to_have_attribute("data-linhas", "1")
         rio = linha(RIO_RUFINO)
         expect(rio.get_by_test_id("detector-registro")).to_have_attribute("data-marca", "descontinuidade")
         expect(rio.get_by_test_id("detector-registro")).to_have_text("Descontinuidade de registro (pico que volta)")
+        expect(rio.get_by_test_id("detector-ultimo")).to_contain_text("jun/2024 · 5 médicos")
         detalhe_do_motor, enviado = do_detector(lambda: rio.get_by_test_id("detector-abrir").click(), lambda o: o.get("detalhe") == RIO_RUFINO)
         assert detalhe_do_motor["territorio"]["registro"]["eventos"][0]["valores"] == [4, 87, 5], detalhe_do_motor["territorio"]["registro"]
         detalhe = detector.get_by_test_id("detector-detalhe")
         expect(detalhe).to_have_attribute("data-id", RIO_RUFINO)
+        do_rio = detalhe_do_motor["linha"]["alerta"]
+        expect(detalhe.get_by_test_id("detector-detalhe-alerta")).to_have_attribute("data-estado", do_rio["nivel"] or do_rio["estado"])
         expect(detalhe.locator('[data-testid="detector-serie-ponto"][data-marca="pico_que_volta"]')).to_have_count(1)
         expect(detalhe.locator('[data-testid="detector-serie-ponto"][data-competencia="202306"]')).to_have_attribute("data-marca", "pico_que_volta")
+        grupos = detalhe.get_by_test_id("detector-grupo")
+        assert grupos.evaluate_all("els => els.map(e => e.dataset.grupo)") == ["quantos", "mudou", "comparado", "onde", "juntos"]
+        assert grupos.locator("h4").all_text_contents() == ["Quantos há", "Como mudou", "Comparado com outros", "Onde fica", "Juntos"]
+        assert [(item["chave"], item["sinais"]) for item in detalhe_do_motor["grupos"]] == [
+            ("quantos", ["estrutural"]), ("mudou", ["declinio", "desaceleracao", "instabilidade", "perda", "patamar"]),
+            ("comparado", ["disponibilidade", "posicao", "defasagem"]), ("onde", ["contexto"]), ("juntos", ["coexistencia"])]
         fenomenos = detalhe.get_by_test_id("detector-fenomeno")
         expect(fenomenos).to_have_count(11)
-        assert fenomenos.evaluate_all("els => els.map(e => e.dataset.chave)") == [
-            "estrutural", "declinio", "perda", "patamar", "desaceleracao", "instabilidade", "disponibilidade", "posicao", "defasagem",
-            "contexto", "coexistencia"]
-        assert [item["numero"] for item in detalhe_do_motor["fenomenos"]] == ["1–2", "3", "6", "7", "4", "5", "8", "9", "10", "11", "12"]
-        # O fenômeno 4 diz em palavras quando não se aplica (em vez de "Sem desaceleração do crescimento (declínio)").
-        situacao_4 = next(item for item in detalhe_do_motor["fenomenos"] if item["chave"] == "desaceleracao")["situacao"]
-        assert situacao_4.startswith(("Sem desaceleração: ", "Não se aplica: ", "Desaceleração do crescimento", "Não avaliável")), situacao_4
-        expect(detalhe.locator('[data-testid="detector-fenomeno"][data-chave="desaceleracao"]')).to_contain_text(situacao_4)
-        perda = detalhe.locator('[data-testid="detector-fenomeno"][data-chave="perda"]')
-        if perda.locator(".ferramenta-fenomeno-cabeca").get_attribute("aria-expanded") != "true":
-            perda.locator(".ferramenta-fenomeno-cabeca").click()
-        for campo, rotulo in (("observado", "O que foi observado"), ("criterio", "Qual critério"), ("habitual", "Quanto difere do habitual"),
+        assert fenomenos.evaluate_all("els => els.map(e => e.dataset.chave)") == SINAIS
+        assert [item["numero"] for item in detalhe_do_motor["fenomenos"]] == ["1–2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+        # Em cada sinal: o nível (ou o que a base diz no lugar), uma frase e o "Entenda", com os textos do motor.
+        for item in detalhe_do_motor["fenomenos"]:
+            da_tela = sinal_da_tela(detalhe, item["chave"])
+            expect(da_tela).to_have_attribute("data-nivel", item["nivel"] or "")
+            expect(da_tela).to_have_attribute("data-estado", item["estado_do_nivel"])
+            expect(da_tela.get_by_test_id("detector-fenomeno-situacao")).to_contain_text(item["situacao"])
+            if item["nivel"]:
+                expect(da_tela.get_by_test_id("detector-nivel")).to_have_text(NOMES[item["nivel"]])
+                expect(da_tela.get_by_test_id("detector-fenomeno-criterio")).to_contain_text(item["criterio_do_nivel"])
+            else:
+                expect(da_tela.get_by_test_id("detector-nivel")).to_have_count(0)
+            expect(da_tela.get_by_test_id("detector-entenda-botao")).to_have_text("Entenda")
+        # O sinal 4 é rotulado como exploratório e diz que mostra uma mudança de ritmo, não o que vem depois.
+        do_ritmo = next(item for item in detalhe_do_motor["fenomenos"] if item["chave"] == "desaceleracao")
+        assert do_ritmo["exploratorio"] is True and "não indica o que vem depois" in do_ritmo["entenda"]["texto"], do_ritmo
+        # "Entenda" com o mouse: abre ao passar por cima, com duas ou três frases e um exemplo com números, e fecha ao sair.
+        da_queda = sinal_da_tela(detalhe, "perda")
+        do_motor_da_queda = next(item for item in detalhe_do_motor["fenomenos"] if item["chave"] == "perda")
+        entenda = da_queda.get_by_test_id("detector-entenda")
+        caixa = da_queda.get_by_test_id("detector-entenda-caixa")
+        expect(caixa).to_have_count(0)
+        da_queda.get_by_test_id("detector-entenda-botao").hover()
+        expect(entenda).to_have_attribute("data-aberto", "true")
+        expect(caixa).to_be_visible()
+        expect(caixa).to_contain_text(do_motor_da_queda["entenda"]["texto"])
+        expect(da_queda.get_by_test_id("detector-entenda-exemplo")).to_have_text("Exemplo: " + do_motor_da_queda["entenda"]["exemplo"])
+        assert "2 para 1" in do_motor_da_queda["entenda"]["exemplo"], do_motor_da_queda["entenda"]   # o exemplo do anexo (nota da seção B.2)
+        page.screenshot(path=str(OUTPUT / "detector-02-entenda-real.png"), full_page=False)
+        detector.get_by_test_id("detector-titulo").hover()
+        expect(caixa).to_have_count(0)
+        # "Entenda" pelo teclado: abre ao receber o foco, e Esc fecha; "Ver explicação completa" abre os sete campos do sinal.
+        da_queda.get_by_test_id("detector-entenda-botao").focus()
+        expect(caixa).to_be_visible()
+        expect(da_queda.get_by_test_id("detector-entenda-botao")).to_have_attribute("aria-expanded", "true")
+        page.keyboard.press("Escape")
+        expect(caixa).to_have_count(0)
+        expect(da_queda.get_by_test_id("detector-fenomeno-explicacao")).to_have_count(0)
+        da_queda.get_by_test_id("detector-entenda-botao").press("Enter")
+        expect(caixa).to_be_visible()
+        page.keyboard.press("Tab")
+        expect(da_queda.get_by_test_id("detector-entenda-completa")).to_be_focused()
+        page.keyboard.press("Enter")
+        expect(caixa).to_have_count(0)
+        explicacao = da_queda.get_by_test_id("detector-fenomeno-explicacao")
+        expect(explicacao).to_be_visible()
+        for campo, rotulo in (("observado", "O que foi observado"), ("criterio", "Qual critério"), ("habitual", "Comparado com o comum"),
                               ("significa", "O que significa"), ("naoSignifica", "O que não significa"), ("limitacoes", "Limitações do dado"),
                               ("qualidade", "Qualidade do registro")):
-            expect(perda.get_by_test_id("detector-campo-" + campo).locator("dt")).to_have_text(rotulo)
-            expect(perda.get_by_test_id("detector-campo-" + campo).locator("dd")).not_to_have_text("")
-        texto_da_perda = next(item for item in detalhe_do_motor["fenomenos"] if item["chave"] == "perda")
-        expect(perda.get_by_test_id("detector-campo-observado").locator("dd")).to_have_text(texto_da_perda["observado"])
-        expect(perda.get_by_test_id("detector-campo-qualidade").locator("dd")).to_contain_text("pico que volta")
+            expect(explicacao.get_by_test_id("detector-campo-" + campo).locator("dt")).to_have_text(rotulo)
+            expect(explicacao.get_by_test_id("detector-campo-" + campo).locator("dd")).not_to_have_text("")
+        expect(explicacao.get_by_test_id("detector-campo-observado").locator("dd")).to_have_text(do_motor_da_queda["observado"])
+        expect(explicacao.get_by_test_id("detector-campo-habitual").locator("dd")).to_have_text(do_motor_da_queda["habitual"])
+        expect(explicacao.get_by_test_id("detector-campo-qualidade").locator("dd")).to_contain_text("pico que volta")
+        da_queda.get_by_test_id("detector-fenomeno-completa").click()
+        expect(explicacao).to_have_count(0)
         detalhe.get_by_test_id("detector-historico-botao").click()
         expect(detalhe.get_by_test_id("detector-historico").locator("tbody tr")).to_have_count(22)
         expect(detalhe.get_by_test_id("detector-historico").locator('tbody tr[data-competencia="202401"]')).to_contain_text(
             "descontinuidade de registro")
-        page.screenshot(path=str(OUTPUT / "detector-02-detalhe-real.png"), full_page=True)
+        page.screenshot(path=str(OUTPUT / "detector-03-detalhe-real.png"), full_page=True)
 
-        # 5. A janela entre competências reais: com o fim em jun/2023, a volta ainda não foi observada — "verificar registro".
+        # 5. A janela entre competências reais ("Até"): com o fim em jun/2023, a volta ainda não foi observada — "verificar registro".
         corpo_2023, enviado = do_detector(lambda: detector.get_by_test_id("detector-janela-fim").select_option("202306"),
                                           lambda o: (o.get("janela") or {}).get("fim") == "202306")
         assert corpo_2023["janela"]["fim"] == "202306" and corpo_2023["janela"]["e_o_ultimo"] is False, corpo_2023["janela"]
@@ -167,33 +268,74 @@ def main():
         detector.get_by_test_id("detector-busca").fill("")
         expect(tabela).to_have_attribute("data-linhas", "295")
 
-        # 6. Parâmetros personalizados: exploratórios, nunca no lugar dos padrões em silêncio.
+        # 6. "Ajustar critérios": os limites em frases, com os campos dentro delas. Trocar um valor torna a configuração
+        # exploratória, com aviso no alto; "Voltar ao padrão" fica sempre à vista (desligado enquanto os critérios são os padrões).
         expect(detector.get_by_test_id("detector-exploratorio")).to_have_count(0)
+        voltar = detector.get_by_test_id("detector-voltar-ao-padrao")
+        expect(voltar).to_be_visible()
+        expect(voltar).to_be_disabled()
         detector.get_by_test_id("detector-parametros-botao").click()
-        campo = detector.get_by_test_id("detector-parametro-estrutural-atencao")
+        criterios = detector.get_by_test_id("detector-parametros")
+        assert criterios.get_by_test_id("detector-criterio").evaluate_all("els => els.map(e => e.dataset.sinal)") == SINAIS[:10]
+        da_queda_em_frases = criterios.locator('[data-testid="detector-criterio"][data-sinal="perda"]')
+        expect(da_queda_em_frases).to_contain_text("Alerta elevado quando a queda for de pelo menos")
+        expect(da_queda_em_frases).to_contain_text("mudanças anteriores foi uma queda igual ou maior.")
+        assert [criterios.get_by_test_id("detector-parametro-perda-elevado_" + campo).input_value() for campo in ("minimo", "fracao", "um_em")] == ["2", "20", "100"]
+        expect(criterios.get_by_test_id("detector-janela-inicio")).to_have_value("201401")
+        campo = criterios.get_by_test_id("detector-parametro-estrutural-moderado")
         expect(campo).to_have_value("5")
+        expect(campo).to_have_attribute("data-trocado", "false")
         campo.fill("9")
-        corpo_exploratorio, enviado = do_detector(lambda: detector.get_by_test_id("detector-parametros-aplicar").click(),
+        expect(campo).to_have_attribute("data-trocado", "true")
+        expect(voltar).to_be_enabled()
+        corpo_exploratorio, enviado = do_detector(lambda: criterios.get_by_test_id("detector-parametros-aplicar").click(),
                                                   lambda o: bool(o.get("parametros")))
-        assert enviado["parametros"] == {"estrutural": {"atencao": 9}} and corpo_exploratorio["exploratorio"] is True, enviado
+        assert enviado["parametros"] == {"estrutural": {"moderado": 9}} and corpo_exploratorio["exploratorio"] is True, enviado
+        assert "CONFIGURACAO_EXPLORATORIA" in corpo_exploratorio["limitacoes"], corpo_exploratorio["limitacoes"]
         expect(detector).to_have_attribute("data-exploratorio", "true")
-        expect(detector.get_by_test_id("detector-exploratorio")).to_contain_text("Configuração personalizada — exploratória.")
-        assert corpo_exploratorio["resumo"]["sinais"]["estrutural"] > corpo["resumo"]["sinais"]["estrutural"]
+        expect(detector.get_by_test_id("detector-exploratorio")).to_contain_text("Configuração exploratória.")
+        assert corpo_exploratorio["resumo"]["com_nivel"]["estrutural"] > corpo["resumo"]["com_nivel"]["estrutural"]
+        page.screenshot(path=str(OUTPUT / "detector-04-criterios-real.png"), full_page=True)
         pedidos_antes = len(pedidos)
-        detector.get_by_test_id("detector-padroes").click()
+        voltar.click()
         expect(detector.get_by_test_id("detector-exploratorio")).to_have_count(0)
         expect(detector).to_have_attribute("data-exploratorio", "false")
+        expect(criterios.get_by_test_id("detector-parametro-estrutural-moderado")).to_have_value("5")
+        expect(voltar).to_be_disabled()
         page.wait_for_timeout(400)
-        assert len(pedidos) == pedidos_antes, "os padrões já calculados vêm da memória da tela"
+        assert len(pedidos) == pedidos_antes, "o padrão já calculado vem da memória da tela"
+        detector.get_by_test_id("detector-parametros-botao").click()
+        expect(criterios).to_have_count(0)
 
-        # 7. "Como foi calculado": as notas e a comparação da data, por porte.
-        detector.get_by_test_id("detector-metodo-botao").click()
+        # 7. "Como foi calculado", aberto pelo "Ver explicação completa" do "Entenda" da ferramenta: as notas, os três níveis e a
+        # régua da data por porte. A tabela mostra as comparações da própria faixa: de 1.000 médicos para cima, ela não tem as 999
+        # do crítico (de 3.000 para cima, nem com as faixas vizinhas, e o crítico não é avaliado).
+        expect(detector.get_by_test_id("detector-metodo")).to_have_count(0)
+        detector.get_by_test_id("detector-entenda-ferramenta-botao").click()
+        expect(detector.get_by_test_id("detector-entenda-ferramenta-caixa")).to_contain_text(corpo["entenda"]["ferramenta"]["texto"])
+        detector.get_by_test_id("detector-entenda-ferramenta-completa").click()
         metodo = detector.get_by_test_id("detector-metodo")
-        expect(metodo).to_contain_text("Fato observado, raridade e sinal são coisas diferentes")
-        expect(metodo.get_by_test_id("detector-calibracao").locator("tbody tr")).to_have_count(7)
+        expect(metodo).to_be_visible()
+        expect(metodo).to_contain_text("Um nível por território: o maior entre os seus sinais, sem soma nem índice.")
+        expect(metodo.get_by_test_id("detector-niveis").locator("tbody tr")).to_have_text([
+            "Moderado1 em cada 20pelo menos 19", "Elevado1 em cada 100pelo menos 99", "Crítico1 em cada 1.000pelo menos 999"])
+        regua = metodo.get_by_test_id("detector-calibracao")
+        assert regua.locator("tbody tr").evaluate_all("els => els.map(e => e.dataset.porte)") == [
+            "1 a 3", "4 a 9", "10 a 19", "20 a 49", "50 a 99", "100 a 299", "300 a 999", "1.000 a 2.999", "3.000 a 9.999", "10.000 ou mais"]
+        for celula in corpo["calibracao"]["perda"]:
+            da_faixa = regua.locator('tbody tr[data-porte="' + celula["porte"] + '"] td[data-nivel="critico"]')
+            if celula["critico"]["queda_pct"] is None:
+                expect(da_faixa).to_have_text("sem comparações suficientes ({:,} de 999)".format(celula["comparacoes"]).replace(",", "."))
+            else:
+                expect(da_faixa).to_contain_text("queda maior que ")
+        sem_critico = [celula["porte"] for celula in corpo["calibracao"]["perda"] if celula["critico"]["queda_pct"] is None]
+        assert sem_critico == ["1.000 a 2.999", "3.000 a 9.999", "10.000 ou mais"], sem_critico
+        expect(metodo.get_by_test_id("detector-calibracao-estados")).to_have_count(0)   # sem estados como unidade na seleção
+        detector.get_by_test_id("detector-metodo-botao").click()
+        expect(metodo).to_have_count(0)
 
-        # 8. "Alterar a seleção" volta à Seleção de Territórios; com o Paraná como unidade, a linha dele traz os fatos, sem
-        # intensidade (a comparação com territórios parecidos existe só para municípios).
+        # 8. "Alterar a seleção" volta à Seleção de Territórios; com o Paraná como unidade, a linha dele usa a régua própria dos
+        # estados (a base dos estados, pequena): os níveis que ela não sustenta ficam "sem comparações suficientes", com os números.
         detector.get_by_test_id("detector-alterar-selecao").click()
         expect(area).to_have_attribute("data-ferramenta", "")
         expect(area.get_by_test_id("analise-aba-territorios")).to_have_attribute("aria-selected", "true")
@@ -201,83 +343,97 @@ def main():
             linha_do_estado(territorios, PR).get_by_test_id("analise-grupo-so-estado").click()
         corpo_misto, enviado = do_detector(lambda: botao.click(), lambda o: o.get("estados_unidade") == [PR])
         assert enviado["base"]["municipios"]["estados"] == [SC] and len(corpo_misto["linhas"]) == 296, enviado
+        assert corpo_misto["calibracao_dos_estados"]["monitoramento"]["avaliadas"] == 27, corpo_misto["calibracao_dos_estados"]["monitoramento"]
         detector.get_by_test_id("detector-busca").fill("paraná")
         parana = linha("uf:" + PR)
+        do_parana = next(item for item in corpo_misto["linhas"] if item["id"] == "uf:" + PR)
         expect(parana).to_have_attribute("data-tipo", "estado")
-        expect(parana).to_contain_text("estado como unidade · fonte estadual")
-        expect(parana.get_by_test_id("detector-estrutural")).to_contain_text("sem classificação neste nível")
-        expect(parana.get_by_test_id("detector-intensidade")).to_have_count(0)
-        # O estado como unidade não tem um ponto único: o contexto geográfico não se aplica; a taxa e a posição entre os estados, sim.
-        expect(parana.get_by_test_id("detector-contexto")).to_contain_text("Não se aplica")
-        expect(parana.get_by_test_id("detector-posicao")).to_contain_text("Percentil ")
+        expect(parana).to_contain_text("estado como unidade · régua própria")
+        expect(parana).to_have_attribute("data-alerta", estado_do_alerta(do_parana))
+        detalhe_do_parana, enviado = do_detector(lambda: parana.get_by_test_id("detector-abrir").click(), lambda o: o.get("detalhe") == "uf:" + PR)
+        detalhe = detector.get_by_test_id("detector-detalhe")
+        queda_do_parana = next(item for item in detalhe_do_parana["fenomenos"] if item["chave"] == "perda")
+        assert queda_do_parana["sem_comparacoes"]["niveis"] == ["critico"] and queda_do_parana["sem_comparacoes"]["pede"] == 999, queda_do_parana
+        expect(sinal_da_tela(detalhe, "perda").get_by_test_id("detector-fenomeno-sem-comparacoes")).to_have_text(queda_do_parana["sem_comparacoes"]["texto"])
+        expect(sinal_da_tela(detalhe, "perda").get_by_test_id("detector-fenomeno-sem-comparacoes")).to_contain_text("Sem comparações suficientes para o crítico: há ")
+        # O estado como unidade não tem um ponto único: a distância não se aplica.
+        expect(sinal_da_tela(detalhe, "contexto")).to_have_attribute("data-estado", "contexto")
+        expect(sinal_da_tela(detalhe, "contexto").get_by_test_id("detector-fenomeno-situacao")).to_contain_text("Não se aplica")
+        detector.get_by_test_id("detector-metodo-botao").click()
+        dos_estados = detector.get_by_test_id("detector-calibracao-estados")
+        expect(dos_estados).to_contain_text("régua própria, com a base dos estados")
+        expect(dos_estados.locator("tbody tr").first.locator('td[data-nivel="critico"]')).to_contain_text("sem comparações suficientes")
+        page.screenshot(path=str(OUTPUT / "detector-05-estado-real.png"), full_page=True)
+        detector.get_by_test_id("detector-metodo-botao").click()
+        parana.get_by_test_id("detector-abrir").click()  # fecha os detalhes
         detector.get_by_test_id("detector-busca").fill("")
 
-        # 9. Fenômenos 8 a 12 (etapa 5). Com a população do Ministério da Saúde (comando V23, 13/11/2026), a base inteira é um
-        # trecho só de população comparável, lido dela mesma: no último registro (jun/2024), a janela de jun/2022 a jun/2024 vale.
+        # 9. As visões Mapa e Gráfico. Com a população do Ministério da Saúde (13/11/2026), a base inteira é um trecho só de
+        # população comparável, lido dela mesma: no último registro (jun/2024), a janela de jun/2022 a jun/2024 vale.
         do_motor = corpo_misto["comparacao"]
         assert (do_motor["estado"], do_motor["de"], do_motor["ate"]) == ("comparavel", "202206", "202406"), do_motor
         assert do_motor["trechos"] == [[2014, 2024]] and do_motor["motivo"] is None, do_motor
         municipais = [item for item in corpo_misto["linhas"] if item["tipo"] == "municipio"]
         assert not any("comparacao_nao_habilitada" in (item["disponibilidade"]["estado"], item["posicao"]["estado"]) for item in municipais)
-        assert all(item["disponibilidade"]["taxa"] is not None and item["posicao"]["percentil"] is not None for item in municipais)
-        comparacao = detector.get_by_test_id("detector-comparacao")
-        expect(comparacao).to_have_attribute("data-estado", "comparavel")
-        expect(comparacao).to_contain_text("variação de jun/2022 a jun/2024, em 2 anos, com população comparável")
-        expect(comparacao).to_contain_text("municípios do país atendem ao critério")
-        primeira = detector.get_by_test_id("detector-linha").first
-        expect(primeira.get_by_test_id("detector-disponibilidade")).to_contain_text("por 1.000 hab.")
-        # As bolhas do Agente: uma por território com distância a mostrar (a distância até o município mais próximo que atende ao
-        # critério e a taxa por habitante); só contexto, sem intensidade.
+        com_ponto = set(corpo_misto["coordenadas"])
+
+        def no_mapa(nivel, sinal=None):
+            return sum(1 for item in municipais if item["id"] in com_ponto and (
+                item["alerta"]["nivel"] == nivel if sinal is None else any(d["sinal"] == sinal and d["nivel"] == nivel for d in item["alerta"]["sinais"])))
+        # O mapa: cada município à vista com ponto, pintado pelo nível do alerta, com a legenda escrita e as coordenadas do motor.
+        detector.get_by_test_id("detector-vista-mapa").click()
         visual = detector.get_by_test_id("detector-visual")
-        expect(visual).to_have_attribute("data-vista", "bolhas")
+        expect(visual).to_have_attribute("data-vista", "mapa")
+        mapa = detector.get_by_test_id("detector-mapa")
+        for nivel in NOMES:
+            expect(mapa).to_have_attribute("data-" + nivel, str(no_mapa(nivel)))
+            expect(mapa.locator('[data-testid="analise-mapa-ponto"][data-pintura="' + nivel + '"]')).to_have_count(no_mapa(nivel))
+            expect(mapa.locator('[data-testid="detector-legenda-niveis"] [data-nivel="' + nivel + '"]')).to_have_text(
+                NOMES[nivel] + ": " + str(no_mapa(nivel)))
+        assert no_mapa("critico") >= 1 and no_mapa("moderado") > no_mapa("elevado") > 0, [no_mapa(nivel) for nivel in NOMES]
+        expect(mapa.get_by_test_id("analise-mapa-nome-grupo")).to_have_text("SC")
+        expect(mapa).to_contain_text("A base não tem as divisas")
+        expect(mapa).to_contain_text("o estado como unidade não tem ponto")
+        page.screenshot(path=str(OUTPUT / "detector-06-mapa-real.png"), full_page=False)
+        # Com o filtro "Sinal", o mapa pinta o nível daquele sinal, e a lista fica só com as linhas em que ele tem nível.
+        detector.get_by_test_id("detector-filtro-sinal").select_option("patamar")
+        com_patamar = [item for item in corpo_misto["linhas"] if com_o_sinal(item, "patamar")]
+        assert com_patamar and sum(no_mapa(nivel, "patamar") for nivel in NOMES) == len(com_patamar), len(com_patamar)
+        expect(mapa).to_have_attribute("data-sinal", "patamar")
+        expect(mapa).to_have_attribute("data-fundo", "0")
+        for nivel in NOMES:
+            expect(mapa).to_have_attribute("data-" + nivel, str(no_mapa(nivel, "patamar")))
+        expect(tabela).to_have_attribute("data-linhas", str(len(com_patamar)))
+        detector.get_by_test_id("detector-filtro-sinal").select_option("todos")
+        # O gráfico: uma bolha por território com distância a mostrar (a distância até o mais próximo que atende ao critério e a
+        # taxa por habitante), pintada pelo nível. A distância é só contexto.
+        detector.get_by_test_id("detector-vista-grafico").click()
+        expect(visual).to_have_attribute("data-vista", "grafico")
         com_distancia = [item for item in corpo_misto["linhas"] if item["contexto"]["estado"] == "contexto" and item["disponibilidade"]["taxa"] is not None]
         assert len(com_distancia) > 50, len(com_distancia)
         bolhas = detector.get_by_test_id("detector-bolhas")
         expect(bolhas).to_have_attribute("data-itens", str(len(com_distancia)))
+        expect(bolhas).to_have_attribute("data-critico", str(sum(1 for item in com_distancia if item["alerta"]["nivel"] == "critico")))
         expect(bolhas.locator('[data-testid="analise-bolha"]').first).to_be_visible()
-        expect(bolhas).to_contain_text("não é distância por estrada, acesso nem isolamento, e não tem intensidade")
-        page.screenshot(path=str(OUTPUT / "detector-03-bolhas-real.png"), full_page=False)
-        # O mapa dos sinais: em destaque, os municípios com o fenômeno do filtro (sem filtro, os sinais combinados), só com as
-        # coordenadas que o motor mandou; o filtro deixa à vista só as linhas com o fenômeno.
-        com_ponto = set(corpo_misto["coordenadas"])
-        def no_mapa(sinal):
-            return sum(1 for item in municipais if sinal in item["sinais"] and item["id"] in com_ponto)
-        assert no_mapa("combinados") > 0 and no_mapa("patamar") > 0, (no_mapa("combinados"), no_mapa("patamar"))
-        detector.get_by_test_id("detector-vista-mapa").click()
-        mapa = detector.get_by_test_id("detector-mapa")
-        expect(mapa).to_have_attribute("data-sinal", "combinados")
-        expect(mapa).to_have_attribute("data-destaque", str(no_mapa("combinados")))
-        detector.get_by_test_id("detector-filtro-fenomeno").select_option("patamar")
-        expect(mapa).to_have_attribute("data-sinal", "patamar")
-        expect(mapa).to_have_attribute("data-destaque", str(no_mapa("patamar")))
-        expect(mapa).to_have_attribute("data-fundo", "0")
-        expect(mapa.locator('[data-testid="analise-mapa-ponto"]').first).to_be_visible()
-        expect(mapa).to_contain_text("estados como unidade não têm ponto")
-        page.screenshot(path=str(OUTPUT / "detector-04-mapa-real.png"), full_page=False)
-        detector.get_by_test_id("detector-filtro-fenomeno").select_option("todos")
-        detector.get_by_test_id("detector-vista-tabela").click()
-        expect(visual).to_have_attribute("data-vista", "tabela")
-        expect(detector.get_by_test_id("detector-bolhas")).to_have_count(0)
+        expect(bolhas).to_contain_text("município mais próximo com 2,36 médicos por 1.000 habitantes ou mais")
+        expect(bolhas).to_contain_text("nunca vira alerta")
+        page.screenshot(path=str(OUTPUT / "detector-07-grafico-real.png"), full_page=False)
+        detector.get_by_test_id("detector-vista-lista").click()
+        expect(detector.get_by_test_id("detector-visual")).to_have_count(0)
 
-        # 10. Com a janela até jun/2021 (de jun/2019 a jun/2021, com população comparável), os sinais observados aparecem: limites
-        # provisórios, sem intensidade. Os detalhes trazem a série da taxa com a da referência e os textos do motor.
+        # 10. Com a janela até jun/2021 (de jun/2019 a jun/2021, com população comparável), os sinais comparados em 2 anos têm
+        # nível pela raridade na base. Os detalhes trazem a série da taxa com a da referência e os textos do motor.
         corpo_2021, enviado = do_detector(lambda: detector.get_by_test_id("detector-janela-fim").select_option("202106"),
                                           lambda o: (o.get("janela") or {}).get("fim") == "202106")
         assert (corpo_2021["comparacao"]["estado"], corpo_2021["comparacao"]["de"], corpo_2021["comparacao"]["ate"]) == ("comparavel", "201906", "202106")
-        expect(comparacao).to_have_attribute("data-estado", "comparavel")
-        expect(comparacao).to_contain_text("variação de jun/2019 a jun/2021, em 2 anos, com população comparável")
-        com_queda = [item for item in corpo_2021["linhas"] if "disponibilidade" in item["sinais"]]
-        assert com_queda and corpo_2021["resumo"]["sinais"]["disponibilidade"] == len(com_queda), "há quedas da taxa por habitante em Santa Catarina"
-        assert all(item["dimensoes"]["comparacao"] is None and item["dimensoes"]["contexto"] is None for item in corpo_2021["linhas"])
-        detector.get_by_test_id("detector-filtro-fenomeno").select_option("disponibilidade")
+        expect(detector.get_by_test_id("detector-comparacao")).to_contain_text("usam a variação de jun/2019 a jun/2021")
+        com_queda = [item for item in corpo_2021["linhas"] if com_o_sinal(item, "disponibilidade")]
+        assert com_queda and corpo_2021["resumo"]["com_nivel"]["disponibilidade"] == len(com_queda), "há quedas raras da taxa por habitante em Santa Catarina"
+        assert all(item["disponibilidade"]["classe"] in NOMES for item in com_queda)
+        detector.get_by_test_id("detector-filtro-sinal").select_option("disponibilidade")
         expect(tabela).to_have_attribute("data-linhas", str(len(com_queda)))
-        expect(tabela.locator("caption")).to_contain_text("são sinais observados em 2 anos, com limites provisórios e sem intensidade")
         alvo = com_queda[0]
         da_queda = linha(alvo["id"])
-        expect(da_queda.get_by_test_id("detector-disponibilidade")).to_contain_text("% em 2 anos)")
-        expect(da_queda.get_by_test_id("detector-disponibilidade")).to_contain_text(
-            "sinal muito forte" if alvo["disponibilidade"]["sinal"] == "muito_forte" else "sinal forte")
-        expect(da_queda.get_by_test_id("detector-disponibilidade").get_by_test_id("detector-intensidade")).to_have_count(0)
         detalhe_2021, enviado = do_detector(lambda: da_queda.get_by_test_id("detector-abrir").click(), lambda o: o.get("detalhe") == alvo["id"])
         assert enviado["janela"] == {"fim": "202106"} or enviado["janela"].get("fim") == "202106", enviado
         detalhe = detector.get_by_test_id("detector-detalhe")
@@ -288,30 +444,32 @@ def main():
         # Os trechos de população comparável vêm do motor, lidos da própria base: com a população nova, um trecho só.
         assert detalhe_2021["comparativo"]["trechos"] == [[2014, 2024]], detalhe_2021["comparativo"]["trechos"]
         expect(serie_da_taxa).to_contain_text("a variação entre datas só é lida de 2014 a 2024, quando a população da base é comparável")
+        oito = next(item for item in detalhe_2021["fenomenos"] if item["chave"] == "disponibilidade")
+        assert oito["numero"] == "8" and oito["nivel"] == alvo["disponibilidade"]["classe"] and oito["criterio_do_nivel"] == "comparado com a base", oito
+        assert "Comparado com a base: entre " in oito["habitual"], oito["habitual"]
         for chave in ("disponibilidade", "posicao", "defasagem", "contexto", "coexistencia"):
             do_fenomeno = next(item for item in detalhe_2021["fenomenos"] if item["chave"] == chave)
-            item = detalhe.locator('[data-testid="detector-fenomeno"][data-chave="' + chave + '"]')
-            expect(item.get_by_test_id("detector-fenomeno-situacao")).to_have_text(do_fenomeno["situacao"])
-            if item.locator(".ferramenta-fenomeno-cabeca").get_attribute("aria-expanded") != "true":
-                item.locator(".ferramenta-fenomeno-cabeca").click()
+            item = sinal_da_tela(detalhe, chave)
+            expect(item.get_by_test_id("detector-fenomeno-situacao")).to_contain_text(do_fenomeno["situacao"])
+            item.get_by_test_id("detector-fenomeno-completa").click()
             expect(item.get_by_test_id("detector-campo-observado").locator("dd")).to_have_text(do_fenomeno["observado"])
             expect(item.get_by_test_id("detector-campo-naoSignifica").locator("dd")).to_have_text(do_fenomeno["nao_significa"])
-        oito = next(item for item in detalhe_2021["fenomenos"] if item["chave"] == "disponibilidade")
-        assert oito["numero"] == "8" and oito["situacao"].endswith(("sinal observado forte", "sinal observado muito forte")), oito["situacao"]
-        assert "Sem classificação de intensidade" in oito["habitual"], oito["habitual"]
-        page.screenshot(path=str(OUTPUT / "detector-05-comparacao-2021-real.png"), full_page=False)
+        # Os efeitos da mesma queda contam como um evento, e a tela diz isso.
+        if detalhe_2021["linha"]["alerta"]["mesma_queda"]:
+            expect(detalhe.get_by_test_id("detector-mesma-queda")).to_contain_text("vêm da mesma queda: contam como um evento.")
+        page.screenshot(path=str(OUTPUT / "detector-08-comparados-2021-real.png"), full_page=False)
         da_queda.get_by_test_id("detector-abrir").click()  # fecha os detalhes
-        detector.get_by_test_id("detector-filtro-fenomeno").select_option("todos")
+        detector.get_by_test_id("detector-filtro-sinal").select_option("todos")
 
-        # 11. "Simular recuperação" (decisão D-B): de volta ao último registro, ABELARDO LUZ (SC) está abaixo do patamar anterior; o
-        # botão abre o Simulador de Cenários só com ele, com a meta hipotética (e editável) de voltar ao patamar, sem mudar a
-        # seleção principal. Quem está acima do patamar não tem o botão.
+        # 11. "Simular recuperação": de volta ao último registro, ABELARDO LUZ (SC) está abaixo do que já teve; o botão abre o
+        # Simulador de Cenários só com ele, com a meta hipotética (e editável) de voltar ao patamar, sem mudar a seleção
+        # principal. Quem está acima do patamar não tem o botão.
         principal = area.get_by_test_id("analise-aba-territorios-resumo").inner_text()
         detector.get_by_test_id("detector-janela-fim").select_option("202406")
-        expect(comparacao).to_have_attribute("data-estado", "comparavel")
-        expect(comparacao).to_contain_text("variação de jun/2022 a jun/2024")
+        expect(detector.get_by_test_id("detector-comparacao")).to_contain_text("usam a variação de jun/2022 a jun/2024")
         do_abelardo = next(item for item in corpo_misto["linhas"] if item["id"] == ABELARDO_LUZ)
-        assert "patamar" in do_abelardo["sinais"] and do_abelardo["patamar"]["diferenca_pct"] < 0, do_abelardo["patamar"]
+        assert com_o_sinal(do_abelardo, "patamar") and do_abelardo["patamar"]["diferenca_pct"] < 0, do_abelardo["patamar"]
+        assert "patamar" in do_abelardo["alerta"]["mesma_queda"], do_abelardo["alerta"]
         acima = next(item for item in municipais if item["patamar"]["patamar"] is not None and (item["patamar"]["diferenca_pct"] or 0) > 0)
         detector.get_by_test_id("detector-busca").fill(acima["rotulo"].split(" (")[0])
         linha(acima["id"]).get_by_test_id("detector-abrir").click()
@@ -321,6 +479,7 @@ def main():
         detector.get_by_test_id("detector-busca").fill("abelardo")
         linha(ABELARDO_LUZ).get_by_test_id("detector-abrir").click()
         expect(detector.get_by_test_id("detector-detalhe")).to_have_attribute("data-id", ABELARDO_LUZ)
+        expect(detector.get_by_test_id("detector-mesma-queda")).to_contain_text("vêm da mesma queda: contam como um evento.")
         expect(detector.get_by_test_id("detector-recuperacao-apoio")).to_contain_text("meta hipotética")
         expect(detector.get_by_test_id("detector-recuperacao-apoio")).to_contain_text("não uma previsão")
         pedidos_do_simulador = []
@@ -332,7 +491,8 @@ def main():
         aviso = simulador.get_by_test_id("simulador-do-detector")
         expect(aviso).to_have_attribute("data-recuperacao", "true")
         expect(aviso).to_contain_text("Aberto pelo Detector de Sinais: ABELARDO LUZ (SC), avaliado em jun/2024")
-        expect(aviso).to_contain_text("Abaixo do patamar anterior")
+        expect(aviso).to_contain_text("Sinais com nível lá: ")
+        expect(aviso).to_contain_text("Abaixo do que já teve (")
         expect(aviso).to_contain_text("meta hipotética que você pode trocar")
         plano = simulador.get_by_test_id("simulador-plano")
         expect(plano).to_have_attribute("data-meta", "patamar")
@@ -358,16 +518,84 @@ def main():
         expect(resultado.get_by_test_id("simulador-planejamento")).to_have_attribute("data-por-evento", str(planejado["por_evento"]))
         expect(resultado.get_by_test_id("simulador-planejamento-texto")).to_have_text(planejado["texto"])
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(principal)   # a seleção principal não mudou
-        page.screenshot(path=str(OUTPUT / "detector-06-simular-recuperacao-real.png"), full_page=True)
+        page.screenshot(path=str(OUTPUT / "detector-09-simular-recuperacao-real.png"), full_page=True)
 
         assert not chamadas_llm, "o Detector calcula sem o provedor de IA"
         assert not falhas, falhas
+        context.close()
+
+        # 12. Numa tela de celular, com toque: o "Entenda" abre pelo toque, cabe na largura e fecha com um toque fora; a lista
+        # vira cartões (o território e o alerta na primeira linha; o porquê e o último registro abaixo) e nada passa da largura.
+        celular = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
+        offline(celular)
+        tela = celular.new_page()
+        falhas_no_celular = []
+        tela.on("pageerror", lambda error: falhas_no_celular.append(str(error)))
+        tela.on("request", lambda request: chamadas_llm.append(request.url) if "/api/llm/interpret" in request.url else None)
+        tela.goto(URL)
+        tela.get_by_role("button", name="Li e concordo", exact=True).click()
+        area = tela.get_by_test_id("area-de-analise")
+        chat = tela.get_by_test_id("painel-chat")
+        if chat.count() and chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
+            chat.get_by_test_id("painel-chat-minimizar").tap()
+        area.get_by_test_id("analise-fonte-brasil").tap()
+        territorios = area.get_by_test_id("analise-territorios")
+        expect(territorios.get_by_test_id("analise-arvore")).to_be_visible(timeout=180000)
+        caixa_do_estado = linha_do_estado(territorios, SC).get_by_test_id("analise-grupo-todos")
+        caixa_do_estado.scroll_into_view_if_needed()
+        with tela.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST", timeout=180000):
+            caixa_do_estado.focus()
+            caixa_do_estado.press("Space")
+        botao = area.get_by_test_id("analise-ferramenta-detector")
+        botao.scroll_into_view_if_needed()
+        corpo_no_celular, _ = do_detector(lambda: botao.tap(), da_pagina=tela)
+        detector = area.get_by_test_id("detector")
+        expect(detector).to_have_attribute("data-estado", "pronto")
+        assert corpo_no_celular["resumo"]["niveis"] == corpo["resumo"]["niveis"]
+        # O "Entenda" da ferramenta, pelo toque.
+        entenda = detector.get_by_test_id("detector-entenda-ferramenta-botao")
+        entenda.scroll_into_view_if_needed()
+        entenda.tap()
+        caixa = detector.get_by_test_id("detector-entenda-ferramenta-caixa")
+        expect(caixa).to_be_visible()
+        expect(caixa).to_contain_text("Exemplo:")
+        medida = caixa.bounding_box()
+        assert medida["x"] >= 0 and medida["x"] + medida["width"] <= 390 + 0.5 and medida["width"] >= 300, medida
+        tela.screenshot(path=str(OUTPUT / "detector-10-celular-entenda-real.png"), full_page=False)
+        detector.get_by_test_id("detector-titulo").tap()   # um toque fora fecha
+        expect(caixa).to_have_count(0)
+        # A lista em cartões e nada passando da largura.
+        primeira = detector.get_by_test_id("detector-linha").first
+        primeira.scroll_into_view_if_needed()
+        caixas = primeira.evaluate("""e => Object.fromEntries([...e.children].map(c => [c.dataset.rotulo, c.getBoundingClientRect()])
+          .map(([rotulo, r]) => [rotulo, [Math.round(r.left), Math.round(r.top), Math.round(r.right)]]))""")
+        assert caixas["Por quê"][1] > caixas["Território"][1] and caixas["Último registro"][1] > caixas["Por quê"][1], caixas
+        assert abs(caixas["Alerta"][1] - caixas["Território"][1]) <= 4 and caixas["Alerta"][0] >= caixas["Território"][2] - 1, caixas
+        assert all(0 <= esquerda and direita <= 390 for esquerda, _, direita in caixas.values()), caixas
+        assert tela.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") <= 1, "a página passa da largura da janela"
+        primeira.get_by_test_id("detector-abrir").tap()
+        detalhe = detector.get_by_test_id("detector-detalhe")
+        expect(detalhe).to_be_visible(timeout=180000)
+        do_sinal = detalhe.locator('[data-testid="detector-fenomeno"][data-chave="estrutural"]')
+        do_sinal.get_by_test_id("detector-entenda-botao").scroll_into_view_if_needed()
+        do_sinal.get_by_test_id("detector-entenda-botao").tap()
+        expect(do_sinal.get_by_test_id("detector-entenda-caixa")).to_be_visible()
+        medida = do_sinal.get_by_test_id("detector-entenda-caixa").bounding_box()
+        assert medida["x"] >= 0 and medida["x"] + medida["width"] <= 390 + 0.5, medida
+        do_sinal.get_by_test_id("detector-entenda-botao").tap()   # o segundo toque fecha
+        expect(do_sinal.get_by_test_id("detector-entenda-caixa")).to_have_count(0)
+        assert tela.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") <= 1, "o detalhe passa da largura da janela"
+        tela.screenshot(path=str(OUTPUT / "detector-11-celular-detalhe-real.png"), full_page=False)
+        assert not chamadas_llm, "o Detector calcula sem o provedor de IA"
+        assert not falhas_no_celular, falhas_no_celular
         browser.close()
-    print("DETECTOR PASS: ferramenta na navegação sem pedido sem seleção, tabela de Santa Catarina (295, 50 por página), filtro por "
-          "fenômeno, RIO RUFINO com o pico que volta (série, seis fenômenos com sete campos e histórico), janela até jun/2023 "
-          "(verificar registro), parâmetros exploratórios com volta aos padrões pela memória, Como foi calculado, o Paraná como "
-          "unidade sem intensidade, fenômenos 8 a 12 (comparação de 2 anos em jun/2024, bolhas, mapa, sinais observados e série "
-          "da taxa em jun/2021) e Simular recuperação com a meta hipotética do patamar.")
+    print("DETECTOR PASS: ferramenta na navegação sem pedido sem seleção; lista de quatro colunas de Santa Catarina (295, 50 por página), "
+          "resumo dos níveis clicável, filtros Até, Nível, Sinal e Buscar e ordem pelos cabeçalhos; RIO RUFINO com o pico que volta "
+          "(série, 12 sinais em quatro grupos mais Juntos, Entenda por mouse e teclado, explicação completa e histórico); janela até "
+          "jun/2023 (verificar registro); critérios em frases, configuração exploratória e Voltar ao padrão pela memória; Como foi "
+          "calculado com a régua por porte; o Paraná como unidade com a régua dos estados; mapa e gráfico pelos níveis; sinais "
+          "comparados em jun/2021 com a série da taxa; Simular recuperação com a meta hipotética do patamar; e a tela de celular, com "
+          "o Entenda pelo toque e a lista em cartões.")
 
 
 if __name__ == "__main__":

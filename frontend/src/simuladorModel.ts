@@ -428,22 +428,25 @@ export function metodoNaTabela(cenario: CenarioCalculado, conjunto = false): str
   if (cenario.metodo.soma) return cenario.metodo.soma + (usado === "M0d" ? " (cada um com o crescimento do seu estado)" : " (cada um no último valor)");
   return "soma das contagens dos componentes · " + nome;
 }
-const NOMES_DAS_INTENSIDADES: Record<string, string> = { atencao: "atenção", alta: "alta", critica: "crítica" };
-const intensidadeEstrutural = (classe: string | null) => classe ? "intensidade " + (NOMES_DAS_INTENSIDADES[classe] ?? classe) : "sem sinal";
-/** A única leitura do Detector que vale para uma trajetória simulada (seção 3.3 do anexo): a dependência de poucos médicos do valor
- * do cenário, rotulada como hipótese derivada da simulação. Não é um sinal observado. */
+const NOMES_DOS_NIVEIS: Record<string, string> = { moderado: "moderado", elevado: "elevado", critico: "crítico" };
+/** O nível de "Poucos médicos" num valor do cenário: "moderado", "elevado", "crítico" ou "sem alerta". */
+export const nivelNoCenario = (classe: string | null) => classe ? NOMES_DOS_NIVEIS[classe] ?? classe : "sem alerta";
+/** Os níveis no cenário (Proposta V3, seção C.6): só os sinais 1 e 2 do Detector, por convenção, valem para um valor simulado,
+ * rotulados como hipótese do cenário (o rótulo vem do motor). Quando a faixa cruza um limite, a tela diz "pode ficar entre
+ * moderado e elevado", sem escolher um só. Os sinais comparados com a base nunca se aplicam a valores simulados. */
 export function textoDaHipotese(h: HipoteseDerivada): string {
   const quantos = formatarMedicos(h.inteiro) + (h.inteiro === 1 ? " médico" : " médicos");
-  const rotulo = h.rotulo || "hipótese da simulação";   // o rótulo é o do motor
+  const rotulo = h.rotulo || "hipótese do cenário";   // o rótulo é o do motor
+  const nome = nivelNoCenario(h.classe);
   return rotulo.charAt(0).toUpperCase() + rotulo.slice(1) + " (não é um sinal observado): com " + quantos + " em " + competenciaCurta(h.data) + ", " +
-    (h.classe ? "a dependência de poucos médicos teria " + intensidadeEstrutural(h.classe) : "não haveria sinal de dependência de poucos médicos por esta escala") +
+    (h.classe ? "o território seria " + nome.charAt(0).toUpperCase() + nome.slice(1) + " em “Poucos médicos”" : "o território não teria alerta em “Poucos médicos”") +
     (h.impactoPct !== null && h.inteiro <= 20 ? " (a saída de 1 tiraria " + umaCasa.format(h.impactoPct) + "%)" : "") + "." +
     (h.naFaixa && (h.naFaixa.inferior !== h.classe || h.naFaixa.superior !== h.classe)
-      ? " Nos limites da faixa de 80%: " + intensidadeEstrutural(h.naFaixa.inferior) + " no inferior e " + intensidadeEstrutural(h.naFaixa.superior) + " no superior." : "") +
-    " A intensidade usa os limites provisórios do Detector; os sinais de perda, de patamar e de declínio valem só para registros reais.";
+      ? " Pela faixa do cenário, pode ficar entre " + nivelNoCenario(h.naFaixa.superior) + " e " + nivelNoCenario(h.naFaixa.inferior) + "." : "") +
+    " Os limites são os do Detector, por convenção; os sinais comparados com a base valem só para registros reais.";
 }
-/** A hipótese entra na tela só quando é pertinente: há intensidade no valor do cenário ou num dos limites da faixa, ou o território
- * teria até 20 médicos (a escala trata de poucos médicos; num território grande, o painel seria só ruído). */
+/** A hipótese entra na tela só quando é pertinente: há nível no valor do cenário ou num dos limites da faixa, ou o território
+ * teria até 20 médicos (o sinal trata de poucos médicos; num território grande, o painel seria só ruído). */
 export const hipotesePertinente = (h: HipoteseDerivada | null): h is HipoteseDerivada =>
   !!h && (!!h.classe || !!h.naFaixa?.inferior || !!h.naFaixa?.superior || h.inteiro <= 20);
 /** O valor final de um cenário, para a tabela: "26,4 (20,3 a 39,0)" com a faixa, ou o motivo quando não há valor. Num conjunto,
@@ -546,7 +549,7 @@ export function csvDoSimulador(resposta: RespostaDoSimulador): string {
     "Origem do cenário", "Médicos na origem", "Janela: início", "Janela: fim", "Data", "Natureza", "Observado", "Base do cenário", "Intervenção",
     "Total do cenário", "Faixa de 80%: inferior", "Faixa de 80%: superior", "Avisos", "Texto do cenário",
     "Planejamento inverso: meta", "Planejamento inverso: médicos por evento", "Planejamento inverso: eventos",
-    "Hipótese da simulação: intensidade estrutural", "Versão do método", "Versão da base"];
+    "Hipótese do cenário: nível em poucos médicos", "Versão do método", "Versão da base"];
   const linhas = [cabecalho.map(celula).join(";")];
   for (const territorio of resposta.territorios) for (const cenario of territorio.cenarios) {
     const p = cenario.parametros, janela = objeto(p.janela);
@@ -555,7 +558,7 @@ export function csvDoSimulador(resposta: RespostaDoSimulador): string {
     const plano = cenario.planejamento;
     const fim = [cenario.avisos.map(aviso => aviso.codigo).join(" | "), cenario.texto ?? "", plano?.meta?.rotulo ?? "",
       plano?.estado === "calculado" || plano?.estado === "ja_alcancada" ? plano.porEvento : plano ? plano.estado : null, plano ? plano.eventos : null,
-      cenario.hipotetico ? cenario.hipotetico.classe ?? "sem sinal por esta escala" : "", resposta.versao, resposta.fonte.versao];
+      cenario.hipotetico ? nivelNoCenario(cenario.hipotetico.classe) : "", resposta.versao, resposta.fonte.versao];
     if (!cenario.trajetoria.length) { linhas.push([...fixas, "", "", "", "", "", "", "", "", ...fim].map(celula).join(";")); continue; }
     for (const ponto of cenario.trajetoria) linhas.push([...fixas, ponto.data, ponto.retroprojecao ? "retroprojeção (data com registro)" : "cenário hipotético",
       ponto.observado, ponto.base, ponto.intervencao, ponto.total, ponto.faixa?.inferior ?? null, ponto.faixa?.superior ?? null, ...fim].map(celula).join(";"));

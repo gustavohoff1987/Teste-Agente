@@ -1056,9 +1056,9 @@ def _planejar(base: Base, cal: detector.Calibracao, retro: Retroprojecao, territ
 
 
 def _hipotetico(territorio: Territorio, resultado: dict) -> dict | None:
-    """A única leitura do Detector que vale para uma trajetória hipotética (seção 3.3): a dependência de poucos médicos do valor
-    simulado, rotulada como hipótese derivada da simulação. Os testes de evento observado (perda, patamar, declínio) nunca se
-    aplicam a curvas projetadas. Só para municípios, como a escala estrutural do Detector."""
+    """Os níveis no cenário (Proposta V3, seção C.6): só os sinais 1 e 2 do Detector (poucos profissionais e nenhum, por
+    convenção) podem ser aplicados a um valor simulado, rotulados como hipótese do cenário. Os sinais comparados com a base
+    (5 a 10) e os de evento observado (queda, patamar, declínio) nunca se aplicam a curvas simuladas. Só para municípios."""
     if territorio.tipo != "municipio" or resultado["estado"] != "calculado":
         return None
     limites = detector.PADRAO["estrutural"]
@@ -1067,7 +1067,7 @@ def _hipotetico(territorio: Territorio, resultado: dict) -> dict | None:
         return detector._classe_estrutural(_inteiro_da_tela(valor), limites)
     final = resultado["final"]
     inteiro = _inteiro_da_tela(final["total"])
-    saida = {"rotulo": "hipótese derivada da simulação", "data": final["data"], "valor": final["total"], "inteiro": inteiro,
+    saida = {"rotulo": "hipótese do cenário", "data": final["data"], "valor": final["total"], "inteiro": inteiro,
              "classe": classe(final["total"]), "impacto_pct": (100.0 / inteiro) if inteiro > 0 else None}
     if final["faixa"]:
         saida["na_faixa"] = {"inferior": classe(final["faixa"]["inferior"]), "superior": classe(final["faixa"]["superior"])}

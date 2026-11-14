@@ -288,6 +288,8 @@ test('contraste no escuro: textos, avisos, links e botões a 4,5:1 ou mais nas s
     ['--tom-amber-900', '--tom-amber-50'], ['--tom-amber-900', '--cor-superficie'], ['--tom-amber-900', '--cor-superficie-elevada'],
     ['--tom-amber-800', '--tom-amber-50'], ['--tom-rose-800', '--tom-rose-50'], ['--tom-rose-800', '--cor-superficie'],
     ['--tom-rose-800', '--cor-superficie-elevada'],
+    // Níveis do alerta do Detector (comando V23): o moderado usa o âmbar acima; o elevado, o laranja; o crítico, o rosa com o texto claro.
+    ['--tom-orange-900', '--tom-orange-50'], ['--tom-orange-900', '--cor-superficie'], ['--tom-white', '--tom-rose-800'],
     // Desenho
     ['--grafico-tinta', '--grafico-superficie'], ['--grafico-tinta-2', '--grafico-superficie'], ['--grafico-tinta-2', '--cor-superficie-elevada'],
     ['--grafico-muda', '--grafico-superficie'],

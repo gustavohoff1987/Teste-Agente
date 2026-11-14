@@ -806,8 +806,8 @@ def test_rota_hipotese_derivada_da_simulacao_so_a_dependencia_de_poucos_medicos(
                         "cenarios": [{"id": "c1", "metodo": "M0", "intervencoes": [{"tipo": "acrescimo", "quantidade": 4, "em": "202501"}]}]}))
     cenarios = {item["id"]: item["cenarios"][0] for item in body["territorios"]}
     # Tefé, em zero, teria 4 médicos no cenário: a única leitura do Detector que vale para um valor simulado é a escala estrutural.
-    assert cenarios["code:130420"]["hipotetico"] == {"rotulo": "hipótese derivada da simulação", "data": "202606", "valor": 4.0, "inteiro": 4,
-                                                     "classe": "atencao", "impacto_pct": 25.0}
+    assert cenarios["code:130420"]["hipotetico"] == {"rotulo": "hipótese do cenário", "data": "202606", "valor": 4.0, "inteiro": 4,
+                                                     "classe": "moderado", "impacto_pct": 25.0}
     assert cenarios["code:130260"]["hipotetico"]["classe"] is None and cenarios["code:130260"]["hipotetico"]["inteiro"] == 55
     # Só para municípios, como a escala estrutural do Detector; e nenhum teste de evento observado (perda, patamar, declínio).
     assert all("hipotetico" not in cenarios[chave] for chave in ("uf:15", "g1", "br"))
@@ -975,5 +975,5 @@ def test_real_brasil_referencias_e_planejamento_inverso(real):
     assert recuperacao["meta"] == {"tipo": "patamar", "valor": 1.75, "rotulo": "Meta hipotética: voltar ao patamar de 1,8 médicos em jun/2026"}
     assert (recuperacao["por_evento"], recuperacao["eventos"]) == (1, 1) and recuperacao["teorico_por_evento"] == pytest.approx(0.5638, abs=1e-4)
     assert "ABREULANDIA (TO) teria 2 médicos em jun/2026." in recuperacao["texto"]
-    assert abreulandia["hipotetico"] == {"rotulo": "hipótese derivada da simulação", "data": "202606", "valor": pytest.approx(1.1862, abs=1e-4),
-                                         "inteiro": 1, "classe": "critica", "impacto_pct": 100.0, "na_faixa": {"inferior": "critica", "superior": "alta"}}
+    assert abreulandia["hipotetico"] == {"rotulo": "hipótese do cenário", "data": "202606", "valor": pytest.approx(1.1862, abs=1e-4),
+                                         "inteiro": 1, "classe": "critico", "impacto_pct": 100.0, "na_faixa": {"inferior": "critico", "superior": "elevado"}}

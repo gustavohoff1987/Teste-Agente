@@ -352,8 +352,9 @@ def main():
         expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "3")  # o Desfazer não mexe na seleção local
 
         # 14. "Abrir no Simulador" (etapa 5): do Detector de Sinais, MANAUS (AM) vai ao Simulador com o contexto analítico (o
-        # território, a data avaliada e os sinais à vista). A seleção local fica só com ele e não acompanha a seleção principal,
-        # que não muda. Manaus está acima do patamar anterior: não há "Simular recuperação" para ele.
+        # território, a data avaliada e os sinais com nível). A seleção local fica só com ele e não acompanha a seleção principal,
+        # que não muda. Manaus está acima do patamar: não há "Simular recuperação" para ele. Em jun/2024, Manaus tem um sinal com
+        # nível (comando V23): perdeu 4,7 pontos de percentil em 2 anos, raro entre os municípios de 3.000 a 9.999 médicos.
         area.get_by_test_id("analise-ferramenta-detector").click()
         detector = area.get_by_test_id("detector")
         expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
@@ -369,7 +370,7 @@ def main():
         aviso = simulador.get_by_test_id("simulador-do-detector")
         expect(aviso).to_have_attribute("data-recuperacao", "false")
         expect(aviso).to_contain_text("Aberto pelo Detector de Sinais: MANAUS (AM), avaliado em jun/2024")
-        expect(aviso).to_contain_text("Sem sinais à vista lá.")
+        expect(aviso).to_contain_text("Sinais com nível lá: Perda de posição (moderado).")
         expect(aviso).to_contain_text("o que vem depois do último registro é cenário hipotético")
         expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "1")
         expect(local(MANAUS)).to_have_count(1)

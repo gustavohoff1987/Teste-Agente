@@ -61,7 +61,7 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
      médicos** ou a **taxa por 1.000 habitantes, com a população constante** (a do último registro, como hipótese declarada).
    - Quando o Simulador é aberto pelo **Detector de Sinais** ("Abrir no Simulador" ou "Simular recuperação"), a seleção local
      fica só com aquele território e não acompanha a principal; o aviso `simulador-do-detector` diz de onde ela veio, a data
-     avaliada e os sinais à vista lá, e pode ser dispensado.
+     avaliada e os sinais com nível lá ("Sinais com nível lá: Queda recente (elevado)"), e pode ser dispensado.
 2. **Base histórica e método** (`simulador-base`):
    - a **janela histórica**, com início e fim livres entre as competências reais (o fim é a origem do cenário). Os atalhos (janela
      padrão de 3 anos, últimos 5 anos, série completa) são só atalhos. Com a origem antes do último registro, o trecho até ele é
@@ -95,9 +95,10 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
      acréscimo inteiro por evento, a conta sem arredondar e o texto do cenário com esse acréscimo. O cenário à vista continua
      sendo o do pedido: o acréscimo só entra nele por **"Usar como intervenção deste cenário"** (com um território só na
      seleção; com mais de um, o número é de cada território);
-   - a **hipótese derivada da simulação** (`simulador-hipotetico`), num painel à parte: a dependência de poucos médicos que o
-     valor do cenário teria, pela escala estrutural do Detector. Só para municípios, e só quando é pertinente (há intensidade no
-     valor do cenário ou num dos limites da faixa, ou o território teria até 20 médicos);
+   - a **hipótese do cenário** (`simulador-hipotetico`), num painel à parte: o nível que o valor do cenário teria em "Poucos
+     médicos" (sinais 1 e 2 do Detector, por convenção), por exemplo "o território seria Crítico em “Poucos médicos”"; quando a
+     faixa cruza um limite, "pode ficar entre elevado e crítico", sem escolher um só. Só para municípios, e só quando é pertinente
+     (há nível no valor do cenário ou num dos limites da faixa, ou o território teria até 20 médicos);
    - a **tabela** de todos os territórios (`simulador-tabela`): o último registro usável e, por cenário, o valor na data final, a
      faixa e o método usado em palavras. Num **conjunto**, o método aparece como "soma das projeções dos membros (cada um com o
      crescimento do seu estado)" (ou "cada um no último valor", na persistência; nos demais métodos, "soma das contagens dos
@@ -185,7 +186,7 @@ com `t` em **anos reais** desde a origem (o último registro usável da janela; 
 
 O Brasil entra só no Simulador, pela **contagem nacional de médicos únicos** (`brasil: true` no pedido; `id` "br"). O método
 padrão é provisório: a taxa composta (M1) dos 3 anos até a origem, na série nacional, com aviso; não há faixa de 80% nem
-hipótese derivada. O Brasil nunca é somado aos demais territórios, e não é uma unidade da seleção principal nem do Detector.
+hipótese do cenário. O Brasil nunca é somado aos demais territórios, e não é uma unidade da seleção principal nem do Detector.
 
 ### Referências e comparação
 
@@ -226,13 +227,15 @@ acréscimo: reaplicado como intervenção, ele alcança a meta, e com um médico
 - O resultado é uma **necessidade matemática condicional** às hipóteses do cenário. Não é plano de provimento, recomendação nem
   avaliação de suficiência.
 
-### Hipótese derivada da simulação
+### Níveis no cenário (hipótese do cenário)
 
-A única leitura do Detector que vale para uma trajetória simulada (seção 3.3 do anexo) é a **escala estrutural** aplicada ao
-valor do cenário na data final (e aos limites da faixa de 80%, quando há): quantos médicos o território teria, que intensidade a
-dependência de poucos médicos teria e quanto a saída de um médico tiraria. Vale só para municípios e leva o rótulo "hipótese
-derivada da simulação". Os testes de evento observado (perda, patamar, declínio) e os indicadores relativos **nunca** são
-aplicados a curvas simuladas.
+Só os **sinais 1 e 2** do Detector (poucos médicos e nenhum médico registrado, por convenção) valem para uma trajetória simulada
+([Proposta V3](DETECTOR_E_SIMULADOR_V3.md), seção C.6; desde 13/11/2026, com os níveis moderado, elevado e crítico). Eles são
+aplicados ao valor do cenário na data final (e aos limites da faixa de 80%, quando há): quantos médicos o território teria, em
+que nível ficaria e quanto a saída de um médico tiraria. Quando a faixa cruza um limite, a tela diz "pode ficar entre moderado e
+elevado", sem escolher um só. Vale só para municípios e leva o rótulo "hipótese do cenário" (antes, "hipótese derivada da
+simulação"). Os sinais comparados com a base e os de evento observado (queda, patamar, declínio) **nunca** são aplicados a curvas
+simuladas.
 
 ### Faixa de 80%
 
@@ -390,7 +393,7 @@ O que o estudo sustenta e o que não sustenta:
 - **Resultados (CSV, separador `;`, com BOM):** uma linha por território, cenário e data, com o observado, a base, a intervenção,
   o total e a faixa em precisão integral, e a rastreabilidade em cada linha (método pedido e usado, estado, origem, janela,
   avisos, o texto do cenário e as versões). Desde a etapa 5, também a meta do planejamento inverso, os médicos por evento (ou o
-  estado, quando não há número), os eventos e a intensidade da hipótese derivada.
+  estado, quando não há número), os eventos e o nível da hipótese do cenário em "Poucos médicos".
 - **Comparações (CSV, quando há referências):** uma linha por território, cenário, referência e data, com o valor do território,
   o da referência, a diferença, a razão e o índice, o alcance no horizonte simulado, os avisos e a hipótese de população.
 
@@ -423,13 +426,13 @@ enviada, em que o Simulador não existe, a recusa não o cita.
   somadas à base, a permanência e a retirada impossível; conjuntos e estados; a média aritmética só descritiva; os avisos de
   horizonte; as faixas pela retroprojeção com origens móveis; o ajuste sem observações posteriores à janela), a rota com um
   catálogo sintético (inclusive o Brasil como território, as referências com o alcance e a sobreposição, a comparação por
-  taxa, o planejamento inverso reaplicado ao Simulador, a hipótese derivada e as recusas) e, no job `dados-reais`, a base
+  taxa, o planejamento inverso reaplicado ao Simulador, a hipótese do cenário e as recusas) e, no job `dados-reais`, a base
   versionada (as faixas e os erros acima, o Distrito Federal, Rio Rufino/SC, São Paulo como unidade, o limite de 100
   territórios, o Brasil, as referências de Manaus, o planejamento inverso e "Simular recuperação" em Abreulândia/TO).
 - pytest: `backend/tests/test_dialogo.py` — a recusa de projeção indica o Simulador só na base do Brasil.
 - Node: `frontend/tests/simulador.test.mjs` — as datas, a seleção local, o que falta para calcular, o pedido ao motor, a leitura
   da resposta, os textos da tabela e da faixa, a importação e a exportação do cenário e o CSV; o Brasil na seleção local, as
-  referências e a métrica, o planejamento inverso, a configuração com que o Detector abre o Simulador, a hipótese derivada e o
+  referências e a métrica, o planejamento inverso, a configuração com que o Detector abre o Simulador, a hipótese do cenário e o
   CSV das comparações.
 - Navegador: `backend/tests/ui_simulador.py` (suíte `base-versionada`), com "Abrir no Simulador", o Brasil, as referências e o
   planejamento inverso; "Simular recuperação" está em `backend/tests/ui_detector.py`.

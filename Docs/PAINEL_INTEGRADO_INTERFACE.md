@@ -263,8 +263,18 @@ não estão disponíveis." O texto não cita o Brasil: com uma planilha, nenhum 
 (regra de 28/10/2026).
 
 - **Detector de Sinais** (`analise-ferramenta-detector`): [Detector de Sinais Territoriais](DETECTOR_DE_SINAIS.md). Usa a seleção
-  em uso. Dentro dele, o gráfico de bolhas, o mapa de pontos e a Série temporal são os componentes do Agente (`PainelChart`,
-  `MapaDosConjuntos` e `PainelSeries`), com os valores e as coordenadas do motor do Detector.
+  em uso. Desde 13/11/2026 (comando V23, Proposta V3), a primeira tela é uma lista de quatro colunas (Território · Alerta · Por
+  quê · Último registro), com o resumo dos níveis clicável, os filtros numa linha (Até, Nível, Sinal e Buscar) e as visões
+  Lista, Mapa e Gráfico; os níveis são moderado, elevado e crítico, sempre escritos. Dentro dele, o gráfico de bolhas, o mapa
+  de pontos e a Série temporal são os componentes do Agente (`PainelChart`, `MapaDosConjuntos` e `PainelSeries`), com os
+  valores, os níveis e as coordenadas do motor do Detector; o `MapaDosConjuntos` ganhou, para isso, a pintura por território
+  (`pintura`, com a cor e o raio de cada ponto) e o nome de cada grupo de cima junto aos pontos dele (`grupos`).
+- **"Entenda"** (`frontend/src/Entenda.tsx`, 13/11/2026): o botão das explicações curtas das ferramentas. Fica escondido e abre
+  com o mouse (ao passar por cima), com um toque ou pelo teclado (ao receber o foco; Enter ou Espaço fixam); fecha ao sair (o
+  mouse deixa o botão e a caixa, o foco sai deles, Esc ou um toque fora). A caixa (`role="note"`) é desenhada por cima da página,
+  na posição do botão, e cabe na largura do celular; traz duas ou três frases, um exemplo com números e "Ver explicação
+  completa". Os `data-testid` têm o prefixo de quem usa (`detector-entenda`, `detector-entenda-botao`, `detector-entenda-caixa`,
+  `detector-entenda-exemplo` e `detector-entenda-completa`).
 - **Simulador de Cenários** (`analise-ferramenta-simulador`): [Simulador de Cenários Territoriais](SIMULADOR_DE_CENARIOS.md).
   Trabalha numa **seleção local**, cópia da seleção em uso, guardada na área enquanto a fonte for a mesma (sair e voltar não a
   perde, nem os cenários). A seleção em uso só muda por "Aplicar à seleção principal", que é um passo do Desfazer ("Aplicar a
@@ -1383,7 +1393,9 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
 - O Detector de Sinais Territoriais e o Simulador de Cenários Territoriais (Eixo II do comando V22) existem desde 10/11/2026, no
   núcleo de cada um ([Detector](DETECTOR_DE_SINAIS.md); [Simulador](SIMULADOR_DE_CENARIOS.md)). Os comparativos (fenômenos 8 a
   12), as referências, o planejamento inverso e a ligação entre as duas ferramentas existem desde 11/11/2026 (etapa 5 do comando;
-  [Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md); [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md)).
+  [Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md); [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md)). Desde
+  13/11/2026 (comando V23), o Detector segue a [Proposta V3](DETECTOR_E_SIMULADOR_V3.md): a régua comum por porte, os níveis
+  moderado, elevado e crítico, a lista de quatro colunas, os critérios em frases e o "Entenda".
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
 

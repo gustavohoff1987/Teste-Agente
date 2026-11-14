@@ -35,6 +35,17 @@ UNIDADE_MUNICIPIO = "médicos registrados no município (fonte municipal; quem a
 UNIDADE_ESTADO = "médicos únicos no estado (fonte estadual)"
 UNIDADE_BRASIL = "médicos únicos no Brasil (fonte nacional)"
 UNIDADE_CONJUNTO = "soma das contagens dos componentes (não é o número de médicos diferentes do conjunto)"
+# Os nomes da base (Proposta V3, seção A.2.6): na base do Brasil, os textos dizem "médicos", "estado", "junho" e "Brasil"; numa
+# planilha enviada, os nomes vêm dela (perfil da base).
+ROTULOS_DO_BRASIL = {"profissional": "médico", "profissionais": "médicos", "unidade": "município", "unidades": "municípios",
+                     "grupo": "estado", "grupos": "estados", "todo": "Brasil"}
+
+
+def rotulos(base) -> dict:
+    """Os nomes que os textos usam para esta base."""
+    return getattr(base, "rotulos", None) or ROTULOS_DO_BRASIL
+
+
 MAX_CONJUNTOS = 60
 MAX_MEMBROS = 6000
 

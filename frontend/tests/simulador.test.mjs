@@ -260,7 +260,7 @@ test('CSV dos resultados: uma linha por território, cenário e data, com a rast
   assert.equal(linhas[0], 'Identificador;Território;Tipo;Unidade de contagem;Cenário;Método pedido;Método usado;Estado do cenário;Origem do cenário;' +
     'Médicos na origem;Janela: início;Janela: fim;Data;Natureza;Observado;Base do cenário;Intervenção;Total do cenário;Faixa de 80%: inferior;' +
     'Faixa de 80%: superior;Avisos;Texto do cenário;Planejamento inverso: meta;Planejamento inverso: médicos por evento;Planejamento inverso: eventos;' +
-    'Hipótese da simulação: intensidade estrutural;Versão do método;Versão da base');
+    'Hipótese do cenário: nível em poucos médicos;Versão do método;Versão da base');
   assert.equal(linhas[2], 'code:130260;MANAUS (AM);municipio;médicos registrados no município;Com 4 médicos;padrao;M0d;calculado;202406;51;202106;202406;202606;' +
     'cenário hipotético;;54,5189;4;58,5189;48,16;74,87;HORIZONTE_CAUTELA;"Cenário hipotético, não é previsão: …; ""MANAUS (AM)"" teria 59 médicos em jun/2026. ' +
     'Base: registros até jun/2024.";;;;;SIMULADOR-CENARIOS/V2.2/1;abc', 'a precisão integral, com vírgula decimal, e as aspas dobradas');
@@ -384,7 +384,7 @@ const BRUTO_5 = {versao: 'SIMULADOR-CENARIOS/V2.2/2', fonte: {base: 'Brasil', ca
           eventos: 2, datas: ['202501', '202601'], permanencia_pct_ao_ano: 100, estado: 'calculado', falta: 9, por_evento: 5, total: 10, teorico_por_evento: 4.5, resultado: 22,
           intervencao: {tipo: 'acrescimo', quantidade: 5, em: '202501', ate: '202601', a_cada_meses: 12, permanencia_pct_ao_ano: 97.5},
           texto: 'Meta hipotética: 21 médicos em jun/2026. …'},
-        hipotetico: {rotulo: 'hipótese derivada da simulação', data: '202606', valor: 12, inteiro: 12, classe: null, impacto_pct: 8.333333333333334}},
+        hipotetico: {rotulo: 'hipótese do cenário', data: '202606', valor: 12, inteiro: 12, classe: null, impacto_pct: 8.333333333333334}},
       {id: 'm0', nome: 'Persistência (referência)', estado: 'calculado', metodo: {pedido: 'M0', usado: 'M0'}, parametros: {n0: 12, origem: '202406'}, avisos: [], trajetoria: [],
         final: {data: '202606', base: 12, intervencao: 0, total: 12},
         planejamento: {estado: 'nao_alcancavel', motivo: 'Com permanência zero…', meta: {tipo: 'valor', valor: 20, rotulo: 'Meta hipotética: 20 médicos em jun/2026'},
@@ -408,7 +408,7 @@ test('as comparações, o planejamento inverso e a hipótese derivada da simula�
     intervencao: {tipo: 'acrescimo', quantidade: 5, em: '202501', ate: '202601', aCadaMeses: 12, permanencia: 97.5}});
   assert.deepEqual([m0.comparacoes, m0.planejamento.estado, m0.planejamento.porEvento, m0.planejamento.intervencao, m0.planejamento.texto, m0.hipotetico],
     [[], 'nao_alcancavel', null, null, null, null], 'sem resultado, nenhum número de médicos aparece');
-  assert.deepEqual(c1.hipotetico, {rotulo: 'hipótese derivada da simulação', data: '202606', valor: 12, inteiro: 12, classe: null, impactoPct: 8.333333333333334, naFaixa: null});
+  assert.deepEqual(c1.hipotetico, {rotulo: 'hipótese do cenário', data: '202606', valor: 12, inteiro: 12, classe: null, impactoPct: 8.333333333333334, naFaixa: null});
   assert.deepEqual([lida.referencias, lida.comparacao], [[{id: 'r1', rotulo: 'BELEM (PA)', tipo: 'fixa', territorio: 'code:150140',
     unidade: 'médicos registrados no município', estado: 'calculada', descricao: 'fixa: o valor de jun/2024 mantido', motivo: null}],
     {metrica: 'quantidade', hipoteseDePopulacao: null}]);
@@ -425,22 +425,24 @@ test('as comparações, o planejamento inverso e a hipótese derivada da simula�
   assert.equal(S.comOPlanoComoIntervencao(cheio, c1.planejamento), cheio, 'no limite de intervenções, nada muda');
 });
 
-test('a hipótese derivada da simulação é rotulada pelo motor e só aparece quando é pertinente', () => {
-  const h = extra => ({rotulo: 'hipótese derivada da simulação', data: '202606', valor: 1.19, inteiro: 1, classe: 'critica', impactoPct: 100,
-    naFaixa: {inferior: 'critica', superior: 'alta'}, ...extra});
-  assert.equal(S.textoDaHipotese(h()), 'Hipótese derivada da simulação (não é um sinal observado): com 1 médico em jun/2026, a dependência de poucos médicos teria ' +
-    'intensidade crítica (a saída de 1 tiraria 100,0%). Nos limites da faixa de 80%: intensidade crítica no inferior e intensidade alta no superior. A intensidade usa ' +
-    'os limites provisórios do Detector; os sinais de perda, de patamar e de declínio valem só para registros reais.');
-  assert.equal(S.textoDaHipotese(h({inteiro: 12, valor: 12, classe: null, impactoPct: 8.3333, naFaixa: null})), 'Hipótese derivada da simulação (não é um sinal ' +
-    'observado): com 12 médicos em jun/2026, não haveria sinal de dependência de poucos médicos por esta escala (a saída de 1 tiraria 8,3%). A intensidade usa os ' +
-    'limites provisórios do Detector; os sinais de perda, de patamar e de declínio valem só para registros reais.');
+test('os níveis no cenário: só "Poucos médicos", como hipótese do cenário rotulada pelo motor, e só quando é pertinente', () => {
+  const h = extra => ({rotulo: 'hipótese do cenário', data: '202606', valor: 1.19, inteiro: 1, classe: 'critico', impactoPct: 100,
+    naFaixa: {inferior: 'critico', superior: 'elevado'}, ...extra});
+  // Proposta V3, seção C.6: "seria Crítico em 'Poucos médicos'"; quando a faixa cruza um limite, "pode ficar entre…", sem escolher um só.
+  assert.equal(S.textoDaHipotese(h()), 'Hipótese do cenário (não é um sinal observado): com 1 médico em jun/2026, o território seria Crítico em “Poucos médicos” ' +
+    '(a saída de 1 tiraria 100,0%). Pela faixa do cenário, pode ficar entre elevado e crítico. Os limites são os do Detector, por convenção; os sinais comparados ' +
+    'com a base valem só para registros reais.');
+  assert.equal(S.textoDaHipotese(h({inteiro: 12, valor: 12, classe: null, impactoPct: 8.3333, naFaixa: null})), 'Hipótese do cenário (não é um sinal observado): ' +
+    'com 12 médicos em jun/2026, o território não teria alerta em “Poucos médicos” (a saída de 1 tiraria 8,3%). Os limites são os do Detector, por convenção; os ' +
+    'sinais comparados com a base valem só para registros reais.');
   assert.ok(S.textoDaHipotese(h({inteiro: 6018, valor: 6017.98, classe: null, impactoPct: 0.0166, naFaixa: {inferior: null, superior: null}}))
-    .startsWith('Hipótese derivada da simulação (não é um sinal observado): com 6.018 médicos em jun/2026, não haveria sinal de dependência de poucos médicos por esta escala. A'));
-  assert.ok(S.textoDaHipotese(h({inteiro: 4, valor: 4, classe: 'atencao', impactoPct: 25, naFaixa: {inferior: 'alta', superior: null}}))
-    .includes('teria intensidade atenção (a saída de 1 tiraria 25,0%). Nos limites da faixa de 80%: intensidade alta no inferior e sem sinal no superior.'));
-  // O painel fica fora da tela quando a escala não tem o que dizer (um território grande, sem intensidade nem nos limites da faixa).
+    .startsWith('Hipótese do cenário (não é um sinal observado): com 6.018 médicos em jun/2026, o território não teria alerta em “Poucos médicos”. O'));
+  assert.ok(S.textoDaHipotese(h({inteiro: 4, valor: 4, classe: 'moderado', impactoPct: 25, naFaixa: {inferior: 'elevado', superior: null}}))
+    .includes('seria Moderado em “Poucos médicos” (a saída de 1 tiraria 25,0%). Pela faixa do cenário, pode ficar entre sem alerta e elevado.'));
+  assert.deepEqual(['moderado', 'elevado', 'critico', null].map(S.nivelNoCenario), ['moderado', 'elevado', 'crítico', 'sem alerta']);
+  // O painel fica fora da tela quando o sinal não tem o que dizer (um território grande, sem nível nem nos limites da faixa).
   assert.deepEqual([null, h(), h({inteiro: 12, classe: null, naFaixa: null}), h({inteiro: 6018, classe: null, naFaixa: {inferior: null, superior: null}}),
-    h({inteiro: 30, classe: null, naFaixa: {inferior: 'atencao', superior: null}}), h({inteiro: 21, classe: null, naFaixa: null})].map(S.hipotesePertinente),
+    h({inteiro: 30, classe: null, naFaixa: {inferior: 'moderado', superior: null}}), h({inteiro: 21, classe: null, naFaixa: null})].map(S.hipotesePertinente),
     [false, true, true, false, true, false]);
 });
 
@@ -457,9 +459,9 @@ test('CSV das comparações e o cenário exportado levam as referências, a mét
     'não alcança no horizonte simulado;;A referência contém o território.;constante: a população de jun/2024 em todas as datas simuladas;SIMULADOR-CENARIOS/V2.2/2;abc');
   assert.equal(linhas[3], 'code:130340;PARINTINS (AM);Cenário 1;Meta;valor;A referência não tem valor nas datas do cenário.;quantidade;;;;;;;;;;' +
     'constante: a população de jun/2024 em todas as datas simuladas;SIMULADOR-CENARIOS/V2.2/2;abc', 'sem valor inventado');
-  // O CSV dos resultados diz a meta, o número de médicos por evento (ou por que não há) e a intensidade da hipótese derivada.
+  // O CSV dos resultados diz a meta, o número de médicos por evento (ou por que não há) e o nível da hipótese do cenário.
   const resultados = S.csvDoSimulador(lida).slice(1).split('\r\n');
-  assert.ok(resultados[1].endsWith(';Meta hipotética: 21 médicos em jun/2026;5;2;sem sinal por esta escala;SIMULADOR-CENARIOS/V2.2/2;abc'));
+  assert.ok(resultados[1].endsWith(';Meta hipotética: 21 médicos em jun/2026;5;2;sem alerta;SIMULADOR-CENARIOS/V2.2/2;abc'));
   assert.ok(resultados[2].endsWith(';Meta hipotética: 20 médicos em jun/2026;nao_alcancavel;1;;SIMULADOR-CENARIOS/V2.2/2;abc'));
   // Exportar e importar: o Brasil, as referências (a que aponta para um conjunto que não veio fica de fora), a métrica e o planejamento.
   const inicial = S.configInicial({municipios: ['code:130260'], estados: [], conjuntos: [{id: 'g1', rotulo: 'Par', membros: ['code:1', 'code:2']}]}, '202406');

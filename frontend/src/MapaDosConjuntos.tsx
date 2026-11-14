@@ -37,7 +37,13 @@ type Props = {
   altura?: number;
   /** A legenda de baixo (comando V22: no mapa da seleção, a do que está selecionado). */
   legenda?: string;
+  /** Pintura por território (comando V23: o mapa do Detector, com as cores dos níveis): a cor do ponto, o raio e o que a cor diz
+   * (na dica e em `data-pintura`). Os pontos pintados ficam por cima dos demais, com um anel; o maior raio, por cima de todos. */
+  pintura?: Map<string, PinturaDoPonto>;
+  /** Os grupos de cima (o estado, na base do Brasil): o nome de cada um aparece no centro dos pontos dele, quando cabe. */
+  grupos?: ConjuntoNoMapa[];
 };
+export type PinturaDoPonto = { cor: string; raio?: number; chave: string; rotulo: string };
 
 const MARGEM = 14;
 const FOLGA = 7;
@@ -91,8 +97,8 @@ export default function MapaDosConjuntos(p: Props) {
   const cores = coresDoMapa(useEsquemaDeCor());
   const largura = p.largura ?? 340, altura = p.altura ?? 220;
   const desenho = useMemo(() => {
-    const ids = [...new Set([...p.fundo, ...(p.destaque ?? []), ...p.conjuntos.flatMap(c => c.membros), ...(p.semConjunto ?? [])])]
-      .filter(id => p.coordenadas.has(id));
+    const ids = [...new Set([...p.fundo, ...(p.destaque ?? []), ...p.conjuntos.flatMap(c => c.membros), ...(p.semConjunto ?? []),
+      ...(p.pintura?.keys() ?? [])])].filter(id => p.coordenadas.has(id));
     if (!ids.length) return null;
     const lats = ids.map(id => p.coordenadas.get(id)![0]), lons = ids.map(id => p.coordenadas.get(id)![1]);
     const [minLat, maxLat, minLon, maxLon] = [Math.min(...lats), Math.max(...lats), Math.min(...lons), Math.max(...lons)];
@@ -117,16 +123,23 @@ export default function MapaDosConjuntos(p: Props) {
         leste, oeste };
     });
     const barra = p.escalaKm && p.escalaKm > 0 ? Math.min(largura - 2 * MARGEM, p.escalaKm / KM_POR_GRAU * escala) : null;
-    return { posicao, contornos, barra };
-  }, [p.coordenadas, p.fundo, p.destaque, p.conjuntos, p.semConjunto, p.escalaKm, largura, altura]);
+    // O centro dos pontos de cada grupo de cima, para o nome dele.
+    const centros = (p.grupos ?? []).map(grupo => {
+      const pontos = grupo.membros.filter(id => posicao.has(id)).map(id => posicao.get(id)!);
+      return pontos.length ? { id: grupo.id, nome: grupo.nome, x: pontos.reduce((soma, ponto) => soma + ponto[0], 0) / pontos.length,
+        y: pontos.reduce((soma, ponto) => soma + ponto[1], 0) / pontos.length } : null;
+    }).filter((centro): centro is { id: string; nome: string; x: number; y: number } => !!centro);
+    return { posicao, contornos, barra, centros };
+  }, [p.coordenadas, p.fundo, p.destaque, p.conjuntos, p.semConjunto, p.escalaKm, p.pintura, p.grupos, largura, altura]);
 
   if (!desenho) return <p data-testid="analise-mapa-conjuntos-vazio" className="analise-agregar-apoio">{p.vazio ?? "Sem coordenadas para desenhar."}</p>;
   const membros = new Set(p.conjuntos.flatMap(conjunto => conjunto.membros));
   const sem = new Set(p.semConjunto ?? []);
   const destaque = new Set((p.destaque ?? []).filter(id => !membros.has(id) && !sem.has(id)));
-  const papel = (id: string) => membros.has(id) ? "membro" : sem.has(id) ? "sem" : destaque.has(id) ? "atende" : "fundo";
-  const ordem = [...desenho.posicao.keys()].sort((a, b) => ["fundo", "atende", "sem", "membro"].indexOf(papel(a)) -
-    ["fundo", "atende", "sem", "membro"].indexOf(papel(b)));
+  const papel = (id: string) => p.pintura?.has(id) ? "pintado" : membros.has(id) ? "membro" : sem.has(id) ? "sem" : destaque.has(id) ? "atende" : "fundo";
+  const PAPEIS = ["fundo", "atende", "sem", "membro", "pintado"];
+  const ordem = [...desenho.posicao.keys()].sort((a, b) => PAPEIS.indexOf(papel(a)) - PAPEIS.indexOf(papel(b)) ||
+    (p.pintura?.get(a)?.raio ?? 0) - (p.pintura?.get(b)?.raio ?? 0));
   // Os nomes não se sobrepõem (comando V22, seção 7: legendas legíveis com dezenas de conjuntos): os dos conjuntos primeiro, depois
   // os dos sem conjunto; um nome que cobriria outro já posto fica só no título do contorno ou do ponto (ao passar o mouse). Desde
   // 10/11/2026 (conferência das capturas), o nome de um conjunto também não cobre os pontos em destaque: ele fica acima do contorno
@@ -171,6 +184,8 @@ export default function MapaDosConjuntos(p: Props) {
     const [x, y] = desenho.posicao.get(id)!;
     return cabe(x + 5, y + 4, nomeAvulso(id), "start");
   });
+  // Os nomes dos grupos de cima, por último: só os que cabem sem cobrir outro nome.
+  const nomesDosGrupos = desenho.centros.filter(centro => cabe(centro.x, centro.y + 4, centro.nome, "middle"));
   return <figure data-testid="analise-mapa-conjuntos" data-esmaecido={p.esmaecido ? "true" : "false"}
     className={"analise-mapa-conjuntos" + (p.esmaecido ? " analise-mapa-conjuntos-esmaecido" : "")}>
     <svg viewBox={"0 0 " + largura + " " + altura} width={largura} height={altura} role="img" aria-label={p.rotulo}
@@ -183,13 +198,14 @@ export default function MapaDosConjuntos(p: Props) {
       {ordem.map(id => {
         const [x, y] = desenho.posicao.get(id)!;
         const tipo = papel(id);
-        const raio = tipo === "fundo" ? 1.8 : 3;
+        const pintado = p.pintura?.get(id);
+        const raio = pintado ? pintado.raio ?? 3.4 : tipo === "fundo" ? 1.8 : 3;
         const cheio = tipo === "membro" || tipo === "atende";
-        return <circle key={id} data-testid="analise-mapa-ponto" data-id={id} data-papel={tipo} cx={x} cy={y} r={raio}
-          fill={tipo === "fundo" ? cores.miniPontos : cheio ? cores.tinta : cores.superficie}
+        return <circle key={id} data-testid="analise-mapa-ponto" data-id={id} data-papel={tipo} data-pintura={pintado?.chave} cx={x} cy={y} r={raio}
+          fill={pintado ? pintado.cor : tipo === "fundo" ? cores.miniPontos : cheio ? cores.tinta : cores.superficie}
           stroke={tipo === "fundo" ? "none" : cores.tinta} strokeWidth={tipo === "sem" ? 1.3 : 0.6}
           style={p.onTocar ? { cursor: "pointer" } : undefined} onClick={p.onTocar ? () => p.onTocar!(id) : undefined}>
-          <title>{p.nomeDe(id)}</title></circle>;
+          <title>{p.nomeDe(id) + (pintado ? " · " + pintado.rotulo : "")}</title></circle>;
       })}
       {desenho.contornos.map(conjunto => {
         const lugar = lugarDosNomes.get(conjunto.id);
@@ -202,6 +218,9 @@ export default function MapaDosConjuntos(p: Props) {
         return <text key={"n" + id} x={x + 5} y={y + 4} fontSize={LETRA} fill={cores.tinta} stroke={cores.superficie} strokeWidth={3}
           strokeLinejoin="round" paintOrder="stroke" pointerEvents="none">{nomeAvulso(id)}</text>;
       })}
+      {nomesDosGrupos.map(centro => <text key={"g" + centro.id} data-testid="analise-mapa-nome-grupo" data-id={centro.id} x={centro.x} y={centro.y + 4}
+        textAnchor="middle" fontSize={LETRA} fontWeight={700} fill={cores.tinta} stroke={cores.superficie} strokeWidth={3} strokeLinejoin="round"
+        paintOrder="stroke" pointerEvents="none">{centro.nome}</text>)}
       {desenho.barra && <g data-testid="analise-mapa-escala">
         <line x1={MARGEM} x2={MARGEM + desenho.barra} y1={altura - 9} y2={altura - 9} stroke={cores.tinta} strokeWidth={1.5}/>
         <text x={MARGEM} y={altura - 13} fontSize={LETRA} fill={cores.tinta}>{(p.escalaKm ?? 0).toLocaleString("pt-BR")} km</text>

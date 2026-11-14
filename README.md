@@ -917,22 +917,27 @@ latitude e longitude no referencial confirmado); toda resposta da página única
 com cópias verificadas (desde 24/10/2026, individual quando há um território só, com o valor, a variação e a direção dela e a
 classe da tendência; com vários, sem faixas artificiais nem contagens zeradas); e as respostas grandes vão comprimidas (gzip).
 
-## Detector de Sinais Territoriais (comando V22)
+## Detector de Sinais Territoriais (comandos V22 e V23)
 
-Na base do Brasil, o botão **Detector de Sinais**, na navegação principal, mostra a situação mais recente de cada território da
-seleção: a condição estrutural (poucos médicos ou nenhum), a trajetória (perda entre dois registros, afastamento do patamar
-anterior e declínio em junhos seguidos), o ritmo e a instabilidade, a comparação relativa (a taxa por habitante, a posição entre
-os municípios e o índice ante a referência, com a variação em 2 anos), o contexto geográfico (a distância em linha reta até o
-município mais próximo com mais médicos por habitante), os sinais combinados e a qualidade do registro, com os detalhes e o
-histórico de sinais de cada um. São os 12 fenômenos do catálogo, também em gráfico de bolhas e em mapa. O fato observado sempre
-aparece; a intensidade do sinal (atenção, alta, crítica) só existe com critério e comparação com municípios parecidos, tem
-limites provisórios e não é juízo de desassistência nem de prioridade (divergência aprovada da SPEC, só nesta ferramenta). A
-comparação relativa não tem intensidade (são sinais observados, com limites provisórios) e só calcula a variação em trechos com
-população comparável, lidos da própria base: com a população do Ministério da Saúde (desde 13/11/2026), a base inteira é um
-trecho só, e nenhuma data fica com "comparação não habilitada". Não há índice geral. Nos detalhes, "Abrir no Simulador" e "Simular recuperação" levam o território ao Simulador de Cenários. Os
-cálculos são do motor (`POST /api/detector`), sem o provedor de IA. Regras, rota,
-estudo de calibração e limitações: [Docs/DETECTOR_DE_SINAIS.md](Docs/DETECTOR_DE_SINAIS.md); a referência metodológica é
-[Docs/DETECTOR_E_SIMULADOR_V2_2.md](Docs/DETECTOR_E_SIMULADOR_V2_2.md).
+Na base do Brasil, o botão **Detector de Sinais**, na navegação principal, **compara cada território da seleção com o que é comum
+na própria base**: territórios de tamanho parecido e só o que veio antes de cada data. A primeira tela é uma lista de quatro
+colunas (Território · Alerta · Por quê · Último registro), com o resumo dos níveis no alto, clicável, os filtros numa linha
+(Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico. Cada território tem **um nível só** — **moderado, elevado ou
+crítico**, o maior entre os seus 12 sinais, sem soma nem índice —, sempre escrito e com o tipo de critério: "comparado com a
+base" (raro entre as mudanças anteriores de territórios do mesmo porte: 1 em cada 20, 100 ou 1.000) ou "por convenção". Quando a
+base não tem comparações bastantes, a tela diz **"sem comparações suficientes"**, com os números; um conjunto não tem nível; os
+estados como unidade têm régua própria. O fato observado sempre aparece. "Raro" quer dizer incomum nesta base, não
+comprovadamente pior: o nível não é juízo de desassistência nem de prioridade (divergência aprovada da SPEC, só nesta
+ferramenta). O detalhe de um território traz a série e os 12 sinais em quatro grupos (Quantos há, Como mudou, Comparado com
+outros, Onde fica), mais Juntos; em cada sinal, o nível, uma frase e o **"Entenda"** (duas ou três frases e um exemplo com
+números; abre com o mouse, com um toque ou pelo teclado). "Ajustar critérios" mostra os limites em frases, com os campos dentro
+delas: trocar um valor torna a configuração exploratória, e "Voltar ao padrão" fica sempre à vista. Os sinais comparados em 2
+anos só calculam a variação em trechos com população comparável, lidos da própria base (com a população do Ministério da Saúde,
+desde 13/11/2026, a base inteira é um trecho só). Nos detalhes, "Abrir no Simulador" e "Simular recuperação" levam o território
+ao Simulador de Cenários. Os cálculos são do motor (`POST /api/detector`), sem o provedor de IA. Regras, rota, estudo de
+calibração e limitações: [Docs/DETECTOR_DE_SINAIS.md](Docs/DETECTOR_DE_SINAIS.md); a referência metodológica é
+[Docs/DETECTOR_E_SIMULADOR_V3.md](Docs/DETECTOR_E_SIMULADOR_V3.md) (a [V2.2](Docs/DETECTOR_E_SIMULADOR_V2_2.md) continua valendo
+no que a V3 não muda).
 
 ## Simulador de Cenários Territoriais (comando V22)
 
@@ -964,7 +969,7 @@ A interface é a página única de análise (22/10/2026): a Seleção de Territ�
 - o aviso de prazo da sessão (RQ-FLX-19, TPL-09, AT-44) não é exibido no início da sessão; o pop-up traz só a declaração de privacidade (19/10/2026);
 - nenhuma confirmação de colunas e campos (19/10/2026): a proposta não é apresentada para confirmação e a escolha no seletor substitui a confirmação (RQ-DAD-05, RQ-DAD-06); coordenadas sem confirmação, com o seletor vazio quando o reconhecimento não é conclusivo (RQ-DAD-25, na parte "requer confirmação do usuário"; a validade por elemento segue a SPEC); a identidade da pessoa (contagem de pessoas distintas e rotatividade) é estabelecida pela coluna de identificador individual, escolhida no seletor ou reconhecida pelo nome do vocabulário, sem regra de identidade autorizada nem declaração (RQ-DAD-35, CAP-ROT-01); aditividade e comparabilidade viram premissas com nota e limitação, e, na base importada, o significado longitudinal da chave territorial é verificado nos dados, não estabelecido por regra, metadado ou confirmação (RQ-DAD-36, CFG-TER); a interação "Confirmar significado de campo" da tabela de interação (L274) não existe;
 - a densidade do Brasil de 2015 (regra BR-POP-JUNHO-1) é avaliável com limitações (`POPULACAO_NACIONAL_PARCIAL`): a população de junho soma os 5.569 municípios com registro, sem o 430607, enquanto o numerador continua sendo a contagem nacional inteira, em vez de NAO_AVALIAVEL por DENOMINADOR_AUSENTE e sem exclusão do ausente (CAP-IND-02 L1742, DA-10, INV-04, AT-08; a densidade parcial da CAP-AGR-01, L1751, exige o mesmo suporte no numerador e no denominador) (19/10/2026);
-- a intensidade do sinal (atenção, alta, crítica) do Detector de Sinais Territoriais, com limites provisórios pré-configurados, quando CFG-NOR (4.4.19) não traz critério normativo pré-configurado; vale só no Detector, e o assistente continua recusando "crítico" sem critério (10/11/2026, decisão D-A);
+- o nível do alerta (moderado, elevado, crítico) do Detector de Sinais Territoriais, com critérios padrão pré-configurados (por convenção ou pela raridade na própria base), quando CFG-NOR (4.4.19) não traz critério normativo pré-configurado; vale só no Detector, e o assistente continua recusando "crítico" sem critério (10/11/2026, decisão D-A; desde 13/11/2026, com os nomes moderado, elevado e crítico, "alerta" para os três níveis e "sem comparações suficientes" no lugar de "sem classificação");
 - o Simulador de Cenários Territoriais projeta cenários hipotéticos, quando a SPEC exclui "projeção ou previsão (Caso 4)" da FAM-08 e o AT-04 manda não projetar; vale só na ferramenta determinística, com o texto fixo de cenário, e o assistente continua recusando previsões livres (9/11/2026, decisão 2 do comando V22; implementado em 10/11/2026).
 
 Uploads são processados em memória por requisição e não são persistidos pelo aplicativo. O arquivo é reenviado a cada análise; o limite é de 15 MB (15.000.000 bytes) por arquivo desde 01/11/2026 (antes, o limite experimental de 30 MB), e cada nova análise lê o arquivo de novo (a leitura de um XLSX é bem mais lenta que a de um CSV do mesmo tamanho; medições em [Docs/implantacao/](Docs/implantacao/RELATORIO_IMPLANTACAO.md)). Evite bases pessoais e sensíveis no protótipo. Para arquivos muito grandes, será preciso processamento incremental/local, sessão segura e proteção de dados aprofundada.

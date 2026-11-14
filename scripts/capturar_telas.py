@@ -214,14 +214,14 @@ def capturar(url, saida, canal):
             expect(detector.get_by_test_id("detector-historico")).to_be_visible()
 
         def detector_brasil():
-            # Todos os municípios do Brasil: a perda com alerta no último registro, com os detalhes do primeiro.
+            # Todos os municípios do Brasil: os territórios com nível em "Queda recente" no último registro, com os detalhes do primeiro.
             area.get_by_test_id("analise-limpar-selecao").click()
             area.get_by_test_id("analise-aba-territorios").click()
             grafico(lambda: territorios.get_by_test_id("analise-raiz-caixa").check())
             area.get_by_test_id("analise-ferramenta-detector").click()
             detector = area.get_by_test_id("detector")
             expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
-            detector.get_by_test_id("detector-filtro-fenomeno").select_option("alerta_perda")
+            detector.get_by_test_id("detector-filtro-sinal").select_option("perda")
             detector.get_by_test_id("detector-abrir").first.click()
             expect(detector.get_by_test_id("detector-detalhe")).to_be_visible(timeout=60000)
 
@@ -230,7 +230,7 @@ def capturar(url, saida, canal):
             detector.get_by_test_id("detector-abrir").first.click()  # fecha os detalhes
             detector.get_by_test_id("detector-metodo-botao").click()
             detector.get_by_test_id("detector-parametros-botao").click()
-            detector.get_by_test_id("detector-parametro-perda-alta_alfa").fill("5")
+            detector.get_by_test_id("detector-parametro-perda-elevado_um_em").fill("50")
             detector.get_by_test_id("detector-parametros-aplicar").click()
             expect(detector.get_by_test_id("detector-exploratorio")).to_be_visible(timeout=180000)
 
@@ -283,9 +283,9 @@ def capturar(url, saida, canal):
             expect(area.get_by_test_id("detector")).to_have_attribute("data-estado", "pronto", timeout=180000)
 
         def fenomeno(chave):
-            """Abre, nos detalhes do território, o fenômeno pedido (um de cada vez)."""
+            """Abre, nos detalhes do território, a explicação completa do sinal pedido."""
             item = area.get_by_test_id("detector").locator('[data-testid="detector-fenomeno"][data-chave="' + chave + '"]')
-            botao = item.locator("button").first
+            botao = item.get_by_test_id("detector-fenomeno-completa")
             if botao.get_attribute("aria-expanded") != "true":
                 botao.click()
             expect(item.locator("dl")).to_be_visible()
@@ -296,8 +296,8 @@ def capturar(url, saida, canal):
             detector = area.get_by_test_id("detector")
             detector.get_by_test_id("detector-abrir").first.click()  # fecha os detalhes
             do_detector(lambda: detector.get_by_test_id("detector-janela-fim").select_option("202106"))
-            detector.get_by_test_id("detector-filtro-fenomeno").select_option("disponibilidade")
-            detector.get_by_test_id("detector-vista-bolhas").click()
+            detector.get_by_test_id("detector-filtro-sinal").select_option("disponibilidade")
+            detector.get_by_test_id("detector-vista-grafico").click()
             expect(detector.get_by_test_id("detector-bolhas")).to_be_visible(timeout=60000)
 
         def detector_mapa():
@@ -308,7 +308,7 @@ def capturar(url, saida, canal):
         def detector_taxa():
             # Os detalhes de um território com o sinal: a série da taxa com a referência (tracejada) e o fenômeno 8.
             detector = area.get_by_test_id("detector")
-            detector.get_by_test_id("detector-vista-tabela").click()
+            detector.get_by_test_id("detector-vista-lista").click()
             detector.get_by_test_id("detector-abrir").first.click()
             expect(detector.get_by_test_id("detector-serie-da-taxa")).to_be_visible(timeout=60000)
             fenomeno("disponibilidade")
@@ -317,7 +317,7 @@ def capturar(url, saida, canal):
             # Os sinais combinados (fenômeno 12): o primeiro território com uma combinação, com o texto do fenômeno aberto.
             detector = area.get_by_test_id("detector")
             detector.get_by_test_id("detector-abrir").first.click()  # fecha os detalhes
-            detector.get_by_test_id("detector-filtro-fenomeno").select_option("combinados")
+            detector.get_by_test_id("detector-filtro-sinal").select_option("juntos")
             detector.get_by_test_id("detector-abrir").first.click()
             expect(detector.get_by_test_id("detector-detalhe")).to_be_visible(timeout=60000)
             fenomeno("coexistencia")
@@ -328,7 +328,7 @@ def capturar(url, saida, canal):
             detector = area.get_by_test_id("detector")
             detector.get_by_test_id("detector-abrir").first.click()  # fecha os detalhes
             do_detector(lambda: detector.get_by_test_id("detector-janela-fim").select_option("202406"))
-            detector.get_by_test_id("detector-filtro-fenomeno").select_option("todos")
+            detector.get_by_test_id("detector-filtro-sinal").select_option("todos")
             detector.get_by_test_id("detector-busca").fill("manaus")
             detector.locator('[data-testid="detector-linha"][data-id="' + MANAUS + '"]').get_by_test_id("detector-abrir").click()
             expect(detector.get_by_test_id("detector-detalhe")).to_be_visible(timeout=60000)
@@ -399,7 +399,7 @@ def capturar(url, saida, canal):
             area.get_by_test_id("analise-ferramenta-detector").click()
             detector = area.get_by_test_id("detector")
             expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
-            detector.get_by_test_id("detector-filtro-fenomeno").select_option("patamar")
+            detector.get_by_test_id("detector-filtro-sinal").select_option("patamar")
             detector.get_by_test_id("detector-abrir").first.click()
             expect(detector.get_by_test_id("detector-simular-recuperacao")).to_be_visible(timeout=60000)
             detector.get_by_test_id("detector-simular-recuperacao").click()
@@ -418,7 +418,7 @@ def capturar(url, saida, canal):
             area.get_by_test_id("analise-ferramenta-detector").click()
             detector = area.get_by_test_id("detector")
             expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
-            detector.get_by_test_id("detector-vista-tabela").click()
+            detector.get_by_test_id("detector-vista-lista").click()
             detector.get_by_test_id("detector-abrir").first.click()
             expect(detector.get_by_test_id("detector-detalhe")).to_be_visible(timeout=60000)
 

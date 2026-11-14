@@ -35,6 +35,87 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-13 · Detector de Sinais na Proposta V3: níveis moderado, elevado e crítico pela régua comum, lista de quatro colunas, critérios em frases e "Entenda" (comando V23, Partes A e B)
+- **Classificação (regra 1):** mudança de comportamento pedida pelo responsável no comando V23 (13/11/2026, seções 1 a 3, com o
+  Anexo A salvo em [Detector e Simulador V3](DETECTOR_E_SIMULADOR_V3.md)). Decorre do pedido (escopo). Na compatibilidade, o nível
+  do alerta continua sendo a **divergência aprovada D-A** da SPEC (CFG-NOR, 4.4.19), só no Detector, agora com os nomes da decisão
+  2 de 13/11/2026: moderado, elevado e crítico; "alerta" para os três níveis, sempre com o tipo de critério (substitui, nesse
+  ponto, a decisão 1 do V22); e "sem comparações suficientes" no lugar de "sem classificação" e de "não calibrado". **Mudança
+  prevista, com a divergência aprovada estendida pelo responsável.** A SPEC não foi alterada.
+- **Antes (V2.2):**
+  - intensidade do sinal "atenção, alta, crítica", com "limites provisórios"; "alerta" só para a perda com magnitude e
+    excepcionalidade; excepcionalidade = P(X ≤ x) ≤ 1% ou 0,1% entre as transições anteriores da célula porte × intervalo, com 100
+    ou 1.000 transições no mínimo, em sete faixas de porte (a última, "300 ou mais");
+  - sinal 3 com "forte" e "muito forte", sem intensidade; sinal 4 descritivo; sinal 5 descritivo; sinal 6 com alta e crítica; sinal
+    7 com atenção e alta (crítica "não calibrável"); sinais 8 a 10 como "sinais observados" por limites fixos (queda de 10% e 20%
+    da taxa; 10, 15 e 25 pontos de percentil; 15 e 25 pontos do índice), sem intensidade;
+  - estados como unidade e conjuntos sem intensidade (a comparação era só municipal);
+  - a tela era uma tabela de nove colunas (condição estrutural, trajetória, ritmo e instabilidade, comparação relativa, contexto
+    geográfico, sinais combinados, qualidade do registro e última observação), com o resumo por fenômeno, os filtros por fenômeno,
+    por porte e pelo nome, a ordem num seletor, a janela com início e fim na linha de controles, as bolhas como vista inicial e o
+    mapa com os territórios do fenômeno em destaque e os municípios de referência do contexto vazados;
+  - "Parâmetros" numa grade de campos com rótulos técnicos ("Alta: incomum até (% das transições)"); cada fenômeno abria os sete
+    campos de uma vez.
+- **Agora (V3):**
+  - **níveis:** moderado (1 em cada 20, com pelo menos 19 comparações), elevado (1 em cada 100, com 99) e crítico (1 em cada
+    1.000, com 999), sempre escritos e com o tipo de critério ("comparado com a base" ou "por convenção"); além deles, "sem
+    alerta", "sem comparações suficientes" (com quantas comparações há e quantas o nível pede) e "sem nível" (conjunto);
+  - **régua comum** (`backend/reguas.py`): raridade = (mudanças anteriores iguais ou piores + 1) ÷ (total + 1), só com o passado,
+    por porte (dez faixas: as de antes até 299 e, acima, 300–999, 1.000–2.999, 3.000–9.999 e 10.000 ou mais) e com o mesmo tempo
+    entre registros; quando faltam comparações, a faixa junta-se às vizinhas e, só no moderado, a todas as faixas, com a mudança
+    padronizada pelo tamanho (θ estimado só com o passado);
+  - **os 12 sinais com os padrões da tabela B.2:** 1–2 por convenção (1 ou zero, crítico; 2–3, elevado; 4–5, moderado), com a
+    histerese de antes; 3 por convenção (2 quedas e 10%, 3 e 20%, 4 e 30%); 4 moderado quando a classe se repete em 2 anos
+    (exploratório); 5 moderado pela raridade do índice; 6 pela raridade, com tamanho mínimo (2 e 10%; 2 e 20%; 3 e 30%); 7
+    moderado por convenção, elevado e crítico também pela raridade (patamar de pelo menos 20); 8 a 10 pela raridade da variação
+    em 2 anos (porte pelo número no início da janela; pelo menos 20 no início; população comparável); 11 só contexto; 12 sem soma;
+  - **um nível por território** (o maior entre os sinais, sem soma nem índice), com o porquê; os sinais da mesma queda contam
+    como um evento, e a tela diz isso; **aviso da base** quando as quedas raras de uma data passam do triplo do esperado;
+  - **estados como unidade com régua própria** (a base dos estados); conjuntos sem nível, com os fatos e o motivo;
+  - **tela:** lista de quatro colunas (Território · Alerta · Por quê · Último registro); resumo dos níveis, clicável como filtro;
+    filtros numa linha (Até, Nível, Sinal e Buscar); visões Lista (padrão), Mapa (os pontos pelo nível, com a legenda escrita) e
+    Gráfico (as bolhas da distância e da taxa, pelo nível); detalhe com a série e os 12 sinais em quatro grupos (Quantos há, Como
+    mudou, Comparado com outros, Onde fica), mais Juntos, cada sinal com o nível, uma frase e o "Entenda"; a explicação completa
+    (os sete campos) abre por sinal; no celular, a lista vira cartões;
+  - **"Ajustar critérios":** os limites em frases, com os campos dentro delas; trocar um valor torna a configuração
+    **exploratória** (aviso no alto, nota nos textos e coluna nas exportações), e "Voltar ao padrão" fica sempre à vista;
+  - **"Entenda"** (componente novo, `frontend/src/Entenda.tsx`): escondido; abre com o mouse, com um toque ou pelo teclado; fecha
+    ao sair; duas ou três frases e um exemplo com números, do motor; "Ver explicação completa";
+  - **API (`POST /api/detector`, versão `DETECTOR-SINAIS/V3/1`):** o mesmo endereço; os campos que a resposta já trazia
+    continuam, com os valores da V3 (as classes passam a `moderado`, `elevado` e `critico`; `sinal`, nos sinais 3 e 8 a 10,
+    repete o nível); entram `alerta` em cada linha, `resumo.niveis` e `resumo.com_nivel`, `niveis`, `grupos`, `portes`, `entenda`,
+    `aviso_da_base`, `calibracao_dos_estados`, `fonte.rotulos`, a régua por nível em `calibracao` e, no detalhe, `linha` e, em
+    cada sinal, `nivel`, `estado_do_nivel`, `criterio_do_nivel`, `entenda`, `exploratorio` e `sem_comparacoes`. Os nomes dos
+    critérios em `parametros` são os da tabela B.2 (por exemplo, `perda.elevado_um_em` no lugar de `perda.alta_alfa`): um pedido
+    com um nome antigo é recusado em 422, como qualquer critério desconhecido;
+  - **Simulador:** a hipótese do cenário usa os níveis novos ("o território seria Crítico em “Poucos médicos”"; "pode ficar entre
+    elevado e crítico" quando a faixa cruza um limite), com o rótulo "hipótese do cenário"; o aviso de quem veio do Detector diz
+    "Sinais com nível lá: …".
+- **Saiu da tela, de propósito (seção B.3):** o filtro por porte e o seletor de ordem (a ordem ficou nos cabeçalhos da lista); o
+  início da janela foi para "Ajustar critérios" ("Considerar os registros desde"); o resumo por fenômeno deu lugar ao resumo dos
+  níveis (o filtro "Sinal" diz quantos territórios têm nível em cada sinal); no mapa, saíram os municípios de referência do
+  contexto, vazados (a distância continua no Gráfico e no detalhe); os sinais sem nível deixaram de ter nome próprio ("sinal
+  forte", "queda de posição").
+- **Permanece:** o fato observado sempre à vista; zero confirmado e ausência de dado; a descontinuidade de registro (pico que
+  volta, quebra de fonte e "verificar registro"); o patamar e o mínimo de 20; a classe do sinal 4 igual à da Análise de
+  Tendência; o sinal 11 só como contexto, sem "isolamento" nem "desassistência"; a população comparável lida da base; o histórico
+  de sinais (1 a 7); "Abrir no Simulador" e "Simular recuperação"; as exportações (CSV e JSON); o cálculo no motor, sem o
+  provedor de IA; a ferramenta só na base do Brasil (as planilhas enviadas são a etapa seguinte do comando); o assistente
+  recusando "crítico" sem critério, fora do Detector.
+- **Pendente, por falta de dado:** a Proposta V3 pede o mapa "com divisas". O produto não tem a malha territorial (só as
+  coordenadas dos municípios), e trazê-la é um arquivo de dados novo, fora da autorização do comando. O mapa mostra os pontos
+  pelo nível e a sigla do grupo de cima junto aos pontos dele, e a tela diz que a base não tem as divisas.
+- **Motivo:** decisões 1 a 3 e 7 do comando V23 (Proposta V3 aprovada em 13/11/2026).
+- **Documentação e testes:** [Detector de Sinais](DETECTOR_DE_SINAIS.md) (reescrito, com o estudo de calibração refeito com a
+  população nova), [README](../README.md), [interface](PAINEL_INTEGRADO_INTERFACE.md), [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md)
+  e `AGENTS.md` (o que `scripts/calibrar_detector.py` faz). Testes novos: `backend/tests/test_reguas.py`. **Testes reescritos
+  porque o comportamento mudou de propósito (regra 3):** `backend/tests/test_detector.py`, `frontend/tests/detector.test.mjs` e
+  `backend/tests/ui_detector.py` (agora também com a tela de celular e o toque); mudaram de valor `backend/tests/test_simulador.py`,
+  `frontend/tests/simulador.test.mjs` e `backend/tests/ui_simulador.py` (os níveis e o rótulo da hipótese do cenário e o aviso de
+  quem veio do Detector) e `frontend/tests/modoEscuro.test.mjs` (o contraste do nível elevado). Nenhum teste foi afrouxado: os
+  valores foram refeitos com as regras novas, e os casos de antes continuam cobertos (a histerese, os empates, só o passado, o
+  pico que volta, a quebra de fonte, a queda que persiste, a população comparável, os conjuntos e os estados).
+
 ### 2026-11-13 · Base do Brasil: a população passa a ser a série do Ministério da Saúde, 19 municípios têm o nome corrigido e a "comparação não habilitada" passa a ser lida da própria base (comando V23, Parte D)
 - **Classificação (regra 1):** troca de dado versionado por pedido explícito do responsável (comando V23, seções 0, 1 e 5; decisão
   da pausa 1, em 13/11/2026, que também mandou usar os valores novos de Sergipe em 2024 e ampliou a autorização aos nomes de 19
