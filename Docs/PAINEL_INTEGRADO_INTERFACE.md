@@ -257,10 +257,12 @@ Pedidos pelo responsável ao conferir as capturas da etapa 2; onde divergem, val
 Acima das abas, a linha "Ferramentas" (`analise-ferramentas-novas`) traz os botões das ferramentas do Eixo II do comando V22. Cada
 uma abre no lugar do painel da aba e do desenho da análise (`analise-ferramenta-painel`; `area-de-analise` leva `data-ferramenta`)
 e fecha quando a pessoa escolhe uma aba, vai à Seleção de Territórios ou faz um pedido pela conversa. Desde o comando V23
-(14/11/2026), o **Detector de Sinais abre com qualquer base**: a do Brasil ou uma planilha enviada. O **Simulador de Cenários**
-ainda existe só na base do Brasil; com uma planilha, o botão dele fica desligado, com o motivo (`analise-ferramentas-motivo`): "O
-Simulador de Cenários ainda funciona só com a base que vem com o Agente. Com uma planilha enviada, use o Detector de Sinais." O
-texto não cita o Brasil: com uma planilha, nenhum texto à vista usa o vocabulário da base brasileira (regra de 28/10/2026).
+(14/11/2026), **as duas ferramentas abrem com qualquer base**: a do Brasil ou uma planilha enviada. Com uma planilha, o
+**Simulador de Cenários** vale nos dois modos (o simples e o avançado), com os nomes dela, e também quando ela só traz o ano (as
+datas do cenário são anos). O botão dele só fica desligado, com o motivo (`analise-ferramentas-motivo`), quando a planilha não
+tem datas que o Agente reconheça: "O Simulador de Cenários precisa de datas na planilha que o Agente reconheça (AAAAMM, AAAA-MM,
+AAAA-MM-DD ou só o ano)." O texto não cita o Brasil: com uma planilha, nenhum texto à vista usa o vocabulário da base brasileira
+(regra de 28/10/2026).
 
 Antes da ferramenta aberta vem o **perfil da base** (`perfil-da-base`; `frontend/src/PerfilDaBase.tsx`): o que o Agente leu da
 base (datas e intervalos, série anual, portes, grupo de cima, população, coordenadas, o que a contagem conta e os nomes) e o
@@ -283,8 +285,10 @@ as ferramentas avaliam as unidades e os conjuntos: o grupo de cima como unidade 
   completa". Os `data-testid` têm o prefixo de quem usa (`detector-entenda`, `detector-entenda-botao`, `detector-entenda-caixa`,
   `detector-entenda-exemplo` e `detector-entenda-completa`).
 - **Simulador de Cenários** (`analise-ferramenta-simulador`): [Simulador de Cenários Territoriais](SIMULADOR_DE_CENARIOS.md).
-  Trabalha numa **seleção local**, cópia da seleção em uso, guardada na área enquanto a fonte for a mesma (sair e voltar não a
-  perde, nem os cenários). A seleção em uso só muda por "Aplicar à seleção principal", que é um passo do Desfazer ("Aplicar a
+  Desde 14/11/2026 (Proposta V3, Parte C), abre no **modo simples, numa tela só** (o território, o que testar e até quando; o
+  resultado traz o gráfico, a frase fixa, três números e os "Entenda" do jeito de projetar e da faixa); as quatro etapas ficam em
+  "Avançado". Trabalha numa **seleção local**, cópia da seleção em uso, guardada na área enquanto a fonte for a mesma (sair e
+  voltar não a perde, nem os cenários). A seleção em uso só muda por "Aplicar à seleção principal", que é um passo do Desfazer ("Aplicar a
   seleção do Simulador") e deixa a ferramenta aberta.
 - **Do Detector para o Simulador** (11/11/2026): "Abrir no Simulador" e "Simular recuperação", nos detalhes de um território do
   Detector, trocam a ferramenta aberta e põem no Simulador uma seleção local só com aquele território (o município, o estado
@@ -1402,7 +1406,9 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   12), as referências, o planejamento inverso e a ligação entre as duas ferramentas existem desde 11/11/2026 (etapa 5 do comando;
   [Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md); [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md)). Desde
   13/11/2026 (comando V23), o Detector segue a [Proposta V3](DETECTOR_E_SIMULADOR_V3.md): a régua comum por porte, os níveis
-  moderado, elevado e crítico, a lista de quatro colunas, os critérios em frases e o "Entenda".
+  moderado, elevado e crítico, a lista de quatro colunas, os critérios em frases e o "Entenda". Desde 14/11/2026, o Simulador
+  também: o modo simples, o jeito de projetar escolhido pela base, a faixa de 8 em cada 10 conferida no tempo e o uso com uma
+  planilha enviada (nos dois modos, também quando ela só traz o ano).
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
 

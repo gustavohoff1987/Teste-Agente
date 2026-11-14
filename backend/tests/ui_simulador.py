@@ -1,28 +1,41 @@
-"""Simulador de Cenários Territoriais na página única (comando V22, etapas 4 e 5), com a base versionada (somente leitura).
+"""Simulador de Cenários Territoriais na página única (comando V22, etapas 4 e 5; Proposta V3 do comando V23, Parte C), com a base
+versionada (somente leitura).
 
 Confere, contra as respostas de POST /api/simulador:
-- a ferramenta na navegação principal ("Simulador de Cenários"), que sem territórios não pede nada ao motor;
-- a seleção local: uma cópia da seleção principal, em que acrescentar (um município e um estado como unidade) e tirar
-  territórios não muda a seleção principal; "Copiar de novo a seleção principal" e "Aplicar à seleção principal", que só então
-  muda a seleção principal, num passo do Desfazer;
-- as quatro etapas: os territórios, a base histórica e o método (a janela padrão de 3 anos e o método padrão provisório), as
-  intervenções e a data final (qualquer mês; os atalhos são só atalhos) e os resultados, só depois de "Calcular os cenários";
+- a ferramenta na navegação principal ("Simulador de Cenários"), que abre no modo simples e, sem territórios, não pede nada ao
+  motor em nenhum dos dois modos;
+- o modo simples numa tela só (Proposta V3): o território (um dos da seleção local), até quando (com os atalhos de 1, 2 e 4 anos)
+  e o que testar (só continuar como vinha, acrescentar, retirar ou chegar a uma meta); o pedido leva um território só; o
+  resultado traz a frase fixa do motor, os três números, o jeito de projetar escolhido pela base, os dois "Entenda" (com os
+  textos do motor) e a faixa de 8 em cada 10: conferida em 2 anos, provisória em 4 e indisponível, com o motivo, para um estado
+  como unidade; a retirada acima do estoque volta para revisão; "Avançado" leva às quatro etapas, e "Modo simples" traz de volta;
+- a seleção local (no modo avançado): uma cópia da seleção principal, em que acrescentar (um município e um estado como unidade)
+  e tirar territórios não muda a seleção principal; "Copiar de novo a seleção principal" e "Aplicar à seleção principal", que só
+  então muda a seleção principal, num passo do Desfazer;
+- as quatro etapas do modo avançado: os territórios, a base histórica e o método (a janela padrão de 3 anos e o método padrão, que
+  é o jeito escolhido pela base), as intervenções e a data final (qualquer mês; os atalhos são só atalhos) e os resultados, só
+  depois de "Calcular os cenários";
 - os resultados de RIO RUFINO (SC), de BRASILIA (DF) e do Paraná como unidade: o texto fixo de cenário vindo do motor, o gráfico
-  com o observado, a base do cenário, a intervenção e a faixa de 80% (só no método padrão dos municípios), o aviso do pico fora
-  do ajuste, o estado sem faixa e a persistência como referência;
-- o modo avançado, com um segundo cenário; a retirada acima do estoque, devolvida para revisão; as estatísticas históricas, com
-  a média aritmética só descritiva; a validação dos métodos; as exportações (CSV dos resultados e JSON do cenário) e a
+  com o observado, a base do cenário, a intervenção e a faixa (só no jeito escolhido pela base), o aviso do pico fora do ajuste,
+  o estado sem faixa (com o motivo) e a persistência como referência;
+- um segundo cenário; a retirada acima do estoque, devolvida para revisão; as estatísticas históricas, com a média aritmética só
+  descritiva; a validação dos métodos (as dez faixas de porte); as exportações (CSV dos resultados e JSON do cenário) e a
   importação do cenário;
-- da etapa 5: "Abrir no Simulador", no Detector de Sinais, que traz MANAUS (AM) com o contexto analítico sem mudar a seleção
-  principal; o Brasil como território, só no Simulador; as referências de comparação (FLORIANOPOLIS dinâmica, o Brasil fixo e um
-  valor informado), com as curvas no gráfico, os textos do motor, "não alcança no horizonte simulado" e o aviso de sobreposição;
-  o CSV das comparações; e o planejamento inverso, com a meta hipotética, o menor inteiro por evento e o plano usado como
-  intervenção, que recalculado alcança a meta;
+- da etapa 5: "Abrir no Simulador", no Detector de Sinais, que traz MANAUS (AM) com o contexto analítico, no modo simples, sem
+  mudar a seleção principal; o Brasil como território, só no Simulador (o único com o método padrão provisório); as referências
+  de comparação (FLORIANOPOLIS dinâmica, o Brasil fixo e um valor informado), com as curvas no gráfico, os textos do motor, "não
+  alcança no horizonte simulado" e o aviso de sobreposição; o CSV das comparações; o planejamento inverso, com a meta hipotética,
+  o menor inteiro por evento e o plano usado como intervenção, que recalculado alcança a meta; e a faixa pedida (5 em cada 10);
+- o que só o modo avançado escolhe fica no modo avançado: a janela geral e as referências vão no pedido do modo avançado, não vão
+  no do modo simples (ficam guardadas) e voltam a ir no modo avançado; o jeito de projetar escolhido lá é avisado no modo simples;
+- "Simular recuperação", no Detector de Sinais: ABELARDO LUZ (SC) abre o modo simples com "Chegar a uma meta" marcado e o patamar
+  anterior como meta, que a pessoa pode trocar;
 - nenhuma chamada ao provedor de IA e nenhum erro na página.
 
 Base Brasil versionada (suíte base-versionada, ADT_BLOCK1_REAL=1); servidor serve_ui_offline.py, sem o provedor de IA.
 """
 import json
+import math
 import os
 from pathlib import Path
 
@@ -32,7 +45,29 @@ from ui_support import URL, offline, options_of
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 MANAUS, TEFE, RIO_RUFINO, BRASILIA, PR = "code:130260", "code:130420", "code:421505", "code:530010", "41"
 FLORIANOPOLIS = "code:420540"
+# EIRUNEPE (AM) tem 22 médicos em jun/2024 (faixa de porte de 20 a 49); ABELARDO LUZ (SC) está abaixo do que já teve (patamar de 78,25).
+EIRUNEPE, ABELARDO_LUZ = "code:130140", "code:420010"
 FIXO = "Cenário hipotético, não é previsão: "
+VERSAO = "SIMULADOR-CENARIOS/V3/1"
+C1 = {"id": "c1", "nome": "Cenário 1", "metodo": "padrao"}
+PERSISTENCIA = {"id": "m0", "nome": "Persistência (referência)", "metodo": "M0"}
+# Os textos da faixa de 8 em cada 10 (Proposta V3, seção C.4): o que a tela diz quando ela é provisória e o motivo de não haver
+# faixa para os estados como unidade nesta base.
+PROVISORIA = ("Faixa provisória: ainda não deu para conferi-la com dados que vieram depois, ou a conferência ficou um pouco abaixo do "
+              "esperado.")
+SEM_CASOS = ("A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem 189 em 1 ano, mesmo juntando os portes vizinhos e "
+             "os menores.")
+MEIO_DA_FAIXA = ", o número observado ficou dentro dessa margem; ela acompanha a intervenção."
+
+
+def so_o_municipio(codigo):
+    """A seleção do pedido com um município só (o território em análise do modo simples)."""
+    return {"municipios": {"todos": False, "estados": [], "ids": [codigo]}}
+
+
+def inteiro_da_tela(valor):
+    """O número inteiro como a tela o escreve: arredondado (metade para cima) e com o ponto de milhar."""
+    return f"{math.floor(valor + 0.5):,}".replace(",", ".")
 
 
 def main():
@@ -54,6 +89,11 @@ def main():
         botao = area.get_by_test_id("analise-ferramenta-simulador")
         simulador = area.get_by_test_id("simulador")
         resumo = area.get_by_test_id("analise-aba-territorios-resumo")
+        # O modo simples (Proposta V3): a tela única, o território em análise, "O que testar" e o resultado.
+        simples = simulador.get_by_test_id("simulador-simples")
+        territorio = simulador.get_by_test_id("simulador-territorio")
+        o_que_testar = simulador.get_by_test_id("simulador-o-que-testar")
+        resultado_simples = simulador.get_by_test_id("simulador-resultado")
 
         def do_simulador(acao):
             """A resposta de /api/simulador que a ação provocou e as opções do pedido."""
@@ -61,6 +101,10 @@ def main():
                 acao()
             assert evento.value.status == 200, evento.value.text()[:2000]
             return evento.value.json(), options_of(evento.value.request)
+
+        def calcular():
+            """O botão "Calcular" (no modo simples) ou "Calcular os cenários" (na etapa 3 do modo avançado): só um dos dois está na tela."""
+            return do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
 
         def local(codigo):
             return simulador.locator('[data-testid="simulador-local"][data-id="' + codigo + '"]')
@@ -77,11 +121,35 @@ def main():
         def do_territorio(corpo, codigo):
             return next(item for item in corpo["territorios"] if item["id"] == codigo)
 
+        def teste(chave):
+            """A opção de "O que testar": continuar, acrescentar, retirar ou meta."""
+            return simulador.get_by_test_id("simulador-teste-" + chave)
+
+        def tres_numeros(rotulos, valores):
+            """Os três números do resultado do modo simples: os rótulos e os valores, na ordem."""
+            quadro = resultado_simples.get_by_test_id("simulador-tres-numeros")
+            expect(quadro.locator("dt")).to_have_text(rotulos)
+            expect(quadro.locator("dd")).to_have_text(valores)
+
+        def entenda(nome, sobre, do_motor):
+            """Abre o "Entenda" do resultado pelo clique: o texto e o exemplo são os do motor."""
+            simulador.get_by_test_id("simulador-entenda-" + nome + "-botao").click()
+            expect(simulador.get_by_test_id("simulador-entenda-" + nome)).to_have_attribute("data-aberto", "true")
+            expect(simulador.get_by_test_id("simulador-entenda-" + nome + "-botao")).to_have_attribute("aria-label", "Entenda: " + sobre)
+            expect(simulador.get_by_test_id("simulador-entenda-" + nome + "-caixa")).to_contain_text(do_motor["texto"])
+            expect(simulador.get_by_test_id("simulador-entenda-" + nome + "-exemplo")).to_have_text("Exemplo: " + do_motor["exemplo"])
+
+        def fechar_o_entenda(nome):
+            """Fecha o "Entenda" com Esc, para a caixa não ficar por cima do que vem depois."""
+            page.keyboard.press("Escape")
+            expect(simulador.get_by_test_id("simulador-entenda-" + nome + "-caixa")).to_have_count(0)
+
         chat = page.get_by_test_id("painel-chat")
         if chat.count() and chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
             chat.get_by_test_id("painel-chat-minimizar").click()
 
-        # 1. A ferramenta fica na navegação principal; sem territórios, a cópia local é vazia e nada é pedido ao motor.
+        # 1. A ferramenta fica na navegação principal e abre no modo simples (Proposta V3). Sem territórios, a cópia local é vazia e
+        # nada é pedido ao motor, nem no modo simples nem nas quatro etapas do modo avançado.
         area.get_by_test_id("analise-fonte-brasil").click()
         expect(territorios.get_by_test_id("analise-arvore")).to_be_visible(timeout=180000)
         expect(botao).to_be_enabled()
@@ -90,13 +158,29 @@ def main():
         expect(area).to_have_attribute("data-ferramenta", "simulador")
         expect(simulador.get_by_test_id("simulador-titulo")).to_have_text("Simulador de Cenários Territoriais")
         expect(simulador).to_have_attribute("data-estado", "configurando")
-        expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "0")
+        expect(simulador).to_have_attribute("data-modo", "simples")
+        expect(simples).to_be_visible()
+        expect(simulador.get_by_test_id("simulador-modo-simples")).to_have_attribute("aria-pressed", "true")
+        expect(simulador.get_by_test_id("simulador-modo-avancado")).to_have_text("Avançado")
         expect(simulador.get_by_test_id("simulador-data")).to_contain_text("O registro mais recente da base é jun/2024")
         expect(simulador.get_by_test_id("simulador-data")).to_contain_text("simulado, nunca observado")
         expect(simulador.get_by_test_id("simulador-distancia")).to_contain_text("(há ")  # a distância entre o último registro e hoje
+        expect(territorio).to_be_disabled()
+        expect(simulador.get_by_test_id("simulador-sem-territorio")).to_contain_text("Nenhum território na seleção do Simulador")
+        expect(simulador.get_by_test_id("simulador-calcular")).to_be_disabled()
+        expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Escolha pelo menos um território para o Simulador.")
+        # As quatro etapas ficam no modo avançado: no modo simples, nem os passos nem a seleção local aparecem.
+        expect(simulador.get_by_test_id("simulador-etapa-1")).to_have_count(0)
+        expect(simulador.get_by_test_id("simulador-territorios")).to_have_count(0)
+        simulador.get_by_test_id("simulador-modo-avancado").click()
+        expect(simulador).to_have_attribute("data-modo", "avancado")
+        expect(simples).to_have_count(0)
+        expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "0")
         expect(simulador.get_by_test_id("simulador-avancar-1")).to_be_disabled()
         expect(simulador.get_by_test_id("simulador-calcular-direto")).to_be_disabled()
         expect(simulador.get_by_test_id("simulador-etapa-4")).to_be_disabled()
+        simulador.get_by_test_id("simulador-modo-simples").click()
+        expect(simulador).to_have_attribute("data-modo", "simples")
         page.wait_for_timeout(400)
         assert not pedidos, "sem territórios e sem o comando de calcular, nada é pedido ao motor"
         botao.click()
@@ -111,14 +195,350 @@ def main():
         territorios.get_by_test_id("analise-busca").fill("")
         principal = resumo.inner_text()
         botao.click()
-        # A cópia ainda não foi alterada no Simulador: ela acompanha a seleção principal.
+
+        # 3. O modo simples numa tela só (Proposta V3, seções C.2 e C.7): o território é um dos da seleção local (a cópia da seleção
+        # principal), "O que testar" tem quatro opções, e os atalhos da data final são de 1, 2 e 4 anos. Nada é pedido antes de
+        # "Calcular".
+        expect(simulador).to_have_attribute("data-modo", "simples")
+        expect(simulador).to_have_attribute("data-estado", "configurando")
+        expect(simples).to_have_attribute("data-teste", "continuar")
+        expect(territorio.locator("option")).to_have_text(["MANAUS (AM)", "RIO RUFINO (SC)"])
+        assert territorio.locator("option").evaluate_all("els => els.map(e => e.value)") == [MANAUS, RIO_RUFINO]
+        expect(territorio).to_have_value(MANAUS)
+        expect(o_que_testar.locator("legend")).to_have_text("O que testar")
+        expect(o_que_testar.locator("label")).to_have_text(["Só continuar como vinha", "Acrescentar", "Retirar", "Chegar a uma meta"])
+        expect(teste("continuar")).to_be_checked()
+        horizonte = simulador.get_by_test_id("simulador-horizonte")
+        expect(horizonte).to_have_value("2026-06")
+        expect(simulador.get_by_test_id("simulador-atalho-2")).to_have_attribute("aria-pressed", "true")
+        expect(simulador.get_by_test_id("simulador-atalho-1")).to_have_text("1 ano")
+        expect(simulador.get_by_test_id("simulador-atalho-4")).to_have_text("4 anos")
+        expect(simulador.get_by_test_id("simulador-atalho-10")).to_have_count(0)   # o atalho de 10 anos é só do modo avançado
+        for anos, data in ((1, "2025-06"), (4, "2028-06"), (2, "2026-06")):
+            simulador.get_by_test_id("simulador-atalho-" + str(anos)).click()
+            expect(horizonte).to_have_value(data)
+            expect(simulador.get_by_test_id("simulador-atalho-" + str(anos))).to_have_attribute("aria-pressed", "true")
+        expect(simulador.get_by_test_id("simulador-atalho-4")).to_have_attribute("aria-pressed", "false")
+        expect(simulador.get_by_test_id("simulador-calcular")).to_have_text("Calcular")
+        expect(simulador.get_by_test_id("simulador-calcular")).to_be_enabled()
+        expect(simulador.get_by_test_id("simulador-pendencia")).to_have_count(0)
+        expect(resultado_simples).to_have_count(0)
+        expect(simulador.get_by_test_id("simulador-etapa-1")).to_have_count(0)
+        assert not pedidos, "nada é calculado antes de \"Calcular\""
+
+        # 3a. "Calcular", com dois territórios na seleção local: o pedido leva só o território em análise (MANAUS), o cenário com o
+        # jeito escolhido pela base ("padrao") e a persistência como referência. Entre os municípios de 3.000 a 9.999 médicos, a
+        # faixa junta os portes vizinhos, e a tela diz isso.
+        corpo, enviado = calcular()
+        assert enviado == {"base": so_o_municipio(MANAUS), "horizonte": "202606", "cenarios": [C1, PERSISTENCIA]}, enviado
+        assert [item["id"] for item in corpo["territorios"]] == [MANAUS], corpo["territorios"]
+        assert corpo["versao"] == VERSAO, corpo["versao"]
+        assert corpo["limitacoes"] == ["CENARIO_HIPOTETICO", "PADRAO_ESCOLHIDO_PELA_BASE", "FAIXA_SO_DO_METODO_PADRAO"], corpo["limitacoes"]
+        assert corpo["faixa"] == {"em_10": 8, "opcoes": [5, 8, 9], "padrao": 8}, corpo["faixa"]
+        de_manaus = corpo["territorios"][0]["cenarios"][0]
+        assert de_manaus["faixa"]["como"] == "vizinhas" and de_manaus["final"]["faixa"]["estado"] == "conferida", de_manaus["faixa"]
+        expect(simulador).to_have_attribute("data-estado", "pronto")
+        expect(resultado_simples).to_have_attribute("data-estado", "calculado")
+        expect(resultado_simples).to_have_attribute("data-metodo", "M0d")
+        expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_text(de_manaus["texto"])
+        tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Diferença"], ["4.730", "5.335", "+605 médicos"])
+        expect(resultado_simples.get_by_test_id("simulador-faixa-texto")).to_have_text(
+            "Faixa de 8 em cada 10 em jun/2026: de 4.896,4 a 6.063,0 médicos. No passado da base, em 8 de cada 10 casos de territórios do "
+            "mesmo porte e dos portes vizinhos" + MEIO_DA_FAIXA + " Conferida com o que veio depois.")
+        expect(resultado_simples.get_by_test_id("simulador-hipotetico")).to_have_count(0)   # com milhares de médicos, a escala não tem o que dizer
+
+        # 3b. "Avançado" leva às quatro etapas, e "Modo simples" traz de volta. Na etapa 1, a seleção local é a cópia da seleção
+        # principal, que ela acompanha até ser alterada no Simulador. EIRUNEPE (AM) e o Paraná como unidade entram só no Simulador:
+        # a cópia deixa de acompanhar a seleção principal, que não muda, e montar a seleção local não pede nada ao motor.
+        simulador.get_by_test_id("simulador-avancado").click()
+        expect(simulador).to_have_attribute("data-modo", "avancado")
+        expect(simulador.get_by_test_id("simulador-modo-avancado")).to_have_attribute("aria-pressed", "true")
+        expect(simples).to_have_count(0)
+        for numero in (1, 2, 3, 4):
+            expect(simulador.get_by_test_id("simulador-etapa-" + str(numero))).to_have_count(1)
+        simulador.get_by_test_id("simulador-etapa-1").click()
+        expect(simulador).to_have_attribute("data-etapa", "1")
+        expect(simulador.get_by_test_id("simulador-territorios")).to_be_visible()
+        expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "2")
+        expect(simulador.get_by_test_id("simulador-origem-da-selecao")).to_have_attribute("data-acompanha", "true")
+        expect(simulador.get_by_test_id("simulador-nao-acompanha")).to_have_count(0)
+        expect(local(MANAUS)).to_contain_text("MANAUS (AM)")
+        expect(local(RIO_RUFINO)).to_contain_text("RIO RUFINO (SC)")
+        acrescentar("eirunepe", EIRUNEPE)
+        expect(simulador.get_by_test_id("simulador-origem-da-selecao")).to_have_attribute("data-acompanha", "false")
+        expect(simulador.get_by_test_id("simulador-nao-acompanha")).to_contain_text("deixou de acompanhar a seleção principal")
+        acrescentar("parana", "uf:" + PR)
+        expect(local("uf:" + PR)).to_contain_text("Paraná (estado)")
+        expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "4")
+        simulador.get_by_test_id("simulador-busca").fill("")
+        expect(resumo).to_have_text(principal)
+        simulador.get_by_test_id("simulador-modo-simples").click()
+        expect(simulador).to_have_attribute("data-modo", "simples")
+        expect(simples).to_be_visible()
+        expect(simulador.get_by_test_id("simulador-territorios")).to_have_count(0)
+        # A lista do território segue a seleção local: os municípios, depois o estado como unidade. Sem escolha, vale o primeiro
+        # (EIRUNEPE), e o resultado de MANAUS fica à vista, marcado como anterior às escolhas de agora.
+        expect(territorio.locator("option")).to_have_text(["EIRUNEPE (AM)", "MANAUS (AM)", "RIO RUFINO (SC)", "Paraná (estado)"])
+        assert territorio.locator("option").evaluate_all("els => els.map(e => e.value)") == [EIRUNEPE, MANAUS, RIO_RUFINO, "uf:" + PR]
+        expect(territorio).to_have_value(EIRUNEPE)
+        expect(simulador).to_have_attribute("data-estado", "desatualizado")
+        expect(resultado_simples.get_by_test_id("simulador-desatualizado")).to_contain_text("As escolhas mudaram depois deste cálculo.")
+        assert len(pedidos) == 1, "só o cálculo de MANAUS foi pedido até aqui"
+
+        # 3c. "Só continuar como vinha", EIRUNEPE (AM), 2 anos: 22 médicos em jun/2024 (faixa de porte de 20 a 49). O pedido leva um
+        # território só; o jeito de projetar é o que a base escolheu (M0d); a faixa de 8 em cada 10 é conferida com o que veio
+        # depois; a frase fixa, os três números e os dois "Entenda" são os do motor.
+        corpo, enviado = calcular()
+        assert enviado == {"base": so_o_municipio(EIRUNEPE), "horizonte": "202606", "cenarios": [C1, PERSISTENCIA]}, enviado
+        assert [item["id"] for item in corpo["territorios"]] == [EIRUNEPE], corpo["territorios"]
+        cenario = corpo["territorios"][0]["cenarios"][0]
+        assert cenario["metodo"] == {"pedido": "padrao", "usado": "M0d", "rotulo": "persistência com o crescimento recente do estado", "padrao": True,
+                                     "provisorio": False, "voltou_ao_m0": False, "soma": None, "escolhido_pela_base": "M0d",
+                                     "e_o_escolhido": True}, cenario["metodo"]
+        assert cenario["parametros"]["n0"] == 22 and cenario["faixa"]["porte"] == "20 a 49", (cenario["parametros"], cenario["faixa"])
+        assert (cenario["faixa"]["estado"], cenario["faixa"]["em_10"], cenario["faixa"]["conferencia"], cenario["faixa"]["como"],
+                cenario["faixa"]["ate_anos"]) == ("disponivel", 8, "conferida", "propria", 4), cenario["faixa"]
+        assert cenario["final"]["faixa"]["anos"] == 2 and cenario["final"]["faixa"]["estado"] == "conferida", cenario["final"]
+        assert [aviso["codigo"] for aviso in cenario["avisos"]] == ["HORIZONTE_CAUTELA"], cenario["avisos"]
+        assert cenario["texto"].startswith(FIXO) and "sem intervenção, EIRUNEPE (AM) teria 25 médicos em jun/2026." in cenario["texto"], cenario["texto"]
+        expect(simulador).to_have_attribute("data-estado", "pronto")
+        expect(resultado_simples.get_by_test_id("simulador-desatualizado")).to_have_count(0)
+        expect(resultado_simples).to_have_attribute("data-estado", "calculado")
+        expect(resultado_simples).to_have_attribute("data-metodo", "M0d")
+        expect(resultado_simples).to_have_attribute("data-faixa", "disponivel")
+        expect(resultado_simples).to_have_attribute("data-conferencia", "conferida")
+        expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_text(cenario["texto"])
+        expect(resultado_simples.get_by_test_id("simulador-texto")).to_contain_text("Base: registros até jun/2024.")
+        assert [inteiro_da_tela(cenario["parametros"]["n0"]), inteiro_da_tela(cenario["final"]["total"])] == ["22", "25"], cenario["final"]
+        tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Diferença"], ["22", "25", "+3 médicos"])
+        expect(resultado_simples).to_contain_text("Jeito de projetar: persistência com o crescimento recente do estado (escolhido pela base)")
+        expect(resultado_simples.get_by_test_id("simulador-faixa-estado")).to_have_text("Faixa de 8 em cada 10: conferida")
+        expect(resultado_simples.get_by_test_id("simulador-faixa-texto")).to_have_text(
+            "Faixa de 8 em cada 10 em jun/2026: de 19,0 a 33,2 médicos. No passado da base, em 8 de cada 10 casos de territórios do "
+            "mesmo porte" + MEIO_DA_FAIXA + " Conferida com o que veio depois.")
+        expect(resultado_simples.locator('[data-testid="simulador-avisos"] li')).to_have_count(1)
+        expect(resultado_simples.locator('[data-testid="simulador-avisos"] li[data-codigo="HORIZONTE_CAUTELA"]')).to_have_text(cenario["avisos"][0]["texto"])
+        expect(resultado_simples.get_by_test_id("simulador-hipotetico")).to_have_count(0)
+        expect(resultado_simples.get_by_test_id("simulador-planejamento")).to_have_count(0)
+        expect(resultado_simples).to_contain_text("Contagem: médicos registrados no município")
+        # O gráfico: o observado (22 registros reais), a base do cenário e a da persistência, e a faixa, sem intervenção.
+        grafico = simulador.get_by_test_id("simulador-grafico")
+        expect(grafico.get_by_test_id("simulador-observado")).to_have_count(22)
+        expect(grafico.get_by_test_id("simulador-curva")).to_have_count(2)
+        expect(grafico.locator('[data-testid="simulador-curva"][data-cenario="c1"]')).to_have_attribute("data-metodo", "M0d")
+        expect(grafico.get_by_test_id("simulador-faixa")).to_have_count(1)
+        expect(grafico.get_by_test_id("simulador-evento")).to_have_count(0)
+        expect(grafico).to_contain_text("banda: faixa de 8 em cada 10")
+        expect(grafico.get_by_test_id("simulador-grafico-fonte")).to_have_text(
+            "Fonte: base do Brasil (medicina), registros de janeiro e junho até jun/2024.")
+        expect(simulador.get_by_test_id("simulador-versoes")).to_contain_text("Método " + VERSAO)
+        expect(simulador.get_by_test_id("simulador-versoes")).to_contain_text("último registro da base: jun/2024")
+        # Os dois "Entenda" abrem pelo clique, com o texto e o exemplo do motor.
+        assert cenario["entenda"]["jeito"] == {
+            "texto": "O cenário parte do último registro usado (jun/2024) e soma o crescimento recente do estado: +6,21% ao ano nos 3 anos "
+                     "anteriores. Usamos este jeito porque, nesta base, ele errou menos que simplesmente manter o último valor, quando "
+                     "refeito no passado.",
+            "exemplo": "De 22 médicos em jun/2024, a base do cenário vai a 23,4 um ano depois, sem contar intervenções."}, cenario["entenda"]
+        assert cenario["entenda"]["faixa"] == {
+            "texto": "Refizemos este tipo de projeção em datas passadas, para territórios do mesmo porte. Em 8 de cada 10 vezes, o valor "
+                     "real ficou dentro desta faixa. Não é garantia: o passado testado (2017–2024) pode não se repetir.",
+            "exemplo": "Entre 19 e 33 médicos na data final."}, cenario["entenda"]
+        entenda("jeito", "O jeito de projetar", cenario["entenda"]["jeito"])
+        fechar_o_entenda("jeito")
+        entenda("faixa", "A faixa de 8 em cada 10", cenario["entenda"]["faixa"])
+        page.screenshot(path=str(OUTPUT / "simulador-00-simples-real.png"), full_page=True)
+        # "Ver explicação completa" abre "Como os métodos se saíram no passado": o jeito que a base escolheu para cada nível, com a
+        # frase do motor e o erro de cada jeito comparado com manter o último valor.
+        simulador.get_by_test_id("simulador-entenda-faixa-completa").click()
+        expect(simulador.get_by_test_id("simulador-entenda-faixa-caixa")).to_have_count(0)
+        escolhas = corpo["retroprojecao"]["niveis"]
+        assert escolhas["municipios"]["escolha"]["texto"] == (
+            "Para os municípios, a base escolheu a persistência com o crescimento recente do estado: na retroprojeção, ela errou 29% menos "
+            "que manter o último valor, e menos em 22 de 22 combinações de origem e prazo."), escolhas["municipios"]["escolha"]
+        assert (escolhas["municipios"]["escolha"]["metodo"], escolhas["estados"]["escolha"]["metodo"]) == ("M0d", "M1"), escolhas
+        validacao = simulador.get_by_test_id("simulador-validacao")
+        dos_municipios = simulador.locator('[data-testid="simulador-escolhas"] li[data-nivel="municipios"]')
+        expect(dos_municipios).to_have_attribute("data-metodo", "M0d")
+        expect(dos_municipios).to_contain_text(escolhas["municipios"]["escolha"]["texto"])
+        expect(dos_municipios).to_contain_text("persistência com o crescimento recente do estado, 0,714 (menos erro em 22 de 22)")
+        dos_estados = simulador.locator('[data-testid="simulador-escolhas"] li[data-nivel="estados"]')
+        expect(dos_estados).to_have_attribute("data-metodo", "M1")
+        expect(dos_estados).to_contain_text(escolhas["estados"]["escolha"]["texto"])
+        expect(validacao).to_contain_text("não são previsão")
+        simulador.get_by_test_id("simulador-validacao-botao").click()
+        expect(validacao).to_have_count(0)
+
+        # 3d. Com 4 anos, a faixa é provisória: ainda não deu para conferi-la com o que veio depois. Nesta base, as faixas de 1 e
+        # 2 anos são conferidas, e as de 3 e 4 anos, provisórias.
+        simulador.get_by_test_id("simulador-atalho-4").click()
+        expect(simulador).to_have_attribute("data-estado", "desatualizado")
+        corpo, enviado = calcular()
+        assert enviado == {"base": so_o_municipio(EIRUNEPE), "horizonte": "202806", "cenarios": [C1, PERSISTENCIA]}, enviado
+        cenario = corpo["territorios"][0]["cenarios"][0]
+        assert cenario["final"]["faixa"]["anos"] == 4 and cenario["final"]["faixa"]["estado"] == "provisoria" and \
+            cenario["final"]["faixa"]["validada"] is False and cenario["faixa"]["conferencia"] == "provisoria", cenario["final"]
+        assert {ponto["faixa"]["anos"]: ponto["faixa"]["estado"] for ponto in cenario["trajetoria"]} == {
+            1: "conferida", 2: "conferida", 3: "provisoria", 4: "provisoria"}, cenario["trajetoria"]
+        da_faixa = next(aviso for aviso in cenario["avisos"] if aviso["codigo"] == "FAIXA_PROVISORIA")
+        assert da_faixa["texto"] == ("Faixa provisória: ainda não deu para conferi-la com dados que vieram depois (poucas origens ou poucos "
+                                     "casos de teste)."), da_faixa
+        assert cenario["entenda"]["faixa"]["texto"].endswith(" " + PROVISORIA), cenario["entenda"]["faixa"]
+        expect(simulador).to_have_attribute("data-estado", "pronto")
+        expect(resultado_simples).to_have_attribute("data-conferencia", "provisoria")
+        expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_text(cenario["texto"])
+        tres_numeros(["No último registro (jun/2024)", "Em jun/2028", "Diferença"], ["22", "28", "+6 médicos"])
+        expect(resultado_simples.get_by_test_id("simulador-faixa-estado")).to_have_text("Faixa de 8 em cada 10: provisória")
+        expect(resultado_simples.get_by_test_id("simulador-faixa-texto")).to_have_text(
+            "Faixa de 8 em cada 10 em jun/2028: de 20,9 a 43,2 médicos. No passado da base, em 8 de cada 10 casos de territórios do "
+            "mesmo porte" + MEIO_DA_FAIXA + " " + PROVISORIA)
+        expect(resultado_simples.locator('[data-testid="simulador-avisos"] li[data-codigo="FAIXA_PROVISORIA"]')).to_have_text(da_faixa["texto"])
+
+        # 3e. "Acrescentar 5 em jan/2025": sem a quantidade, nada é pedido; com ela, o resultado e a frase mudam, o gráfico ganha o
+        # evento, e a faixa acompanha a intervenção.
+        simulador.get_by_test_id("simulador-atalho-2").click()
+        teste("acrescentar").check()
+        expect(simples).to_have_attribute("data-teste", "acrescentar")
+        quantidade, em = simulador.get_by_test_id("simulador-teste-quantidade"), simulador.get_by_test_id("simulador-teste-em")
+        expect(quantidade).to_have_value("1")
+        expect(em).to_have_value("2025-06")
+        expect(o_que_testar).to_contain_text("É uma hipótese sua: o crescimento histórico não é aplicado a quem entra.")
+        quantidade.fill("")
+        expect(simulador.get_by_test_id("simulador-calcular")).to_be_disabled()
+        expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Informe quantos entram ou saem em cada intervenção.")
+        quantidade.fill("5")
+        em.fill("2025-01")
+        expect(simulador.get_by_test_id("simulador-pendencia")).to_have_count(0)
+        corpo, enviado = calcular()
+        assert enviado == {"base": so_o_municipio(EIRUNEPE), "horizonte": "202606", "cenarios": [
+            {**C1, "intervencoes": [{"tipo": "acrescimo", "quantidade": 5, "em": "202501"}]}, PERSISTENCIA]}, enviado
+        cenario = corpo["territorios"][0]["cenarios"][0]
+        assert cenario["final"]["intervencao"] == 5 and cenario["final"]["faixa"]["estado"] == "conferida", cenario["final"]
+        assert "acréscimo de 5 médicos em jan/2025, com permanência total (hipótese), EIRUNEPE (AM) teria 30 médicos em jun/2026." in cenario["texto"], cenario["texto"]
+        expect(simulador).to_have_attribute("data-estado", "pronto")
+        expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_text(cenario["texto"])
+        tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Diferença"], ["22", "30", "+8 médicos"])
+        expect(resultado_simples.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 8 em cada 10 em jun/2026: de 24,0 a 38,2 médicos.")
+        expect(grafico.get_by_test_id("simulador-evento")).to_have_count(1)
+        expect(grafico).to_contain_text("linha contínua: com a intervenção")
+
+        # 3f. "Retirar": a quantidade e a data digitadas ficam ao trocar de opção. Retirar 50 de quem tem 22 passa do estoque: o
+        # cenário volta para revisão, sem número inventado.
+        teste("retirar").check()
+        expect(simples).to_have_attribute("data-teste", "retirar")
+        expect(quantidade).to_have_value("5")
+        expect(em).to_have_value("2025-01")
+        quantidade.fill("50")
+        corpo, enviado = calcular()
+        assert enviado["cenarios"] == [{**C1, "intervencoes": [{"tipo": "retirada", "quantidade": 50, "em": "202501"}]}, PERSISTENCIA], enviado
+        cenario = corpo["territorios"][0]["cenarios"][0]
+        assert cenario["estado"] == "retirada_acima_do_estoque" and "final" not in cenario, cenario
+        expect(resultado_simples).to_have_attribute("data-estado", "retirada_acima_do_estoque")
+        expect(resultado_simples.get_by_test_id("simulador-motivo")).to_have_text("Retirada acima do estoque: " + cenario["motivo"])
+        expect(resultado_simples.get_by_test_id("simulador-motivo")).to_contain_text("Nenhum estoque negativo é aceito")
+        expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_count(0)
+        expect(resultado_simples.get_by_test_id("simulador-tres-numeros")).to_have_count(0)
+        expect(grafico.get_by_test_id("simulador-curva")).to_have_count(1)   # só a persistência de referência
+
+        # 3g. "Chegar a uma meta": a data digitada fica; sem a meta, nada é pedido. Com 40 médicos como meta, o motor devolve o
+        # menor acréscimo inteiro (16), e o terceiro número passa a dizer quanto seria preciso acrescentar. A meta é uma hipótese
+        # da pessoa: o acréscimo não entra no cenário.
+        teste("meta").check()
+        expect(simples).to_have_attribute("data-teste", "meta")
+        valor_da_meta = simulador.get_by_test_id("simulador-teste-meta-valor")   # o campo do valor; "simulador-teste-meta" é a opção
+        expect(valor_da_meta).to_have_value("")
+        expect(em).to_have_value("2025-01")
+        expect(simulador.get_by_test_id("simulador-teste-quantidade")).to_have_count(0)
+        expect(simulador.get_by_test_id("simulador-calcular")).to_be_disabled()
+        expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Informe a meta: um número acima de zero.")
+        expect(o_que_testar).to_contain_text("A meta é uma hipótese sua. O Agente calcula quantos faltariam, com o menor número inteiro.")
+        valor_da_meta.fill("40")
+        corpo, enviado = calcular()
+        assert enviado == {"base": so_o_municipio(EIRUNEPE), "horizonte": "202606", "cenarios": [
+            {**C1, "planejamento": {"meta": {"tipo": "valor", "valor": 40}, "em": "202501"}}, PERSISTENCIA]}, enviado
+        cenario = corpo["territorios"][0]["cenarios"][0]
+        planejado = cenario["planejamento"]
+        assert (planejado["estado"], planejado["eventos"], planejado["por_evento"], planejado["total"]) == ("calculado", 1, 16, 16), planejado
+        assert planejado["texto"].startswith("Meta hipotética: 40 médicos em jun/2026. Menor acréscimo inteiro que alcança a meta, nas hipóteses "
+                                             "deste cenário: 16 médicos em jan/2025.") and planejado["texto"].endswith(
+            "É uma conta condicional às hipóteses do cenário, não um plano."), planejado["texto"]
+        for proibida in ("recomenda", "é preciso", "deveria", "necessário prover"):
+            assert proibida not in planejado["texto"].lower(), proibida
+        assert cenario["final"]["intervencao"] == 0, "o acréscimo da meta não entra no cenário"
+        expect(simulador).to_have_attribute("data-estado", "pronto")
+        bloco = resultado_simples.get_by_test_id("simulador-planejamento")
+        expect(bloco).to_have_attribute("data-estado", "calculado")
+        expect(bloco).to_have_attribute("data-por-evento", "16")
+        expect(bloco).to_have_attribute("data-eventos", "1")
+        expect(bloco.get_by_test_id("simulador-planejamento-texto")).to_have_text(planejado["texto"])
+        expect(bloco).to_contain_text("Chegar à meta")
+        expect(bloco).to_contain_text("conta condicional")
+        expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_text(cenario["texto"])
+        tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Para chegar à meta"], ["22", "25", "precisaria acrescentar 16"])
+        expect(grafico.get_by_test_id("simulador-evento")).to_have_count(0)
+        page.screenshot(path=str(OUTPUT / "simulador-00b-simples-meta-real.png"), full_page=True)
+
+        # 3h. Um estado como unidade (o Paraná): o jeito escolhido pela base para o nível é a taxa composta (M1), e a faixa é
+        # indisponível, com o motivo do motor: a base não tem casos bastantes de estados.
+        teste("continuar").check()
+        expect(simples).to_have_attribute("data-teste", "continuar")
+        expect(simulador.get_by_test_id("simulador-teste-meta-valor")).to_have_count(0)
+        expect(simulador.get_by_test_id("simulador-teste-em")).to_have_count(0)
+        territorio.select_option("uf:" + PR)
+        corpo, enviado = calcular()
+        assert enviado == {"estados_unidade": [PR], "horizonte": "202606", "cenarios": [C1, PERSISTENCIA]}, enviado
+        assert [item["id"] for item in corpo["territorios"]] == ["uf:" + PR], corpo["territorios"]
+        cenario = corpo["territorios"][0]["cenarios"][0]
+        assert (cenario["metodo"]["usado"], cenario["metodo"]["escolhido_pela_base"], cenario["metodo"]["e_o_escolhido"],
+                cenario["metodo"]["provisorio"]) == ("M1", "M1", True, False), cenario["metodo"]
+        assert cenario["faixa"] == {"estado": "indisponivel", "motivo": SEM_CASOS, "rotulo": None, "em_10": 8} and cenario["final"]["faixa"] is None, cenario["faixa"]
+        assert cenario["entenda"]["faixa"]["texto"] == SEM_CASOS, cenario["entenda"]
+        expect(simulador).to_have_attribute("data-estado", "pronto")
+        expect(resultado_simples).to_have_attribute("data-metodo", "M1")
+        expect(resultado_simples).to_have_attribute("data-faixa", "indisponivel")
+        expect(resultado_simples).to_have_attribute("data-conferencia", "")
+        expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_text(cenario["texto"])
+        tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Diferença"], ["32.785", "37.486", "+4.701 médicos"])
+        expect(resultado_simples).to_contain_text("Jeito de projetar: taxa composta da janela (escolhido pela base)")
+        expect(resultado_simples.get_by_test_id("simulador-faixa-estado")).to_have_text("Faixa de 8 em cada 10: indisponível")
+        expect(resultado_simples.get_by_test_id("simulador-faixa-texto")).to_have_text("Faixa de 8 em cada 10: indisponível. " + SEM_CASOS)
+        expect(resultado_simples.locator('[data-testid="simulador-avisos"] li[data-codigo="PADRAO_PROVISORIO_DO_NIVEL"]')).to_have_count(0)
+        expect(grafico.get_by_test_id("simulador-faixa")).to_have_count(0)
+        expect(resultado_simples).to_contain_text("Contagem: médicos únicos no estado (fonte estadual).")
+        entenda("faixa", "A faixa de 8 em cada 10", cenario["entenda"]["faixa"])
+        fechar_o_entenda("faixa")
+        pedidos_do_simples = len(pedidos)
+        assert pedidos_do_simples == 7, "um pedido por \"Calcular\" no modo simples"
+
+        # 3i. Sair e voltar não perde o modo, o território nem o que testar (a configuração fica guardada na área); o resultado, que
+        # é da tela, não fica. As quatro etapas continuam no modo avançado, com a mesma seleção local.
+        botao.click()
+        expect(area).to_have_attribute("data-ferramenta", "")
+        botao.click()
+        expect(simulador).to_have_attribute("data-modo", "simples")
+        expect(simulador).to_have_attribute("data-estado", "configurando")
+        expect(territorio).to_have_value("uf:" + PR)
+        expect(teste("continuar")).to_be_checked()
+        expect(horizonte).to_have_value("2026-06")
+        expect(resultado_simples).to_have_count(0)
+        simulador.get_by_test_id("simulador-modo-avancado").click()
+        expect(simulador).to_have_attribute("data-modo", "avancado")
+        expect(simulador).to_have_attribute("data-etapa", "1")
+        expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "4")
+        expect(local(EIRUNEPE)).to_contain_text("EIRUNEPE (AM)")
+        # "Copiar de novo a seleção principal" desfaz o que foi acrescentado só no Simulador, e a cópia volta a acompanhá-la.
+        simulador.get_by_test_id("simulador-copiar-principal").click()
+        expect(simulador.get_by_test_id("simulador-aviso-local")).to_have_text("Seleção principal copiada de novo.")
+        expect(local(EIRUNEPE)).to_have_count(0)
+        expect(local("uf:" + PR)).to_have_count(0)
+
+        # 4. No modo avançado, a seleção local é a cópia da seleção principal, que ela acompanha enquanto não for alterada no Simulador.
         expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "2")
         expect(simulador.get_by_test_id("simulador-origem-da-selecao")).to_have_attribute("data-acompanha", "true")
         expect(simulador.get_by_test_id("simulador-nao-acompanha")).to_have_count(0)
         expect(local(MANAUS)).to_contain_text("MANAUS (AM)")
         expect(local(RIO_RUFINO)).to_contain_text("RIO RUFINO (SC)")
 
-        # 3. Acrescentar e tirar territórios só no Simulador: a seleção principal não muda, e a seleção local deixa de acompanhá-la.
+        # 5. Acrescentar e tirar territórios só no Simulador: a seleção principal não muda, e a seleção local deixa de acompanhá-la.
         acrescentar("brasilia", BRASILIA)
         expect(simulador.get_by_test_id("simulador-origem-da-selecao")).to_have_attribute("data-acompanha", "false")
         expect(simulador.get_by_test_id("simulador-origem-da-selecao")).to_contain_text("só do Simulador")
@@ -136,16 +556,18 @@ def main():
         expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "3")
         simulador.get_by_test_id("simulador-busca").fill("")
         expect(resumo).to_have_text(principal)
-        assert not pedidos, "montar a seleção local não pede nada ao motor"
+        assert len(pedidos) == pedidos_do_simples, "montar a seleção local não pede nada ao motor"
 
-        # 4. A base histórica e o método: a janela padrão (3 anos até o último registro) e o método padrão provisório.
+        # 6. A base histórica e o método: a janela padrão (3 anos até o último registro) e o método padrão, que desde a V3 é o jeito
+        # de projetar escolhido pela própria base; o M0d e o M0g também podem ser escolhidos à mão.
         simulador.get_by_test_id("simulador-avancar-1").click()
         expect(simulador).to_have_attribute("data-etapa", "2")
         expect(simulador.get_by_test_id("simulador-janela-inicio")).to_have_value("202106")
         expect(simulador.get_by_test_id("simulador-janela-fim")).to_have_value("202406")
         expect(simulador.get_by_test_id("simulador-metodo")).to_have_value("padrao")
         assert simulador.get_by_test_id("simulador-metodo").locator("option").evaluate_all("els => els.map(e => e.value)") == [
-            "padrao", "M0", "M1", "M2", "M3", "manual"], "a média aritmética não é um método"
+            "padrao", "M0", "M0d", "M0g", "M1", "M2", "M3", "manual"], "a média aritmética não é um método"
+        expect(simulador.get_by_test_id("simulador-metodo").locator("option").first).to_have_text("Continuar como vinha (o jeito escolhido pela base)")
         expect(simulador.get_by_test_id("simulador-base")).to_contain_text("5 e 7 meses entre um e outro")
         expect(simulador.get_by_test_id("simulador-estatisticas-depois")).to_contain_text("aparecem aqui depois de calcular")
         # Os atalhos da janela são só atalhos: a série completa e a volta à janela padrão.
@@ -154,15 +576,17 @@ def main():
         simulador.get_by_test_id("simulador-janela-padrao").click()
         expect(simulador.get_by_test_id("simulador-janela-inicio")).to_have_value("202106")
 
-        # 5. As intervenções e a data final: os atalhos são só atalhos; qualquer mês depois do último registro vale.
+        # 7. As intervenções e a data final: os atalhos são só atalhos; qualquer mês depois do último registro vale. A faixa pedida
+        # é a de 8 em cada 10, e pode ser a de 5 ou a de 9.
         simulador.get_by_test_id("simulador-avancar-2").click()
-        horizonte = simulador.get_by_test_id("simulador-horizonte")
         expect(horizonte).to_have_value("2026-06")
         simulador.get_by_test_id("simulador-atalho-4").click()
         expect(horizonte).to_have_value("2028-06")
         expect(simulador.get_by_test_id("simulador-atalho-4")).to_have_attribute("aria-pressed", "true")
         horizonte.fill("2027-03")
         expect(simulador.get_by_test_id("simulador-atalho-4")).to_have_attribute("aria-pressed", "false")
+        expect(simulador.get_by_test_id("simulador-faixa-em-10")).to_have_value("8")
+        expect(simulador.get_by_test_id("simulador-faixa-em-10").locator("option")).to_have_text(["5", "8", "9"])
         # A intervenção vale para cada território do cenário (cada um recebe a quantidade inteira), e a tela diz isso.
         expect(simulador.get_by_test_id("simulador-por-territorio")).to_contain_text("Cada intervenção vale para cada território do cenário, não para o total")
         expect(simulador.get_by_test_id("simulador-por-territorio")).to_contain_text("com 3 territórios na seleção do Simulador")
@@ -171,12 +595,13 @@ def main():
         expect(simulador.get_by_test_id("simulador-intervencao-permanencia")).to_have_value("100")
         simulador.get_by_test_id("simulador-intervencao-quantidade").fill("")
         expect(simulador.get_by_test_id("simulador-calcular")).to_be_disabled()
-        expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Informe quantos médicos entram ou saem em cada intervenção.")
+        expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Informe quantos entram ou saem em cada intervenção.")
         simulador.get_by_test_id("simulador-intervencao-quantidade").fill("3")
-        assert not pedidos, "nada é calculado antes de \"Calcular os cenários\""
+        assert len(pedidos) == pedidos_do_simples, "nada é calculado antes de \"Calcular os cenários\""
 
-        # 6. "Calcular os cenários": o pedido leva a seleção local, a data final, o cenário e a persistência como referência.
-        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+        # 8. "Calcular os cenários": o pedido leva a seleção local inteira, a data final, o cenário e a persistência como referência.
+        expect(simulador.get_by_test_id("simulador-calcular")).to_have_text("Calcular os cenários")
+        corpo, enviado = calcular()
         assert enviado == {
             "base": {"municipios": {"todos": False, "estados": [], "ids": [RIO_RUFINO, BRASILIA]}}, "estados_unidade": [PR], "horizonte": "202703",
             "cenarios": [{"id": "c1", "nome": "Cenário 1", "metodo": "padrao", "intervencoes": [{"tipo": "acrescimo", "quantidade": 3, "em": "202506"}]},
@@ -188,33 +613,42 @@ def main():
         rufino = do_territorio(corpo, RIO_RUFINO)
         cenario, referencia = rufino["cenarios"]
         assert cenario["metodo"]["usado"] == "M0d" and cenario["final"]["intervencao"] == 3 and cenario["texto"].startswith(FIXO), cenario
+        # O método padrão é o que a base escolheu para os municípios: na V3, ele deixou de ser provisório.
+        assert (cenario["metodo"]["escolhido_pela_base"], cenario["metodo"]["e_o_escolhido"], cenario["metodo"]["provisorio"]) == ("M0d", True, False), cenario["metodo"]
         assert "acréscimo de 3 médicos em cada território do cenário, em jun/2025, com permanência total (hipótese)" in cenario["texto"], cenario["texto"]
         assert all(item["cenarios"][0]["final"]["intervencao"] == 3 for item in corpo["territorios"]), "cada território recebe os 3 médicos"
         assert cenario["final"]["faixa"] and cenario["final"]["faixa"]["anos"] == 3 and cenario["final"]["faixa"]["validada"] is False, cenario["final"]
+        assert cenario["final"]["faixa"]["estado"] == "provisoria" and cenario["faixa"]["em_10"] == 8, cenario["final"]
         expect(simulador.get_by_test_id("simulador-foco")).to_have_value(RIO_RUFINO)
         resultado = simulador.locator('[data-testid="simulador-cenario-resultado"][data-id="c1"]')
         expect(resultado).to_have_attribute("data-metodo", "M0d")
         expect(resultado.get_by_test_id("simulador-texto")).to_have_text(cenario["texto"])
         expect(resultado.get_by_test_id("simulador-texto")).to_contain_text("RIO RUFINO (SC) teria")
         expect(resultado.get_by_test_id("simulador-texto")).to_contain_text("Base: registros até jun/2024.")
-        expect(resultado).to_contain_text("método provisório")
+        expect(resultado).not_to_contain_text("método provisório")   # a marca ficou só para o Brasil como território (bloco 17)
         expect(resultado.get_by_test_id("simulador-contas")).to_contain_text("Na data final, neste território: base do cenário de ")
         expect(resultado.get_by_test_id("simulador-contas")).to_contain_text(" + 3 da intervenção = ")
         expect(simulador.get_by_test_id("simulador-tabela").locator("caption")).to_contain_text("Cada intervenção vale para cada território")
-        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 80% em mar/2027: de ")
-        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Limite provisório")
+        expect(simulador.get_by_test_id("simulador-tabela").locator("caption")).to_contain_text("entre parênteses, a faixa de 8 em cada 10, quando há")
+        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 8 em cada 10 em mar/2027: de ")
+        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text(PROVISORIA)
+        expect(resultado.locator('[data-testid="simulador-avisos"] li[data-codigo="FAIXA_PROVISORIA"]')).to_have_count(1)
         # O registro de jun/2023 (4 → 87 → 5) é um pico que volta: fica fora da base do cenário, com o aviso.
         expect(resultado.locator('[data-testid="simulador-avisos"] li[data-codigo="PICO_FORA_DO_AJUSTE"]')).to_contain_text("jun/2023")
+        # Com 9 médicos no cenário, o painel da hipótese aparece, com o mesmo título do modo simples ("Poucos médicos, no cenário").
+        assert cenario["hipotetico"]["inteiro"] == 9 and cenario["hipotetico"]["classe"] is None, cenario["hipotetico"]
+        expect(resultado.get_by_test_id("simulador-hipotetico")).to_contain_text("Poucos médicos, no cenário")
+        expect(resultado.get_by_test_id("simulador-hipotetico")).not_to_contain_text("Dependência de poucos médicos")
         expect(simulador.locator('[data-testid="simulador-cenario-resultado"][data-id="m0"] [data-testid="simulador-texto"]')).to_have_text(
             referencia["texto"])
-        # O gráfico: o observado (22 registros reais), a base de cada cenário, os eventos da intervenção e a faixa de 80%.
-        grafico = simulador.get_by_test_id("simulador-grafico")
+        # O gráfico: o observado (22 registros reais), a base de cada cenário, os eventos da intervenção e a faixa de 8 em cada 10.
         expect(grafico.get_by_test_id("simulador-observado")).to_have_count(22)
         expect(grafico.get_by_test_id("simulador-curva")).to_have_count(2)
         expect(grafico.locator('[data-testid="simulador-curva"][data-cenario="c1"]')).to_have_attribute("data-metodo", "M0d")
         expect(grafico.get_by_test_id("simulador-evento")).to_have_count(1)
         expect(grafico.get_by_test_id("simulador-faixa")).to_have_count(1)
         expect(grafico).to_contain_text("observado (registros reais)")
+        expect(grafico).to_contain_text("banda: faixa de 8 em cada 10")
         expect(grafico).to_contain_text("Fonte: base do Brasil (medicina), registros de janeiro e junho até jun/2024.")
         expect(simulador.get_by_test_id("simulador-versoes")).to_contain_text("Método " + corpo["versao"])
         expect(simulador.get_by_test_id("simulador-versoes")).to_contain_text("último registro da base: jun/2024")
@@ -224,16 +658,21 @@ def main():
         expect(linha.locator('[data-testid="simulador-final"][data-cenario="m0"]')).to_contain_text("último valor mantido")
         page.screenshot(path=str(OUTPUT / "simulador-01-resultados-real.png"), full_page=True)
 
-        # 7. O Paraná como unidade: o padrão provisório do nível (a taxa composta de 3 anos), sem faixa.
+        # 9. O Paraná como unidade: o jeito que a base escolheu para os estados (a taxa composta de 3 anos), que na V3 não é mais
+        # provisório, e sem faixa, com o motivo do motor.
         simulador.get_by_test_id("simulador-foco").select_option("uf:" + PR)
+        do_parana = do_territorio(corpo, "uf:" + PR)["cenarios"][0]
+        assert (do_parana["metodo"]["usado"], do_parana["metodo"]["escolhido_pela_base"], do_parana["metodo"]["provisorio"]) == ("M1", "M1", False), do_parana["metodo"]
+        assert do_parana["faixa"]["motivo"] == SEM_CASOS and do_parana["final"]["faixa"] is None, do_parana["faixa"]
         expect(resultado).to_have_attribute("data-metodo", "M1")
-        expect(resultado.get_by_test_id("simulador-texto")).to_have_text(do_territorio(corpo, "uf:" + PR)["cenarios"][0]["texto"])
-        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 80%: indisponível")
-        expect(resultado.locator('[data-testid="simulador-avisos"] li[data-codigo="PADRAO_PROVISORIO_DO_NIVEL"]')).to_have_count(1)
+        expect(resultado.get_by_test_id("simulador-texto")).to_have_text(do_parana["texto"])
+        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_have_text("Faixa de 8 em cada 10: indisponível. " + SEM_CASOS)
+        expect(resultado.locator('[data-testid="simulador-avisos"] li[data-codigo="PADRAO_PROVISORIO_DO_NIVEL"]')).to_have_count(0)
+        expect(resultado).not_to_contain_text("método provisório")
         expect(grafico.get_by_test_id("simulador-faixa")).to_have_count(0)
         expect(simulador.get_by_test_id("simulador-resultados")).to_contain_text("médicos únicos no estado")
 
-        # 8. As estatísticas históricas, só descritivas: a média aritmética aparece, e nenhum método a usa.
+        # 10. As estatísticas históricas, só descritivas: a média aritmética aparece, e nenhum método a usa.
         simulador.get_by_test_id("simulador-foco").select_option(BRASILIA)
         simulador.get_by_test_id("simulador-etapa-2").click()
         estatisticas = simulador.get_by_test_id("simulador-estatisticas")
@@ -241,8 +680,7 @@ def main():
         expect(estatisticas.get_by_test_id("simulador-media-aritmetica")).not_to_have_text("—")
         expect(estatisticas).to_contain_text("por isso não é usada para projetar")
 
-        # 9. O modo avançado: um segundo cenário, com a taxa composta da janela. Mudar as escolhas deixa o cálculo desatualizado.
-        simulador.get_by_test_id("simulador-modo-avancado").click()
+        # 11. Um segundo cenário (só no modo avançado), com a taxa composta da janela. Mudar as escolhas deixa o cálculo desatualizado.
         expect(simulador).to_have_attribute("data-modo", "avancado")
         simulador.get_by_test_id("simulador-cenario-novo").click()
         expect(simulador.get_by_test_id("simulador-cenario")).to_have_count(2)
@@ -253,7 +691,7 @@ def main():
         primeiro = simulador.get_by_test_id("simulador-intervencoes").first
         primeiro.get_by_test_id("simulador-intervencao-tipo").select_option("retirada")
         primeiro.get_by_test_id("simulador-intervencao-quantidade").fill("50")
-        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+        corpo, enviado = calcular()
         assert [item["id"] for item in enviado["cenarios"]] == ["c1", "c2", "m0"] and enviado["cenarios"][1]["metodo"] == "M1", enviado
         assert enviado["cenarios"][0]["intervencoes"] == [{"tipo": "retirada", "quantidade": 50, "em": "202506"}], enviado
         expect(simulador).to_have_attribute("data-estado", "pronto")
@@ -271,21 +709,33 @@ def main():
         expect(grafico.locator('[data-testid="simulador-curva"][data-cenario="c2"]')).to_have_attribute("data-metodo", "M1")
         page.screenshot(path=str(OUTPUT / "simulador-02-avancado-real.png"), full_page=True)
 
-        # 10. "Como os métodos se saíram no passado": as faixas e os erros da retroprojeção, por porte.
+        # 12. "Como os métodos se saíram no passado": as faixas de 8 em cada 10 e os erros da retroprojeção, pelas dez faixas de
+        # porte da régua comum (de "1 a 3" a "10.000 ou mais"), com a conferência de cada faixa.
         simulador.get_by_test_id("simulador-validacao-botao").click()
         faixas = simulador.get_by_test_id("simulador-faixas")
-        expect(faixas.locator("tbody tr")).to_have_count(6)
-        expect(faixas.locator("tbody tr").first.locator("td").first).to_contain_text("−26% a +48%")
-        expect(simulador.get_by_test_id("simulador-erros").locator("tbody tr")).to_have_count(6)
-        expect(simulador.get_by_test_id("simulador-erros").locator("tbody tr").first.locator("td").first).to_have_text("0,87")
+        expect(faixas.locator("caption")).to_contain_text("Faixas de 8 em cada 10 do jeito de projetar que a base escolheu para os municípios")
+        expect(faixas.locator("tbody tr")).to_have_count(10)
+        expect(faixas.locator("tbody tr").first.locator("th")).to_have_text("1 a 3")
+        expect(faixas.locator("tbody tr").last.locator("th")).to_have_text("10.000 ou mais")
+        expect(faixas.locator("tbody tr").first.locator("td").first).to_contain_text("−9% a +87%")
+        expect(faixas.locator("tbody tr").first.locator("td").first).to_contain_text("conferida com o que veio depois; 7 origens, 4.039 casos")
+        expect(faixas.locator("tbody tr").first.locator("td").last).to_contain_text("provisória; 4 origens, 2.715 casos")
+        # A tabela de erros traz os métodos que a retroprojeção da base tem: na do Brasil, cinco, com o crescimento da base toda (M0g).
+        erros = simulador.get_by_test_id("simulador-erros")
+        expect(erros.locator("thead th")).to_have_text([
+            "Médicos na origem", "último valor com o crescimento do estado (M0d)", "último valor com o crescimento da base toda (M0g)",
+            "taxa composta da janela (M1)", "tendência linear (M2)", "tendência log-linear (M3)"])
+        expect(erros.locator("tbody tr")).to_have_count(10)
+        expect(erros.locator("tbody tr").first.locator("td")).to_have_text(["0,90", "0,90", "1,29", "1,16", "1,26"])
         expect(simulador.get_by_test_id("simulador-validacao")).to_contain_text("não são previsão")
 
-        # 11. As exportações: o CSV dos resultados e o JSON do cenário (com a versão do método e da base).
+        # 13. As exportações: o CSV dos resultados e o JSON do cenário (com a versão do método e da base).
         with page.expect_download() as baixado:
             simulador.get_by_test_id("simulador-exportar-csv").click()
         assert baixado.value.suggested_filename == "cenarios_202703.csv", baixado.value.suggested_filename
         csv = Path(baixado.value.path()).read_text(encoding="utf-8-sig")
         assert csv.startswith("Identificador;Território;Tipo;Unidade de contagem;Cenário;") and "retirada_acima_do_estoque" in csv, csv[:300]
+        assert ";Faixa de 80%: inferior;Faixa de 80%: superior;" in csv.splitlines()[0], csv[:600]   # 8 em cada 10
         assert RIO_RUFINO + ";RIO RUFINO (SC);municipio;" in csv and ";cenário hipotético;" in csv, csv[:600]
         with page.expect_download() as baixado:
             simulador.get_by_test_id("simulador-exportar-cenario").click()
@@ -293,12 +743,13 @@ def main():
         arquivo = OUTPUT / "simulador-cenario-exportado.json"
         baixado.value.save_as(str(arquivo))
         exportado = json.loads(arquivo.read_text(encoding="utf-8"))
-        assert exportado["formato"] == "ADT-CENARIO/1" and exportado["versao_do_metodo"] == corpo["versao"], exportado
+        assert exportado["formato"] == "ADT-CENARIO/1" and exportado["versao_do_metodo"] == corpo["versao"] == VERSAO, exportado
         assert exportado["base"]["versao"] and exportado["base"]["ultimo_registro"] == "202406", exportado["base"]
         assert exportado["selecao_local"] == {"municipios": [RIO_RUFINO, BRASILIA], "estados": [PR], "conjuntos": []}, exportado["selecao_local"]
         assert [item["id"] for item in exportado["cenarios"]] == ["c1", "c2"] and exportado["horizonte"] == "202703", exportado
+        assert exportado["modo"] == "avancado", exportado["modo"]
 
-        # 11b. Um cenário importado com um conjunto (MANAUS e TEFE): na tabela, o conjunto é a "soma das projeções dos membros", e a
+        # 13b. Um cenário importado com um conjunto (MANAUS e TEFE): na tabela, o conjunto é a "soma das projeções dos membros", e a
         # faixa dele é rotulada como aproximação (a dos municípios com o porte da soma).
         com_conjunto = OUTPUT / "simulador-cenario-com-conjunto.json"
         com_conjunto.write_text(json.dumps({**exportado, "selecao_local": {**exportado["selecao_local"], "conjuntos": [
@@ -323,12 +774,12 @@ def main():
         simulador.get_by_test_id("simulador-foco").select_option("g1")
         expect(resultado.get_by_test_id("simulador-texto")).to_have_text(do_conjunto["cenarios"][0]["texto"])
         expect(resultado.get_by_test_id("simulador-texto")).to_contain_text("Manaus e Tefé (soma das projeções dos membros) teria")
-        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 80% (aproximação) em mar/2027: de ")
-        expect(grafico).to_contain_text("banda: faixa de 80% (aproximação)")
+        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 8 em cada 10 (aproximação) em mar/2027: de ")
+        expect(grafico).to_contain_text("banda: faixa de 8 em cada 10 (aproximação)")
         expect(simulador.get_by_test_id("simulador-resultados")).to_contain_text("soma das contagens dos componentes")
         page.screenshot(path=str(OUTPUT / "simulador-03-conjunto-real.png"), full_page=True)
 
-        # 12. "Copiar de novo a seleção principal" refaz a cópia; importar o cenário exportado traz a seleção local e os cenários de volta.
+        # 14. "Copiar de novo a seleção principal" refaz a cópia; importar o cenário exportado traz a seleção local e os cenários de volta.
         simulador.get_by_test_id("simulador-etapa-1").click()
         simulador.get_by_test_id("simulador-copiar-principal").click()
         expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "2")
@@ -342,7 +793,7 @@ def main():
         expect(local(MANAUS)).to_have_count(0)
         expect(resumo).to_have_text(principal)
 
-        # 13. "Aplicar à seleção principal": só agora a seleção principal muda, num passo do Desfazer.
+        # 15. "Aplicar à seleção principal": só agora a seleção principal muda, num passo do Desfazer.
         simulador.get_by_test_id("simulador-aplicar-principal").click()
         expect(simulador.get_by_test_id("simulador-aviso-local")).to_have_text("A seleção do Simulador foi aplicada à seleção principal.")
         expect(resumo).not_to_have_text(principal)
@@ -351,10 +802,11 @@ def main():
         expect(resumo).to_have_text(principal)
         expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "3")  # o Desfazer não mexe na seleção local
 
-        # 14. "Abrir no Simulador" (etapa 5): do Detector de Sinais, MANAUS (AM) vai ao Simulador com o contexto analítico (o
-        # território, a data avaliada e os sinais com nível). A seleção local fica só com ele e não acompanha a seleção principal,
-        # que não muda. Manaus está acima do patamar: não há "Simular recuperação" para ele. Em jun/2024, Manaus tem um sinal com
-        # nível (comando V23): perdeu 4,7 pontos de percentil em 2 anos, raro entre os municípios de 3.000 a 9.999 médicos.
+        # 16. "Abrir no Simulador" (etapa 5): do Detector de Sinais, MANAUS (AM) vai ao Simulador com o contexto analítico (o
+        # território, a data avaliada e os sinais com nível). O Simulador abre no modo simples, com "Só continuar como vinha"; a
+        # seleção local fica só com ele e não acompanha a seleção principal, que não muda. Manaus está acima do patamar: não há
+        # "Simular recuperação" para ele. Em jun/2024, Manaus tem um sinal com nível (comando V23): perdeu 4,7 pontos de percentil em
+        # 2 anos, raro entre os municípios de 3.000 a 9.999 médicos.
         area.get_by_test_id("analise-ferramenta-detector").click()
         detector = area.get_by_test_id("detector")
         expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
@@ -364,14 +816,21 @@ def main():
         expect(detector.get_by_test_id("detector-simular-recuperacao")).to_have_count(0)
         detector.get_by_test_id("detector-abrir-no-simulador").click()
         expect(area).to_have_attribute("data-ferramenta", "simulador")
-        expect(simulador).to_have_attribute("data-etapa", "1")
         expect(simulador).to_have_attribute("data-modo", "simples")
         expect(simulador).to_have_attribute("data-estado", "configurando")
+        expect(simples).to_have_attribute("data-teste", "continuar")
+        expect(territorio.locator("option")).to_have_text(["MANAUS (AM)"])
+        expect(territorio).to_have_value(MANAUS)
         aviso = simulador.get_by_test_id("simulador-do-detector")
         expect(aviso).to_have_attribute("data-recuperacao", "false")
         expect(aviso).to_contain_text("Aberto pelo Detector de Sinais: MANAUS (AM), avaliado em jun/2024")
         expect(aviso).to_contain_text("Sinais com nível lá: Perda de posição (moderado).")
         expect(aviso).to_contain_text("o que vem depois do último registro é cenário hipotético")
+        expect(aviso).not_to_contain_text("Simular recuperação")
+        # A seleção local, as referências e o planejamento inverso com calendário ficam no modo avançado.
+        simulador.get_by_test_id("simulador-modo-avancado").click()
+        expect(simulador).to_have_attribute("data-modo", "avancado")
+        expect(simulador).to_have_attribute("data-etapa", "1")
         expect(simulador.get_by_test_id("simulador-locais")).to_have_attribute("data-total", "1")
         expect(local(MANAUS)).to_have_count(1)
         expect(simulador.get_by_test_id("simulador-origem-da-selecao")).to_have_attribute("data-acompanha", "false")
@@ -379,7 +838,7 @@ def main():
         expect(simulador.get_by_test_id("simulador-nao-acompanha")).to_contain_text("não acompanha a seleção principal")
         expect(resumo).to_have_text(principal)
 
-        # 15. O Brasil como território, só no Simulador (a contagem nacional), e as referências de comparação: FLORIANOPOLIS (SC),
+        # 17. O Brasil como território, só no Simulador (a contagem nacional), e as referências de comparação: FLORIANOPOLIS (SC),
         # dinâmica; o Brasil, fixo; e um valor informado. Elas podem ficar fora da seleção do Simulador e não mudam a principal.
         acrescentar("brasil", "br")
         expect(local("br")).to_contain_text("Brasil (contagem nacional)")
@@ -408,7 +867,7 @@ def main():
         expect(resumo).to_have_text(principal)
         simulador.get_by_test_id("simulador-etapa-3").click()
         simulador.get_by_test_id("simulador-atalho-4").click()
-        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+        corpo, enviado = calcular()
         assert enviado == {
             "base": {"municipios": {"todos": False, "estados": [], "ids": [MANAUS]}}, "brasil": True, "horizonte": "202806",
             "cenarios": [{"id": "c1", "nome": "Cenário 1", "metodo": "padrao"}, {"id": "m0", "nome": "Persistência (referência)", "metodo": "M0"}],
@@ -432,6 +891,7 @@ def main():
         expect(da_comparacao("r2").get_by_test_id("simulador-comparacao-aviso").first).to_have_text(
             "A referência (Brasil) contém o território: a comparação não é independente.")
         expect(resultado.get_by_test_id("simulador-hipotetico")).to_have_count(0)   # com milhares de médicos, a escala não tem o que dizer
+        expect(resultado).not_to_contain_text("método provisório")
         # No gráfico, as curvas das referências que cabem na escala; a do Brasil fica na legenda, fora da escala.
         expect(grafico.get_by_test_id("simulador-referencia")).to_have_count(2)
         expect(grafico.locator('[data-testid="simulador-referencia-legenda"][data-ref="r1"]')).to_contain_text(
@@ -441,15 +901,19 @@ def main():
         expect(do_brasil_na_legenda).to_contain_text("fora da escala deste gráfico (502.495 médicos na data final)")
         expect(simulador.get_by_test_id("simulador-referencias-do-calculo")).to_contain_text("comparadas por quantidade de médicos")
         page.screenshot(path=str(OUTPUT / "simulador-04-referencias-real.png"), full_page=True)
-        # O Brasil no gráfico: o padrão provisório do nível (a taxa composta de 3 anos na contagem nacional), sem faixa.
+        # O Brasil no gráfico: uma série só não tem retroprojeção própria, e vale o jeito escolhido para os estados (a taxa composta de
+        # 3 anos na contagem nacional). É o único território em que o método padrão continua provisório; não há faixa.
         simulador.get_by_test_id("simulador-foco").select_option("br")
         do_brasil = do_territorio(corpo, "br")["cenarios"][0]
         assert do_brasil["metodo"]["usado"] == "M1" and do_brasil["final"]["faixa"] is None and "hipotetico" not in do_brasil, do_brasil["metodo"]
+        assert do_brasil["metodo"]["provisorio"] is True, do_brasil["metodo"]
         expect(resultado).to_have_attribute("data-metodo", "M1")
         expect(resultado.get_by_test_id("simulador-texto")).to_have_text(do_brasil["texto"])
+        expect(resultado).to_contain_text("método provisório")
         expect(resultado.locator('[data-testid="simulador-avisos"] li[data-codigo="PADRAO_PROVISORIO_DO_NIVEL"]')).to_contain_text(
-            "Para o Brasil, o método padrão é provisório")
-        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 80%: indisponível")
+            "Para o Brasil, o método padrão é provisório: uma série só não tem retroprojeção própria")
+        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_have_text(
+            "Faixa de 8 em cada 10: indisponível. Não há faixa para o Brasil: uma série só não tem retroprojeção própria.")
         expect(simulador.get_by_test_id("simulador-resultados")).to_contain_text("médicos únicos no Brasil (fonte nacional)")
         expect(da_comparacao("r2")).to_contain_text("A referência é o próprio território.")
         with page.expect_download() as baixado:
@@ -459,7 +923,73 @@ def main():
         assert csv.startswith("Identificador;Território;Cenário;Referência;Tipo da referência;O que é a referência;Métrica;Data;"), csv[:300]
         assert "não alcança no horizonte simulado" in csv and "já está no nível da referência ou acima na origem" in csv, csv[:900]
 
-        # 16. O planejamento inverso: a meta hipotética de alcançar a referência (FLORIANOPOLIS), com um acréscimo por ano. O motor
+        # 17b. O que só o modo avançado escolhe fica no modo avançado (ajuste de 14/11/2026). Com uma janela geral (os últimos 5 anos)
+        # e as três referências, o pedido do modo avançado leva as duas coisas. No modo simples, o pedido leva só o território em
+        # análise, a data final e o cenário: a janela e as referências ficam guardadas, e a resposta vem com a janela padrão e sem
+        # comparações. De volta ao modo avançado, elas são pedidas de novo. O jeito de projetar escolhido no modo avançado também
+        # não passa despercebido: o modo simples avisa e oferece a volta ao que a base escolheu.
+        com_referencias = enviado
+        simulador.get_by_test_id("simulador-etapa-2").click()
+        simulador.get_by_test_id("simulador-janela-5-anos").click()
+        expect(simulador.get_by_test_id("simulador-janela-inicio")).to_have_value("201906")
+        expect(simulador.get_by_test_id("simulador-janela-fim")).to_have_value("202406")
+        expect(simulador).to_have_attribute("data-estado", "desatualizado")
+        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular-direto").click())
+        com_a_janela = {**com_referencias, "janela": {"inicio": "201906", "fim": "202406"}}
+        assert enviado == com_a_janela, enviado
+        assert corpo["janela"] == {"inicio": "201906", "fim": "202406", "registros": 11, "anos": 5.0, "padrao": False}, corpo["janela"]
+        assert [item["id"] for item in corpo["referencias"]] == ["r1", "r2", "r3"], corpo["referencias"]
+        simulador.get_by_test_id("simulador-foco").select_option(MANAUS)
+        expect(resultado.get_by_test_id("simulador-texto")).to_have_text(do_territorio(corpo, MANAUS)["cenarios"][0]["texto"])
+        expect(resultado.get_by_test_id("simulador-texto")).to_contain_text("janela de jun/2019 a jun/2024")
+        expect(resultado.get_by_test_id("simulador-comparacao")).to_have_count(3)
+        # Um jeito de projetar escolhido à mão no modo avançado (a taxa composta), sem calcular.
+        simulador.get_by_test_id("simulador-etapa-2").click()
+        simulador.get_by_test_id("simulador-metodo").select_option("M1")
+        expect(simulador).to_have_attribute("data-estado", "desatualizado")
+        simulador.get_by_test_id("simulador-modo-simples").click()
+        expect(simulador).to_have_attribute("data-modo", "simples")
+        expect(territorio.locator("option")).to_have_text(["MANAUS (AM)", "Brasil"])
+        expect(territorio).to_have_value(MANAUS)
+        expect(simples).to_have_attribute("data-teste", "continuar")
+        do_avancado = simulador.get_by_test_id("simulador-metodo-do-avancado")
+        expect(do_avancado).to_contain_text(
+            "Este cenário usa um jeito de projetar escolhido no modo avançado (taxa composta da janela), e não o que a base escolheu.")
+        do_avancado.get_by_role("button", name="Voltar ao jeito escolhido pela base", exact=True).click()
+        expect(do_avancado).to_have_count(0)
+        corpo, enviado = calcular()
+        assert enviado == {"base": so_o_municipio(MANAUS), "horizonte": "202806", "cenarios": [C1, PERSISTENCIA]}, enviado
+        assert not {"janela", "referencias", "comparacao", "brasil"} & set(enviado), enviado
+        assert corpo["janela"] == {"inicio": "202106", "fim": "202406", "registros": 7, "anos": 3.0, "padrao": True}, corpo["janela"]
+        assert corpo["referencias"] == [] and [item["id"] for item in corpo["territorios"]] == [MANAUS], corpo["referencias"]
+        do_simples = corpo["territorios"][0]["cenarios"][0]
+        assert "comparacoes" not in do_simples and do_simples["metodo"]["usado"] == "M0d", do_simples["metodo"]
+        expect(simulador).to_have_attribute("data-estado", "pronto")
+        expect(resultado_simples).to_have_attribute("data-metodo", "M0d")
+        expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_text(do_simples["texto"])
+        expect(resultado_simples.get_by_test_id("simulador-texto")).to_contain_text("janela de jun/2021 a jun/2024")
+        expect(grafico.get_by_test_id("simulador-referencia")).to_have_count(0)
+        expect(grafico.get_by_test_id("simulador-referencia-legenda")).to_have_count(0)
+        # De volta ao modo avançado: a janela geral e as referências continuam lá, e o pedido volta a levá-las.
+        simulador.get_by_test_id("simulador-modo-avancado").click()
+        expect(simulador).to_have_attribute("data-modo", "avancado")
+        expect(simulador).to_have_attribute("data-estado", "desatualizado")   # o cálculo à vista é o do modo simples
+        simulador.get_by_test_id("simulador-etapa-2").click()
+        expect(simulador.get_by_test_id("simulador-janela-inicio")).to_have_value("201906")
+        expect(simulador.get_by_test_id("simulador-metodo")).to_have_value("padrao")
+        simulador.get_by_test_id("simulador-etapa-1").click()
+        expect(referencias).to_have_attribute("data-total", "3")
+        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular-direto").click())
+        assert enviado == com_a_janela, enviado
+        assert [item["id"] for item in corpo["referencias"]] == ["r1", "r2", "r3"] and corpo["janela"]["padrao"] is False, corpo["janela"]
+        expect(resultado.get_by_test_id("simulador-comparacao")).to_have_count(3)
+        # A janela padrão de volta, para os blocos seguintes.
+        simulador.get_by_test_id("simulador-etapa-2").click()
+        simulador.get_by_test_id("simulador-janela-padrao").click()
+        expect(simulador.get_by_test_id("simulador-janela-padrao")).to_be_disabled()
+        expect(simulador).to_have_attribute("data-estado", "desatualizado")
+
+        # 18. O planejamento inverso: a meta hipotética de alcançar a referência (FLORIANOPOLIS), com um acréscimo por ano. O motor
         # devolve o menor número inteiro de médicos por evento; o cenário só o recebe por comando ("Usar como intervenção deste
         # cenário") e, recalculado, alcança a meta.
         simulador.get_by_test_id("simulador-etapa-1").click()
@@ -469,7 +999,7 @@ def main():
         simulador.get_by_test_id("simulador-plano-novo").click()
         plano = simulador.get_by_test_id("simulador-plano")
         expect(plano).to_have_attribute("data-meta", "valor")
-        expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Informe a meta do planejamento inverso, em médicos.")
+        expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Informe a meta: um número acima de zero.")
         expect(simulador.get_by_test_id("simulador-calcular")).to_be_disabled()
         plano.get_by_test_id("simulador-plano-meta").select_option("referencia")
         expect(plano.get_by_test_id("simulador-plano-referencia")).to_have_value("r1")
@@ -478,9 +1008,10 @@ def main():
         expect(plano.get_by_test_id("simulador-plano-ate")).to_have_value("2027-06")
         plano.get_by_test_id("simulador-plano-ate").fill("2028-06")
         expect(plano).to_contain_text("não um plano")
-        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+        corpo, enviado = calcular()
         assert "brasil" not in enviado and enviado["cenarios"][0] == {"id": "c1", "nome": "Cenário 1", "metodo": "padrao", "planejamento": {
             "meta": {"tipo": "referencia", "referencia": "r1"}, "em": "202506", "ate": "202806", "a_cada_meses": 12}}, enviado
+        assert "janela" not in enviado and len(enviado["referencias"]) == 3, enviado   # a janela padrão de volta; as referências continuam
         de_manaus = do_territorio(corpo, MANAUS)["cenarios"][0]
         planejado = de_manaus["planejamento"]
         assert (planejado["estado"], planejado["eventos"], planejado["por_evento"], planejado["total"]) == ("calculado", 4, 387, 1548), planejado
@@ -504,9 +1035,10 @@ def main():
         expect(simulador.get_by_test_id("simulador-intervencao")).to_have_count(1)
         expect(simulador.get_by_test_id("simulador-intervencao-quantidade")).to_have_value("387")
         expect(simulador.get_by_test_id("simulador-intervencao-periodica")).to_be_checked()
-        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular").click())
+        corpo, enviado = calcular()
         assert enviado["cenarios"][0] == {"id": "c1", "nome": "Cenário 1", "metodo": "padrao", "intervencoes": [
             {"tipo": "acrescimo", "quantidade": 387, "em": "202506", "ate": "202806", "a_cada_meses": 12}]}, enviado
+        assert "faixa" not in enviado, "a faixa de 8 em cada 10 é a padrão: o pedido não a leva"
         aplicado = do_territorio(corpo, MANAUS)["cenarios"][0]
         assert abs(aplicado["final"]["total"] - planejado["resultado"]) < 1e-6 and aplicado["final"]["total"] >= planejado["meta"]["valor"], aplicado["final"]
         da_meta = next(item for item in aplicado["comparacoes"] if item["id"] == "r1")
@@ -517,16 +1049,118 @@ def main():
         expect(resultado.get_by_test_id("simulador-planejamento")).to_have_count(0)
         expect(resumo).to_have_text(principal)
 
+        # 18b. A faixa pedida (etapa 3 do modo avançado): com 5 em cada 10, o pedido leva `faixa: 5`, e o resultado, a legenda do
+        # gráfico e a tabela passam a dizer "5 em cada 10" (a faixa é mais estreita que a de 8 em cada 10). De volta a 8 em cada 10,
+        # que é a padrão, o pedido não leva a faixa.
+        do_pedido_anterior, dos_8 = enviado, aplicado["final"]["faixa"]
+        simulador.get_by_test_id("simulador-etapa-3").click()
+        simulador.get_by_test_id("simulador-faixa-em-10").select_option("5")
+        expect(simulador).to_have_attribute("data-estado", "desatualizado")
+        corpo, enviado = calcular()
+        assert enviado == {**do_pedido_anterior, "faixa": 5}, enviado
+        assert corpo["faixa"] == {"em_10": 5, "opcoes": [5, 8, 9], "padrao": 8} and corpo["retroprojecao"]["em_10"] == 5, corpo["faixa"]
+        dos_5 = do_territorio(corpo, MANAUS)["cenarios"][0]
+        assert dos_5["faixa"]["em_10"] == 5 and dos_5["final"]["total"] == aplicado["final"]["total"], dos_5["faixa"]
+        assert dos_8["inferior"] < dos_5["final"]["faixa"]["inferior"] < dos_5["final"]["faixa"]["superior"] < dos_8["superior"], (dos_5["final"], dos_8)
+        expect(simulador).to_have_attribute("data-estado", "pronto")
+        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 5 em cada 10 em jun/2028: de ")
+        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("em 5 de cada 10 casos de territórios do mesmo porte,")
+        expect(grafico).to_contain_text("banda: faixa de 5 em cada 10")
+        expect(simulador.get_by_test_id("simulador-tabela").locator("caption")).to_contain_text("entre parênteses, a faixa de 5 em cada 10, quando há")
+        simulador.get_by_test_id("simulador-etapa-3").click()
+        expect(simulador.get_by_test_id("simulador-faixa-em-10")).to_have_value("5")
+        simulador.get_by_test_id("simulador-faixa-em-10").select_option("8")
+        corpo, enviado = calcular()
+        assert enviado == do_pedido_anterior, enviado
+        expect(resultado.get_by_test_id("simulador-faixa-texto")).to_contain_text("Faixa de 8 em cada 10 em jun/2028: de ")
+        expect(grafico).to_contain_text("banda: faixa de 8 em cada 10")
+
+        # 19. "Simular recuperação" (Proposta V3): ABELARDO LUZ (SC) está abaixo do que já teve (54 médicos em jun/2024, para um
+        # patamar de 78,25). O Detector abre o Simulador no modo simples, só com ele, com "Chegar a uma meta" marcado e o patamar
+        # como meta hipotética, que a pessoa pode trocar; o aviso diz que a meta está em "O que testar". Nada é pedido antes de
+        # "Calcular", e a seleção principal não muda.
+        botao.click()
+        expect(area).to_have_attribute("data-ferramenta", "")
+        marcar_na_arvore("abelardo", ABELARDO_LUZ)
+        territorios.get_by_test_id("analise-busca").fill("")
+        com_abelardo = resumo.inner_text()
+        assert com_abelardo != principal, com_abelardo
+        area.get_by_test_id("analise-ferramenta-detector").click()
+        expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
+        with page.expect_response(lambda r: r.url.endswith("/api/detector") and r.request.method == "POST", timeout=180000):
+            detector.locator('[data-testid="detector-linha"][data-id="' + ABELARDO_LUZ + '"]').get_by_test_id("detector-abrir").click()
+        expect(detector.get_by_test_id("detector-detalhe")).to_have_attribute("data-id", ABELARDO_LUZ)
+        expect(detector.get_by_test_id("detector-recuperacao-apoio")).to_contain_text("meta hipotética")
+        antes_da_recuperacao = len(pedidos)
+        detector.get_by_test_id("detector-simular-recuperacao").click()
+        expect(area).to_have_attribute("data-ferramenta", "simulador")
+        expect(simulador).to_have_attribute("data-modo", "simples")
+        expect(simulador).to_have_attribute("data-estado", "configurando")
+        expect(aviso).to_have_attribute("data-recuperacao", "true")
+        expect(aviso).to_contain_text("Aberto pelo Detector de Sinais: ABELARDO LUZ (SC), avaliado em jun/2024")
+        expect(aviso).to_contain_text("Abaixo do que já teve (")
+        expect(aviso).to_contain_text(
+            "“Simular recuperação” trouxe, como meta hipotética que você pode trocar, a volta ao patamar anterior (em “O que testar”).")
+        expect(simples).to_have_attribute("data-teste", "meta")
+        expect(teste("meta")).to_be_checked()
+        expect(territorio.locator("option")).to_have_text(["ABELARDO LUZ (SC)"])
+        expect(territorio).to_have_value(ABELARDO_LUZ)
+        expect(valor_da_meta).to_have_value("78,25")   # a precisão do Detector
+        expect(simulador.get_by_test_id("simulador-teste-em")).to_have_value("2025-06")
+        expect(o_que_testar).to_contain_text("A meta é o patamar anterior, trazido pelo Detector de Sinais: uma hipótese que você pode trocar.")
+        expect(simulador.get_by_test_id("simulador-calcular")).to_be_enabled()
+        page.wait_for_timeout(400)
+        assert len(pedidos) == antes_da_recuperacao, "nada é calculado antes de \"Calcular\""
+        corpo, enviado = calcular()
+        assert enviado == {"base": so_o_municipio(ABELARDO_LUZ), "horizonte": "202606", "cenarios": [
+            {"id": "c1", "nome": "Recuperação do patamar", "metodo": "padrao", "planejamento": {"meta": {"tipo": "patamar", "valor": 78.25}, "em": "202506"}},
+            PERSISTENCIA]}, enviado
+        assert [item["id"] for item in corpo["territorios"]] == [ABELARDO_LUZ], corpo["territorios"]
+        cenario = corpo["territorios"][0]["cenarios"][0]
+        planejado = cenario["planejamento"]
+        assert (planejado["estado"], planejado["eventos"], planejado["por_evento"]) == ("calculado", 1, 13), planejado
+        assert planejado["meta"]["valor"] == 78.25 and planejado["resultado"] >= planejado["meta"]["valor"], planejado
+        assert planejado["texto"].startswith("Meta hipotética: voltar ao patamar de 78,2 médicos em jun/2026.") and planejado["texto"].endswith(
+            "não um plano."), planejado["texto"]
+        for proibida in ("recomenda", "é preciso", "deveria", "necessário prover"):
+            assert proibida not in planejado["texto"].lower(), proibida
+        expect(simulador).to_have_attribute("data-estado", "pronto")
+        expect(resultado_simples).to_have_attribute("data-estado", "calculado")
+        expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_text(cenario["texto"])
+        bloco = resultado_simples.get_by_test_id("simulador-planejamento")
+        expect(bloco).to_have_attribute("data-estado", "calculado")
+        expect(bloco).to_have_attribute("data-por-evento", "13")
+        expect(bloco.get_by_test_id("simulador-planejamento-texto")).to_have_text(planejado["texto"])
+        tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Para chegar à meta"], ["54", "65", "precisaria acrescentar 13"])
+        page.screenshot(path=str(OUTPUT / "simulador-06-recuperacao-real.png"), full_page=True)
+        # A meta é editável: com 60 médicos (menos do que o cenário já dá), o motor diz que ela é alcançada sem acréscimo.
+        valor_da_meta.fill("60")
+        expect(simulador).to_have_attribute("data-estado", "desatualizado")
+        corpo, enviado = calcular()
+        assert enviado["cenarios"][0]["planejamento"] == {"meta": {"tipo": "patamar", "valor": 60}, "em": "202506"}, enviado
+        planejado = corpo["territorios"][0]["cenarios"][0]["planejamento"]
+        assert planejado["estado"] == "ja_alcancada" and planejado["texto"] == (
+            "Meta hipotética: voltar ao patamar de 60 médicos em jun/2026. No cenário, o território já teria 65,3 médicos em jun/2026: a "
+            "meta é alcançada sem acréscimo."), planejado
+        expect(bloco).to_have_attribute("data-estado", "ja_alcancada")
+        expect(bloco.get_by_test_id("simulador-planejamento-texto")).to_have_text(planejado["texto"])
+        tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Para chegar à meta"], ["54", "65", "nada a acrescentar"])
+        expect(resumo).to_have_text(com_abelardo)
+
         assert not chamadas_llm, "o Simulador calcula sem o provedor de IA"
         assert not falhas, falhas
         browser.close()
-    print("SIMULADOR PASS: ferramenta na navegação sem pedido antes de Calcular, seleção local (cópia, acréscimo de BRASILIA e do Paraná "
-          "como unidade, retirada de MANAUS e recusa de CURITIBA) sem mudar a seleção principal, janela e método padrão, data final em "
-          "qualquer mês, cenário com acréscimo (texto fixo do motor, gráfico com observado, base, evento e faixa; pico fora do ajuste em "
-          "RIO RUFINO), Paraná sem faixa, estatísticas descritivas, modo avançado com dois cenários, retirada acima do estoque, validação "
-          "dos métodos, exportações CSV e JSON, importação do cenário, cópia de novo e Aplicar à seleção principal com Desfazer; "
-          "Abrir no Simulador com o contexto do Detector, o Brasil como território, três referências (curvas, textos, não alcança no "
-          "horizonte e sobreposição), CSV das comparações e planejamento inverso (387 médicos em 4 eventos), usado como intervenção.")
+    print("SIMULADOR PASS: ferramenta na navegação, aberta no modo simples, sem pedido antes de Calcular; modo simples numa tela só (um "
+          "território no pedido, frase fixa, três números, jeito escolhido pela base, os dois Entenda, faixa de 8 em cada 10 conferida em "
+          "2 anos e provisória em 4, acréscimo, retirada acima do estoque, meta com 16 médicos, Paraná sem faixa com o motivo, Avançado e "
+          "volta); seleção local (cópia, acréscimo de BRASILIA e do Paraná como unidade, retirada de MANAUS e recusa de CURITIBA) sem mudar "
+          "a seleção principal, janela e método padrão, data final em qualquer mês, cenário com acréscimo (texto fixo do motor, gráfico com "
+          "observado, base, evento e faixa; pico fora do ajuste em RIO RUFINO), estatísticas descritivas, dois cenários, retirada acima do "
+          "estoque, validação dos métodos (dez faixas de porte), exportações CSV e JSON, importação do cenário, cópia de novo e Aplicar à "
+          "seleção principal com Desfazer; Abrir no Simulador com o contexto do Detector, o Brasil como território (método provisório), "
+          "três referências (curvas, textos, não alcança no horizonte e sobreposição), CSV das comparações, planejamento inverso (387 "
+          "médicos em 4 eventos) usado como intervenção, faixa de 5 em cada 10, janela geral e referências só no pedido do modo avançado "
+          "(o modo simples não as leva) e Simular recuperação (ABELARDO LUZ, meta editável).")
 
 
 if __name__ == "__main__":

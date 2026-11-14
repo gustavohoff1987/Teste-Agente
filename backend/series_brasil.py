@@ -29,10 +29,7 @@ from brazil_catalog_profile import FIELDS, TRUSTED_CATEGORY
 from territorial_levels import SIGLAS, STATES, human_period
 
 VERSION = "SERIES-BRASIL/1"
-# O Detector de Sinais vale para qualquer base desde o comando V23 (a do Brasil ou uma planilha enviada); o Simulador de Cenários
-# continua só com a base do Brasil até ganhar a mesma estrutura (Parte C da Proposta V3).
-OFFICIAL_ONLY = ("O Simulador de Cenários Territoriais usa a base do Brasil (médicos, registros de janeiro e junho de 2014 a 2024); "
-                 "com uma planilha enviada, ainda não está disponível.")
+# O Detector de Sinais e o Simulador de Cenários valem para qualquer base desde o comando V23: a do Brasil ou uma planilha enviada.
 SEM_BASE = "Escolha a base do Brasil ou envie uma planilha: a ferramenta lê a base que estiver em uso."
 UNIDADE_MUNICIPIO = "médicos registrados no município (fonte municipal; quem atua em mais de um município conta em cada um)"
 UNIDADE_ESTADO = "médicos únicos no estado (fonte estadual)"

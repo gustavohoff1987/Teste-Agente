@@ -35,6 +35,103 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-14 · Simulador de Cenários na Proposta V3: modo simples numa tela, o jeito de projetar escolhido pela base, a faixa de 8 em cada 10 conferida no tempo e qualquer base (comando V23, Parte C)
+- **Classificação (regra 1):** mudança de comportamento pedida pelo responsável no comando V23 (13/11/2026, seções 0, 1 e 2;
+  Proposta V3, Parte C, seções C.2 a C.9, e seção A.3 no que toca ao perfil). Decorre do pedido (escopo). Na compatibilidade, o
+  Simulador continua sendo a exceção aprovada à exclusão de projeção da SPEC (AT-04; decisão 2 do comando V22), restrita a esta
+  ferramenta determinística, agora também com uma planilha enviada, como o comando autoriza ("sem mudar o endereço das rotas nem
+  os campos que as respostas já trazem"). Nada vai ao provedor de IA. A SPEC não foi editada.
+- **Antes:**
+  - o Simulador só existia na base do Brasil: com uma planilha, o botão ficava desligado ("O Simulador de Cenários ainda funciona
+    só com a base que vem com o Agente. Com uma planilha enviada, use o Detector de Sinais."), e `POST /api/simulador` recusava um
+    arquivo enviado ("O Simulador de Cenários Territoriais usa a base do Brasil (médicos, registros de janeiro e junho de 2014 a
+    2024); com uma planilha enviada, ainda não está disponível.");
+  - a ferramenta abria nas quatro etapas (territórios, base histórica e método, intervenções e horizonte, comparações e
+    resultados), também no modo simples;
+  - o método padrão era fixo e rotulado como "provisório": a persistência com o crescimento recente do estado (M0d) nos municípios
+    e a taxa composta de 3 anos (M1) nos estados e no Brasil;
+  - a "faixa de 80%" existia só para o M0d de municípios, em 6 portes, com pelo menos 100 casos, até 4 anos: 1 e 2 anos
+    "conferidas fora da amostra" e 3 e 4 anos como "limite provisório";
+  - a janela padrão eram os 7 últimos registros; o aviso do M1 valia para municípios com menos de 100 médicos;
+  - a resposta trazia a versão `SIMULADOR-CENARIOS/V2.2/2` e `limitacoes` com `PADRAO_PROVISORIO`; o perfil da base não tinha
+    linhas do Simulador.
+- **Agora:**
+  - **modo simples, numa tela só** (o modo em que o Simulador abre): o território, o que testar (só continuar como vinha,
+    acrescentar N numa data, retirar N numa data ou chegar a uma meta) e até quando (atalhos de 1, 2 e 4 anos); o resultado traz o
+    gráfico, a frase fixa do cenário, três números (no último registro, na data final e a diferença), o jeito de projetar e a
+    faixa, cada um com o seu "Entenda" (duas ou três frases e um exemplo com os números do cenário, vindos do motor), e "Como os
+    métodos se saíram no passado". As quatro etapas ficam em **"Avançado"**;
+  - **o jeito de projetar é escolhido pela própria base** (regra C.3), por nível de território, uma vez por versão da base: na
+    retroprojeção, o crescimento do próprio território (M1), o do grupo de cima (M0d) e o da base toda (**M0g, método novo**) são
+    comparados com manter o último valor; só vale quem errou menos no total e em pelo menos metade das combinações de origem e
+    prazo; entre os que valem, fica o mais próximo do território a até 5% do melhor; num porte em que o escolhido errou mais em
+    todos os prazos, vale o último valor; sem 3 origens, sem série anual ou sem candidato que valha, o padrão é manter o último
+    valor, com aviso. **Na base do Brasil, o resultado é o de antes** (M0d nos municípios, 0,714 do erro de manter o último valor;
+    M1 nos estados, 0,398), e os valores dos cenários no método padrão não mudam;
+  - o padrão dos municípios e o dos estados deixam de levar a marca "método provisório" (a base o escolheu pela regra); só o
+    Brasil, que é uma série só, continua provisório. Em `limitacoes`, `PADRAO_PROVISORIO` deu lugar a
+    `PADRAO_ESCOLHIDO_PELA_BASE`;
+  - **a faixa passa a ser "de 8 em cada 10"** (opções 5 e 9, no modo avançado e na rota, opção `faixa`): por porte (as 10 faixas
+    da régua comum) e prazo, com pelo menos 200 casos por prazo (80 para 5 em cada 10; 400 para 9), a retaguarda das faixas
+    vizinhas e, depois, de portes menores, e a **conferência no tempo** (a faixa remontada só com o que já era conhecido em cada
+    origem de teste): "conferida", "provisória" ou "indisponível", com o motivo e os números. A faixa de um cenário vai do
+    primeiro ano até o maior prazo seguido que a base sustenta (sem "buracos" de prazo). Ela existe só para o jeito e a
+    janela escolhidos pela base. Na base do Brasil: os limites dos portes que não mudaram são os mesmos de antes; "1 a 9" virou "1
+    a 3" e "4 a 9", e "300 ou mais" virou quatro portes; 1 e 2 anos são conferidas, 3 e 4 anos são provisórias (como os 10.000
+    médicos ou mais, em todos os prazos); nos estados como unidade, continua indisponível (189 casos em 1 ano, para 200);
+  - **qualquer base:** `POST /api/simulador` aceita `file`, `sheet` e `mapping` (como `/api/painel` e `/api/detector`), no mesmo
+    endereço e com os campos de antes; com uma planilha, o Simulador vale nos dois modos (o simples e o avançado), com os nomes
+    dela em todos os textos (também no gráfico, nas tabelas e no CSV), e o detalhe do Detector oferece "Abrir no Simulador". Sem
+    grupo de cima, o candidato é o crescimento da base toda; sem história bastante, o cenário mantém o último valor e a faixa é
+    indisponível, com o motivo. No modo avançado com uma planilha, a busca oferece as unidades e o todo (a soma das unidades com
+    registro, pelo nome que a pessoa deu); o grupo de cima não entra como unidade. Sem base nenhuma, a rota responde "Escolha a
+    base do Brasil ou envie uma planilha: a ferramenta lê a base que estiver em uso.";
+  - **planilha só com anos:** o Simulador abre com ela; as datas do cenário são anos (listas de anos no lugar dos campos de mês),
+    e os calendários se repetem em anos inteiros (o motor recusa um intervalo que não seja de 12 meses ou um múltiplo). O botão
+    do Simulador só fica desligado quando a planilha não tem datas que o Agente reconheça ("O Simulador de Cenários precisa de
+    datas na planilha que o Agente reconheça (AAAAMM, AAAA-MM, AAAA-MM-DD ou só o ano).");
+  - **o pedido do modo simples** leva só o território em análise, o que testar (uma quantidade ou uma meta, numa data, com
+    permanência total) e a data final: a janela geral, as referências, o calendário, a permanência e as outras intervenções
+    escolhidos no modo avançado ficam guardados e não vão ao motor (vai só a janela com que o Detector de Sinais abriu o
+    Simulador, quando houve). Quando o cenário traz um jeito de projetar escolhido no modo avançado, o modo simples avisa e
+    oferece "Voltar ao jeito escolhido pela base";
+  - **perfil da base:** o resumo "dá para / não dá para" ganhou as linhas do Simulador (o jeito escolhido, até quantos anos há
+    faixa e até quantos ela foi conferida, ou o motivo de não haver), e o perfil, o campo `simulador`. Na base do Brasil, "dá
+    para" passou de 8 para 11 linhas, e "não dá para", de 1 para 2;
+  - **janela padrão:** os 3 anos até o último registro, pelo tempo (na base do Brasil, os mesmos 7 registros; numa base com um
+    registro por ano, 4);
+  - o aviso do M1 pedido pela pessoa passa a valer para o porte em que esse método errou mais que manter o último valor na
+    retroprojeção da base (o código do aviso continua `M1_ABAIXO_DE_100`);
+  - **resposta:** `versao` `SIMULADOR-CENARIOS/V3/1`; campos novos `faixa` (`em_10`, `opcoes`, `padrao`), `retroprojecao.em_10`,
+    `retroprojecao.escolha` e `retroprojecao.niveis`, `metodo.escolhido_pela_base` e `metodo.e_o_escolhido`, `entenda` em cada
+    cenário calculado, e, na faixa de um cenário, `em_10`, `conferencia`, `como`, `ate_anos`, `casos`, `cobertura_pct` e
+    `origens_de_teste`; `fonte` passa a ser a mesma do Detector (com a origem, o mês âncora, os nomes e o que a base tem);
+    avisos novos `PADRAO_E_O_ULTIMO_VALOR`, `SEM_RETROPROJECAO`, `PORTE_USA_O_ULTIMO_VALOR`, `FAIXA_PROVISORIA` e
+    `FAIXA_COM_PORTES_MENORES`. As faixas da retroprojeção têm agora 10 portes e o estado de cada uma;
+  - **na tela avançada:** a escolha "Mostrar a faixa onde o valor real ficou em [8] de cada 10 retroprojeções de territórios do
+    mesmo porte" (5, 8 ou 9); a legenda do gráfico diz "banda: faixa de 8 em cada 10"; o cartão da hipótese do cenário chama-se
+    "Poucos médicos, no cenário" (antes, "Dependência de poucos médicos, no cenário"); a tabela de erros dos métodos ganhou a
+    coluna do crescimento da base toda (M0g); no CSV dos resultados, as colunas da faixa
+    levam o percentual pedido ("Faixa de 80%", como antes, por padrão; "Faixa de 50%" ou "Faixa de 90%");
+  - **cenário exportado (JSON):** leva a base em uso (com uma planilha, "planilha enviada" e a categoria dela, em vez de "Brasil"
+    e "MEDICINA"), o território em análise do modo simples, a faixa pedida, quando não é a de 8 em cada 10, e a janela com que o
+    Detector abriu o Simulador; a importação os repõe.
+- **Permanece:** as fórmulas dos métodos (M0, M0d, M1, M2, M3 e a taxa da pessoa), as intervenções e a permanência, o Brasil como
+  território, as referências e a comparação, o planejamento inverso, a hipótese do cenário (só os sinais 1 e 2), os avisos de
+  horizonte, as exportações (o cenário em JSON e os CSV, com as colunas de antes), o texto fixo "Cenário hipotético, não é
+  previsão: …", a seleção local e "Aplicar à seleção principal", e a recusa de previsões livres pelo assistente de conversa (com
+  uma planilha, a recusa ainda não cita o Simulador). O Detector de Sinais não muda.
+- **Motivo:** comando V23 do responsável (13/11/2026), Parte C da Proposta V3: uma tela simples para a pergunta mais comum, um
+  padrão que a própria base justifica em vez de um método fixo, uma faixa conferida com o que veio depois e as duas ferramentas
+  com qualquer base.
+- **Documentação e testes:** `Docs/SIMULADOR_DE_CENARIOS.md` (o modo simples, a regra de escolha, a faixa, "Qualquer base", a
+  rota e as tabelas do estudo de retroprojeção, refeito por `scripts/calibrar_simulador.py`), `Docs/PERFIL_DA_BASE_DETECTOR_SIMULADOR.md`
+  (seção 9), `Docs/DETECTOR_DE_SINAIS.md`, `Docs/PAINEL_INTEGRADO_INTERFACE.md` e `README.md`; pytest
+  `backend/tests/test_simulador.py` (reescrito para a V3) e `backend/tests/test_ferramentas_qualquer_base.py` (o perfil com as
+  linhas do Simulador e a rota do Simulador com a planilha de teste); Node `frontend/tests/simulador.test.mjs`; navegador
+  `backend/tests/ui_simulador.py` (o modo simples e o avançado), `backend/tests/ui_detector.py` (o perfil) e
+  `backend/tests/ui_planilha_ficticia.py` (o Simulador com a planilha fictícia).
+
 ### 2026-11-14 · Detector de Sinais com qualquer base: planilha enviada, perfil da base antes das ferramentas e "Indisponível nesta base" (comando V23, seção 2 e Parte A)
 - **Classificação (regra 1):** mudança de comportamento pedida pelo responsável no comando V23 (13/11/2026, seções 0, 1 — decisão
   5 — e 2; Proposta V3, seções A.2.6 e A.3). Decorre do pedido (escopo): o comando autoriza as duas ferramentas com planilhas

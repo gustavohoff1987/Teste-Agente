@@ -902,6 +902,17 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .ferramenta-perfil-lista li + li { margin-top: 4px; }
 .ferramenta-perfil-titulo { margin: 0; font-weight: 650; color: var(--cor-tinta); }
 .ferramenta-cabecalho { display: flex; flex-direction: column; gap: 4px; }
+/* Simulador, modo simples (Proposta V3, seção C.7): o território, o que testar e até quando, numa tela só; o resultado, logo abaixo. */
+.ferramenta-simples { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ferramenta-teste { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin: 0; padding: 10px 12px;
+  border: 1px solid var(--cor-borda-campo); border-radius: 12px; }
+.ferramenta-teste legend { padding: 0 6px; font-weight: 650; color: var(--cor-tinta); }
+.ferramenta-teste-opcoes { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.ferramenta-tres-numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 12px; margin: 0; }
+.ferramenta-tres-numeros > div { padding: 8px 12px; border: 1px solid var(--cor-borda-campo); border-radius: 12px; background: var(--cor-superficie); }
+.ferramenta-tres-numeros dt { color: var(--cor-texto-2); font-size: 13px; line-height: 1.4; }
+.ferramenta-tres-numeros dd { margin: 0; color: var(--cor-tinta); font-size: 20px; font-weight: 650; line-height: 1.3; }
+.ferramenta-entendas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; color: var(--cor-texto-2); font-size: 13px; line-height: 1.45; }
 .ferramenta-titulo-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .ferramenta-filtros { display: grid; grid-template-columns: minmax(110px, .7fr) minmax(150px, 1fr) minmax(170px, 1.2fr) minmax(170px, 1.4fr) auto;
   gap: 8px 12px; align-items: end; }
@@ -990,6 +1001,7 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
   border: 1px solid var(--cor-borda-campo); border-radius: 6px; background: var(--cor-superficie); color: var(--cor-tinta); font: inherit; font-weight: 650;
   line-height: 1.5; text-align: center; }
 .ferramenta-campo-da-frase:focus { outline: 2px solid var(--cor-foco); outline-offset: 1px; }
+.ferramenta-campo-da-frase[type="month"] { max-width: 11em; }
 .ferramenta-campo-trocado { border-color: rgb(var(--tom-amber-900)); background: rgb(var(--tom-amber-50)); color: rgb(var(--tom-amber-900)); }
 /* "Entenda" (Proposta V3, seção A.4), igual no Detector e no Simulador: o botão e a caixa, desenhada por cima da página. */
 .entenda { display: inline-flex; vertical-align: middle; }

@@ -2023,19 +2023,26 @@ def territorial_signal_detector(file: UploadFile | None = File(None), mapping: s
 
 
 @app.post("/api/simulador")
-def territorial_scenario_simulator(file: UploadFile | None = File(None), options: str = Form("{}"), dataset: str = Form(""),
-                                   scope: str = Form("municipal"), dataset_version: str = Form(""),
-                                   context_revision: int = Form(0)):
-    """Simulador de Cenários Territoriais (comando V22; Docs/SIMULADOR_DE_CENARIOS.md): para os territórios da seleção local, a
-    base de cada cenário (M0, M0d, M1, M2, M3 ou a taxa da pessoa), as intervenções hipotéticas, a faixa de 80% quando sustentada, os
-    avisos e o texto fixo de cenário. Exceção aprovada à exclusão de projeção da SPEC, só nesta rota determinística. Só a base do
-    Brasil. Só calcula: nada é registrado na sessão, e nada vai ao provedor de IA."""
+def territorial_scenario_simulator(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
+                                   sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),
+                                   dataset_version: str = Form(""), context_revision: int = Form(0)):
+    """Simulador de Cenários Territoriais (comandos V22 e V23; Docs/SIMULADOR_DE_CENARIOS.md): para os territórios da seleção
+    local, a base de cada cenário (o jeito de projetar que a própria base escolheu, ou M0, M0d, M0g, M1, M2, M3 ou a taxa da
+    pessoa), as intervenções hipotéticas, a faixa de 5, 8 ou 9 em cada 10 quando a base a sustenta, os avisos e o texto fixo de
+    cenário. Exceção aprovada à exclusão de projeção da SPEC, só nesta rota determinística. Vale para a base do Brasil e, desde o
+    comando V23, para uma planilha enviada (o arquivo, a aba e o mapeamento de colunas, como em /api/painel). Só calcula: nada é
+    registrado na sessão, e nada vai ao provedor de IA."""
     try:
-        if file is not None or dataset != "brazil":
-            raise ValueError(series_brasil.OFFICIAL_ONLY)
         requested = json.loads(options)
+        if file is not None:
+            base, requested = _base_da_planilha(file, sheet, dataset, mapping, requested)
+            return _PanelJSON(simulador.compute(None, requested, base=base))
+        if dataset != "brazil":
+            raise ValueError(series_brasil.SEM_BASE)
         _, _, sources = _dataset_do_pedido(None, "", "brazil", "municipal", "", dataset_version, with_sources=True)
         return _PanelJSON(simulador.compute(sources, requested))
+    except ChoiceRequired as exc:
+        return _panel_pending(exc)
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

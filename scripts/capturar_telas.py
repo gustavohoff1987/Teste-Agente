@@ -11,7 +11,8 @@ e as três ações; a Distribuição com os dois níveis e os quintis de cada um
 por proximidade; a seleção com os conjuntos; a dica de um conjunto, com todos os membros; a Escolha dos territórios da Análise
 Espacial com a base em conjuntos e territórios individuais; o foco numa base da Análise Espacial; os estados como unidade ("Só
 os estados"); o Detector de Sinais Territoriais (a tabela, os detalhes, os alertas do Brasil e os parâmetros) e o Simulador de
-Cenários Territoriais (os territórios, as intervenções, os resultados, a base e o método e a validação). Da etapa 5 do comando
+Cenários Territoriais (os territórios, as intervenções, os resultados, a base e o método e a validação; desde o comando V23, o
+Simulador abre no modo simples, e estas telas são as do modo avançado). Da etapa 5 do comando
 (telas 25 a 38): os fenômenos 8 a 12 do Detector em jun/2021, quando a comparação de 2 anos é habilitada (as bolhas da distância e
 da taxa, o mapa dos sinais, a série da taxa com a referência e os detalhes de cada fenômeno); "Abrir no Simulador" com as
 referências de comparação, as comparações, o planejamento inverso e o Brasil como território; e "Simular recuperação", com a meta
@@ -238,6 +239,8 @@ def capturar(url, saida, canal):
             # O Simulador de Cenários com a cópia local da seleção mista; um município acrescentado só no Simulador.
             area.get_by_test_id("analise-ferramenta-simulador").click()
             simulador = area.get_by_test_id("simulador")
+            # Desde o comando V23, o Simulador abre no modo simples (uma tela só): as quatro etapas ficam no modo avançado.
+            simulador.get_by_test_id("simulador-modo-avancado").click()
             expect(simulador.get_by_test_id("simulador-local").first).to_be_visible(timeout=60000)
             simulador.get_by_test_id("simulador-composicao-botao").click()
             simulador.get_by_test_id("simulador-busca").fill("rio rufino")
@@ -335,6 +338,7 @@ def capturar(url, saida, canal):
             detector.get_by_test_id("detector-abrir-no-simulador").click()
             simulador = area.get_by_test_id("simulador")
             expect(simulador.get_by_test_id("simulador-do-detector")).to_be_visible(timeout=60000)
+            simulador.get_by_test_id("simulador-modo-avancado").click()   # as referências ficam no modo avançado
             simulador.get_by_test_id("simulador-referencia-busca").fill("florian")
             simulador.locator('[data-testid="simulador-referencia-acrescentar"][data-id="' + FLORIANOPOLIS + '"]').click()
             simulador.locator('[data-testid="simulador-referencia-item"][data-alvo="' + FLORIANOPOLIS + '"]').get_by_test_id(
@@ -395,7 +399,7 @@ def capturar(url, saida, canal):
 
         def simular_recuperacao():
             # "Simular recuperação": do Detector, um município abaixo do patamar anterior vai ao Simulador com a meta hipotética
-            # (e editável) de voltar ao patamar; o Simulador abre na etapa em que a meta está à vista.
+            # (e editável) de voltar ao patamar; o Simulador abre no modo simples, com "Chegar a uma meta" já escolhido.
             area.get_by_test_id("analise-ferramenta-detector").click()
             detector = area.get_by_test_id("detector")
             expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
@@ -404,8 +408,8 @@ def capturar(url, saida, canal):
             expect(detector.get_by_test_id("detector-simular-recuperacao")).to_be_visible(timeout=60000)
             detector.get_by_test_id("detector-simular-recuperacao").click()
             simulador = area.get_by_test_id("simulador")
-            expect(simulador).to_have_attribute("data-etapa", "3", timeout=60000)
-            expect(simulador.get_by_test_id("simulador-plano")).to_have_attribute("data-meta", "patamar")
+            expect(simulador.get_by_test_id("simulador-simples")).to_have_attribute("data-teste", "meta", timeout=60000)
+            expect(simulador.get_by_test_id("simulador-teste-meta-valor")).to_be_visible()
 
         def simular_recuperacao_resultado():
             simulador = area.get_by_test_id("simulador")

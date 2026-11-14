@@ -126,7 +126,9 @@ calibrado", "limite provisório" no lugar de "candidato"); os termos técnicos f
    própria, com a base dos estados (moderado desde jun/2015, elevado desde jun/2019 e crítico nunca: em jun/2024 há 270
    comparações, e o crítico pede 999); os conjuntos continuam sem nível, com os fatos e o motivo.
 6. **Faixas de 80% do Simulador:** a tabela da seção 11.2 do anexo traz valores iniciais, a recalcular na base (retroprojeções
-   com origens móveis) antes de exibir; sem o recálculo, "indisponível".
+   com origens móveis) antes de exibir; sem o recálculo, "indisponível". **Desde 14/11/2026** (Proposta V3, seção C.4): a faixa
+   de 8 em cada 10 é recalculada em cada base e versão, por porte (as 10 faixas da régua comum) e prazo, e conferida no tempo
+   ([Simulador de Cenários](SIMULADOR_DE_CENARIOS.md), "Retroprojeção").
 7. **"Simular recuperação"** (meta = patamar do indicador 7, por planejamento inverso; etapa 5). **Resolvido em 10/11/2026**
    (decisão D-B do [anexo](DETECTOR_E_SIMULADOR_V2_2.md)): a meta é hipótese editável ("meta hipotética: voltar ao patamar de
    X médicos"), com o texto fixo de cenário e sem palavras de recomendação.
@@ -144,16 +146,22 @@ pedir.
 | Datas e intervalos | Mede os meses entre registros e só compara mudanças com o mesmo tempo entre eles; durações com até 1 mês de diferença ficam juntas | — |
 | Série anual | O mês presente em todos os anos (o mês do último registro, quando ele se repete em todos); numa planilha só com anos, um registro por ano | Ficam indisponíveis os sinais anuais (3, 4 e 8 a 10) |
 | Portes | As 10 faixas pelo número de profissionais, no último registro de cada território; faltando casos, a faixa junta-se às vizinhas | — |
-| Grupo de cima | Na base do Brasil, o estado (pelo prefixo do código IBGE); numa planilha, a coluna de grupo escolhida | O sinal 10 fica indisponível |
-| População | Os trechos de população comparável, lidos da própria base | Ficam indisponíveis os sinais 8 a 11 |
+| Grupo de cima | Na base do Brasil, o estado (pelo prefixo do código IBGE); numa planilha, a coluna de grupo escolhida | O Simulador usa o crescimento da base toda; o sinal 10 fica indisponível |
+| População | Os trechos de população comparável, lidos da própria base | Ficam indisponíveis os sinais 8 a 11 e as comparações por habitante do Simulador |
 | Coordenadas | Com o referencial informado (na base do Brasil, SIRGAS 2000, do perfil oficial) | O sinal 11 fica indisponível |
 | O que a contagem conta | A unidade de contagem informada, como nas análises: pessoas, vínculos, postos ou outra | Aviso de dupla contagem |
 | Nomes | Os do painel "Colunas" (a unidade, o grupo e o todo), com a concordância | — |
 
 O resumo **"com esta base, dá para… / não dá para… (motivo)"** vem da régua do Detector: desde que data a maioria dos territórios
 com registro pôde ser comparada em cada nível (19, 99 e 999 comparações, com a retaguarda das faixas vizinhas e, só no moderado,
-de todas as faixas) e, do que a base não sustenta, quantas comparações ela tem e quantas o nível pede. As linhas do Simulador de
-Cenários (a retroprojeção e as faixas) entram no perfil quando o Simulador ganhar a mesma estrutura (Parte C da Proposta V3).
+de todas as faixas) e, do que a base não sustenta, quantas comparações ela tem e quantas o nível pede.
+
+Desde a etapa do Simulador (14/11/2026; Proposta V3, Parte C), o resumo traz também **o que a retroprojeção do Simulador de
+Cenários sustenta** (`perfil_da_base.capacidade_do_simulador`; campo `simulador` do perfil, por nível de território): o jeito de
+projetar que a base escolheu ("Cenários do Simulador com o jeito de projetar que a base escolheu: …"), ou que o cenário mantém o
+último valor porque nenhum jeito errou menos que isso, ou que falta história para escolher ("ela pede 3 origens com 3 anos antes
+e 1 ano depois, e esta base tem N"); e a faixa de 8 em cada 10 — até quantos anos existe e até quantos foi conferida com o que
+veio depois —, ou o motivo de não haver ("ela pede 200 casos por prazo, e esta base tem N").
 
 **Base do Brasil** (5.570 municípios, 22 registros, de jan/2014 a jun/2024; 5 ou 7 meses entre eles; a série anual é a de junho):
 
@@ -162,9 +170,14 @@ Cenários (a retroprojeção e as faixas) entram no perfil quando o Simulador ga
     municípios ficam sem comparações suficientes para o crítico (os de 3.000 médicos ou mais);
   - sinais por habitante (8 a 10), de 2014 a 2024, e a distância (sinal 11, só contexto);
   - alertas moderados nos estados como unidade desde jun/2015 e elevados desde jun/2019;
-  - sinais anuais (declínio persistente e desaceleração), pela série de junho.
+  - sinais anuais (declínio persistente e desaceleração), pela série de junho;
+  - cenários do Simulador com o jeito de projetar que a base escolheu: nos municípios, a persistência com o crescimento recente
+    do estado; nos estados como unidade, a taxa composta da janela;
+  - a faixa de 8 em cada 10 do Simulador nos municípios, até 4 anos à frente (conferida com o que veio depois até 2 anos; depois,
+    provisória).
 - Não dá para:
-  - alertas críticos nos estados como unidade: eles pedem 999 comparações, e esta base chega a 270.
+  - alertas críticos nos estados como unidade: eles pedem 999 comparações, e esta base chega a 270;
+  - a faixa do Simulador nos estados como unidade: ela pede 200 casos por prazo, e esta base tem 189.
 
 **Planilha de teste** (`backend/tests/planilha_das_ferramentas.csv`: 20 distritos fictícios, registros de seis em seis meses
 durante 10 anos, de jan/2014 a jul/2023, sem grupo de cima, sem população e sem coordenadas; a série anual é a de julho):
@@ -172,12 +185,17 @@ durante 10 anos, de jan/2014 a jul/2023, sem grupo de cima, sem população e se
 - Dá para:
   - alertas moderados desde jan/2015 (o 2º ano da base);
   - alertas elevados desde jan/2018 (o 5º ano da base);
-  - sinais anuais (declínio persistente e desaceleração), pela série de julho.
+  - sinais anuais (declínio persistente e desaceleração), pela série de julho;
+  - cenários do Simulador mantendo o último valor: na retroprojeção desta base (6 origens, de jul/2017 a jul/2022), nenhum jeito
+    de projetar errou menos que isso.
 - Não dá para:
   - alertas críticos: eles pedem 999 comparações, e esta base chega a 360;
-  - "Mais longe da referência" (sinal 10): a base não tem grupo de cima;
-  - sinais por habitante (8 a 11): a base não tem população.
+  - "Mais longe da referência" (sinal 10) e o crescimento do grupo no Simulador: a base não tem grupo de cima; o Simulador usa o
+    crescimento da base toda;
+  - sinais por habitante (8 a 11) e comparações por habitante no Simulador: a base não tem população;
+  - a faixa do Simulador: ela pede 200 casos por prazo, e esta base tem 120.
 
 Com essa planilha, o Detector mostra, em jul/2023, 1 território em elevado, 4 em moderado e 15 sem alerta; os sinais 8 a 11
 aparecem como "Indisponível nesta base", com o motivo, e a queda recente diz "Sem comparações suficientes para o crítico: há 360,
-e ele pede 999."
+e ele pede 999." No Simulador, "continuar como vinha" mantém o último valor, com o aviso, e a faixa de 8 em cada 10 fica
+indisponível, com os números da própria base.

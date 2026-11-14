@@ -71,6 +71,38 @@ def capacidade_da_regua(base: Base, cal: detector.Calibracao) -> dict:
     return saida
 
 
+def capacidade_do_simulador(base: Base) -> dict:
+    """O que a retroprojeção do Simulador de Cenários sustenta em cada nível de território (as unidades da base e, com contagem
+    própria, os grupos de cima como unidade): o jeito de projetar escolhido, as origens, até quantos anos há faixa de 8 em cada
+    10 em algum porte (e até quantos ela foi conferida) e quantos casos a base tem em 1 ano."""
+    import simulador  # importação tardia: o Simulador usa o Detector, que usa este módulo
+    saida = {}
+    for nivel in ("municipios", "estados") if base.estados else ("municipios",):
+        retro = simulador.retroprojetar(base, nivel)
+        em_10 = simulador.FAIXA_PADRAO
+        # Por porte, os prazos seguidos com faixa a partir de 1 ano (a faixa de um cenário não tem "buracos" de prazo) e, entre
+        # eles, os seguidos conferidos com o que veio depois.
+        por_porte = {}
+        for (da_faixa, porte, anos), faixa in retro.faixas.items():
+            if da_faixa == em_10:
+                por_porte.setdefault(porte, {})[anos] = faixa["estado"]
+
+        def seguidos(estados: dict, aceitos: tuple) -> int:
+            ate = 0
+            while estados.get(ate + 1) in aceitos:
+                ate += 1
+            return ate
+        casos = retro.casos
+        coluna = simulador.COLUNA[retro.escolha["metodo"]]
+        em_1_ano = int((np.isfinite(casos[:, coluna]) & (casos[:, simulador.PRAZO] == 1)).sum()) if casos.size else 0
+        saida[nivel] = {"metodo": retro.escolha["metodo"], "rotulo": simulador._nome_do_metodo(base, retro.escolha["metodo"]),
+                        "motivo": retro.escolha["motivo"], "origens": len(retro.origens),
+                        "faixa_ate_anos": max((seguidos(estados, ("conferida", "provisoria")) for estados in por_porte.values()), default=0),
+                        "conferida_ate_anos": max((seguidos(estados, ("conferida",)) for estados in por_porte.values()), default=0),
+                        "casos_em_1_ano": em_1_ano, "pede": simulador.FAIXAS_EM_10[em_10][2]}
+    return saida
+
+
 def _frases_da_regua(base: Base, capacidade: dict, quem: str) -> tuple[list[str], list[dict]]:
     """As linhas "dá para" e "não dá para" dos três níveis, para os territórios de `quem` ("" ou "nos estados como unidade")."""
     da, nao = [], []
@@ -204,9 +236,34 @@ def perfil(base: Base, cal: detector.Calibracao | None = None) -> dict:
         da_para.append("Sinais anuais (declínio persistente e desaceleração), pela série de " +
                        ("cada ano" if base.ancora == "00" else MESES[int(base.ancora) - 1]) + ".")
 
+    # O que a retroprojeção do Simulador de Cenários sustenta (Proposta V3, Parte C): o jeito de projetar que a base escolhe e a
+    # faixa de 8 em cada 10, nas unidades e, quando a base tem a contagem própria deles, nos grupos de cima como unidade.
+    do_simulador = capacidade_do_simulador(base)
+    for nivel, lido in do_simulador.items():
+        quem = "" if nivel == "municipios" else " n" + r["os_grupos"] + " como unidade"
+        if lido["motivo"] == "escolhido":
+            da_para.append('Cenários do Simulador' + quem + ' com o jeito de projetar que a base escolheu: ' + lido["rotulo"] + ".")
+        elif lido["motivo"] == "nenhum_vale":
+            da_para.append("Cenários do Simulador" + quem + " mantendo o último valor: na retroprojeção desta base, nenhum jeito de "
+                           "projetar errou menos que isso.")
+        else:
+            nao_da_para.append({"o_que": "Escolher o jeito de projetar do Simulador" + quem + " pela retroprojeção",
+                                "motivo": ("a base não tem série anual" if lido["motivo"] == "sem_serie_anual" else
+                                           "ela pede 3 origens com 3 anos antes e 1 ano depois, e esta base tem " + _br(lido["origens"])) +
+                                          "; o cenário mantém o último valor."})
+        if lido["faixa_ate_anos"]:
+            da_para.append("A faixa de 8 em cada 10 do Simulador" + quem + ", até " + _br(lido["faixa_ate_anos"]) +
+                           (" ano" if lido["faixa_ate_anos"] == 1 else " anos") + " à frente" +
+                           (" (conferida com o que veio depois até " + _br(lido["conferida_ate_anos"]) +
+                            (" ano" if lido["conferida_ate_anos"] == 1 else " anos") + "; depois, provisória)."
+                            if lido["conferida_ate_anos"] else " (provisória: ainda não deu para conferi-la com o que veio depois)."))
+        elif lido["motivo"] in ("escolhido", "nenhum_vale"):
+            nao_da_para.append({"o_que": "A faixa do Simulador" + quem,
+                                "motivo": "ela pede " + _br(lido["pede"]) + " casos por prazo, e esta base tem " + _br(lido["casos_em_1_ano"]) + "."})
+
     return {"versao": VERSION, "origem": base.origem, "base": descricao["base"], "categoria": descricao["categoria"],
             "versao_da_base": base.versao, "territorios": len(base.codigos), "registros": t, "primeira": base.periodos[0],
             "ultima": base.periodos[-1], "ancora": base.ancora, "nomes": series_brasil.rotulos_publicos(base), "itens": itens,
-            "regua": capacidade, **({"regua_dos_estados": dos_estados} if dos_estados else {}),
+            "regua": capacidade, **({"regua_dos_estados": dos_estados} if dos_estados else {}), "simulador": do_simulador,
             "da_para": da_para, "nao_da_para": nao_da_para, "avisos": [item["texto"] for item in base.avisos],
             "tem": {"populacao": tem_populacao, "coordenadas": tem_coordenadas, "grupo": tem_grupo, "serie_anual": bool(base.ancora)}}

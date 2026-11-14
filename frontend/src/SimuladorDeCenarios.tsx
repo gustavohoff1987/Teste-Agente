@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { Download, LoaderCircle, Plus, Trash2, Upload, X } from "lucide-react";
+import { ChevronRight, Download, LoaderCircle, Plus, Trash2, Upload, X } from "lucide-react";
+import Entenda from "./Entenda";
 import { ErroDoMotor, pedirAoMotor, type FonteDoMotor } from "./painelApi";
 import type { GrupoInfo, UnidadeDoCatalogo } from "./painelModel";
 import { comNomesAnteriores } from "./painelModel";
@@ -9,7 +10,9 @@ import {
   copiarSelecao, csvDasComparacoes, csvDoSimulador, doCampoDeMes, exportarCenario, formatarMedicos, formatarPercentualInteiro, formatarTaxa, importarCenario, janelaPadrao,
   comoConjunto, mesDe, normalizarSimulador, novaIntervencao, novaReferencia, novoCenario, novoPlano, paraCampoDeMes, pedidoDoSimulador, pendenciaDoPedido, referenciasValidas,
   textoDaFaixa, textoDaHipotese, textoDoFinal, tirarTerritorio, totalDaSelecaoLocal,
-  type CenarioCalculado, type CenarioDaTela, type ConfigDoSimulador, type IntervencaoDaTela, type MetodoDoCenario, type PlanejamentoDoCenario, type PlanoDaTela,
+  NOMES_DO_BRASIL, TESTES, comOTeste, nomeCurtoDoMetodo, nomesDaPlanilha, primeiroDaSelecao, territoriosDaSelecaoLocal, testeDoCenario, tresNumeros,
+  FORMAS_DO_BRASIL, comMaiuscula, ehAnual, formasDaPlanilha, janelaDeAnos, type FormasDaBase,
+  type CenarioCalculado, type CenarioDaTela, type ConfigDoSimulador, type IntervencaoDaTela, type MetodoDoCenario, type NomesDaBase, type PlanejamentoDoCenario, type PlanoDaTela,
   type ReferenciaDaTela, type RespostaDoSimulador, type SelecaoDasFerramentas, type SelecaoLocal, type TerritorioSimulado,
 } from "./simuladorModel";
 
@@ -23,6 +26,11 @@ import {
 // um valor informado; por quantidade ou por taxa com a população constante), o planejamento inverso (a meta é uma hipótese da
 // pessoa; o resultado é uma conta condicional), a hipótese derivada da simulação (num painel à parte) e o contexto trazido pelo
 // Detector de Sinais ("Abrir no Simulador" e "Simular recuperação").
+// Proposta V3 (comando V23, Parte C): o Simulador abre em **modo simples, numa tela só** — o território, o que testar (só continuar
+// como vinha, acrescentar, retirar ou chegar a uma meta) e até quando; o resultado traz o gráfico, a frase fixa, três números e
+// os "Entenda" do jeito de projetar e da faixa. "Continuar como vinha" usa o jeito de projetar que a própria base escolheu, e a
+// faixa (8 em cada 10, por padrão) é conferida, provisória ou indisponível, com o motivo. As quatro etapas ficam em "Avançado".
+// Vale para qualquer base: com uma planilha enviada, o pedido leva o que a descreve, e os nomes vêm dela.
 
 type Props = {
   fonte: FonteDoMotor;
@@ -37,8 +45,13 @@ type Props = {
   onConfig: (config: ConfigDoSimulador) => void;
   /** Leva a seleção local à seleção principal (comando explícito e separado). */
   onAplicarSelecao: (local: SelecaoLocal) => void;
+  /** Numa planilha enviada, o que o pedido diz dela (os nomes, as premissas e a categoria), como no pedido do painel. */
+  daBase?: { rotulos?: unknown; premissas?: unknown; categoria?: string };
+  /** O grupo de cima de uma unidade, pelo catálogo da base (numa planilha, o valor da coluna de grupo); sem ele, o da base do Brasil. */
+  grupoDe?: (id: string) => string;
 };
 
+const MESES_POR_EXTENSO = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const CORES = ["var(--cor-destaque)", "rgb(var(--tom-blue-600))", "rgb(var(--tom-amber-800))", "rgb(var(--tom-rose-600))", "rgb(var(--tom-slate-600))"];
 const sem = (valor: string) => valor.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 function baixar(nome: string, corpo: string, tipo: string) {
@@ -48,11 +61,36 @@ function baixar(nome: string, corpo: string, tipo: string) {
   URL.revokeObjectURL(url);
 }
 
+/** O campo de uma data do cenário: o mês e o ano; numa base com um registro por ano (as datas dela são "AAAA00"), só o ano, numa
+ * lista que começa no ano seguinte ao último registro. */
+function CampoDeData({ testid, valor, ultimo, comMinimo = false, className = "analise-campo", rotulo, onMudar }: { testid: string; valor: string;
+  /** O último registro da base: diz se a base só traz o ano, e as datas do cenário vêm depois dele. */
+  ultimo: string; comMinimo?: boolean; className?: string; rotulo?: string; onMudar: (data: string) => void }) {
+  if (!ehAnual(ultimo)) return <input type="month" data-testid={testid} className={className} aria-label={rotulo} value={paraCampoDeMes(valor)}
+    min={comMinimo ? paraCampoDeMes(ultimo) : undefined} onChange={event => onMudar(doCampoDeMes(event.target.value))}/>;
+  const primeiro = Number(ultimo.slice(0, 4)) + 1;
+  const anos = Array.from({ length: 40 }, (_, k) => primeiro + k).filter(ano => ano <= 2100);
+  const atual = ehAnual(valor) ? Number(valor.slice(0, 4)) : null;
+  return <select data-testid={testid} data-anual="true" className={className} aria-label={rotulo} value={atual ?? ""}
+    onChange={event => onMudar(event.target.value ? event.target.value + "00" : "")}>
+    {atual === null && <option value="">escolha o ano</option>}
+    {atual !== null && !anos.includes(atual) && <option value={atual}>{atual}</option>}
+    {anos.map(ano => <option key={ano} value={ano}>{ano}</option>)}
+  </select>;
+}
+/** O intervalo entre os eventos de um calendário: em meses; numa base com um registro por ano, em anos (12 meses cada um). */
+const emAnos = (meses: string): string => /^\d+$/.test(meses.trim()) ? String(Number(meses) / 12) : "";
+const emMeses = (anos: string): string => /^\d+$/.test(anos.trim()) ? String(Number(anos) * 12) : "";
+
 /** O gráfico de um território: o observado (linha contínua e marcadores, só nas datas reais), a base de cada cenário (tracejada), o
- * total com a intervenção (contínua fina, na cor do cenário, com os marcadores dos eventos) e a faixa de 80% (banda), quando há. */
-function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica }: { territorio: TerritorioSimulado; ultimoRegistro: string; cores: Map<string, string>;
-  /** A métrica da comparação com as referências: só por quantidade a referência cabe neste gráfico de médicos. */
-  metrica: string }) {
+ * total com a intervenção (contínua fina, na cor do cenário, com os marcadores dos eventos) e a faixa (banda), quando há. Os nomes
+ * (a contagem, a base e a categoria) vêm da base em uso: nada da base do Brasil fica escrito aqui. */
+function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica, r, fonte, em10 }: { territorio: TerritorioSimulado; ultimoRegistro: string;
+  cores: Map<string, string>;
+  /** A métrica da comparação com as referências: só por quantidade a referência cabe neste gráfico de contagens. */
+  metrica: string;
+  /** Os nomes da base em uso, a fonte dela e a faixa pedida (5, 8 ou 9 em cada 10). */
+  r: NomesDaBase; fonte: RespostaDoSimulador["fonte"]; em10: number }) {
   const calculados = territorio.cenarios.filter(cenario => cenario.estado === "calculado" && cenario.trajetoria.length);
   const observados = territorio.observado.filter(ponto => ponto.valor !== null);
   if (!observados.length || !calculados.length) return <p className="ferramenta-apoio">Sem cenário calculado para desenhar.</p>;
@@ -80,15 +118,18 @@ function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica }: { terr
   }
   if (atual.length) trechosObservados.push(atual);
   const anos: number[] = [];
-  for (let ano = Math.ceil(inicio / 12); ano * 12 <= fim; ano++) anos.push(ano);
+  // Numa base com um registro por ano, o registro do ano fica um mês antes da virada (a data "AAAA00"): a marca do ano vai nele.
+  const doAno = ehAnual(ultimoRegistro) ? -1 : 0;
+  for (let ano = Math.ceil((inicio - doAno) / 12); ano * 12 + doAno <= fim; ano++) anos.push(ano);
   const passoDosAnos = Math.max(1, Math.ceil(anos.length / 10));
   const xDoUltimo = x(mesDe(ultimoRegistro));
   const marcas: { x: number; y: number }[] = [];
   return <figure data-testid="simulador-grafico" className="ferramenta-serie ferramenta-serie-larga">
     <svg viewBox={"0 0 " + largura + " " + altura} width="100%" role="img" aria-label={"Cenários de " + territorio.rotulo +
       ": observado até " + competenciaCurta(ultimoRegistro) + "; depois, cenários hipotéticos. " + calculados.map(cenario => cenario.nome + ": " +
-        formatarMedicos(cenario.final!.total) + " médicos em " + competenciaCurta(cenario.final!.data)).join("; ") +
-        (referencias.length ? ". Referências: " + referencias.map(ref => ref.rotulo + ", " + formatarMedicos(ref.final) + " médicos na data final").join("; ") : "")}>
+        formatarMedicos(cenario.final!.total) + " " + r.profissionais + " em " + competenciaCurta(cenario.final!.data)).join("; ") +
+        (referencias.length ? ". Referências: " + referencias.map(ref => ref.rotulo + ", " + formatarMedicos(ref.final) + " " + r.profissionais +
+          " na data final").join("; ") : "")}>
       <rect x={xDoUltimo} y={topo} width={Math.max(0, largura - direita - xDoUltimo)} height={altura - topo - base} className="ferramenta-serie-fora"/>
       <line x1={esquerda} x2={largura - direita} y1={altura - base} y2={altura - base} className="ferramenta-serie-eixo"/>
       <line x1={xDoUltimo} x2={xDoUltimo} y1={topo} y2={altura - base} className="ferramenta-serie-eixo" strokeDasharray="2 3"/>
@@ -96,7 +137,7 @@ function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica }: { terr
       <text x={xDoUltimo - 4} y={topo + 11} textAnchor="end" className="ferramenta-serie-texto">observado</text>
       {[0, 0.5, 1].map(parte => <text key={parte} x={esquerda - 6} y={y(maximo / 1.06 * parte) + 4} textAnchor="end" className="ferramenta-serie-texto">
         {formatarMedicos(Math.round(maximo / 1.06 * parte))}</text>)}
-      {anos.filter((_, indice) => indice % passoDosAnos === 0).map(ano => <text key={ano} x={x(ano * 12)} y={altura - base + 16} textAnchor="middle"
+      {anos.filter((_, indice) => indice % passoDosAnos === 0).map(ano => <text key={ano} x={x(ano * 12 + doAno)} y={altura - base + 16} textAnchor="middle"
         className="ferramenta-serie-texto">{ano}</text>)}
       {calculados.map(cenario => {
         const comFaixa = cenario.trajetoria.filter(ponto => ponto.faixa);
@@ -114,7 +155,7 @@ function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica }: { terr
         marcas.push(marca);
         return <g key={"r" + ref.id} data-testid="simulador-referencia" data-ref={ref.id}>
           <path d={caminho(ref.pontos)} className="ferramenta-serie-referencia"><title>{"Referência " + ref.rotulo + (ref.descricao ? " (" + ref.descricao + ")" : "") +
-            ": " + formatarMedicos(ref.final) + " médicos na data final"}</title></path>
+            ": " + formatarMedicos(ref.final) + " " + r.profissionais + " na data final"}</title></path>
           <text x={marca.x} y={marca.y} textAnchor="end" className="ferramenta-serie-texto ferramenta-serie-marca">{ref.marca}</text>
         </g>; })}
       {calculados.map(cenario => {
@@ -146,19 +187,20 @@ function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica }: { terr
       {calculados.map(cenario => <span key={cenario.id}><svg width="28" height="8" aria-hidden="true"><line x1="0" x2="28" y1="4" y2="4"
         stroke={cores.get(cenario.id)} strokeWidth="2" strokeDasharray={cenario.id === ID_DA_REFERENCIA ? "2 4" : "7 4"}/></svg>{cenario.nome}: base do cenário
         {cenario.trajetoria.some(ponto => ponto.intervencao !== 0) ? "; linha contínua: com a intervenção (▼ nos eventos)" : ""}
-        {cenario.trajetoria.some(ponto => ponto.faixa) ? "; banda: faixa de 80%" + (territorio.tipo === "conjunto" ? " (aproximação)" : "") : ""}</span>)}
+        {cenario.trajetoria.some(ponto => ponto.faixa) ? "; banda: faixa de " + em10 + " em cada 10" + (territorio.tipo === "conjunto" ? " (aproximação)" : "") : ""}</span>)}
       {referencias.map(ref => <span key={"r" + ref.id} data-testid="simulador-referencia-legenda" data-ref={ref.id} data-na-escala={naEscala.includes(ref) ? "true" : "false"}>
         <svg width="28" height="8" aria-hidden="true"><line x1="0" x2="28" y1="4" y2="4" className="ferramenta-serie-referencia"/></svg>{ref.marca}: referência {ref.rotulo}
-        {ref.descricao ? " (" + ref.descricao + ")" : ""}{naEscala.includes(ref) ? "" : ": fora da escala deste gráfico (" + formatarMedicos(ref.final) + " médicos na data final)"}</span>)}
+        {ref.descricao ? " (" + ref.descricao + ")" : ""}{naEscala.includes(ref) ? "" : ": fora da escala deste gráfico (" + formatarMedicos(ref.final) + " " + r.profissionais + " na data final)"}</span>)}
       {metrica !== "quantidade" && calculados[0].comparacoes.length > 0 && <span data-testid="simulador-referencia-legenda" data-na-escala="false">As referências são
-        comparadas por taxa (médicos por 1.000 habitantes) e não entram neste gráfico de médicos: veja os textos de comparação.</span>}
-      <span>Fonte: base do Brasil (medicina), registros de janeiro e junho até {competenciaCurta(ultimoRegistro)}.</span>
+        comparadas por taxa ({r.profissionais} por 1.000 habitantes) e não entram neste gráfico de {r.profissionais}: veja os textos de comparação.</span>}
+      <span data-testid="simulador-grafico-fonte">{fonte.origem === "planilha" ? "Fonte: " + fonte.base + " (" + fonte.categoria.toLowerCase() + "), registros até "
+        : "Fonte: base do Brasil (medicina), registros de janeiro e junho até "}{competenciaCurta(ultimoRegistro)}.</span>
     </figcaption>
   </figure>;
 }
 
 export default function SimuladorDeCenarios(props: Props) {
-  // As competências da base, em ordem (AAAAMM): os registros reais de janeiro e junho.
+  // As competências da base, em ordem (AAAAMM; numa base só com anos, AAAA00): os registros reais (na base do Brasil, de janeiro e junho).
   const competencias = useMemo(() => props.competencias.filter(c => /^\d{6}$/.test(c)).sort(), [props.competencias]);
   const p = { ...props, competencias };
   const ultimoRegistro = competencias[competencias.length - 1] ?? "";
@@ -166,10 +208,11 @@ export default function SimuladorDeCenarios(props: Props) {
   const nomeDe = (id: string) => { const item = porId.get(id); return item ? item.name + (item.state ? " (" + item.state + ")" : "") : id; };
   const nomeDoEstado = (prefixo: string) => { const g = p.grupos.find(item => item.id === prefixo); return g ? g.nome + (g.sigla ? " (" + g.sigla + ")" : "") : prefixo; };
   // O estado como unidade, como no resto do Agente: "Paraná (estado)", sem a sigla (um só par de parênteses).
-  const estadoComoUnidade = (prefixo: string) => (p.grupos.find(item => item.id === prefixo)?.nome ?? prefixo) + " (estado)";
+  const estadoComoUnidade = (prefixo: string) => (p.grupos.find(item => item.id === prefixo)?.nome ?? prefixo) + " (" + nomesDaBase.grupo + ")";
   const nomeDoMembro = (id: string) => id.startsWith("uf:") ? nomeDoEstado(id.slice(3)) : nomeDe(id);
   const copiaDaPrincipal = () => copiarSelecao(p.principal, { todasAsUnidades: p.unidades.filter(item => !item.selection_reason).map(item => item.id),
-    unidadesDoGrupo: grupo => p.unidades.filter(item => !item.selection_reason && (item.state_code || item.id.slice(5, 7)) === grupo).map(item => item.id) });
+    unidadesDoGrupo: grupo => p.unidades.filter(item => !item.selection_reason &&
+      (p.grupoDe ? p.grupoDe(item.id) : item.state_code || item.id.slice(5, 7)) === grupo).map(item => item.id) });
   // A cópia local: feita ao abrir pela primeira vez. Enquanto não for alterada no Simulador, acompanha a seleção principal; depois da
   // primeira alteração aqui (ou de um cenário importado), só muda aqui dentro ou por "Copiar de novo a seleção principal".
   useEffect(() => {
@@ -194,12 +237,19 @@ export default function SimuladorDeCenarios(props: Props) {
   const [foco, setFoco] = useState<string | null>(null);
   const [verValidacao, setVerValidacao] = useState(false);
   const [verComposicao, setVerComposicao] = useState(false);
+  // Os nomes da base em uso (a contagem, a unidade, o grupo de cima e o todo): os da resposta do motor; antes dela, os que o pedido
+  // diz da planilha enviada ou, sem planilha, os da base do Brasil.
+  const nomesDaBase: NomesDaBase = resposta?.fonte.rotulos ?? nomesDaPlanilha(props.daBase) ?? NOMES_DO_BRASIL;
+  // As formas com artigo desses nomes, para a concordância dos textos; se a base em uso é uma planilha enviada; e se ela só traz o ano.
+  const formas: FormasDaBase = resposta?.fonte.formas ?? formasDaPlanilha(props.daBase) ?? FORMAS_DO_BRASIL;
+  const daPlanilha = !!props.daBase, anual = ehAnual(ultimoRegistro);
   const controle = useRef<AbortController | null>(null);
   const arquivo = useRef<HTMLInputElement>(null);
+  const validacao = useRef<HTMLDivElement>(null);
   useEffect(() => () => controle.current?.abort(), []);
 
   const pendencia = config ? pendenciaDoPedido(config) : "Preparando o Simulador…";
-  const chaveDoPedido = config && !pendencia ? p.fonte.datasetVersion + "::" + JSON.stringify(pedidoDoSimulador(config)) : "";
+  const chaveDoPedido = config && !pendencia ? p.fonte.datasetVersion + "::" + JSON.stringify(pedidoDoSimulador(config, p.daBase)) : "";
   const desatualizado = !!resposta && calculado !== chaveDoPedido;
   function calcular() {
     if (!config || pendencia) return;
@@ -208,7 +258,7 @@ export default function SimuladorDeCenarios(props: Props) {
     controle.current = novo;
     const chave = chaveDoPedido;
     setCarregando(true); setErro(null);
-    pedirAoMotor(p.fonte, "/api/simulador", pedidoDoSimulador(config), novo.signal)
+    pedirAoMotor(p.fonte, "/api/simulador", pedidoDoSimulador(config, p.daBase), novo.signal)
       .then(bruto => {
         if (novo.signal.aborted) return;
         const lida = normalizarSimulador(bruto);
@@ -251,11 +301,13 @@ export default function SimuladorDeCenarios(props: Props) {
     intervencoes: config.cenarios[indice].intervencoes.map((item, n) => n === k ? { ...item, ...parte } : item) });
   const total = totalDaSelecaoLocal(config.local);
   const termo = sem(busca.trim());
+  // Numa planilha enviada, o grupo de cima não entra como unidade (ela não tem a contagem própria dele), e o todo é a soma das
+  // unidades com registro, com o nome que a pessoa deu.
   const procurar = (pedido: string) => pedido.length < 2 ? null : {
-    brasil: "brasil".includes(pedido),
-    estados: p.grupos.filter(g => sem(g.nome + " " + g.sigla).includes(pedido)).slice(0, 4),
+    brasil: sem(daPlanilha ? nomesDaBase.todo : "brasil").includes(pedido),
+    estados: daPlanilha ? [] : p.grupos.filter(g => sem(g.nome + " " + g.sigla).includes(pedido)).slice(0, 4),
     municipios: p.unidades.filter(item => !item.selection_reason &&
-      sem(comNomesAnteriores(item.name + " " + item.code, item.former_names)).includes(pedido)).slice(0, 8) };
+      sem(comNomesAnteriores(item.name + " " + (item.code ?? ""), item.former_names)).includes(pedido)).slice(0, 8) };
   const achados = procurar(termo);
   const achadosDeReferencia = procurar(sem(buscaDeReferencia.trim()));
   /** Os territórios da seleção local que também estão na seleção principal: só eles vão a ela (o Brasil fica só no Simulador). */
@@ -270,6 +322,27 @@ export default function SimuladorDeCenarios(props: Props) {
   const cores = new Map<string, string>([...emUso.map((cenario, indice) => [cenario.id, CORES[indice % CORES.length]] as [string, string]),
     [ID_DA_REFERENCIA, "var(--cor-texto-3)"]]);
   const territorioEmFoco = resposta?.territorios.find(item => item.id === foco) ?? resposta?.territorios[0] ?? null;
+  // Modo simples (Proposta V3, seções C.2 e C.7): um território, o que testar e até quando, numa tela só. Os nomes vêm da base.
+  const r = nomesDaBase;
+  // O todo como território: na base do Brasil, a contagem nacional; numa planilha, a soma das unidades com registro.
+  const nomeDoTodo = daPlanilha ? comMaiuscula(formas.oTodo) : "Brasil";
+  const oQueEOTodo = daPlanilha ? "a soma d" + formas.osUnidades + " com registro" : "contagem nacional";
+  const doSimples = territoriosDaSelecaoLocal(config.local, { unidade: nomeDe, grupo: estadoComoUnidade, todo: r.todo });
+  const territorioDoSimples = doSimples.some(item => item.id === config.territorio) ? config.territorio! : primeiroDaSelecao(config.local) ?? "";
+  const cenarioDoSimples = config.cenarios[0];
+  const teste = testeDoCenario(cenarioDoSimples);
+  const resultadoDoSimples = territorioEmFoco?.cenarios.find(cenario => cenario.id === cenarioDoSimples.id) ?? territorioEmFoco?.cenarios[0] ?? null;
+  const etapaVisivel = config.modo === "avancado" ? etapa : 0;
+  // O mês da série anual da base, por extenso ("junho" na base do Brasil); numa base só com anos ou sem série anual, nenhum.
+  const ancora = resposta?.fonte.ancora ?? (daPlanilha ? null : "06");
+  const mesDaSerieAnual = ancora && ancora !== "00" ? MESES_POR_EXTENSO[Number(ancora) - 1] ?? null : null;
+  // Os métodos da tabela de erros: os que a retroprojeção desta base tem (sem grupo de cima, não há o crescimento do grupo).
+  const metodosDaTabela = ["M0d", "M0g", "M1", "M2", "M3"].filter(metodo => !resposta || resposta.retroprojecao.tabela.some(linha => linha.metodo === metodo));
+  /** "Ver explicação completa" dos "Entenda" do resultado: abre "Como os métodos se saíram no passado" e leva a pessoa até lá. */
+  function abrirAValidacao() {
+    setVerValidacao(true);
+    requestAnimationFrame(() => validacao.current?.scrollIntoView({ block: "start" }));
+  }
 
   function importar(event: ChangeEvent<HTMLInputElement>) {
     const escolhido = event.target.files?.[0];
@@ -328,7 +401,7 @@ export default function SimuladorDeCenarios(props: Props) {
         onClick={() => mudarCenario(indice, { planejamento: novoPlano(anosDepois(ultimoRegistro, 1)) })}>
         <Plus size={14} aria-hidden="true"/>Calcular o acréscimo que alcança uma meta (planejamento inverso)</button> : <>
         <p className="ferramenta-cartao-titulo">Planejamento inverso: meta hipotética</p>
-        <p className="ferramenta-apoio">O Simulador calcula o menor número inteiro de médicos por evento com que este cenário alcança a meta na data final. A meta é
+        <p className="ferramenta-apoio">O Simulador calcula o menor número inteiro de {r.profissionais} por evento com que este cenário alcança a meta na data final. A meta é
           uma hipótese sua, e você pode trocá-la: o resultado é uma conta condicional às hipóteses do cenário, não um plano.{total > 1 && " Com mais de um " +
             "território, a conta é feita para cada um."}</p>
         <div className="ferramenta-intervencao">
@@ -336,11 +409,11 @@ export default function SimuladorDeCenarios(props: Props) {
             <select data-testid="simulador-plano-meta" className="analise-campo" value={plano.meta}
               onChange={event => mudarPlano(indice, { meta: event.target.value as PlanoDaTela["meta"],
                 ...(event.target.value === "referencia" && !referencias.some(ref => ref.id === plano.referencia) ? { referencia: referencias[0]?.id ?? "" } : {}) })}>
-              <option value="valor">Chegar a um número de médicos</option>
+              <option value="valor">Chegar a um número de {r.profissionais}</option>
               <option value="patamar">Voltar ao patamar anterior</option>
               <option value="referencia" disabled={!referencias.length}>Alcançar uma referência{referencias.length ? "" : " (acrescente uma na etapa 1)"}</option>
             </select></label>
-          {plano.meta !== "referencia" && <label className="analise-rotulo-campo">{plano.meta === "valor" ? "Médicos na data final" : "Patamar, em médicos"}
+          {plano.meta !== "referencia" && <label className="analise-rotulo-campo">{plano.meta === "valor" ? comMaiuscula(r.profissionais) + " na data final" : "Patamar, em " + r.profissionais}
             <input data-testid="simulador-plano-valor" inputMode="decimal" className="analise-campo" value={plano.valor}
               placeholder={plano.meta === "patamar" ? "em branco: o patamar anterior de cada território" : "por exemplo, 30"}
               title={plano.meta === "patamar" ? "O patamar anterior é a maior média de dois anos seguidos antes dos registros mais recentes; em branco, vale o de cada território" : undefined}
@@ -352,18 +425,16 @@ export default function SimuladorDeCenarios(props: Props) {
               {referencias.map(ref => <option key={ref.id} value={ref.id}>{ref.rotulo}</option>)}
             </select></label>}
           <label className="analise-rotulo-campo">{plano.periodica ? "Primeiro acréscimo em" : "Acréscimo em"}
-            <input type="month" data-testid="simulador-plano-em" className="analise-campo" value={paraCampoDeMes(plano.em)} min={paraCampoDeMes(anosDepois(ultimoRegistro, 0))}
-              onChange={event => mudarPlano(indice, { em: doCampoDeMes(event.target.value) })}/></label>
+            <CampoDeData testid="simulador-plano-em" valor={plano.em} ultimo={ultimoRegistro} comMinimo onMudar={data => mudarPlano(indice, { em: data })}/></label>
           <label className="analise-caixa ferramenta-caixa"><input type="checkbox" data-testid="simulador-plano-periodica" checked={plano.periodica}
             onChange={event => mudarPlano(indice, { periodica: event.target.checked, ate: event.target.checked && plano.ate <= plano.em ? anosDepois(plano.em || ultimoRegistro, 2) : plano.ate })}/>
             <span>Repetir</span></label>
           {plano.periodica && <>
-            <label className="analise-rotulo-campo">a cada (meses)
-              <input data-testid="simulador-plano-passo" inputMode="numeric" className="analise-campo" value={plano.aCadaMeses}
-                onChange={event => mudarPlano(indice, { aCadaMeses: event.target.value })}/></label>
+            <label className="analise-rotulo-campo">{anual ? "a cada (anos)" : "a cada (meses)"}
+              <input data-testid="simulador-plano-passo" inputMode="numeric" className="analise-campo" value={anual ? emAnos(plano.aCadaMeses) : plano.aCadaMeses}
+                onChange={event => mudarPlano(indice, { aCadaMeses: anual ? emMeses(event.target.value) : event.target.value })}/></label>
             <label className="analise-rotulo-campo">até
-              <input type="month" data-testid="simulador-plano-ate" className="analise-campo" value={paraCampoDeMes(plano.ate)}
-                onChange={event => mudarPlano(indice, { ate: doCampoDeMes(event.target.value) })}/></label>
+              <CampoDeData testid="simulador-plano-ate" valor={plano.ate} ultimo={ultimoRegistro} onMudar={data => mudarPlano(indice, { ate: data })}/></label>
           </>}
           <label className="analise-rotulo-campo">Permanência (% ao ano)
             <input data-testid="simulador-plano-permanencia" inputMode="decimal" className="analise-campo" value={plano.permanencia}
@@ -382,24 +453,22 @@ export default function SimuladorDeCenarios(props: Props) {
       <label className="analise-rotulo-campo">Tipo
         <select data-testid="simulador-intervencao-tipo" className="analise-campo" value={item.tipo}
           onChange={event => mudarIntervencao(indice, k, { tipo: event.target.value as IntervencaoDaTela["tipo"] })}>
-          <option value="acrescimo">Acréscimo de médicos</option><option value="retirada">Retirada de médicos</option>
+          <option value="acrescimo">Acréscimo de {r.profissionais}</option><option value="retirada">Retirada de {r.profissionais}</option>
         </select></label>
-      <label className="analise-rotulo-campo">Médicos por evento
+      <label className="analise-rotulo-campo">{comMaiuscula(r.profissionais)} por evento
         <input data-testid="simulador-intervencao-quantidade" inputMode="decimal" className="analise-campo" value={item.quantidade}
           onChange={event => mudarIntervencao(indice, k, { quantidade: event.target.value })}/></label>
       <label className="analise-rotulo-campo">{item.periodica ? "Primeiro evento em" : "Em"}
-        <input type="month" data-testid="simulador-intervencao-em" className="analise-campo" value={paraCampoDeMes(item.em)} min={paraCampoDeMes(anosDepois(ultimoRegistro, 0))}
-          onChange={event => mudarIntervencao(indice, k, { em: doCampoDeMes(event.target.value) })}/></label>
+        <CampoDeData testid="simulador-intervencao-em" valor={item.em} ultimo={ultimoRegistro} comMinimo onMudar={data => mudarIntervencao(indice, k, { em: data })}/></label>
       <label className="analise-caixa ferramenta-caixa"><input type="checkbox" data-testid="simulador-intervencao-periodica" checked={item.periodica}
         onChange={event => mudarIntervencao(indice, k, { periodica: event.target.checked, ate: event.target.checked && item.ate <= item.em ? anosDepois(item.em || ultimoRegistro, 2) : item.ate })}/>
         <span>Repetir</span></label>
       {item.periodica && <>
-        <label className="analise-rotulo-campo">a cada (meses)
-          <input data-testid="simulador-intervencao-passo" inputMode="numeric" className="analise-campo" value={item.aCadaMeses}
-            onChange={event => mudarIntervencao(indice, k, { aCadaMeses: event.target.value })}/></label>
+        <label className="analise-rotulo-campo">{anual ? "a cada (anos)" : "a cada (meses)"}
+          <input data-testid="simulador-intervencao-passo" inputMode="numeric" className="analise-campo" value={anual ? emAnos(item.aCadaMeses) : item.aCadaMeses}
+            onChange={event => mudarIntervencao(indice, k, { aCadaMeses: anual ? emMeses(event.target.value) : event.target.value })}/></label>
         <label className="analise-rotulo-campo">até
-          <input type="month" data-testid="simulador-intervencao-ate" className="analise-campo" value={paraCampoDeMes(item.ate)}
-            onChange={event => mudarIntervencao(indice, k, { ate: doCampoDeMes(event.target.value) })}/></label>
+          <CampoDeData testid="simulador-intervencao-ate" valor={item.ate} ultimo={ultimoRegistro} onMudar={data => mudarIntervencao(indice, k, { ate: data })}/></label>
       </>}
       <label className="analise-rotulo-campo">Permanência (% ao ano)
         <input data-testid="simulador-intervencao-permanencia" inputMode="decimal" className="analise-campo" value={item.permanencia}
@@ -416,7 +485,7 @@ export default function SimuladorDeCenarios(props: Props) {
   const cenarioDaTabela = (cenario: CenarioCalculado, conjunto: boolean) => <td key={cenario.id} data-testid="simulador-final" data-cenario={cenario.id}
     data-estado={cenario.estado} title={cenario.motivo ?? cenario.texto ?? undefined}>{textoDoFinal(cenario, conjunto)}
     {cenario.estado === "calculado" && cenario.metodo.usado && <span data-testid="simulador-metodo-usado" className="ferramenta-apoio block"
-      title={"Método " + cenario.metodo.usado}>{metodoNaTabela(cenario, conjunto)}</span>}</td>;
+      title={"Método " + cenario.metodo.usado}>{metodoNaTabela(cenario, conjunto, r)}</span>}</td>;
 
   return <section data-testid="simulador" data-estado={carregando ? "carregando" : erro ? "erro" : resposta ? (desatualizado ? "desatualizado" : "pronto") : "configurando"}
     data-etapa={etapa} data-modo={config.modo} aria-labelledby="simulador-titulo" aria-busy={carregando || undefined} className="ferramenta">
@@ -429,7 +498,7 @@ export default function SimuladorDeCenarios(props: Props) {
       {config.doDetector.exploratorio ? ", com critérios diferentes do padrão (configuração exploratória)" : ""}. {config.doDetector.sinais.length
         ? "Sinais com nível lá: " + config.doDetector.sinais.join("; ") + "." : "Sem sinais com nível lá."} Os sinais descrevem registros reais; aqui, o que vem
       depois do último registro é cenário hipotético.{config.doDetector.recuperacao && " “Simular recuperação” trouxe, como meta hipotética que você pode " +
-        "trocar, a volta ao patamar anterior (etapa 3)."}{" "}
+        "trocar, a volta ao patamar anterior (" + (config.modo === "simples" ? "em “O que testar”" : "etapa 3") + ")."}{" "}
       <button type="button" data-testid="simulador-do-detector-dispensar" className="analise-link analise-nao-imprimir" onClick={() => mudar({ doDetector: undefined })}>
         Dispensar este aviso</button></p>}
     <div className="ferramenta-acoes analise-nao-imprimir">
@@ -437,23 +506,140 @@ export default function SimuladorDeCenarios(props: Props) {
         <button type="button" data-testid="simulador-modo-simples" className="analise-botao-secundario" aria-pressed={config.modo === "simples"}
           onClick={() => mudar({ modo: "simples" })}>Modo simples</button>
         <button type="button" data-testid="simulador-modo-avancado" className="analise-botao-secundario" aria-pressed={config.modo === "avancado"}
-          onClick={() => mudar({ modo: "avancado" })}>Modo avançado</button>
+          onClick={() => mudar({ modo: "avancado" })}>Avançado</button>
       </div>
       <button type="button" data-testid="simulador-exportar-cenario" className="analise-botao-secundario"
         onClick={() => baixar("cenario_do_simulador.json", exportarCenario(config, { versaoDoMetodo: resposta?.versao ?? "", versaoDaBase: p.fonte.datasetVersion,
-          ultimoRegistro, quando: new Date().toISOString() }), "application/json")}><Download size={14} aria-hidden="true"/>Exportar o cenário (JSON)</button>
+          ultimoRegistro, quando: new Date().toISOString(),
+          ...(p.daBase ? { base: { nome: resposta?.fonte.base || "planilha enviada", categoria: resposta?.fonte.categoria || p.daBase.categoria || "" } } : {}) }),
+        "application/json")}><Download size={14} aria-hidden="true"/>Exportar o cenário (JSON)</button>
       <button type="button" data-testid="simulador-importar-cenario" className="analise-botao-secundario" onClick={() => arquivo.current?.click()}>
         <Upload size={14} aria-hidden="true"/>Importar cenário (JSON)</button>
       <input ref={arquivo} type="file" accept="application/json,.json" data-testid="simulador-arquivo" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={importar}/>
     </div>
 
-    <ol className="ferramenta-etapas analise-nao-imprimir" aria-label="Etapas do Simulador">
+    {config.modo === "simples" && <div data-testid="simulador-simples" data-teste={teste} className="ferramenta-simples">
+      <div className="ferramenta-controles analise-nao-imprimir">
+        <label className="analise-rotulo-campo">Território
+          <select data-testid="simulador-territorio" className="analise-campo" value={territorioDoSimples} disabled={!doSimples.length}
+            onChange={event => mudar({ territorio: event.target.value })}>
+            {doSimples.map(item => <option key={item.id} value={item.id}>{item.rotulo}</option>)}
+          </select></label>
+        <label className="analise-rotulo-campo">Até quando
+          <CampoDeData testid="simulador-horizonte" valor={config.horizonte} ultimo={ultimoRegistro} comMinimo onMudar={data => mudar({ horizonte: data })}/></label>
+        <div role="group" aria-label="Atalhos da data final" className="ferramenta-atalhos">
+          {[1, 2, 4].map(anos => <button key={anos} type="button" data-testid={"simulador-atalho-" + anos} className="analise-botao-secundario"
+            aria-pressed={config.horizonte === anosDepois(ultimoRegistro, anos)} title={(anos === 1 ? "1 ano" : anos + " anos") + " depois do último registro"}
+            onClick={() => mudar({ horizonte: anosDepois(ultimoRegistro, anos) })}>{anos === 1 ? "1 ano" : anos + " anos"}</button>)}
+        </div>
+      </div>
+      {!doSimples.length && <p data-testid="simulador-sem-territorio" role="status" className="analise-motivo">Nenhum território na seleção do Simulador: escolha os
+        territórios na Seleção de Territórios ou em “Avançado”.</p>}
+      {avisoLocal && <p data-testid="simulador-aviso-local" role="status" className="ferramenta-apoio">{avisoLocal}</p>}
+      {cenarioDoSimples.metodo !== "padrao" && <p data-testid="simulador-metodo-do-avancado" role="status" className="ferramenta-exploratorio">
+        Este cenário usa um jeito de projetar escolhido no modo avançado ({nomeCurtoDoMetodo(cenarioDoSimples.metodo, r)}), e não o que a base escolheu.{" "}
+        <button type="button" className="analise-link" onClick={() => mudarCenario(0, { metodo: "padrao", taxaManual: "", janela: null })}>
+          Voltar ao jeito escolhido pela base</button></p>}
+      <fieldset data-testid="simulador-o-que-testar" className="ferramenta-teste analise-nao-imprimir">
+        <legend>O que testar</legend>
+        <div className="ferramenta-teste-opcoes">
+          {TESTES.map(item => <label key={item.chave} className="analise-caixa ferramenta-caixa"><input type="radio" name="simulador-teste"
+            data-testid={"simulador-teste-" + item.chave} checked={teste === item.chave}
+            onChange={() => mudarCenario(0, comOTeste(cenarioDoSimples, item.chave, anosDepois(ultimoRegistro, 1)))}/>{item.rotulo}</label>)}
+        </div>
+        {(teste === "acrescentar" || teste === "retirar") && cenarioDoSimples.intervencoes[0] && <p className="ferramenta-frase">
+          {teste === "acrescentar" ? "Acrescentar " : "Retirar "}
+          <input data-testid="simulador-teste-quantidade" inputMode="decimal" className="ferramenta-campo-da-frase" size={4}
+            aria-label={(teste === "acrescentar" ? "Quantos acrescentar" : "Quantos retirar")} value={cenarioDoSimples.intervencoes[0].quantidade}
+            onChange={event => mudarIntervencao(0, 0, { quantidade: event.target.value })}/> {r.profissionais} em{" "}
+          <CampoDeData testid="simulador-teste-em" className="ferramenta-campo-da-frase" rotulo="Data da mudança" valor={cenarioDoSimples.intervencoes[0].em}
+            ultimo={ultimoRegistro} comMinimo onMudar={data => mudarIntervencao(0, 0, { em: data, ate: data })}/>. É uma hipótese sua: o
+          crescimento histórico não é aplicado a quem entra.</p>}
+        {teste === "meta" && cenarioDoSimples.planejamento && <p className="ferramenta-frase">
+          Chegar a{" "}
+          <input data-testid="simulador-teste-meta-valor" inputMode="decimal" className="ferramenta-campo-da-frase" size={6} aria-label="Meta hipotética"
+            value={cenarioDoSimples.planejamento.valor}
+            onChange={event => mudarPlano(0, { valor: event.target.value, ...(cenarioDoSimples.planejamento!.meta === "referencia" ? { meta: "valor" as const } : {}) })}/>{" "}
+          {r.profissionais} na data final, com um acréscimo em{" "}
+          <CampoDeData testid="simulador-teste-em" className="ferramenta-campo-da-frase" rotulo="Data do acréscimo" valor={cenarioDoSimples.planejamento.em}
+            ultimo={ultimoRegistro} comMinimo onMudar={data => mudarPlano(0, { em: data, ate: data })}/>.{" "}
+          {cenarioDoSimples.planejamento.meta === "patamar" ? "A meta é o patamar anterior, trazido pelo Detector de Sinais: uma hipótese que você pode trocar. "
+            : "A meta é uma hipótese sua. "}O Agente calcula quantos faltariam, com o menor número inteiro.</p>}
+      </fieldset>
+      <div className="ferramenta-detalhe-acoes analise-nao-imprimir">
+        <button type="button" data-testid="simulador-calcular" className="analise-botao-primario" disabled={!!pendencia || carregando} onClick={calcular}>
+          {carregando ? "Calculando…" : "Calcular"}</button>
+        {pendencia && <span data-testid="simulador-pendencia" role="status" className="ferramenta-apoio">{pendencia}</span>}
+      </div>
+      {erro && <p data-testid="simulador-erro" role="alert" className="analise-motivo">{erro}</p>}
+      {resposta && territorioEmFoco && resultadoDoSimples && <div data-testid="simulador-resultado" data-estado={resultadoDoSimples.estado}
+        data-metodo={resultadoDoSimples.metodo.usado ?? ""} data-faixa={resultadoDoSimples.faixa.estado} data-conferencia={resultadoDoSimples.final?.faixa?.estado ?? ""}
+        className="ferramenta-etapa-corpo">
+        {desatualizado && <p data-testid="simulador-desatualizado" role="status" className="ferramenta-exploratorio">As escolhas mudaram depois deste cálculo.{" "}
+          <button type="button" className="analise-link" disabled={!!pendencia || carregando} onClick={calcular}>Calcular de novo</button></p>}
+        <p className="ferramenta-apoio">Contagem: {territorioEmFoco.unidade}.{territorioEmFoco.membros.length > 0 && " Componentes: " + territorioEmFoco.membros.join(", ") + "."}</p>
+        <GraficoDoCenario territorio={territorioEmFoco} ultimoRegistro={resposta.ultimoRegistro} cores={cores} metrica={resposta.comparacao.metrica}
+          r={r} fonte={resposta.fonte} em10={resposta.retroprojecao.em10}/>
+        {resultadoDoSimples.estado === "calculado" ? <>
+          <p data-testid="simulador-texto" className="ferramenta-texto-do-cenario">{resultadoDoSimples.texto}</p>
+          <dl data-testid="simulador-tres-numeros" className="ferramenta-tres-numeros">
+            {tresNumeros(resultadoDoSimples, r).map(item => <div key={item.rotulo}><dt>{item.rotulo}</dt><dd>{item.valor}</dd></div>)}
+          </dl>
+          {resultadoDoSimples.entenda && <p className="ferramenta-entendas">
+            <span>Jeito de projetar: {resultadoDoSimples.metodo.rotulo}{resultadoDoSimples.metodo.eOEscolhido ? " (escolhido pela base)" : ""}</span>
+            <Entenda sobre="O jeito de projetar" texto={resultadoDoSimples.entenda.jeito.texto} exemplo={resultadoDoSimples.entenda.jeito.exemplo}
+              testid="simulador-entenda-jeito" onCompleta={abrirAValidacao}/>
+            <span data-testid="simulador-faixa-estado">Faixa de {resultadoDoSimples.faixa.em10} em cada 10: {!resultadoDoSimples.final?.faixa ? "indisponível"
+              : resultadoDoSimples.final.faixa.estado === "conferida" ? "conferida" : "provisória"}</span>
+            <Entenda sobre={"A faixa de " + resultadoDoSimples.faixa.em10 + " em cada 10"} texto={resultadoDoSimples.entenda.faixa.texto}
+              exemplo={resultadoDoSimples.entenda.faixa.exemplo} testid="simulador-entenda-faixa" onCompleta={abrirAValidacao}/>
+          </p>}
+          <p data-testid="simulador-faixa-texto" className="ferramenta-apoio">{textoDaFaixa(resultadoDoSimples, territorioEmFoco.tipo === "conjunto", r)}</p>
+          {resultadoDoSimples.planejamento && <div data-testid="simulador-planejamento" data-estado={resultadoDoSimples.planejamento.estado}
+            data-por-evento={resultadoDoSimples.planejamento.porEvento ?? ""} data-eventos={resultadoDoSimples.planejamento.eventos} className="ferramenta-plano-resultado">
+            <p className="ferramenta-cartao-titulo">Chegar à meta<span className="analise-marca-grupo">conta condicional</span></p>
+            {resultadoDoSimples.planejamento.texto ? <p data-testid="simulador-planejamento-texto" className="ferramenta-texto-do-cenario">{resultadoDoSimples.planejamento.texto}</p>
+              : <p data-testid="simulador-planejamento-motivo" role="status" className="analise-motivo">{resultadoDoSimples.planejamento.meta ? resultadoDoSimples.planejamento.meta.rotulo + ". " : ""}
+                {resultadoDoSimples.planejamento.estado === "nao_alcancavel" ? "Não alcançável: " : "Não calculável: "}{resultadoDoSimples.planejamento.motivo}</p>}
+          </div>}
+          {hipotesePertinente(resultadoDoSimples.hipotetico) && <div data-testid="simulador-hipotetico" data-classe={resultadoDoSimples.hipotetico.classe ?? ""} className="ferramenta-hipotese">
+            <p className="ferramenta-cartao-titulo">Poucos {r.profissionais}, no cenário<span className="analise-marca-grupo">{resultadoDoSimples.hipotetico.rotulo}</span></p>
+            <p className="ferramenta-apoio">{textoDaHipotese(resultadoDoSimples.hipotetico, r)}</p>
+          </div>}
+          {resultadoDoSimples.avisos.length > 0 && <ul data-testid="simulador-avisos" className="ferramenta-notas">
+            {resultadoDoSimples.avisos.map(aviso => <li key={aviso.codigo} data-codigo={aviso.codigo}>{aviso.texto}</li>)}</ul>}
+        </> : <p data-testid="simulador-motivo" role="status" className="analise-motivo">{resultadoDoSimples.estado === "retirada_acima_do_estoque" ? "Retirada acima do estoque: "
+          : resultadoDoSimples.estado === "nao_aplicavel" ? "Não se aplica: " : "Não calculável: "}{resultadoDoSimples.motivo}</p>}
+        <div ref={validacao} className="ferramenta-metodo">
+          <button type="button" data-testid="simulador-validacao-botao" className="analise-link" aria-expanded={verValidacao} onClick={() => setVerValidacao(valor => !valor)}>
+            {verValidacao ? "Fechar “Como os métodos se saíram no passado”" : "Como os métodos se saíram no passado"}</button>
+          {verValidacao && <div data-testid="simulador-validacao" className="ferramenta-metodo-corpo">
+            <ul data-testid="simulador-escolhas" className="ferramenta-notas">
+              {Object.entries(resposta.retroprojecao.escolhas).map(([nivel, escolha]) => <li key={nivel} data-nivel={nivel} data-metodo={escolha.metodo}>{escolha.texto}
+                {escolha.candidatos.length > 0 && <span className="ferramenta-apoio block">Erro frente a manter o último valor (1,00 = igual; abaixo de 1, erra menos):{" "}
+                  {escolha.candidatos.map(item => item.rotulo + ", " + (item.frenteAoM0 === null ? "—" : item.frenteAoM0.toLocaleString("pt-BR",
+                    { minimumFractionDigits: 3, maximumFractionDigits: 3 })) + " (menos erro em " + item.menosErroEm + " de " + item.combinacoes + ")").join("; ")}.</span>}</li>)}
+            </ul>
+            <ul className="ferramenta-notas">{resposta.notas.map(nota => <li key={nota}>{nota}</li>)}</ul>
+          </div>}
+        </div>
+        <p data-testid="simulador-versoes" className="ferramenta-apoio">Método {resposta.versao} · base {resposta.fonte.base} ({resposta.fonte.categoria.toLowerCase()}), versão{" "}
+          {resposta.fonte.versao.slice(0, 12)} · último registro da base: {competenciaCurta(resposta.ultimoRegistro)}.</p>
+      </div>}
+      {carregando && !resposta && <p role="status" className="analise-vazio"><LoaderCircle size={18} className="animate-spin" aria-hidden="true"/>Calculando o cenário…</p>}
+      <p className="ferramenta-apoio analise-nao-imprimir">
+        <button type="button" data-testid="simulador-avancado" className="analise-link"
+          onClick={() => mudar({ modo: "avancado" })}>Avançado<ChevronRight size={14} className="inline" aria-hidden="true"/></button>{" "}
+        Vários cenários, outros jeitos de projetar e outras janelas, referências, calendário de acréscimos e permanência, conjuntos e vários territórios, exportar e importar.</p>
+    </div>}
+
+    {config.modo === "avancado" && <ol className="ferramenta-etapas analise-nao-imprimir" aria-label="Etapas do Simulador">
       {["Territórios em análise", "Base histórica e método", "Intervenções e horizonte", "Comparações e resultados"].map((nome, indice) => <li key={nome}>
         <button type="button" data-testid={"simulador-etapa-" + (indice + 1)} aria-current={etapa === indice + 1 ? "step" : undefined} className="ferramenta-etapa"
           disabled={indice === 3 && !resposta} onClick={() => setEtapa(indice + 1)}><span className="ferramenta-etapa-numero">{indice + 1}</span>{nome}</button></li>)}
-    </ol>
+    </ol>}
 
-    {etapa === 1 && <div data-testid="simulador-territorios" className="ferramenta-etapa-corpo">
+    {etapaVisivel === 1 && <div data-testid="simulador-territorios" className="ferramenta-etapa-corpo">
       <p data-testid="simulador-origem-da-selecao" data-acompanha={config.acompanha ? "true" : "false"} className="ferramenta-apoio">{config.acompanha
         ? <>Esta é uma <strong>cópia</strong> da seleção principal ({p.resumoDaPrincipal}). O que você acrescentar ou tirar aqui vale só no Simulador;
           a seleção principal só muda com “Aplicar à seleção principal”.</>
@@ -467,8 +653,9 @@ export default function SimuladorDeCenarios(props: Props) {
           Esvaziar a seleção local</button></p>}
       <ul data-testid="simulador-locais" data-total={total} className="analise-selecionado-unidades" aria-label="Territórios do Simulador">
         {config.local.brasil && <li data-testid="simulador-local" data-id={ID_DO_BRASIL} className="analise-etiqueta"
-          title="A contagem nacional de médicos únicos; não é a soma dos estados nem dos municípios">Brasil (contagem nacional)
-          <button type="button" className="analise-icone analise-icone-pequeno" aria-label="Tirar o Brasil do Simulador"
+          title={daPlanilha ? "A soma das contagens d" + formas.osUnidades + " com registro em cada data"
+            : "A contagem nacional de médicos únicos; não é a soma dos estados nem dos municípios"}>{nomeDoTodo} ({oQueEOTodo})
+          <button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Tirar " + formas.oTodo + " do Simulador"}
             onClick={() => mudarLocal(tirarTerritorio(config.local, ID_DO_BRASIL))}><X size={13} aria-hidden="true"/></button></li>}
         {config.local.estados.map(prefixo => <li key={"uf:" + prefixo} data-testid="simulador-local" data-id={"uf:" + prefixo} className="analise-etiqueta">
           {estadoComoUnidade(prefixo)}<button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Tirar " + nomeDoEstado(prefixo) + " do Simulador"}
@@ -481,7 +668,7 @@ export default function SimuladorDeCenarios(props: Props) {
         {config.local.municipios.slice(0, 150).map(id => <li key={id} data-testid="simulador-local" data-id={id} className="analise-etiqueta">{nomeDe(id)}
           <button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Tirar " + nomeDe(id) + " do Simulador"}
             onClick={() => mudarLocal(tirarTerritorio(config.local, id))}><X size={13} aria-hidden="true"/></button></li>)}
-        {config.local.municipios.length > 150 && <li className="ferramenta-apoio">e mais {(config.local.municipios.length - 150).toLocaleString("pt-BR")} municípios</li>}
+        {config.local.municipios.length > 150 && <li className="ferramenta-apoio">e mais {(config.local.municipios.length - 150).toLocaleString("pt-BR")} {r.unidades}</li>}
         {!total && <li className="ferramenta-apoio">Nenhum território no Simulador: busque abaixo ou copie a seleção principal.</li>}
       </ul>
       {config.local.conjuntos.length > 0 && <div className="ferramenta-metodo">
@@ -490,20 +677,21 @@ export default function SimuladorDeCenarios(props: Props) {
         {verComposicao && <ul data-testid="simulador-composicao" className="ferramenta-notas">
           {config.local.conjuntos.map(conjunto => <li key={conjunto.id} data-id={conjunto.id}><strong>{conjunto.rotulo}</strong>{conjunto.versao ? " (versão " + conjunto.versao + ")" : ""}:{" "}
             {conjunto.membros.map(nomeDoMembro).join(", ")}.</li>)}
-          <li>O valor de um conjunto é a soma das contagens dos componentes, não o número de médicos diferentes.</li>
+          <li>O valor de um conjunto é a soma das contagens dos componentes, não o número de {daPlanilha ? "pessoas" : "médicos"} diferentes.</li>
         </ul>}
       </div>}
-      <label className="analise-rotulo-campo ferramenta-busca">Acrescentar um território (município, estado ou o Brasil), só no Simulador
+      <label className="analise-rotulo-campo ferramenta-busca">Acrescentar um território ({daPlanilha ? r.unidade + " ou " + formas.oTodo : "município, estado ou o Brasil"}), só no Simulador
         <input type="search" data-testid="simulador-busca" className="analise-campo" value={busca} autoComplete="off" placeholder="Digite o nome"
           onChange={event => { setBusca(event.target.value); setAvisoLocal(null); }}/></label>
       {achados && <ul data-testid="simulador-achados" className="ferramenta-achados">
         {achados.brasil && <li key="br"><button type="button" data-testid="simulador-acrescentar" data-id={ID_DO_BRASIL} className="analise-botao-secundario"
-          onClick={() => { if (config.local.brasil) setAvisoLocal("O Brasil já está na seleção do Simulador."); else { setAvisoLocal(null); mudarLocal(comOBrasil(config.local, true)); } }}>
-          <Plus size={13} aria-hidden="true"/>Brasil (contagem nacional de médicos únicos)</button></li>}
+          onClick={() => { if (config.local.brasil) setAvisoLocal(comMaiuscula(formas.oTodo) + " já está na seleção do Simulador."); else { setAvisoLocal(null); mudarLocal(comOBrasil(config.local, true)); } }}>
+          <Plus size={13} aria-hidden="true"/>{daPlanilha ? nomeDoTodo + " (" + oQueEOTodo + ")" : "Brasil (contagem nacional de médicos únicos)"}</button></li>}
         {achados.estados.map(g => <li key={"uf" + g.id}><button type="button" data-testid="simulador-acrescentar" data-id={"uf:" + g.id} className="analise-botao-secundario"
           onClick={() => acrescentar({ tipo: "estado", id: g.id, grupo: g.id })}><Plus size={13} aria-hidden="true"/>{g.nome} como estado (unidade)</button></li>)}
         {achados.municipios.map(item => <li key={item.id}><button type="button" data-testid="simulador-acrescentar" data-id={item.id} className="analise-botao-secundario"
-          onClick={() => acrescentar({ tipo: "municipio", id: item.id, grupo: item.state_code || item.id.slice(5, 7) })}><Plus size={13} aria-hidden="true"/>{nomeDe(item.id)}</button></li>)}
+          onClick={() => acrescentar({ tipo: "municipio", id: item.id, grupo: p.grupoDe ? p.grupoDe(item.id) : item.state_code || item.id.slice(5, 7) })}>
+          <Plus size={13} aria-hidden="true"/>{nomeDe(item.id)}</button></li>)}
         {!achados.brasil && !achados.estados.length && !achados.municipios.length && <li className="ferramenta-apoio">Nada encontrado com “{busca.trim()}”.</li>}
       </ul>}
       {avisoLocal && <p data-testid="simulador-aviso-local" role="status" className="ferramenta-apoio">{avisoLocal}</p>}
@@ -515,25 +703,25 @@ export default function SimuladorDeCenarios(props: Props) {
       <div data-testid="simulador-referencias" data-total={referencias.length} data-metrica={config.metrica ?? "quantidade"} className="ferramenta-cartao">
         <p className="ferramenta-cartao-titulo">Referências de comparação (opcional)</p>
         <p className="ferramenta-apoio">Uma referência é um território, ou um valor seu, com que cada cenário é comparado. Ela pode ficar fora da seleção do
-          Simulador e não muda a seleção principal. <strong>Fixa</strong>: o último valor registrado se mantém. <strong>Dinâmica</strong>: segue o método padrão
-          provisório dela, sem intervenções.</p>
+          Simulador e não muda a seleção principal. <strong>Fixa</strong>: o último valor registrado se mantém. <strong>Dinâmica</strong>: segue o jeito de
+          projetar que a base escolheu para o nível dela, sem intervenções.</p>
         {referencias.length > 0 && <ul data-testid="simulador-referencias-lista" className="ferramenta-referencias" aria-label="Referências de comparação">
           {referencias.map(ref => <li key={ref.id} data-testid="simulador-referencia-item" data-id={ref.id} data-alvo={ref.alvo} data-tipo={ref.tipo}
             className="ferramenta-referencia">
             <span className="ferramenta-referencia-nome">{ref.rotulo}</span>
-            {ref.tipo === "valor" ? <label className="analise-rotulo-campo">{config.metrica === "taxa" ? "Valor (médicos por 1.000 habitantes)" : "Valor (médicos)"}
+            {ref.tipo === "valor" ? <label className="analise-rotulo-campo">{config.metrica === "taxa" ? "Valor (" + r.profissionais + " por 1.000 habitantes)" : "Valor (" + r.profissionais + ")"}
               <input data-testid="simulador-referencia-valor" inputMode="decimal" className="analise-campo" value={ref.valor}
                 onChange={event => mudarReferencia(ref.id, { valor: event.target.value })}/></label>
               : <label className="analise-rotulo-campo">Como evolui
                 <select data-testid="simulador-referencia-tipo" className="analise-campo" value={ref.tipo}
                   onChange={event => mudarReferencia(ref.id, { tipo: event.target.value as ReferenciaDaTela["tipo"] })}>
-                  <option value="fixa">Fixa: o último valor se mantém</option><option value="dinamica">Dinâmica: segue o método padrão</option>
+                  <option value="fixa">Fixa: o último valor se mantém</option><option value="dinamica">Dinâmica: segue o jeito escolhido pela base</option>
                 </select></label>}
             <button type="button" className="analise-icone" aria-label={"Tirar a referência " + ref.rotulo}
               onClick={() => mudar({ referencias: referencias.filter(item => item.id !== ref.id) })}><Trash2 size={14} aria-hidden="true"/></button>
           </li>)}
         </ul>}
-        <label className="analise-rotulo-campo ferramenta-busca">Acrescentar uma referência (município ou estado)
+        <label className="analise-rotulo-campo ferramenta-busca">Acrescentar uma referência ({daPlanilha ? r.unidade : "município ou estado"})
           <input type="search" data-testid="simulador-referencia-busca" className="analise-campo" value={buscaDeReferencia} autoComplete="off" placeholder="Digite o nome"
             disabled={referencias.length >= MAX_REFERENCIAS} onChange={event => { setBuscaDeReferencia(event.target.value); setAvisoDeReferencia(null); }}/></label>
         {achadosDeReferencia && <ul data-testid="simulador-referencia-achados" className="ferramenta-achados">
@@ -547,7 +735,7 @@ export default function SimuladorDeCenarios(props: Props) {
         </ul>}
         <div className="ferramenta-detalhe-acoes">
           <button type="button" data-testid="simulador-referencia-brasil" className="analise-botao-secundario" disabled={referencias.length >= MAX_REFERENCIAS}
-            onClick={() => acrescentarReferencia({ alvo: ID_DO_BRASIL, rotulo: "Brasil", tipo: "fixa" })}><Plus size={13} aria-hidden="true"/>Brasil</button>
+            onClick={() => acrescentarReferencia({ alvo: ID_DO_BRASIL, rotulo: nomeDoTodo, tipo: "fixa" })}><Plus size={13} aria-hidden="true"/>{nomeDoTodo}</button>
           {config.local.conjuntos.map(conjunto => <button key={conjunto.id} type="button" data-testid="simulador-referencia-conjunto" data-id={conjunto.id}
             className="analise-botao-secundario" disabled={referencias.length >= MAX_REFERENCIAS}
             onClick={() => acrescentarReferencia({ alvo: conjunto.id, rotulo: comoConjunto(conjunto.rotulo), tipo: "fixa" })}>
@@ -560,29 +748,30 @@ export default function SimuladorDeCenarios(props: Props) {
           <label className="analise-rotulo-campo ferramenta-busca">Comparar por
             <select data-testid="simulador-metrica" className="analise-campo" value={config.metrica ?? "quantidade"}
               onChange={event => mudar({ metrica: event.target.value === "taxa" ? "taxa" : "quantidade" })}>
-              <option value="quantidade">Quantidade de médicos</option>
+              <option value="quantidade">Quantidade de {r.profissionais}</option>
               <option value="taxa">Taxa por 1.000 habitantes, com a população constante</option>
             </select></label>
           <p data-testid="simulador-metrica-apoio" className="ferramenta-apoio">{config.metrica === "taxa"
             ? "Hipótese: a população do último registro (" + competenciaCurta(ultimoRegistro) + ") vale em todas as datas simuladas; a base não traz população " +
               "futura. Um valor seu é lido como taxa."
-            : "Comparar a quantidade de médicos de territórios de portes diferentes não é comparar a suficiência do atendimento."} A comparação mostra a
+            : "Comparar a quantidade de " + r.profissionais + " de territórios de portes diferentes não é comparar a suficiência do atendimento."} A comparação mostra a
             diferença, a razão e o índice (100 é a referência); uma referência que contém o território, ou é parte dele, leva o aviso de sobreposição.</p>
         </>}
       </div>
       <div className="ferramenta-detalhe-acoes">
         <button type="button" data-testid="simulador-copiar-principal" className="analise-botao-secundario" disabled={!p.principal}
-          onClick={() => { const copia = copiaDaPrincipal(); mudar({ local: copia, acompanha: true, doDetector: undefined, referencias: referenciasValidas(config.referencias, copia) });
+          onClick={() => { const copia = copiaDaPrincipal(); mudar({ local: copia, acompanha: true, doDetector: undefined, janelaDoDetector: undefined, referencias: referenciasValidas(config.referencias, copia) });
             setAvisoLocal("Seleção principal copiada de novo."); }}>Copiar de novo a seleção principal</button>
         <button type="button" data-testid="simulador-aplicar-principal" className="analise-botao-secundario" disabled={!paraAPrincipal}
           title="Leva estes territórios à Seleção de Territórios; pode ser desfeito pelo Desfazer" onClick={() => { p.onAplicarSelecao(config.local);
-            setAvisoLocal("A seleção do Simulador foi aplicada à seleção principal." + (config.local.brasil ? " O Brasil fica só no Simulador: a seleção principal " +
-              "não o tem como unidade." : "")); }}>Aplicar à seleção principal</button>
+            setAvisoLocal("A seleção do Simulador foi aplicada à seleção principal." + (!config.local.brasil ? "" : daPlanilha
+              ? " " + nomeDoTodo + " fica só no Simulador: a seleção principal não tem o todo como unidade."
+              : " O Brasil fica só no Simulador: a seleção principal não o tem como unidade.")); }}>Aplicar à seleção principal</button>
         <button type="button" data-testid="simulador-avancar-1" className="analise-botao-primario" disabled={!total || total > MAX_TERRITORIOS} onClick={() => setEtapa(2)}>Seguir: base histórica e método</button>
       </div>
     </div>}
 
-    {etapa === 2 && <div data-testid="simulador-base" className="ferramenta-etapa-corpo">
+    {etapaVisivel === 2 && <div data-testid="simulador-base" className="ferramenta-etapa-corpo">
       <div className="ferramenta-controles">
         <label className="analise-rotulo-campo">Janela histórica: de
           <select data-testid="simulador-janela-inicio" className="analise-campo" value={janela?.inicio ?? ""}
@@ -597,13 +786,13 @@ export default function SimuladorDeCenarios(props: Props) {
         <div role="group" aria-label="Atalhos da janela" className="ferramenta-atalhos">
           <button type="button" data-testid="simulador-janela-padrao" className="analise-botao-secundario" disabled={!config.janela}
             onClick={() => mudar({ janela: null })}>Janela padrão (3 anos)</button>
-          <button type="button" data-testid="simulador-janela-5-anos" className="analise-botao-secundario" disabled={p.competencias.length < 11}
-            onClick={() => mudar({ janela: { inicio: p.competencias[Math.max(0, p.competencias.length - 11)], fim: ultimoRegistro } })}>Últimos 5 anos</button>
+          <button type="button" data-testid="simulador-janela-5-anos" className="analise-botao-secundario" disabled={!janelaDeAnos(p.competencias, 5)}
+            onClick={() => mudar({ janela: janelaDeAnos(p.competencias, 5) })}>Últimos 5 anos</button>
           <button type="button" data-testid="simulador-janela-completa" className="analise-botao-secundario" disabled={p.competencias.length < 2}
             onClick={() => mudar({ janela: { inicio: p.competencias[0], fim: ultimoRegistro } })}>Série completa</button>
         </div>
       </div>
-      <p className="ferramenta-apoio">A janela usa só registros reais, de janeiro e junho (5 e 7 meses entre um e outro).{janela && " De " + competenciaCurta(janela.inicio) +
+      <p className="ferramenta-apoio">A janela usa só registros reais{daPlanilha ? "" : ", de janeiro e junho (5 e 7 meses entre um e outro)"}.{janela && " De " + competenciaCurta(janela.inicio) +
         " a " + competenciaCurta(janela.fim) + ": " + ((mesDe(janela.fim) - mesDe(janela.inicio)) / 12).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " anos."}
         {janela && janela.fim !== ultimoRegistro && " Com a origem antes do último registro, o cenário também é calculado para as datas que já têm registro, até " +
           competenciaCurta(ultimoRegistro) + ", para comparar com o observado."}</p>
@@ -614,7 +803,7 @@ export default function SimuladorDeCenarios(props: Props) {
       <p className="ferramenta-apoio">A persistência (M0) entra sempre como referência de comparação. Comparar métodos e janelas mostra a sensibilidade ao método e à janela, não
         uma faixa de confiança.</p>
       {!territorioEmFoco && <p data-testid="simulador-estatisticas-depois" className="ferramenta-apoio">As estatísticas históricas de cada território (registros usáveis, lacunas,
-        taxas de junho a junho, taxa composta e média aritmética, esta só como descrição) aparecem aqui depois de calcular.</p>}
+        taxas {daPlanilha ? "de um ano para o outro" : "de junho a junho"}, taxa composta e média aritmética, esta só como descrição) aparecem aqui depois de calcular.</p>}
       {territorioEmFoco && resposta && <div data-testid="simulador-estatisticas" className="ferramenta-cartao">
         <p className="ferramenta-cartao-titulo">Estatísticas históricas de {territorioEmFoco.rotulo} (só descrição do passado)</p>
         {resposta.territorios.length > 1 && <label className="analise-rotulo-campo ferramenta-busca">Território
@@ -623,7 +812,8 @@ export default function SimuladorDeCenarios(props: Props) {
           </select></label>}
         <p className="ferramenta-apoio">{territorioEmFoco.historico.registros} registros usáveis{territorioEmFoco.historico.de ? ", de " + competenciaCurta(territorioEmFoco.historico.de) + " a " +
           competenciaCurta(territorioEmFoco.historico.ate) : ""}{territorioEmFoco.lacunas.length ? "; sem registro em " + territorioEmFoco.lacunas.map(competenciaCurta).join(", ") : ""}.
-          {territorioEmFoco.historico.taxasDeJunho.length > 0 && " Taxas de junho a junho: " + territorioEmFoco.historico.taxasDeJunho.map(taxa =>
+          {territorioEmFoco.historico.taxasDeJunho.length > 0 && " Taxas " + (mesDaSerieAnual ? "de " + mesDaSerieAnual + " a " + mesDaSerieAnual : "de um ano para o outro") +
+            ": " + territorioEmFoco.historico.taxasDeJunho.map(taxa =>
             competenciaCurta(taxa.ate) + " " + formatarTaxa(taxa.taxaPct)).join("; ") + "."}</p>
         <dl className="ferramenta-numeros">
           <div><dt>Taxa composta (M1)</dt><dd data-testid="simulador-taxa-composta">{territorioEmFoco.historico.taxaCompostaPct === null ? "não definida" : formatarTaxa(territorioEmFoco.historico.taxaCompostaPct) + " ao ano"}</dd></div>
@@ -639,25 +829,29 @@ export default function SimuladorDeCenarios(props: Props) {
       </div>
     </div>}
 
-    {etapa === 3 && <div data-testid="simulador-intervencoes-etapa" className="ferramenta-etapa-corpo">
+    {etapaVisivel === 3 && <div data-testid="simulador-intervencoes-etapa" className="ferramenta-etapa-corpo">
       <div className="ferramenta-controles">
         <label className="analise-rotulo-campo">Data final do cenário
-          <input type="month" data-testid="simulador-horizonte" className="analise-campo" value={paraCampoDeMes(config.horizonte)} min={paraCampoDeMes(anosDepois(ultimoRegistro, 0))}
-            onChange={event => mudar({ horizonte: doCampoDeMes(event.target.value) })}/></label>
+          <CampoDeData testid="simulador-horizonte" valor={config.horizonte} ultimo={ultimoRegistro} comMinimo onMudar={data => mudar({ horizonte: data })}/></label>
         <div role="group" aria-label="Atalhos da data final" className="ferramenta-atalhos">
           {[1, 2, 4, 10].map(anos => <button key={anos} type="button" data-testid={"simulador-atalho-" + anos} className="analise-botao-secundario"
             aria-pressed={config.horizonte === anosDepois(ultimoRegistro, anos)} onClick={() => mudar({ horizonte: anosDepois(ultimoRegistro, anos) })}>
             {anos === 1 ? "1 ano" : anos + " anos"} depois do último registro</button>)}
         </div>
       </div>
-      <p className="ferramenta-apoio">Os atalhos são só atalhos: qualquer mês depois do último registro vale como data final. A faixa de 80% existe até 4 anos; além disso, é
-        indisponível.</p>
+      <p className="ferramenta-apoio">Os atalhos são só atalhos: qualquer {anual ? "ano" : "mês"} depois do último registro vale como data final.</p>
+      <p className="ferramenta-frase">Mostrar a faixa onde o valor real ficou em{" "}
+        <select data-testid="simulador-faixa-em-10" className="ferramenta-campo-da-frase" aria-label="Faixa: quantos em cada 10" value={config.faixa ?? 8}
+          onChange={event => mudar({ faixa: Number(event.target.value) as 5 | 8 | 9 })}>
+          {[5, 8, 9].map(quantos => <option key={quantos} value={quantos}>{quantos}</option>)}
+        </select>{" "}de cada 10 retroprojeções de territórios do mesmo porte. A faixa existe só para o jeito de projetar e a janela que a própria base escolheu, até o
+        maior prazo com casos suficientes; fora disso, é indisponível, com o motivo.</p>
       <p className="ferramenta-cartao-titulo">Intervenções hipotéticas</p>
-      <p className="ferramenta-apoio">Acréscimos e retiradas somam-se à base do cenário; o crescimento histórico não é aplicado aos médicos acrescentados. Permanência de 100% ao
+      <p className="ferramenta-apoio">Acréscimos e retiradas somam-se à base do cenário; o crescimento histórico não é aplicado aos {r.profissionais} acrescentados. Permanência de 100% ao
         ano (todos ficam) é a hipótese padrão. Um acréscimo anual acontece uma vez por ano.</p>
       <p data-testid="simulador-por-territorio" role="note" className="ferramenta-aviso">{total > 1
         ? <>Cada intervenção vale para <strong>cada território</strong> do cenário, não para o total: com {total.toLocaleString("pt-BR")} territórios na seleção do
-          Simulador, um acréscimo de 5 médicos soma 5 a cada um deles (municípios, estados como unidade e conjuntos).</>
+          Simulador, um acréscimo de 5 {r.profissionais} soma 5 a cada um deles ({daPlanilha ? r.unidades + " e conjuntos" : "municípios, estados como unidade e conjuntos"}).</>
         : <>A intervenção vale para o território do cenário. Com mais territórios, ela vale para cada um deles, não para o total.</>}</p>
       {(config.modo === "simples" ? config.cenarios.slice(0, 1) : config.cenarios).map((cenario, indice) => intervencoesDo(cenario, indice))}
       <div className="ferramenta-detalhe-acoes">
@@ -668,13 +862,13 @@ export default function SimuladorDeCenarios(props: Props) {
       </div>
     </div>}
 
-    {erro && <p data-testid="simulador-erro" role="alert" className="analise-motivo">{erro}</p>}
-    {etapa !== 3 && etapa !== 4 && <div className="ferramenta-detalhe-acoes analise-nao-imprimir">
+    {config.modo === "avancado" && erro && <p data-testid="simulador-erro" role="alert" className="analise-motivo">{erro}</p>}
+    {config.modo === "avancado" && etapa !== 3 && etapa !== 4 && <div className="ferramenta-detalhe-acoes analise-nao-imprimir">
       <button type="button" data-testid="simulador-calcular-direto" className="analise-botao-secundario" disabled={!!pendencia || carregando} onClick={calcular}>
         {carregando ? "Calculando…" : resposta ? "Calcular de novo" : "Calcular com o que está escolhido"}</button>
     </div>}
 
-    {etapa === 4 && resposta && <div data-testid="simulador-resultados" className="ferramenta-etapa-corpo">
+    {etapaVisivel === 4 && resposta && <div data-testid="simulador-resultados" className="ferramenta-etapa-corpo">
       {desatualizado && <p data-testid="simulador-desatualizado" role="status" className="ferramenta-exploratorio">As escolhas mudaram depois deste cálculo.{" "}
         <button type="button" className="analise-link" disabled={!!pendencia || carregando} onClick={calcular}>Calcular de novo</button></p>}
       <div className="ferramenta-controles">
@@ -691,13 +885,14 @@ export default function SimuladorDeCenarios(props: Props) {
       </div>
       {resposta.referencias.length > 0 && <div data-testid="simulador-referencias-do-calculo" data-metrica={resposta.comparacao.metrica} className="ferramenta-apoio">
         Referências deste cálculo, comparadas por {resposta.comparacao.metrica === "taxa" ? "taxa por 1.000 habitantes (hipótese: população " +
-          (resposta.comparacao.hipoteseDePopulacao ?? "constante") + ")" : "quantidade de médicos"}:{" "}
+          (resposta.comparacao.hipoteseDePopulacao ?? "constante") + ")" : "quantidade de " + r.profissionais}:{" "}
         {resposta.referencias.map(ref => ref.rotulo + " — " + (ref.estado === "calculada" ? ref.descricao ?? "" : "não calculável: " + (ref.motivo ?? "")) +
           (ref.unidade ? ". Contagem: " + ref.unidade : "")).join(". ")}.{" "}
         <button type="button" className="analise-link analise-nao-imprimir" onClick={() => setEtapa(1)}>Mudar as referências (etapa 1)</button></div>}
       {territorioEmFoco && <>
         <p className="ferramenta-apoio">Contagem: {territorioEmFoco.unidade}.{territorioEmFoco.membros.length > 0 && " Componentes: " + territorioEmFoco.membros.join(", ") + "."}</p>
-        <GraficoDoCenario territorio={territorioEmFoco} ultimoRegistro={resposta.ultimoRegistro} cores={cores} metrica={resposta.comparacao.metrica}/>
+        <GraficoDoCenario territorio={territorioEmFoco} ultimoRegistro={resposta.ultimoRegistro} cores={cores} metrica={resposta.comparacao.metrica}
+          r={r} fonte={resposta.fonte} em10={resposta.retroprojecao.em10}/>
         <ul data-testid="simulador-textos" className="ferramenta-fenomenos" aria-label={"Cenários de " + territorioEmFoco.rotulo}>
           {territorioEmFoco.cenarios.map(cenario => <li key={cenario.id} data-testid="simulador-cenario-resultado" data-id={cenario.id} data-estado={cenario.estado}
             data-metodo={cenario.metodo.usado ?? ""} className="ferramenta-fenomeno ferramenta-cenario-resultado">
@@ -705,8 +900,8 @@ export default function SimuladorDeCenarios(props: Props) {
               {cenario.metodo.provisorio && cenario.estado === "calculado" && <span className="analise-marca-grupo">método provisório</span>}</p>
             {cenario.estado === "calculado" ? <>
               <p data-testid="simulador-texto" className="ferramenta-texto-do-cenario">{cenario.texto}</p>
-              <p data-testid="simulador-contas" className="ferramenta-apoio">{contasDoFinal(cenario)}</p>
-              <p data-testid="simulador-faixa-texto" className="ferramenta-apoio">{textoDaFaixa(cenario, territorioEmFoco.tipo === "conjunto")}</p>
+              <p data-testid="simulador-contas" className="ferramenta-apoio">{contasDoFinal(cenario, r)}</p>
+              <p data-testid="simulador-faixa-texto" className="ferramenta-apoio">{textoDaFaixa(cenario, territorioEmFoco.tipo === "conjunto", r)}</p>
               {cenario.avisos.length > 0 && <ul data-testid="simulador-avisos" className="ferramenta-notas">{cenario.avisos.map(aviso => <li key={aviso.codigo} data-codigo={aviso.codigo}>{aviso.texto}</li>)}</ul>}
               {cenario.comparacoes.length > 0 && <ul data-testid="simulador-comparacoes" className="ferramenta-notas" aria-label={"Comparação de " + cenario.nome + " com as referências"}>
                 {cenario.comparacoes.map(comparacao => <li key={comparacao.id} data-testid="simulador-comparacao" data-ref={comparacao.id} data-estado={comparacao.estado}
@@ -729,8 +924,8 @@ export default function SimuladorDeCenarios(props: Props) {
                     Simulador.</p>)}
               </div>}
               {hipotesePertinente(cenario.hipotetico) && <div data-testid="simulador-hipotetico" data-classe={cenario.hipotetico.classe ?? ""} className="ferramenta-hipotese">
-                <p className="ferramenta-cartao-titulo">Dependência de poucos médicos, no cenário<span className="analise-marca-grupo">{cenario.hipotetico.rotulo}</span></p>
-                <p className="ferramenta-apoio">{textoDaHipotese(cenario.hipotetico)}</p>
+                <p className="ferramenta-cartao-titulo">Poucos {r.profissionais}, no cenário<span className="analise-marca-grupo">{cenario.hipotetico.rotulo}</span></p>
+                <p className="ferramenta-apoio">{textoDaHipotese(cenario.hipotetico, r)}</p>
               </div>}
             </> : <p data-testid="simulador-motivo" role="status" className="analise-motivo">{cenario.estado === "retirada_acima_do_estoque" ? "Retirada acima do estoque: "
               : cenario.estado === "nao_aplicavel" ? "Não se aplica: " : "Não calculável: "}{cenario.motivo}</p>}
@@ -738,8 +933,9 @@ export default function SimuladorDeCenarios(props: Props) {
         </ul>
       </>}
       <div className="ferramenta-rolagem"><table data-testid="simulador-tabela" className="analise-tabela ferramenta-tabela">
-        <caption className="ferramenta-apoio">Médicos na data final ({competenciaCurta(resposta.horizonte.data)}), por território e cenário; entre parênteses, a faixa de 80%,
-          quando há (nos conjuntos, uma aproximação: a dos municípios com o porte da soma). Cada intervenção vale para cada território: cada linha recebe
+        <caption className="ferramenta-apoio">{comMaiuscula(r.profissionais)} na data final ({competenciaCurta(resposta.horizonte.data)}), por território e cenário; entre parênteses, a faixa de{" "}
+          {resposta.retroprojecao.em10} em cada 10,
+          quando há (nos conjuntos, uma aproximação: a d{formas.osUnidades} com o porte da soma). Cada intervenção vale para cada território: cada linha recebe
           o acréscimo ou a retirada inteiros. Valores de cenário, com uma casa; a precisão integral vai no CSV.</caption>
         <thead><tr><th scope="col">Território</th><th scope="col">Último registro usável</th>
           {(resposta.territorios[0]?.cenarios ?? []).map(cenario => <th key={cenario.id} scope="col">{cenario.nome}</th>)}</tr></thead>
@@ -758,9 +954,10 @@ export default function SimuladorDeCenarios(props: Props) {
         {verValidacao && <div data-testid="simulador-validacao" className="ferramenta-metodo-corpo">
           <ul className="ferramenta-notas">{resposta.notas.map(nota => <li key={nota}>{nota}</li>)}</ul>
           <div className="ferramenta-rolagem"><table data-testid="simulador-faixas" className="analise-tabela ferramenta-tabela">
-            <caption className="ferramenta-apoio">Faixas de 80% do método padrão dos municípios, medidas no passado da própria base (retroprojeção com origens em{" "}
-              {resposta.retroprojecao.origens.map(competenciaCurta).join(", ")}): quanto o observado ficou acima ou abaixo do cenário, em 80% dos casos.</caption>
-            <thead><tr><th scope="col">Médicos na origem</th>{[1, 2, 3, 4].map(anos => <th key={anos} scope="col">{anos === 1 ? "1 ano" : anos + " anos"}</th>)}</tr></thead>
+            <caption className="ferramenta-apoio">Faixas de {resposta.retroprojecao.em10} em cada 10 do jeito de projetar que a base escolheu para {formas.osUnidades}, medidas no
+              passado da própria base (retroprojeção com origens em{" "}{resposta.retroprojecao.origens.map(competenciaCurta).join(", ")}): quanto o observado ficou acima ou
+              abaixo do cenário, em {resposta.retroprojecao.em10} de cada 10 casos.</caption>
+            <thead><tr><th scope="col">{comMaiuscula(r.profissionais)} na origem</th>{[1, 2, 3, 4].map(anos => <th key={anos} scope="col">{anos === 1 ? "1 ano" : anos + " anos"}</th>)}</tr></thead>
             <tbody>{[...new Set(resposta.retroprojecao.faixas.map(faixa => faixa.porte))].map(porte => <tr key={porte}><th scope="row">{porte}</th>
               {[1, 2, 3, 4].map(anos => { const faixa = resposta.retroprojecao.faixas.find(item => item.porte === porte && item.anos === anos);
                 return <td key={anos}>{faixa ? formatarPercentualInteiro(faixa.inferiorPct) + " a " + formatarPercentualInteiro(faixa.superiorPct) : "indisponível"}
@@ -768,10 +965,10 @@ export default function SimuladorDeCenarios(props: Props) {
           </table></div>
           <div className="ferramenta-rolagem"><table data-testid="simulador-erros" className="analise-tabela ferramenta-tabela">
             <caption className="ferramenta-apoio">Erro de cada método frente à persistência (M0), em 4 anos: abaixo de 1, o método errou menos que a persistência; acima, errou mais.</caption>
-            <thead><tr><th scope="col">Médicos na origem</th>{["M0d", "M1", "M2", "M3"].map(metodo => <th key={metodo} scope="col">
-              {NOME_CURTO_DO_METODO[metodo]} ({metodo})</th>)}</tr></thead>
+            <thead><tr><th scope="col">{comMaiuscula(r.profissionais)} na origem</th>{metodosDaTabela.map(metodo => <th key={metodo} scope="col">
+              {nomeCurtoDoMetodo(metodo, r)} ({metodo})</th>)}</tr></thead>
             <tbody>{[...new Set(resposta.retroprojecao.tabela.map(linha => linha.porte))].map(porte => <tr key={porte}><th scope="row">{porte}</th>
-              {["M0d", "M1", "M2", "M3"].map(metodo => { const linha = resposta.retroprojecao.tabela.find(item => item.porte === porte && item.metodo === metodo && item.anos === 4);
+              {metodosDaTabela.map(metodo => { const linha = resposta.retroprojecao.tabela.find(item => item.porte === porte && item.metodo === metodo && item.anos === 4);
                 return <td key={metodo}>{linha?.frenteAoM0 === null || linha?.frenteAoM0 === undefined ? "—" : linha.frenteAoM0.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>; })}</tr>)}</tbody>
           </table></div>
         </div>}
@@ -780,6 +977,6 @@ export default function SimuladorDeCenarios(props: Props) {
         {resposta.fonte.versao.slice(0, 12)} · janela de {competenciaCurta(resposta.janela.inicio)} a {competenciaCurta(resposta.janela.fim)}{resposta.janela.padrao ? " (padrão)" : ""} ·
         origem de cada cenário: o último registro usável do território na janela · último registro da base: {competenciaCurta(resposta.ultimoRegistro)}.</p>
     </div>}
-    {carregando && !resposta && <p role="status" className="analise-vazio"><LoaderCircle size={18} className="animate-spin" aria-hidden="true"/>Calculando os cenários…</p>}
+    {config.modo === "avancado" && carregando && !resposta && <p role="status" className="analise-vazio"><LoaderCircle size={18} className="animate-spin" aria-hidden="true"/>Calculando os cenários…</p>}
   </section>;
 }

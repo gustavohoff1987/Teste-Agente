@@ -172,11 +172,15 @@ def main():
         expect(perfil).to_have_attribute("data-estado", "pronto")
         expect(perfil).to_have_attribute("data-origem", "brasil")
         expect(perfil.get_by_test_id("perfil-da-base-resumo")).to_have_text("5.570 territórios · 22 registros, de jan/2014 a jun/2024.")
-        assert len(do_perfil["perfil"]["da_para"]) == 8 and do_perfil["perfil"]["da_para"][0] == "Alertas moderados desde jun/2015 (o 2º ano da base).", (
+        # Desde a etapa 5 do comando V23, o resumo traz também o que a retroprojeção do Simulador sustenta (8 linhas viraram 11).
+        assert len(do_perfil["perfil"]["da_para"]) == 11 and do_perfil["perfil"]["da_para"][0] == "Alertas moderados desde jun/2015 (o 2º ano da base).", (
             do_perfil["perfil"]["da_para"])
+        assert do_perfil["perfil"]["da_para"][8] == ("Cenários do Simulador com o jeito de projetar que a base escolheu: persistência com o "
+                                                     "crescimento recente do estado."), do_perfil["perfil"]["da_para"]
         expect(perfil.get_by_test_id("perfil-da-para").locator("li")).to_have_text(do_perfil["perfil"]["da_para"])
         expect(perfil.get_by_test_id("perfil-nao-da-para").locator("li")).to_have_text(
-            ["Alertas críticos nos estados como unidade: eles pedem 999 comparações, e esta base chega a 270."])
+            ["Alertas críticos nos estados como unidade: eles pedem 999 comparações, e esta base chega a 270.",
+             "A faixa do Simulador nos estados como unidade: ela pede 200 casos por prazo, e esta base tem 189."])
         expect(perfil.locator('[data-testid="perfil-da-base-itens"] tbody tr')).to_have_count(8)
         expect(perfil.locator('[data-testid="perfil-da-base-itens"] tr[data-chave="serie_anual"]')).to_contain_text(
             "Usa os registros de junho, o mês presente em todos os anos (11 anos, de 2014 a 2024).")
@@ -487,7 +491,9 @@ def main():
 
         # 11. "Simular recuperação": de volta ao último registro, ABELARDO LUZ (SC) está abaixo do que já teve; o botão abre o
         # Simulador de Cenários só com ele, com a meta hipotética (e editável) de voltar ao patamar, sem mudar a seleção
-        # principal. Quem está acima do patamar não tem o botão.
+        # principal. Quem está acima do patamar não tem o botão. Desde o comando V23 (Proposta V3, seção C.7; muda de propósito
+        # este trecho, que conferia a etapa 3 das quatro etapas), o Simulador abre no modo simples, numa tela só, com "Chegar a
+        # uma meta" já escolhido.
         principal = area.get_by_test_id("analise-aba-territorios-resumo").inner_text()
         detector.get_by_test_id("detector-janela-fim").select_option("202406")
         expect(detector.get_by_test_id("detector-comparacao")).to_contain_text("usam a variação de jun/2022 a jun/2024")
@@ -511,20 +517,22 @@ def main():
         detector.get_by_test_id("detector-simular-recuperacao").click()
         expect(area).to_have_attribute("data-ferramenta", "simulador")
         simulador = area.get_by_test_id("simulador")
-        expect(simulador).to_have_attribute("data-etapa", "3")
+        expect(simulador).to_have_attribute("data-modo", "simples")
+        expect(simulador.get_by_test_id("simulador-simples")).to_have_attribute("data-teste", "meta")
+        expect(simulador.get_by_test_id("simulador-territorio")).to_have_value(ABELARDO_LUZ)
         aviso = simulador.get_by_test_id("simulador-do-detector")
         expect(aviso).to_have_attribute("data-recuperacao", "true")
         expect(aviso).to_contain_text("Aberto pelo Detector de Sinais: ABELARDO LUZ (SC), avaliado em jun/2024")
         expect(aviso).to_contain_text("Sinais com nível lá: ")
         expect(aviso).to_contain_text("Abaixo do que já teve (")
         expect(aviso).to_contain_text("meta hipotética que você pode trocar")
-        plano = simulador.get_by_test_id("simulador-plano")
-        expect(plano).to_have_attribute("data-meta", "patamar")
         patamar = do_abelardo["patamar"]["patamar"]
-        expect(plano.get_by_test_id("simulador-plano-valor")).to_have_value(str(patamar).replace(".", ","))   # a precisão do Detector
-        expect(plano).to_contain_text("não um plano")
+        expect(simulador.get_by_test_id("simulador-teste-meta")).to_be_checked()
+        expect(simulador.get_by_test_id("simulador-teste-meta-valor")).to_have_value(str(patamar).replace(".", ","))   # a precisão do Detector
+        expect(simulador.get_by_test_id("simulador-o-que-testar")).to_contain_text(
+            "A meta é o patamar anterior, trazido pelo Detector de Sinais: uma hipótese que você pode trocar.")
         page.wait_for_timeout(400)
-        assert not pedidos_do_simulador, "nada é calculado antes de \"Calcular os cenários\""
+        assert not pedidos_do_simulador, "nada é calculado antes de \"Calcular\""
         with page.expect_response(lambda r: r.url.endswith("/api/simulador") and r.request.method == "POST", timeout=180000) as evento:
             simulador.get_by_test_id("simulador-calcular").click()
         assert evento.value.status == 200, evento.value.text()[:2000]
@@ -537,7 +545,8 @@ def main():
         assert planejado["texto"].startswith("Meta hipotética: voltar ao patamar de ") and planejado["texto"].endswith("não um plano."), planejado["texto"]
         for proibida in ("recomenda", "é preciso", "deveria", "necessário prover"):
             assert proibida not in planejado["texto"].lower(), proibida
-        resultado = simulador.locator('[data-testid="simulador-cenario-resultado"][data-id="c1"]')
+        resultado = simulador.get_by_test_id("simulador-resultado")
+        expect(resultado).to_have_attribute("data-estado", "calculado", timeout=180000)
         expect(resultado.get_by_test_id("simulador-planejamento")).to_have_attribute("data-estado", "calculado")
         expect(resultado.get_by_test_id("simulador-planejamento")).to_have_attribute("data-por-evento", str(planejado["por_evento"]))
         expect(resultado.get_by_test_id("simulador-planejamento-texto")).to_have_text(planejado["texto"])

@@ -55,7 +55,7 @@ import IconeVassoura from "./IconeVassoura";
 import DetectorDeSinais from "./DetectorDeSinais";
 import PerfilDaBase from "./PerfilDaBase";
 import SimuladorDeCenarios from "./SimuladorDeCenarios";
-import { configDoDetector, selecaoDoDetector, type ConfigDoSimulador, type SelecaoLocal } from "./simuladorModel";
+import { competenciasDasFerramentas, configDoDetector, selecaoDoDetector, type ConfigDoSimulador, type SelecaoLocal } from "./simuladorModel";
 import type { AlvoDoSimulador, OpcoesDaBase } from "./detectorModel";
 import "./analise.css";
 
@@ -1115,7 +1115,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
    * recuperação", o cenário leva o planejamento inverso com a meta hipotética de voltar ao patamar anterior, que a pessoa pode trocar
    * (decisão D-B de 10/11/2026). Nada é calculado aqui: o Simulador pede os cenários ao motor. */
   function abrirNoSimulador(alvo: AlvoDoSimulador, patamar: number | null) {
-    const ultimo = periodos.filter(c => /^\d{6}$/.test(c)).sort().pop();
+    const ultimo = (tipo === "arquivo" ? competenciasDasFerramentas(periodos) : periodos).filter(c => /^\d{6}$/.test(c)).sort().pop();
     const local = selecaoDoDetector(alvo, selecaoParaFerramentas);
     if (!ultimo || !local) { setAviso("Este território não está mais na seleção principal: confira a Seleção de Territórios."); return; }
     setConfigDoSimulador(configDoDetector({ local, rotulo: alvo.rotulo, sinais: alvo.sinais, fim: alvo.fim, exploratorio: alvo.exploratorio }, ultimo,
@@ -2203,10 +2203,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const avisoDasFerramentas = gruposComoUnidade ? "Numa planilha, o grupo de cima como unidade (" + (rotulos.grupo?.plural ?? "grupos") +
     ") não tem contagem própria: a ferramenta avalia " + rotulos.unidade.plural + " e os conjuntos. Para avaliar um grupo, selecione os territórios " +
     "dele ou monte um conjunto." : null;
-  // O Simulador de Cenários continua só com a base que vem com o Agente até ganhar a mesma estrutura do Detector (Parte C da
-  // Proposta V3). Com uma planilha (que pode ser de outro país), o motivo não usa o vocabulário da base brasileira (28/10/2026).
-  const motivoDoSimulador = tipo === "brasil" ? null
-    : "O Simulador de Cenários ainda funciona só com a base que vem com o Agente. Com uma planilha enviada, use o Detector de Sinais.";
+  // O Simulador de Cenários vale para qualquer base desde o comando V23 (Parte C da Proposta V3): com uma planilha, nos dois modos
+  // (o simples e o avançado), com os nomes dela, e também quando ela só traz o ano (as datas do cenário são anos). Só fica
+  // desligado quando a planilha não tem datas que o Agente reconheça; o motivo não usa o vocabulário da base brasileira (regra de
+  // 28/10/2026).
+  const periodosDasFerramentas = useMemo(() => tipo === "arquivo" ? competenciasDasFerramentas(periodos) : periodos, [tipo, periodos]);
+  const motivoDoSimulador = tipo !== "arquivo" || periodosDasFerramentas.length ? null
+    : "O Simulador de Cenários precisa de datas na planilha que o Agente reconheça (AAAAMM, AAAA-MM, AAAA-MM-DD ou só o ano).";
   const resumoDaSelecao = !fonte ? "Escolha os dados primeiro" : !pronto ? "Preparando os dados…"
     : semUnidades ? "Nenhum território selecionado"
     : resumoDoUniverso({ nivel: def.nivel, base: def.base, estados: def.estados, conjuntos: def.conjuntos.length, grupos, regioes, rotulos,
@@ -2326,7 +2329,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       {ferramenta === "simulador" && fonteMotor && !motivoDoSimulador && <div data-testid="analise-ferramenta-painel" data-ferramenta={ferramenta} className="analise-ferramenta-painel">
         <PerfilDaBase fonte={fonteMotor} daBase={baseDasFerramentas} abertoDeInicio={false}/>
         <SimuladorDeCenarios fonte={fonteMotor} principal={selecaoParaFerramentas} resumoDaPrincipal={resumoDaSelecao} unidades={municipios} grupos={grupos}
-          competencias={periodos} config={configDoSimulador} onConfig={setConfigDoSimulador} onAplicarSelecao={aplicarSelecaoDoSimulador}/>
+          competencias={periodosDasFerramentas} config={configDoSimulador} onConfig={setConfigDoSimulador} onAplicarSelecao={aplicarSelecaoDoSimulador}
+          daBase={baseDasFerramentas} grupoDe={tipo === "arquivo" ? grupoDe : undefined}/>
       </div>}
       <div role="tabpanel" id="analise-aba-painel" data-testid="analise-aba-painel" data-aba={aba} aria-labelledby={idDaAba(aba)} hidden={!!ferramenta}
         className="analise-aba-painel analise-nao-imprimir">

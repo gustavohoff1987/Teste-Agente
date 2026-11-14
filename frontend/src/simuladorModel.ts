@@ -16,12 +16,26 @@ export const SELECAO_LOCAL_VAZIA: SelecaoLocal = { municipios: [], estados: [], 
 export const MAX_TERRITORIOS = 100;
 export const MAX_CENARIOS = 5;
 
-export type MetodoDoCenario = "padrao" | "M0" | "M0d" | "M1" | "M2" | "M3" | "manual";
+export type MetodoDoCenario = "padrao" | "M0" | "M0d" | "M0g" | "M1" | "M2" | "M3" | "manual";
+/** Os nomes da base (seção A.2.6), como o motor os manda em `fonte.rotulos`: na base do Brasil, "médicos", "município", "estado". */
+export type NomesDaBase = { profissional: string; profissionais: string; unidade: string; unidades: string; grupo: string; grupos: string; todo: string };
+export const NOMES_DO_BRASIL: NomesDaBase = { profissional: "médico", profissionais: "médicos", unidade: "município", unidades: "municípios",
+  grupo: "estado", grupos: "estados", todo: "Brasil" };
+/** As formas com artigo e preposição dos nomes da base, para a concordância dos textos ("os municípios", "do Brasil"; "as comunas",
+ * "da Solária"): as que o motor manda (`fonte.formas`). */
+export type FormasDaBase = { oUnidade: string; osUnidades: string; oGrupo: string; osGrupos: string; dosGrupos: string; doTodo: string; noTodo: string;
+  oTodo: string };
+export const FORMAS_DO_BRASIL: FormasDaBase = { oUnidade: "o município", osUnidades: "os municípios", oGrupo: "o estado", osGrupos: "os estados",
+  dosGrupos: "dos estados", doTodo: "do Brasil", noTodo: "no Brasil", oTodo: "o Brasil" };
+/** Um texto com a primeira letra maiúscula ("médicos" → "Médicos"), para o começo de um rótulo. */
+export const comMaiuscula = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
 export const METODOS_DA_TELA: { chave: MetodoDoCenario; rotulo: string; apoio: string }[] = [
-  { chave: "padrao", rotulo: "Padrão provisório", apoio: "municípios: o último valor com o crescimento recente do estado (M0d); estados: a taxa composta de 3 anos (M1)" },
+  { chave: "padrao", rotulo: "Continuar como vinha (o jeito escolhido pela base)", apoio: "o jeito de projetar que a própria base escolheu, pela retroprojeção: o Agente refaz no passado a projeção que teria feito e confere com o que aconteceu depois" },
   { chave: "M0", rotulo: "Persistência (M0)", apoio: "o último valor se mantém" },
+  { chave: "M0d", rotulo: "Último valor com o crescimento do grupo de cima (M0d)", apoio: "o último valor com o crescimento recente do grupo de cima do território, nos 3 anos anteriores" },
+  { chave: "M0g", rotulo: "Último valor com o crescimento da base toda (M0g)", apoio: "o último valor com o crescimento recente da soma de todos os territórios, nos 3 anos anteriores" },
   { chave: "M1", rotulo: "Taxa composta da janela (M1)", apoio: "o percentual médio que reproduz o crescimento ocorrido na janela" },
-  { chave: "M2", rotulo: "Tendência linear robusta (M2)", apoio: "a variação típica em médicos por ano, pela mediana das variações entre os registros da janela" },
+  { chave: "M2", rotulo: "Tendência linear robusta (M2)", apoio: "a variação típica por ano, pela mediana das variações entre os registros da janela" },
   { chave: "M3", rotulo: "Tendência log-linear (M3)", apoio: "a variação proporcional ajustada a todos os registros da janela" },
   { chave: "manual", rotulo: "Taxa informada por você", apoio: "uma taxa anual sua, como hipótese; o sistema não sugere taxas" },
 ];
@@ -46,29 +60,89 @@ export type ConfigDoSimulador = { local: SelecaoLocal; janela: { inicio: string;
   doDetector?: { rotulo: string; fim: string; sinais: string[]; recuperacao: boolean; exploratorio?: boolean };
   /** A seleção local ainda é a cópia da seleção principal, sem alteração feita no Simulador: enquanto for assim, ela acompanha a
    * seleção principal. Depois da primeira alteração aqui (ou de um cenário importado), só muda por comando explícito. */
-  acompanha?: boolean };
+  acompanha?: boolean;
+  /** Modo simples (Proposta V3, seção C.2): o território em análise, entre os da seleção local (sem ele, o primeiro). */
+  territorio?: string;
+  /** A faixa mostrada: onde o valor real ficou em 5, 8 (padrão) ou 9 de cada 10 retroprojeções de territórios do mesmo porte. */
+  faixa?: 5 | 8 | 9;
+  /** A janela com que o Detector de Sinais abriu o Simulador (quando a pessoa a escolheu lá): é a que vale no modo simples, que
+   * não leva ao motor a janela geral escolhida no modo avançado. */
+  janelaDoDetector?: { inicio: string; fim: string } };
+/** O que testar, no modo simples: só continuar como vinha, acrescentar, retirar ou chegar a uma meta (o planejamento inverso). */
+export type TesteDoCenario = "continuar" | "acrescentar" | "retirar" | "meta";
+export const TESTES: { chave: TesteDoCenario; rotulo: string }[] = [{ chave: "continuar", rotulo: "Só continuar como vinha" },
+  { chave: "acrescentar", rotulo: "Acrescentar" }, { chave: "retirar", rotulo: "Retirar" }, { chave: "meta", rotulo: "Chegar a uma meta" }];
+/** O teste em uso num cenário do modo simples, pelo que ele tem: a meta, a primeira intervenção ou nada. */
+export const testeDoCenario = (cenario: CenarioDaTela): TesteDoCenario => cenario.planejamento ? "meta"
+  : !cenario.intervencoes.length ? "continuar" : cenario.intervencoes[0].tipo === "retirada" ? "retirar" : "acrescentar";
+/** O cenário com outro teste: o jeito de projetar volta ao escolhido pela base; a quantidade, a meta e a data digitadas ficam. */
+export function comOTeste(cenario: CenarioDaTela, teste: TesteDoCenario, em: string): CenarioDaTela {
+  const { planejamento, ...resto } = cenario;
+  const base = { ...resto, metodo: "padrao" as MetodoDoCenario, taxaManual: "", janela: null };
+  const anterior = cenario.intervencoes[0];
+  const data = anterior?.em || planejamento?.em || em;
+  if (teste === "continuar") return { ...base, intervencoes: [] };
+  if (teste === "meta") return { ...base, intervencoes: [], planejamento: planejamento ?? { ...novoPlano(data), valor: "" } };
+  return { ...base, intervencoes: [{ ...(anterior ?? novaIntervencao(data)), tipo: teste === "retirar" ? "retirada" : "acrescimo", em: data, periodica: false,
+    ate: data }] };
+}
+/** Os territórios da seleção local, na ordem do pedido, com o identificador que o motor usa: as unidades, os grupos de cima como
+ * unidade ("uf:<prefixo>"), os conjuntos e o todo. */
+export function territoriosDaSelecaoLocal(local: SelecaoLocal, nomes: { unidade: (id: string) => string; grupo: (prefixo: string) => string; todo: string }):
+  { id: string; rotulo: string }[] {
+  return [...local.municipios.map(id => ({ id, rotulo: nomes.unidade(id) })), ...local.estados.map(prefixo => ({ id: "uf:" + prefixo, rotulo: nomes.grupo(prefixo) })),
+    ...local.conjuntos.map(conjunto => ({ id: conjunto.id, rotulo: comoConjunto(conjunto.rotulo) })),
+    ...(local.brasil ? [{ id: ID_DO_BRASIL, rotulo: nomes.todo }] : [])];
+}
+/** A seleção local só com um território (o do modo simples); a mesma seleção quando ele não está nela. */
+export function soOTerritorio(local: SelecaoLocal, id: string | undefined): SelecaoLocal {
+  if (!id) return local;
+  if (id === ID_DO_BRASIL && local.brasil) return { municipios: [], estados: [], conjuntos: [], brasil: true };
+  if (local.municipios.includes(id)) return { municipios: [id], estados: [], conjuntos: [] };
+  if (id.startsWith("uf:") && local.estados.includes(id.slice(3))) return { municipios: [], estados: [id.slice(3)], conjuntos: [] };
+  const conjunto = local.conjuntos.find(item => item.id === id);
+  return conjunto ? { municipios: [], estados: [], conjuntos: [conjunto] } : local;
+}
 
 // ------------------------------------------------------------------------------------------------ datas
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-export const competenciaCurta = (c: string | null | undefined): string => c && /^\d{6}$/.test(c) ? MESES[Number(c.slice(4)) - 1] + "/" + c.slice(0, 4) : c ?? "";
+export const competenciaCurta = (c: string | null | undefined): string => !c || !/^\d{6}$/.test(c) ? c ?? ""
+  : c.endsWith("00") ? c.slice(0, 4) : MESES[Number(c.slice(4)) - 1] + "/" + c.slice(0, 4);
 export const mesDe = (c: string): number => Number(c.slice(0, 4)) * 12 + Number(c.slice(4)) - 1;
 export const dataDoMes = (mes: number): string => String(Math.floor(mes / 12)) + String(mes % 12 + 1).padStart(2, "0");
 /** A data AAAAMM tantos anos depois de outra (os atalhos de horizonte: só atalhos, nunca limites). */
-export const anosDepois = (c: string, anos: number): string => dataDoMes(mesDe(c) + 12 * anos);
+export const anosDepois = (c: string, anos: number): string => ehAnual(c) ? String(Number(c.slice(0, 4)) + anos) + "00" : dataDoMes(mesDe(c) + 12 * anos);
+/** Uma data de uma base com um registro por ano: "AAAA00" (só o ano). */
+export const ehAnual = (c: string): boolean => /^\d{4}00$/.test(c);
 /** "2028-06" (o campo de mês do navegador) ↔ "202806". */
 export const paraCampoDeMes = (c: string): string => /^\d{6}$/.test(c) ? c.slice(0, 4) + "-" + c.slice(4) : "";
 export const doCampoDeMes = (valor: string): string => /^\d{4}-\d{2}$/.test(valor) ? valor.slice(0, 4) + valor.slice(5) : "";
 /** Há quanto tempo é uma competência, em palavras ("2 anos e 5 meses"), contado até a data de hoje do aparelho: a distância entre
  * o último registro e hoje fica à vista (o que vem depois do registro é simulado, não é a situação atual). */
 export function tempoDesde(competencia: string, hoje: Date): string {
+  if (ehAnual(competencia)) {
+    // Numa base com um registro por ano, a distância é contada em anos inteiros.
+    const anos = Math.max(0, hoje.getFullYear() - Number(competencia.slice(0, 4)));
+    return anos ? anos + (anos === 1 ? " ano" : " anos") : "menos de 1 ano";
+  }
   const meses = Math.max(0, hoje.getFullYear() * 12 + hoje.getMonth() - mesDe(competencia));
   const anos = Math.floor(meses / 12), resto = meses % 12;
   return [...(anos ? [anos + (anos === 1 ? " ano" : " anos")] : []), ...(resto || !anos ? [resto + (resto === 1 ? " mês" : " meses")] : [])].join(" e ");
 }
-/** A janela padrão: os 3 anos até o último registro (7 registros). */
+/** A janela padrão: os 3 anos até o último registro, pelo tempo e não pela contagem de registros (na base do Brasil, 7
+ * registros; numa base com um registro por ano, 4). Uma base mais curta começa no primeiro registro. */
 export function janelaPadrao(competencias: string[]): { inicio: string; fim: string } | null {
+  return janelaDeAnos(competencias, 3, true);
+}
+/** A janela dos últimos `anos` anos até o último registro: começa no primeiro registro a até esse tempo do último. Quando a base
+ * não chega a esse tempo, null — ou, com `curta`, a base inteira. */
+export function janelaDeAnos(competencias: string[], anos: number, curta = false): { inicio: string; fim: string } | null {
   if (competencias.length < 2) return null;
-  return { inicio: competencias[Math.max(0, competencias.length - 7)], fim: competencias[competencias.length - 1] };
+  const fim = competencias[competencias.length - 1], desde = mesDe(fim) - 12 * anos;
+  if (!curta && mesDe(competencias[0]) > desde) return null;
+  // Numa base com registros espaçados, nenhum outro registro cai nesse tempo: a janela começa no registro anterior ao último.
+  const inicio = competencias.find(c => mesDe(c) >= desde) ?? competencias[0];
+  return { inicio: inicio === fim ? competencias[competencias.length - 2] : inicio, fim };
 }
 
 // ------------------------------------------------------------------------------------------------ seleção local
@@ -134,32 +208,47 @@ const numero = (texto: string): number | null => {
 export function pendenciaDoPedido(config: ConfigDoSimulador): string | null {
   const total = totalDaSelecaoLocal(config.local);
   if (!total) return "Escolha pelo menos um território para o Simulador.";
-  if (total > MAX_TERRITORIOS) return "O Simulador compara até " + MAX_TERRITORIOS + " territórios de cada vez; a seleção local tem " + total + ".";
+  if (config.modo !== "simples" && total > MAX_TERRITORIOS) return "O Simulador compara até " + MAX_TERRITORIOS + " territórios de cada vez; a seleção local tem " + total + ".";
   if (!/^\d{6}$/.test(config.horizonte)) return "Escolha a data final do cenário.";
-  for (const cenario of cenariosEmUso(config)) {
+  // No modo simples, só conta o que vai no pedido: o que testar com uma data (ver `doModoSimples`).
+  const simples = config.modo === "simples";
+  for (const doConfig of cenariosEmUso(config)) {
+    const cenario = simples ? doModoSimples(doConfig) : doConfig;
     if (cenario.metodo === "manual" && numero(cenario.taxaManual) === null) return "Informe a taxa anual do cenário “" + cenario.nome + "”.";
     for (const item of cenario.intervencoes) {
       const quantidade = numero(item.quantidade);
-      if (quantidade === null || quantidade <= 0) return "Informe quantos médicos entram ou saem em cada intervenção.";
+      if (quantidade === null || quantidade <= 0) return "Informe quantos entram ou saem em cada intervenção.";
       if (!/^\d{6}$/.test(item.em) || (item.periodica && !/^\d{6}$/.test(item.ate))) return "Informe a data de cada intervenção.";
       if (item.periodica && item.ate < item.em) return "Numa intervenção periódica, a data final vem depois da inicial.";
     }
     const plano = cenario.planejamento;
     if (plano) {
       const meta = numero(plano.valor);
-      if (plano.meta === "valor" && (meta === null || meta <= 0)) return "Informe a meta do planejamento inverso, em médicos.";
-      if (plano.meta === "patamar" && plano.valor.trim() && (meta === null || meta <= 0)) return "Informe a meta do planejamento inverso, em médicos.";
+      if (plano.meta === "valor" && (meta === null || meta <= 0)) return "Informe a meta: um número acima de zero.";
+      if (plano.meta === "patamar" && plano.valor.trim() && (meta === null || meta <= 0)) return "Informe a meta: um número acima de zero.";
+      if (plano.meta === "referencia" && config.modo === "simples") return "No modo simples, a meta é um número: informe a meta em “O que testar”.";
       if (plano.meta === "referencia" && !(config.referencias ?? []).some(ref => ref.id === plano.referencia))
         return "Escolha a referência que serve de meta no planejamento inverso.";
       if (!/^\d{6}$/.test(plano.em) || (plano.periodica && !/^\d{6}$/.test(plano.ate))) return "Informe a data dos acréscimos do planejamento inverso.";
       if (plano.periodica && plano.ate < plano.em) return "No planejamento inverso, a data final dos acréscimos vem depois da inicial.";
     }
   }
-  for (const ref of config.referencias ?? []) {
+  // As referências são do modo avançado: no modo simples elas não vão no pedido, e uma referência incompleta não impede o cálculo.
+  for (const ref of simples ? [] : config.referencias ?? []) {
     const valor = numero(ref.valor);
     if (ref.tipo === "valor" && (valor === null || valor < 0)) return "Informe o valor da referência “" + ref.rotulo + "”.";
   }
   return null;
+}
+/** O cenário como o modo simples o mostra e pede: o que testar com uma data — a meta com um acréscimo numa data, ou um acréscimo ou
+ * uma retirada numa data, com permanência total. O calendário, a permanência e as outras intervenções escolhidos no modo
+ * avançado ficam guardados na configuração e não vão no pedido do modo simples. */
+export function doModoSimples(cenario: CenarioDaTela): CenarioDaTela {
+  const { planejamento, ...resto } = cenario;
+  const umaData = <T extends { em: string; periodica: boolean; ate: string; permanencia: string }>(item: T): T => ({ ...item, periodica: false, ate: item.em,
+    permanencia: "100" });
+  return planejamento ? { ...resto, janela: null, intervencoes: [], planejamento: umaData(planejamento) }
+    : { ...resto, janela: null, intervencoes: cenario.intervencoes.slice(0, 1).map(umaData) };
 }
 /** O plano inicial: a meta num valor (a informar), com um acréscimo um ano depois do último registro. */
 export const novoPlano = (em: string): PlanoDaTela => ({ meta: "valor", valor: "", referencia: "", em, periodica: false, ate: em, aCadaMeses: "12",
@@ -181,7 +270,8 @@ export function configDoDetector(alvo: { local: SelecaoLocal; rotulo: string; si
   janela: { inicio: string; fim: string } | null, patamar: number | null): ConfigDoSimulador {
   const inicial = configInicial(alvo.local, ultimoRegistro);
   const cenario = inicial.cenarios[0];
-  return { ...inicial, acompanha: false, janela, doDetector: { rotulo: alvo.rotulo, fim: alvo.fim, sinais: alvo.sinais, recuperacao: patamar !== null,
+  return { ...inicial, acompanha: false, janela, ...(janela ? { janelaDoDetector: janela } : {}),
+    doDetector: { rotulo: alvo.rotulo, fim: alvo.fim, sinais: alvo.sinais, recuperacao: patamar !== null,
     ...(alvo.exploratorio ? { exploratorio: true } : {}) },
     cenarios: [patamar === null ? cenario : { ...cenario, nome: "Recuperação do patamar",
       // O patamar vai com a precisão do Detector (a média de 4 registros: múltiplos de 0,25), para a conta usar o mesmo valor.
@@ -202,7 +292,8 @@ export function selecaoDoDetector(alvo: { id: string; tipo: string }, principal:
  * um estado, o Brasil e um valor informado não dependem da seleção local). */
 export function referenciasValidas(referencias: ReferenciaDaTela[] | undefined, local: SelecaoLocal): ReferenciaDaTela[] {
   const conjuntos = new Set(local.conjuntos.map(conjunto => conjunto.id));
-  return (referencias ?? []).filter(ref => ref.tipo === "valor" || ref.alvo === ID_DO_BRASIL || ref.alvo.startsWith("code:") || ref.alvo.startsWith("uf:") ||
+  return (referencias ?? []).filter(ref => ref.tipo === "valor" || ref.alvo === ID_DO_BRASIL || ref.alvo.startsWith("code:") || ref.alvo.startsWith("name:") ||
+    ref.alvo.startsWith("uf:") ||
     conjuntos.has(ref.alvo));
 }
 export const MAX_INTERVENCOES = 8;
@@ -220,8 +311,11 @@ export const cenariosEmUso = (config: ConfigDoSimulador): CenarioDaTela[] => con
 export const ID_DA_REFERENCIA = "m0";
 /** O pedido de POST /api/simulador: a seleção local, a janela, a data final e os cenários, mais a persistência (M0) sem intervenção
  * como referência de comparação, sempre à vista. */
-export function pedidoDoSimulador(config: ConfigDoSimulador): Record<string, unknown> {
-  const cenarios = cenariosEmUso(config).map(cenario => ({ id: cenario.id, nome: cenario.nome, metodo: cenario.metodo,
+export function pedidoDoSimulador(config: ConfigDoSimulador, daBase?: { rotulos?: unknown; premissas?: unknown; categoria?: string }): Record<string, unknown> {
+  // No modo simples, o pedido leva só o que a tela simples mostra (ver `doModoSimples`): o que só o modo avançado escolhe — a
+  // janela geral, as referências de comparação, o calendário e a permanência — fica guardado, e volta a valer no modo avançado.
+  const simples = config.modo === "simples";
+  const cenarios = cenariosEmUso(config).map(doConfig => simples ? doModoSimples(doConfig) : doConfig).map(cenario => ({ id: cenario.id, nome: cenario.nome, metodo: cenario.metodo,
     ...(cenario.metodo === "manual" ? { taxa_manual_pct: numero(cenario.taxaManual) } : {}),
     ...(config.modo === "avancado" && cenario.janela ? { janela: cenario.janela } : {}),
     ...(cenario.intervencoes.length ? { intervencoes: cenario.intervencoes.map(item => ({ tipo: item.tipo, quantidade: numero(item.quantidade),
@@ -230,12 +324,71 @@ export function pedidoDoSimulador(config: ConfigDoSimulador): Record<string, unk
     ...(cenario.planejamento ? { planejamento: planoDoPedido(cenario.planejamento) } : {}) }));
   const temReferencia = cenarios.some(cenario => cenario.metodo === "M0" && !("intervencoes" in cenario) && !("janela" in cenario) &&
     !("planejamento" in cenario));
-  const referencias = (config.referencias ?? []).map(ref => ref.tipo === "valor"
+  // Da janela, vai só aquela com que o Detector de Sinais abriu o Simulador, quando houve.
+  const janela = simples ? config.janelaDoDetector ?? null : config.janela;
+  const referencias = simples ? [] : (config.referencias ?? []).map(ref => ref.tipo === "valor"
     ? { id: ref.id, tipo: "valor", valor: numero(ref.valor), rotulo: ref.rotulo } : { id: ref.id, tipo: ref.tipo, territorio: ref.alvo });
-  return { ...selecaoLocalParaOPedido(config.local), ...(config.janela ? { janela: config.janela } : {}), horizonte: config.horizonte,
+  // No modo simples, o pedido leva só o território em análise (o primeiro da seleção local, quando nenhum foi escolhido).
+  const local = simples ? soOTerritorio(config.local, config.territorio ?? primeiroDaSelecao(config.local)) : config.local;
+  return { ...(daBase ?? {}), ...selecaoLocalParaOPedido(local), ...(janela ? { janela } : {}), horizonte: config.horizonte,
+    ...(config.faixa && config.faixa !== 8 ? { faixa: config.faixa } : {}),
     cenarios: temReferencia ? cenarios : [...cenarios, { id: ID_DA_REFERENCIA, nome: "Persistência (referência)", metodo: "M0" }],
     ...(referencias.length ? { referencias, ...(config.metrica === "taxa" ? { comparacao: { metrica: "taxa" } } : {}) } : {}) };
 }
+function formasDe(bruto: unknown): FormasDaBase {
+  const f = objeto(bruto), b = FORMAS_DO_BRASIL;
+  return { oUnidade: texto(f.o_unidade) ?? b.oUnidade, osUnidades: texto(f.os_unidades) ?? b.osUnidades, oGrupo: texto(f.o_grupo) ?? b.oGrupo,
+    osGrupos: texto(f.os_grupos) ?? b.osGrupos, dosGrupos: texto(f.dos_grupos) ?? b.dosGrupos, doTodo: texto(f.do_todo) ?? b.doTodo,
+    noTodo: texto(f.no_todo) ?? b.noTodo, oTodo: texto(f.o_todo) ?? b.oTodo };
+}
+/** As formas com artigo de uma planilha enviada antes da primeira resposta do motor, pelos nomes do painel "Colunas" (o gênero da
+ * unidade e do grupo e o artigo do todo), como o motor as monta: "a comuna", "os condados", "da Solária"; sem o nome do todo, "a
+ * base toda". Sem planilha (a base do Brasil), null. */
+export function formasDaPlanilha(daBase: { rotulos?: unknown } | undefined): FormasDaBase | null {
+  if (!daBase) return null;
+  const item = (valor: unknown): Record<string, unknown> => valor && typeof valor === "object" && !Array.isArray(valor) ? valor as Record<string, unknown> : {};
+  const nome = (valor: unknown): string | null => typeof valor === "string" && valor.trim() ? valor.trim() : null;
+  const r = item(daBase.rotulos), unidade = item(r.unidade), grupo = item(r.grupo), todo = item(r.todo);
+  // Sem os nomes, valem os do motor: "a unidade" (feminino) e "o grupo".
+  const feminina = nome(unidade.singular) ? unidade.genero === "f" : true, doGrupo = grupo.genero === "f";
+  const singular = nome(unidade.singular) ?? "unidade", plural = nome(unidade.plural) ?? "unidades";
+  const grupoSingular = nome(grupo.singular) ?? "grupo", grupoPlural = nome(grupo.plural) ?? "grupos";
+  const doTodo = nome(todo.nome), artigo = nome(todo.artigo) ?? "";
+  return { oUnidade: (feminina ? "a " : "o ") + singular, osUnidades: (feminina ? "as " : "os ") + plural,
+    oGrupo: (doGrupo ? "a " : "o ") + grupoSingular, osGrupos: (doGrupo ? "as " : "os ") + grupoPlural, dosGrupos: (doGrupo ? "das " : "dos ") + grupoPlural,
+    doTodo: !doTodo ? "de toda a base" : artigo ? "d" + artigo + " " + doTodo : "de " + doTodo,
+    noTodo: !doTodo ? "em toda a base" : artigo ? "n" + artigo + " " + doTodo : "em " + doTodo,
+    oTodo: !doTodo ? "a base toda" : (artigo ? artigo + " " : "") + doTodo };
+}
+/** Os nomes de uma planilha enviada antes da primeira resposta do motor, pelo que o pedido diz dela (os nomes do painel "Colunas" e
+ * a unidade de contagem), como o motor os monta: "profissionais", "vínculos" ou "postos"; a unidade, o grupo de cima e o todo.
+ * Sem planilha (a base do Brasil), null. */
+export function nomesDaPlanilha(daBase: { rotulos?: unknown; premissas?: unknown } | undefined): NomesDaBase | null {
+  if (!daBase) return null;
+  const item = (valor: unknown): Record<string, unknown> => valor && typeof valor === "object" && !Array.isArray(valor) ? valor as Record<string, unknown> : {};
+  const nome = (valor: unknown): string | null => typeof valor === "string" && valor.trim() ? valor.trim() : null;
+  const r = item(daBase.rotulos), unidade = item(r.unidade), grupo = item(r.grupo), todo = item(r.todo);
+  const contagem = nome(item(daBase.premissas).count_unit);
+  const [profissional, profissionais] = contagem === "vinculos" ? ["vínculo", "vínculos"] : contagem === "postos" ? ["posto", "postos"]
+    : ["profissional", "profissionais"];
+  return { profissional, profissionais, unidade: nome(unidade.singular) ?? "unidade", unidades: nome(unidade.plural) ?? "unidades",
+    grupo: nome(grupo.singular) ?? "grupo", grupos: nome(grupo.plural) ?? "grupos", todo: nome(todo.nome) ?? "a base toda" };
+}
+/** As competências de uma base no formato das ferramentas, em ordem: "AAAAMM" (de "AAAAMM", "AAAA-MM" ou "AAAA-MM-DD") ou
+ * "AAAA00" (uma planilha só com anos). O que não é data fica de fora. */
+export function competenciasDasFerramentas(periodos: string[]): string[] {
+  const saida = new Set<string>();
+  for (const bruto of periodos) {
+    const p = String(bruto).trim();
+    const mes = /^(\d{4})(\d{2})$/.exec(p) ?? /^(\d{4})-(\d{2})(?:-\d{2})?$/.exec(p);
+    if (mes && Number(mes[2]) >= 1 && Number(mes[2]) <= 12) saida.add(mes[1] + mes[2]);
+    else if (/^(1[89]|2[01])\d\d(\.0+)?$/.test(p)) saida.add(p.slice(0, 4) + "00");
+  }
+  return [...saida].sort();
+}
+/** O identificador do primeiro território da seleção local, na ordem do pedido. */
+export const primeiroDaSelecao = (local: SelecaoLocal): string | undefined => local.municipios[0] ?? (local.estados[0] !== undefined ? "uf:" + local.estados[0]
+  : local.conjuntos[0]?.id ?? (local.brasil ? ID_DO_BRASIL : undefined));
 /** O planejamento inverso no contrato do motor: a meta e o calendário dos acréscimos. */
 function planoDoPedido(plano: PlanoDaTela): Record<string, unknown> {
   const valor = numero(plano.valor);
@@ -247,11 +400,19 @@ function planoDoPedido(plano: PlanoDaTela): Record<string, unknown> {
 
 // ------------------------------------------------------------------------------------------------ resposta
 export type PontoDoCenario = { data: string; anos: number; base: number; intervencao: number; total: number; retroprojecao: boolean;
-  observado: number | null; faixa: { inferior: number; superior: number; anos: number; validada: boolean } | null };
+  observado: number | null;
+  /** A faixa do ponto: os limites, o prazo e se foi conferida com o que veio depois ("conferida") ou não ("provisoria"). */
+  faixa: { inferior: number; superior: number; anos: number; validada: boolean; estado: string; como: string | null } | null };
+export type TextoDoEntenda = { texto: string; exemplo: string };
 export type CenarioCalculado = { id: string; nome: string; estado: string; motivo: string | null;
-  metodo: { pedido: string; usado: string | null; rotulo: string | null; padrao: boolean; provisorio: boolean; voltouAoM0: boolean; soma: string | null };
+  metodo: { pedido: string; usado: string | null; rotulo: string | null; padrao: boolean; provisorio: boolean; voltouAoM0: boolean; soma: string | null;
+    /** O jeito de projetar que a própria base escolheu para o nível do território, e se é o que está em uso. */
+    escolhidoPelaBase: string | null; eOEscolhido: boolean };
   parametros: Record<string, unknown>; avisos: { codigo: string; texto: string }[]; trajetoria: PontoDoCenario[];
-  faixa: { estado: string; motivo: string | null; rotulo: string | null };
+  /** A faixa do cenário: N em cada 10, até quantos anos vai e, quando falta, o motivo. */
+  faixa: { estado: string; motivo: string | null; rotulo: string | null; em10: number; ateAnos: number | null; conferencia: string | null; como: string | null };
+  /** Os "Entenda" do resultado: o jeito de projetar e a faixa, em duas ou três frases e um exemplo (do motor). */
+  entenda: { jeito: TextoDoEntenda; faixa: TextoDoEntenda } | null;
   final: { data: string; base: number; intervencao: number; total: number; faixa: PontoDoCenario["faixa"] } | null; texto: string | null;
   horizonte: { anos: number; aviso: string } | null;
   /** Etapa 5: o cenário diante de cada referência, o planejamento inverso e a hipótese derivada da simulação. */
@@ -277,10 +438,19 @@ export type FaixaDaRetroprojecao = { porte: string; anos: number; inferiorPct: n
   coberturaPct: number | null; rotulo: string };
 export type LinhaDaRetroprojecao = { metodo: string; porte: string; anos: number; casos: number; origens: number; erroAbsolutoMedio: number; vies: number;
   frenteAoM0: number | null };
-export type RespostaDoSimulador = { versao: string; fonte: { base: string; categoria: string; versao: string; primeira: string; ultima: string };
+/** O jeito de projetar que a base escolheu para um nível de território, com a frase que o motor escreveu (regra C.3). */
+export type EscolhaDaBase = { metodo: string; rotulo: string; motivo: string; texto: string;
+  candidatos: { metodo: string; rotulo: string; frenteAoM0: number | null; menosErroEm: number; combinacoes: number; vale: boolean }[] };
+export type RespostaDoSimulador = { versao: string; fonte: { base: string; categoria: string; versao: string; primeira: string; ultima: string;
+    rotulos: NomesDaBase; origem: "brasil" | "planilha";
+    /** As formas com artigo dos nomes da base e o mês da série anual ("06" na base do Brasil; "00" numa base só com anos; null sem série anual). */
+    formas: FormasDaBase; ancora: string | null };
   competencias: string[]; ultimoRegistro: string; janela: { inicio: string; fim: string; registros: number; anos: number; padrao: boolean };
   horizonte: { data: string; anosDesdeOUltimoRegistro: number }; territorios: TerritorioSimulado[];
-  retroprojecao: { origens: string[]; faixas: FaixaDaRetroprojecao[]; tabela: LinhaDaRetroprojecao[] }; notas: string[]; limitacoes: string[];
+  retroprojecao: { origens: string[]; faixas: FaixaDaRetroprojecao[]; tabela: LinhaDaRetroprojecao[]; em10: number;
+    /** A escolha por nível: "municipios" (as unidades da base) e, quando há, "estados" (os grupos de cima como unidade). */
+    escolhas: Record<string, EscolhaDaBase> };
+  notas: string[]; limitacoes: string[];
   referencias: ReferenciaDaResposta[]; comparacao: { metrica: string; hipoteseDePopulacao: string | null } };
 
 const objeto = (valor: unknown): Record<string, unknown> => valor && typeof valor === "object" && !Array.isArray(valor) ? valor as Record<string, unknown> : {};
@@ -291,7 +461,7 @@ const textos = (valor: unknown): string[] => lista(valor).filter((item): item is
 function faixaDe(bruto: unknown): PontoDoCenario["faixa"] {
   const f = objeto(bruto);
   return num(f.inferior) !== null && num(f.superior) !== null ? { inferior: num(f.inferior)!, superior: num(f.superior)!, anos: num(f.anos) ?? 0,
-    validada: f.validada === true } : null;
+    validada: f.validada === true, estado: texto(f.estado) ?? (f.validada === true ? "conferida" : "provisoria"), como: texto(f.como) } : null;
 }
 function pontoDaComparacao(bruto: unknown): PontoDaComparacao | null {
   const p = objeto(bruto);
@@ -321,11 +491,22 @@ function hipoteticoDe(bruto: unknown): HipoteseDerivada | null {
   return num(h.valor) === null ? null : { rotulo: texto(h.rotulo) ?? "", data: texto(h.data) ?? "", valor: num(h.valor)!, inteiro: num(h.inteiro) ?? 0,
     classe: texto(h.classe), impactoPct: num(h.impacto_pct), naFaixa: f ? { inferior: texto(f.inferior), superior: texto(f.superior) } : null };
 }
+const entendaDe = (bruto: unknown): TextoDoEntenda => { const e = objeto(bruto); return { texto: texto(e.texto) ?? "", exemplo: texto(e.exemplo) ?? "" }; };
+function nomesDe(bruto: unknown): NomesDaBase {
+  const r = objeto(bruto);
+  return Object.fromEntries(Object.entries(NOMES_DO_BRASIL).map(([chave, padrao]) => [chave, texto(r[chave]) ?? padrao])) as NomesDaBase;
+}
+function escolhaDe(bruto: unknown): EscolhaDaBase {
+  const e = objeto(bruto);
+  return { metodo: texto(e.metodo) ?? "M0", rotulo: texto(e.rotulo) ?? "", motivo: texto(e.motivo) ?? "", texto: texto(e.texto) ?? "",
+    candidatos: lista(e.candidatos).map(item => { const c = objeto(item); return { metodo: texto(c.metodo) ?? "", rotulo: texto(c.rotulo) ?? "",
+      frenteAoM0: num(c.frente_ao_m0), menosErroEm: num(c.menos_erro_em) ?? 0, combinacoes: num(c.combinacoes) ?? 0, vale: c.vale === true }; }) };
+}
 function cenarioDe(bruto: unknown): CenarioCalculado {
   const o = objeto(bruto), m = objeto(o.metodo), f = objeto(o.faixa), fim = objeto(o.final), h = objeto(o.horizonte);
   return { id: texto(o.id) ?? "", nome: texto(o.nome) ?? "", estado: texto(o.estado) ?? "", motivo: texto(o.motivo),
     metodo: { pedido: texto(m.pedido) ?? "", usado: texto(m.usado), rotulo: texto(m.rotulo), padrao: m.padrao === true, provisorio: m.provisorio === true,
-      voltouAoM0: m.voltou_ao_m0 === true, soma: texto(m.soma) },
+      voltouAoM0: m.voltou_ao_m0 === true, soma: texto(m.soma), escolhidoPelaBase: texto(m.escolhido_pela_base), eOEscolhido: m.e_o_escolhido === true },
     parametros: objeto(o.parametros),
     avisos: lista(o.avisos).map(item => ({ codigo: texto(objeto(item).codigo) ?? "", texto: texto(objeto(item).texto) ?? "" })).filter(item => item.texto),
     trajetoria: lista(o.trajetoria).map(item => {
@@ -333,7 +514,9 @@ function cenarioDe(bruto: unknown): CenarioCalculado {
       return { data: texto(p.data) ?? "", anos: num(p.anos) ?? 0, base: num(p.base) ?? 0, intervencao: num(p.intervencao) ?? 0, total: num(p.total) ?? 0,
         retroprojecao: p.retroprojecao === true, observado: num(p.observado), faixa: faixaDe(p.faixa) };
     }),
-    faixa: { estado: texto(f.estado) ?? "indisponivel", motivo: texto(f.motivo), rotulo: texto(f.rotulo) },
+    faixa: { estado: texto(f.estado) ?? "indisponivel", motivo: texto(f.motivo), rotulo: texto(f.rotulo), em10: num(f.em_10) ?? 8, ateAnos: num(f.ate_anos),
+      conferencia: texto(f.conferencia), como: texto(f.como) },
+    entenda: o.entenda ? { jeito: entendaDe(objeto(o.entenda).jeito), faixa: entendaDe(objeto(o.entenda).faixa) } : null,
     final: texto(fim.data) ? { data: texto(fim.data)!, base: num(fim.base) ?? 0, intervencao: num(fim.intervencao) ?? 0, total: num(fim.total) ?? 0,
       faixa: faixaDe(fim.faixa) } : null,
     texto: texto(o.texto), horizonte: num(h.anos) !== null ? { anos: num(h.anos)!, aviso: texto(h.aviso) ?? "normal" } : null,
@@ -345,7 +528,8 @@ export function normalizarSimulador(bruto: unknown): RespostaDoSimulador {
     comparacao = objeto(o.comparacao);
   return { versao: texto(o.versao) ?? "",
     fonte: { base: texto(fonte.base) ?? "", categoria: texto(fonte.categoria) ?? "", versao: texto(fonte.versao) ?? "", primeira: texto(fonte.primeira) ?? "",
-      ultima: texto(fonte.ultima) ?? "" },
+      ultima: texto(fonte.ultima) ?? "", rotulos: nomesDe(fonte.rotulos), origem: fonte.origem === "planilha" ? "planilha" : "brasil",
+      formas: formasDe(fonte.formas), ancora: texto(fonte.ancora) ?? (fonte.origem === "planilha" ? null : "06") },
     competencias: textos(o.competencias), ultimoRegistro: texto(o.ultimo_registro) ?? "",
     janela: { inicio: texto(janela.inicio) ?? "", fim: texto(janela.fim) ?? "", registros: num(janela.registros) ?? 0, anos: num(janela.anos) ?? 0,
       padrao: janela.padrao === true },
@@ -365,12 +549,12 @@ export function normalizarSimulador(bruto: unknown): RespostaDoSimulador {
           taxaCompostaPct: num(h.taxa_composta_pct), nota: texto(h.nota) ?? "" },
         lacunas: textos(t.lacunas), cenarios: lista(t.cenarios).map(cenarioDe) };
     }).filter(item => item.id),
-    retroprojecao: { origens: textos(retro.origens),
-      faixas: lista(retro.faixas).map(item => {
-        const f = objeto(item);
-        return { porte: texto(f.porte) ?? "", anos: num(f.anos) ?? 0, inferiorPct: num(f.inferior_pct) ?? 0, superiorPct: num(f.superior_pct) ?? 0,
-          casos: num(f.casos) ?? 0, origens: num(f.origens) ?? 0, coberturaPct: num(f.cobertura_pct), rotulo: texto(f.rotulo) ?? "" };
-      }),
+    retroprojecao: { origens: textos(retro.origens), em10: num(retro.em_10) ?? 8,
+      escolhas: Object.fromEntries(Object.entries(objeto(retro.niveis)).map(([nivel, dados]) => [nivel, escolhaDe(objeto(dados).escolha)])),
+      // Só as faixas com limites: a que a base não sustenta fica de fora, e a tabela diz "indisponível".
+      faixas: lista(retro.faixas).map(objeto).filter(f => num(f.inferior_pct) !== null && num(f.superior_pct) !== null).map(f => (
+        { porte: texto(f.porte) ?? "", anos: num(f.anos) ?? 0, inferiorPct: num(f.inferior_pct) ?? 0, superiorPct: num(f.superior_pct) ?? 0,
+          casos: num(f.casos) ?? 0, origens: num(f.origens) ?? 0, coberturaPct: num(f.cobertura_pct), rotulo: texto(f.rotulo) ?? "" })),
       tabela: lista(retro.tabela).map(item => {
         const l = objeto(item);
         return { metodo: texto(l.metodo) ?? "", porte: texto(l.porte) ?? "", anos: num(l.anos) ?? 0, casos: num(l.casos) ?? 0, origens: num(l.origens) ?? 0,
@@ -399,33 +583,55 @@ export function formatarPercentualInteiro(valor: number): string {
 }
 /** O nome curto de cada método, em palavras, para a tabela (o código fica na dica e nas exportações). */
 export const NOME_CURTO_DO_METODO: Record<string, string> = { M0: "último valor mantido", M0d: "último valor com o crescimento do estado",
-  M1: "taxa composta da janela", M2: "tendência linear", M3: "tendência log-linear", manual: "taxa informada por você" };
+  M0g: "último valor com o crescimento da base toda", M1: "taxa composta da janela", M2: "tendência linear", M3: "tendência log-linear",
+  manual: "taxa informada por você" };
+/** O nome curto de um método com os nomes da base ("o crescimento do estado", "da província"). */
+export const nomeCurtoDoMetodo = (metodo: string, r: NomesDaBase = NOMES_DO_BRASIL): string => metodo === "M0d"
+  ? "último valor com o crescimento d" + (r.grupo === "estado" ? "o estado" : "o grupo de cima (" + r.grupo + ")") : NOME_CURTO_DO_METODO[metodo] ?? metodo;
+/** Os três números do modo simples (seção C.2): no último registro, na data final e a diferença — ou, na meta, quantos seria
+ * preciso acrescentar. Tudo vem do motor; aqui só se escreve. */
+export function tresNumeros(cenario: CenarioCalculado, r: NomesDaBase = NOMES_DO_BRASIL): { rotulo: string; valor: string }[] {
+  if (cenario.estado !== "calculado" || !cenario.final) return [];
+  const n0 = Number(cenario.parametros.n0), origem = String(cenario.parametros.origem ?? "");
+  const saida = [{ rotulo: "No último registro (" + competenciaCurta(origem) + ")", valor: formatarMedicos(n0) },
+    { rotulo: "Em " + competenciaCurta(cenario.final.data), valor: formatarMedicos(Math.round(cenario.final.total)) }];
+  const plano = cenario.planejamento;
+  if (plano && plano.estado === "calculado" && plano.porEvento !== null)
+    return [...saida, { rotulo: "Para chegar à meta", valor: "precisaria acrescentar " + formatarMedicos(plano.porEvento * Math.max(1, plano.eventos)) }];
+  if (plano && plano.estado === "ja_alcancada") return [...saida, { rotulo: "Para chegar à meta", valor: "nada a acrescentar" }];
+  const diferenca = Math.round(cenario.final.total) - Math.round(n0);
+  return [...saida, { rotulo: "Diferença", valor: (diferenca > 0 ? "+" : diferenca < 0 ? "−" : "") + formatarMedicos(Math.abs(diferenca)) + " " +
+    (Math.abs(diferenca) === 1 ? r.profissional : r.profissionais) }];
+}
 /** A faixa de 80% da data final, em linguagem simples (decisão D-C): o que ela é, de onde vem e, de 3 a 4 anos, que é um limite
  * provisório. Sem faixa, "indisponível" e o motivo: nada é extrapolado. */
-export function textoDaFaixa(cenario: CenarioCalculado, conjunto = false): string {
-  const faixa = cenario.final?.faixa;
-  if (!cenario.final || !faixa) return "Faixa de 80%: indisponível" + (cenario.faixa.motivo ? ". " + cenario.faixa.motivo
-    : cenario.faixa.estado === "disponivel" ? " nesta data: ela vai só até 4 anos depois do último registro usado." : ".");
-  return "Faixa de 80% " + (conjunto ? "(aproximação) " : "") + "em " + competenciaCurta(cenario.final.data) + ": de " + formatarMedicos(faixa.inferior) +
-    " a " + formatarMedicos(faixa.superior) +
-    " médicos. No passado da base, em 8 de cada 10 casos de municípios " + (conjunto ? "com o porte desta soma (uma aproximação para o conjunto)" : "do mesmo porte") +
-    ", o número observado ficou dentro dessa margem; ela acompanha a intervenção." + (faixa.validada ? " Conferida com dados que não entraram no cálculo dela."
-      : " Limite provisório: para 3 e 4 anos, a margem ainda não foi conferida com dados à parte.");
+export function textoDaFaixa(cenario: CenarioCalculado, conjunto = false, r: NomesDaBase = NOMES_DO_BRASIL): string {
+  const faixa = cenario.final?.faixa, nome = "Faixa de " + cenario.faixa.em10 + " em cada 10";
+  if (!cenario.final || !faixa) return nome + ": indisponível" + (cenario.faixa.motivo ? ". " + cenario.faixa.motivo
+    : cenario.faixa.estado === "disponivel" ? " nesta data: ela vai só até " + ((cenario.faixa.ateAnos ?? 4) === 1 ? "1 ano" : (cenario.faixa.ateAnos ?? 4) + " anos") +
+      " depois do último registro usado." : ".");
+  const deQuem = conjunto ? "com o porte desta soma (uma aproximação para o conjunto)" : faixa.como === "vizinhas" ? "do mesmo porte e dos portes vizinhos"
+    : faixa.como === "portes_menores" ? "do mesmo porte e de portes menores" : "do mesmo porte";
+  return nome + " " + (conjunto ? "(aproximação) " : "") + "em " + competenciaCurta(cenario.final.data) + ": de " + formatarMedicos(faixa.inferior) +
+    " a " + formatarMedicos(faixa.superior) + " " + r.profissionais + ". No passado da base, em " + cenario.faixa.em10 + " de cada 10 casos de territórios " + deQuem +
+    ", o número observado ficou dentro dessa margem; ela acompanha a intervenção." + (faixa.estado === "conferida" ? " Conferida com o que veio depois."
+      : " Faixa provisória: ainda não deu para conferi-la com dados que vieram depois, ou a conferência ficou um pouco abaixo do esperado.");
 }
 /** As contas da data final, com uma casa: a base do cenário, a intervenção e o total (o texto do cenário arredonda para o inteiro). */
-export function contasDoFinal(cenario: CenarioCalculado): string {
+export function contasDoFinal(cenario: CenarioCalculado, r: NomesDaBase = NOMES_DO_BRASIL): string {
   const f = cenario.final;
   if (!f) return "";
-  if (!f.intervencao) return "Na data final: base do cenário de " + formatarMedicos(f.base) + " médicos, sem intervenção.";
+  if (!f.intervencao) return "Na data final: base do cenário de " + formatarMedicos(f.base) + " " + r.profissionais + ", sem intervenção.";
   return "Na data final, neste território: base do cenário de " + formatarMedicos(f.base) + (f.intervencao > 0 ? " + " : " − ") +
-    formatarMedicos(Math.abs(f.intervencao)) + " da intervenção = " + formatarMedicos(f.total) + " médicos (o texto acima arredonda para o inteiro).";
+    formatarMedicos(Math.abs(f.intervencao)) + " da intervenção = " + formatarMedicos(f.total) + " " + r.profissionais + " (o texto acima arredonda para o inteiro).";
 }
 /** O método de um cenário na tabela, em palavras. Num conjunto, a soma vem primeiro: a soma das projeções dos membros (a
  * persistência, com ou sem o crescimento do estado de cada um) ou a soma das contagens dos componentes (os demais métodos). */
-export function metodoNaTabela(cenario: CenarioCalculado, conjunto = false): string {
-  const usado = cenario.metodo.usado ?? "", nome = NOME_CURTO_DO_METODO[usado] ?? usado;
-  if (!conjunto) return nome + (cenario.metodo.voltouAoM0 ? " (sem o crescimento do estado)" : "");
-  if (cenario.metodo.soma) return cenario.metodo.soma + (usado === "M0d" ? " (cada um com o crescimento do seu estado)" : " (cada um no último valor)");
+export function metodoNaTabela(cenario: CenarioCalculado, conjunto = false, r: NomesDaBase = NOMES_DO_BRASIL): string {
+  const usado = cenario.metodo.usado ?? "", nome = nomeCurtoDoMetodo(usado, r);
+  if (!conjunto) return nome + (cenario.metodo.voltouAoM0 ? " (sem o crescimento d" + (r.grupo === "estado" ? "o estado" : "o grupo de cima") + ")" : "");
+  if (cenario.metodo.soma) return cenario.metodo.soma + (usado === "M0d" ? " (cada um com o crescimento do seu " + (r.grupo === "estado" ? "estado" : "grupo de cima") + ")"
+    : " (cada um no último valor)");
   return "soma das contagens dos componentes · " + nome;
 }
 const NOMES_DOS_NIVEIS: Record<string, string> = { moderado: "moderado", elevado: "elevado", critico: "crítico" };
@@ -434,12 +640,13 @@ export const nivelNoCenario = (classe: string | null) => classe ? NOMES_DOS_NIVE
 /** Os níveis no cenário (Proposta V3, seção C.6): só os sinais 1 e 2 do Detector, por convenção, valem para um valor simulado,
  * rotulados como hipótese do cenário (o rótulo vem do motor). Quando a faixa cruza um limite, a tela diz "pode ficar entre
  * moderado e elevado", sem escolher um só. Os sinais comparados com a base nunca se aplicam a valores simulados. */
-export function textoDaHipotese(h: HipoteseDerivada): string {
-  const quantos = formatarMedicos(h.inteiro) + (h.inteiro === 1 ? " médico" : " médicos");
+export function textoDaHipotese(h: HipoteseDerivada, r: NomesDaBase = NOMES_DO_BRASIL): string {
+  const quantos = formatarMedicos(h.inteiro) + " " + (h.inteiro === 1 ? r.profissional : r.profissionais);
   const rotulo = h.rotulo || "hipótese do cenário";   // o rótulo é o do motor
   const nome = nivelNoCenario(h.classe);
   return rotulo.charAt(0).toUpperCase() + rotulo.slice(1) + " (não é um sinal observado): com " + quantos + " em " + competenciaCurta(h.data) + ", " +
-    (h.classe ? "o território seria " + nome.charAt(0).toUpperCase() + nome.slice(1) + " em “Poucos médicos”" : "o território não teria alerta em “Poucos médicos”") +
+    (h.classe ? "o território seria " + nome.charAt(0).toUpperCase() + nome.slice(1) + " em “Poucos " + r.profissionais + "”"
+      : "o território não teria alerta em “Poucos " + r.profissionais + "”") +
     (h.impactoPct !== null && h.inteiro <= 20 ? " (a saída de 1 tiraria " + umaCasa.format(h.impactoPct) + "%)" : "") + "." +
     (h.naFaixa && (h.naFaixa.inferior !== h.classe || h.naFaixa.superior !== h.classe)
       ? " Pela faixa do cenário, pode ficar entre " + nivelNoCenario(h.naFaixa.superior) + " e " + nivelNoCenario(h.naFaixa.inferior) + "." : "") +
@@ -463,11 +670,18 @@ export function textoDoFinal(cenario: CenarioCalculado, conjunto = false): strin
 export const FORMATO_DO_CENARIO = "ADT-CENARIO/1";
 /** A configuração dos cenários num JSON legível: a seleção local (com a composição e a versão dos conjuntos), a janela, a data final
  * e os cenários, com a versão do método e da base em que foram montados. */
-export function exportarCenario(config: ConfigDoSimulador, c: { versaoDoMetodo: string; versaoDaBase: string; ultimoRegistro: string; quando: string }): string {
+export function exportarCenario(config: ConfigDoSimulador, c: { versaoDoMetodo: string; versaoDaBase: string; ultimoRegistro: string; quando: string;
+  /** A base em uso, quando não é a do Brasil (uma planilha enviada): o nome e a categoria dela. */
+  base?: { nome: string; categoria: string } }): string {
   return JSON.stringify({ formato: FORMATO_DO_CENARIO, ferramenta: "Simulador de Cenários Territoriais", versao_do_metodo: c.versaoDoMetodo,
-    base: { nome: "Brasil", categoria: "MEDICINA", versao: c.versaoDaBase, ultimo_registro: c.ultimoRegistro }, exportado_em: c.quando,
+    base: { nome: c.base?.nome ?? "Brasil", categoria: c.base?.categoria ?? "MEDICINA", versao: c.versaoDaBase, ultimo_registro: c.ultimoRegistro },
+    exportado_em: c.quando,
     aviso: "Cenários hipotéticos e condicionais: não são previsão nem recomendação.",
     selecao_local: config.local, janela: config.janela, horizonte: config.horizonte, modo: config.modo, cenarios: config.cenarios,
+    // O território em análise do modo simples e a faixa pedida (só quando não é a de 8 em cada 10) vão junto, para a importação repô-los.
+    ...(config.territorio ? { territorio: config.territorio } : {}), ...(config.faixa && config.faixa !== 8 ? { faixa: config.faixa } : {}),
+    // A janela com que o Detector de Sinais abriu o Simulador (a que vale no modo simples) vai junto; o aviso de origem, não.
+    ...(config.janelaDoDetector ? { janela_do_detector: config.janelaDoDetector } : {}),
     ...(config.referencias?.length ? { referencias: config.referencias } : {}), ...(config.metrica === "taxa" ? { metrica: "taxa" } : {}) }, null, 2);
 }
 const METODOS_VALIDOS = new Set(METODOS_DA_TELA.map(item => item.chave).concat(["M0d"]));
@@ -508,6 +722,9 @@ export function importarCenario(conteudo: string): { config: ConfigDoSimulador |
     config: { local: importada,
       janela: texto(janela.inicio) && texto(janela.fim) ? { inicio: texto(janela.inicio)!, fim: texto(janela.fim)! } : null,
       horizonte: texto(o.horizonte)!, modo: o.modo === "avancado" ? "avancado" : "simples", cenarios,
+      ...(texto(o.territorio) ? { territorio: texto(o.territorio)! } : {}), ...(o.faixa === 5 || o.faixa === 9 ? { faixa: o.faixa } : {}),
+      ...(texto(objeto(o.janela_do_detector).inicio) && texto(objeto(o.janela_do_detector).fim)
+        ? { janelaDoDetector: { inicio: texto(objeto(o.janela_do_detector).inicio)!, fim: texto(objeto(o.janela_do_detector).fim)! } } : {}),
       ...(validas.length ? { referencias: validas } : {}), ...(o.metrica === "taxa" ? { metrica: "taxa" as const } : {}) } };
 }
 function planoImportado(p: Record<string, unknown>): PlanoDaTela {
@@ -545,11 +762,13 @@ const celula = (valor: unknown): string => {
 /** CSV dos resultados (separador ";" e BOM): uma linha por território, cenário e data, com o observado, a base, a intervenção, o
  * total e a faixa em precisão integral, e a rastreabilidade em cada linha (método, origem, janela, versões). */
 export function csvDoSimulador(resposta: RespostaDoSimulador): string {
+  const r = resposta.fonte.rotulos;
   const cabecalho = ["Identificador", "Território", "Tipo", "Unidade de contagem", "Cenário", "Método pedido", "Método usado", "Estado do cenário",
-    "Origem do cenário", "Médicos na origem", "Janela: início", "Janela: fim", "Data", "Natureza", "Observado", "Base do cenário", "Intervenção",
-    "Total do cenário", "Faixa de 80%: inferior", "Faixa de 80%: superior", "Avisos", "Texto do cenário",
-    "Planejamento inverso: meta", "Planejamento inverso: médicos por evento", "Planejamento inverso: eventos",
-    "Hipótese do cenário: nível em poucos médicos", "Versão do método", "Versão da base"];
+    "Origem do cenário", comMaiuscula(r.profissionais) + " na origem", "Janela: início", "Janela: fim", "Data", "Natureza", "Observado", "Base do cenário", "Intervenção",
+    "Total do cenário", "Faixa de " + resposta.retroprojecao.em10 * 10 + "%: inferior", "Faixa de " + resposta.retroprojecao.em10 * 10 + "%: superior", "Avisos",
+    "Texto do cenário",
+    "Planejamento inverso: meta", "Planejamento inverso: " + r.profissionais + " por evento", "Planejamento inverso: eventos",
+    "Hipótese do cenário: nível em poucos " + r.profissionais, "Versão do método", "Versão da base"];
   const linhas = [cabecalho.map(celula).join(";")];
   for (const territorio of resposta.territorios) for (const cenario of territorio.cenarios) {
     const p = cenario.parametros, janela = objeto(p.janela);

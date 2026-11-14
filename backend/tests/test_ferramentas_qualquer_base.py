@@ -1,9 +1,10 @@
 """Qualquer base nas ferramentas (comando V23, seção 2; Proposta V3, Parte A, seção A.3): o calendário lido da própria base
 (backend/series_brasil.py), a base montada de uma planilha enviada (backend/series_da_planilha.py), o perfil da base com o
-resumo "dá para / não dá para" (backend/perfil_da_base.py) e o Detector de Sinais com uma planilha (backend/detector.py e a
-rota POST /api/detector, que passou a aceitar o arquivo, a aba e o mapeamento de colunas, como /api/painel).
+resumo "dá para / não dá para" (backend/perfil_da_base.py), o Detector de Sinais com uma planilha (backend/detector.py e a
+rota POST /api/detector, que passou a aceitar o arquivo, a aba e o mapeamento de colunas, como /api/painel) e o Simulador de
+Cenários com uma planilha (backend/simulador.py e a rota POST /api/simulador, com o mesmo arquivo, aba e mapeamento).
 
-Quatro grupos de testes:
+Cinco grupos de testes:
 - **calendário:** o mês âncora da série anual, os meses de registro e os tipos de intervalo, na base do Brasil (janeiro e junho),
   numa base de seis em seis meses, numa base com um registro por ano e em bases irregulares;
 - **planilha:** a planilha de teste da pausa 2 (`planilha_das_ferramentas.csv`: 20 distritos fictícios, registros de seis em seis
@@ -11,6 +12,8 @@ Quatro grupos de testes:
   aceitas (AAAAMM, AAAA-MM, AAAA-MM-DD e só o ano) e as recusas;
 - **Detector e perfil:** os níveis que a planilha sustenta e os motivos dos que ela não sustenta ("Indisponível nesta base",
   "eles pedem 999 comparações, e esta base chega a 360"), com os nomes dela e sem os da base do Brasil; a rota com o arquivo;
+- **Simulador:** o jeito de projetar que a planilha escolhe pela retroprojeção dela (aqui, manter o último valor), a faixa
+  indisponível com o motivo ("ela pede 200 casos por prazo, e esta base tem 88"), as datas só com ano e a rota com o arquivo;
 - **base versionada** (job dados-reais, ADT_REAL_DATA_DIR, somente leitura): o perfil da base do Brasil.
 Nenhum valor sintético representa quantitativos reais.
 """
@@ -30,6 +33,7 @@ import main
 import perfil_da_base
 import series_brasil
 import series_da_planilha
+import simulador
 from install_brazil_data import install
 
 client = TestClient(main.app)
@@ -301,8 +305,45 @@ def test_planilha_so_com_anos_tem_as_datas_e_os_textos_sem_mes():
                                           "entre registros.")
     assert perfil["itens"][1]["lido"] == "A base tem um registro por ano (10 anos, de 2014 a 2023)."
     assert perfil["da_para"] == ["Alertas moderados desde 2016 (o 3º ano da base).", "Alertas elevados desde 2020 (o 7º ano da base).",
-                                 "Sinais anuais (declínio persistente e desaceleração), pela série de cada ano."]
+                                 "Sinais anuais (declínio persistente e desaceleração), pela série de cada ano.",
+                                 "Cenários do Simulador mantendo o último valor: na retroprojeção desta base, nenhum jeito de projetar "
+                                 "errou menos que isso."]
     assert perfil["nao_da_para"][0] == {"o_que": "Alertas críticos", "motivo": "eles pedem 999 comparações, e esta base chega a 160."}
+    # O Simulador com um registro por ano: as datas do cenário são anos ("AAAA00"), e a janela padrão são os 3 anos até o último
+    # registro (4 registros), pelo tempo e não pela contagem de registros.
+    pedido = {"base": {"municipios": {"ids": ["name:Distrito 02"]}}, "horizonte": "202500",
+              "cenarios": [{"id": "c1", "metodo": "padrao", "intervencoes": [{"tipo": "acrescimo", "quantidade": 2, "em": "202400"}]}]}
+    cenarios = simulador.compute(None, pedido, base=b)
+    assert cenarios["janela"] == {"inicio": "202000", "fim": "202300", "registros": 4, "anos": 3.0, "padrao": True}
+    cenario = cenarios["territorios"][0]["cenarios"][0]
+    assert (cenario["estado"], cenario["metodo"]["usado"], cenario["metodo"]["escolhido_pela_base"]) == ("calculado", "M0", "M0")
+    assert [(ponto["data"], ponto["total"]) for ponto in cenario["trajetoria"]] == [("202400", 34.0), ("202500", 34.0)]
+    assert cenario["texto"] == ("Cenário hipotético, não é previsão: com o método persistência (o último valor se mantém) e as premissas "
+                                "janela de 2020 a 2023; acréscimo de 2 profissionais em 2024, com permanência total (hipótese), Distrito 02 "
+                                "teria 34 profissionais em 2025. Base: registros até 2023.")
+    assert not [texto for texto in textos(cenarios) if meses.search(texto) or DO_BRASIL.search(texto)]
+    with pytest.raises(ValueError, match=r"Data final inválida: use o ano \(AAAA00\), até 2100\."):
+        simulador.compute(None, {**pedido, "horizonte": "202507"}, base=b)
+    # O calendário do modo avançado numa base só com anos: os eventos se repetem de ano em ano (12 meses ou um múltiplo), e o
+    # planejamento inverso usa o mesmo calendário. As datas continuam sendo anos, sem mês.
+    anual_avancado = {"base": {"municipios": {"ids": ["name:Distrito 02"]}}, "horizonte": "202700", "cenarios": [{
+        "id": "c1", "metodo": "padrao", "intervencoes": [{"tipo": "acrescimo", "quantidade": 2, "em": "202400", "ate": "202600", "a_cada_meses": 12}],
+        "planejamento": {"meta": {"tipo": "valor", "valor": 40}, "em": "202400", "ate": "202600", "a_cada_meses": 12}}]}
+    do_avancado = simulador.compute(None, anual_avancado, base=b)
+    periodico = do_avancado["territorios"][0]["cenarios"][0]
+    assert [(ponto["data"], ponto["total"]) for ponto in periodico["trajetoria"]] == [("202400", 34.0), ("202500", 36.0), ("202600", 38.0), ("202700", 38.0)]
+    assert periodico["texto"] == ("Cenário hipotético, não é previsão: com o método persistência (o último valor se mantém) e as premissas "
+                                  "janela de 2020 a 2023; acréscimo de 2 profissionais a cada 12 meses, de 2024 a 2026, com permanência total "
+                                  "(hipótese), Distrito 02 teria 38 profissionais em 2027. Base: registros até 2023.")
+    planejado = periodico["planejamento"]
+    assert (planejado["estado"], planejado["por_evento"], planejado["eventos"], planejado["datas"]) == ("calculado", 1, 3, ["202400", "202500", "202600"])
+    assert planejado["texto"].startswith("Meta hipotética: 40 profissionais em 2027. Menor acréscimo inteiro que alcança a meta, nas hipóteses "
+                                         "deste cenário: 1 profissional em cada um dos 3 eventos, de 2024 a 2026 (3 no total).")
+    assert not [texto for texto in textos(do_avancado) if meses.search(texto) or DO_BRASIL.search(texto)]
+    meio_ano = {**anual_avancado, "cenarios": [{"id": "c1", "metodo": "padrao", "intervencoes": [
+        {"tipo": "acrescimo", "quantidade": 2, "em": "202400", "ate": "202600", "a_cada_meses": 6}]}]}
+    with pytest.raises(ValueError, match="numa base com um registro por ano, o intervalo entre os eventos é de 12 meses ou um múltiplo de 12"):
+        simulador.compute(None, meio_ano, base=b)
 
 
 def test_perfil_da_planilha_de_teste_da_para_e_nao_da_para():
@@ -325,12 +366,19 @@ def test_perfil_da_planilha_de_teste_da_para_e_nao_da_para():
         ("nomes", "Nomes", "A contagem é de profissionais; os territórios são os distritos; o todo, a Solária.", None)]
     # O resumo, como no exemplo da seção A.3 da Proposta V3: o que a base sustenta e, do que não sustenta, o motivo com os números.
     assert perfil["da_para"] == ["Alertas moderados desde jan/2015 (o 2º ano da base).", "Alertas elevados desde jan/2018 (o 5º ano da base).",
-                                 "Sinais anuais (declínio persistente e desaceleração), pela série de julho."]
+                                 "Sinais anuais (declínio persistente e desaceleração), pela série de julho.",
+                                 "Cenários do Simulador mantendo o último valor: na retroprojeção desta base, nenhum jeito de projetar "
+                                 "errou menos que isso."]
     assert perfil["nao_da_para"] == [
         {"o_que": "Alertas críticos", "motivo": "eles pedem 999 comparações, e esta base chega a 360."},
         {"o_que": "\"Mais longe da referência\" (sinal 10) e o crescimento do grupo no Simulador",
          "motivo": "a base não tem grupo de cima; o Simulador usa o crescimento da base toda."},
-        {"o_que": "Sinais por habitante (8 a 11) e comparações por habitante no Simulador", "motivo": "a base não tem população."}]
+        {"o_que": "Sinais por habitante (8 a 11) e comparações por habitante no Simulador", "motivo": "a base não tem população."},
+        {"o_que": "A faixa do Simulador", "motivo": "ela pede 200 casos por prazo, e esta base tem 120."}]
+    # O que a retroprojeção do Simulador sustenta nesta base: 6 origens, nenhum jeito melhor que manter o último valor, sem faixa.
+    assert perfil["simulador"] == {"municipios": {
+        "metodo": "M0", "rotulo": "persistência (o último valor se mantém)", "motivo": "nenhum_vale", "origens": 6, "faixa_ate_anos": 0,
+        "conferida_ate_anos": 0, "casos_em_1_ano": 120, "pede": 200}}
     assert perfil["regua"] == {
         "moderado": {"desde": "201501", "pede": 19, "chega_a": 360, "sem_comparacoes_no_ultimo": 0, "com_registro_no_ultimo": 20},
         "elevado": {"desde": "201801", "pede": 99, "chega_a": 360, "sem_comparacoes_no_ultimo": 0, "com_registro_no_ultimo": 20},
@@ -389,10 +437,159 @@ def test_rota_do_detector_aceita_a_planilha_com_o_mapeamento_das_analises(monkey
     # Sem as premissas que o portão das análises pede, a rota devolve a mesma pendência do painel, para a tela perguntar.
     pendente = pedir({"base": {"municipios": {"todos": True}}})
     assert pendente.status_code == 422 and pendente.json()["pendencia"]["chave"] == "confirmed_roles"
-    # Sem base nenhuma, a ferramenta diz o que fazer; o Simulador continua só com a base do Brasil.
+    # Sem base nenhuma, a ferramenta diz o que fazer.
     recusa(client.post("/api/detector", data={"options": "{}"}), "Escolha a base do Brasil ou envie uma planilha")
-    recusa(client.post("/api/simulador", data={"options": "{}"}, files={"file": (PLANILHA.name, PLANILHA.read_bytes(), "text/csv")}),
-           "O Simulador de Cenários Territoriais usa a base do Brasil")
+
+
+# --------------------------------------------------------------------------------------------- Simulador com a planilha
+def pedir_ao_simulador(opcoes, mapa=MAPA, **dados):
+    return client.post("/api/simulador", data={"mapping": json.dumps(mapa), "options": json.dumps(opcoes), **dados},
+                       files={"file": (PLANILHA.name, PLANILHA.read_bytes(), "text/csv")})
+
+
+def test_rota_do_simulador_aceita_a_planilha_e_a_base_escolhe_o_jeito_de_projetar(monkeypatch):
+    monkeypatch.setattr(main, "llm_interpret", lambda *a, **k: (_ for _ in ()).throw(AssertionError("o Simulador não usa o provedor de IA")))
+    do_13 = {"base": {"municipios": {"ids": ["name:Distrito 13"]}}, "horizonte": "202507", **DA_PLANILHA}
+    resposta = corpo(pedir_ao_simulador({**do_13, "cenarios": [
+        {"id": "c1", "metodo": "padrao", "intervencoes": [{"tipo": "acrescimo", "quantidade": 3, "em": "202401"}]}]}))
+    assert resposta["versao"] == simulador.VERSION == "SIMULADOR-CENARIOS/V3/1"
+    assert {chave: resposta["fonte"][chave] for chave in ("base", "categoria", "origem", "ancora")} == {
+        "base": "planilha enviada", "categoria": "Enfermeiros", "origem": "planilha", "ancora": "07"}
+    assert resposta["limitacoes"] == ["CENARIO_HIPOTETICO", "PADRAO_ESCOLHIDO_PELA_BASE", "FAIXA_SO_DO_METODO_PADRAO"]
+    assert resposta["faixa"] == {"em_10": 8, "opcoes": [5, 8, 9], "padrao": 8}
+    assert resposta["janela"] == {"inicio": "202007", "fim": "202307", "registros": 7, "anos": 3.0, "padrao": True}
+    assert (resposta["ultimo_registro"], resposta["horizonte"]) == ("202307", {"data": "202507", "anos_desde_o_ultimo_registro": 2.0})
+    # As opções que descrevem a planilha não são opções do Simulador: não viram recusa nem voltam na resposta.
+    assert "rotulos" not in resposta and "premissas" not in resposta
+    territorio = resposta["territorios"][0]
+    assert (territorio["id"], territorio["rotulo"], territorio["uf"], territorio["tipo"], territorio["nivel"], territorio["lacunas"]) == (
+        "name:Distrito 13", "Distrito 13", None, "municipio", "municipios", [])
+    assert territorio["unidade"] == "pessoas registradas em cada distrito (quem aparece em mais de um conta em cada um)"
+    assert len(territorio["observado"]) == 20 and territorio["observado"][-1] == {"competencia": "202307", "valor": 19.0, "estado": "observado"}
+    # O jeito de projetar é o que a própria base escolheu. Aqui, nenhum candidato errou menos que manter o último valor (a taxa do
+    # próprio distrito e o crescimento da base toda erraram mais): "continuar como vinha" mantém o último valor, com o aviso.
+    cenario = territorio["cenarios"][0]
+    assert cenario["estado"] == "calculado" and cenario["metodo"] == {
+        "pedido": "padrao", "usado": "M0", "rotulo": "persistência (o último valor se mantém)", "padrao": True, "provisorio": False,
+        "voltou_ao_m0": False, "soma": None, "escolhido_pela_base": "M0", "e_o_escolhido": True}
+    assert cenario["avisos"] == [
+        {"codigo": "PADRAO_E_O_ULTIMO_VALOR", "texto": "Nesta base, nenhum jeito de projetar errou menos que manter o último valor, quando "
+                                                       "conferido com o passado: o cenário mantém o último valor."},
+        {"codigo": "HORIZONTE_CAUTELA", "texto": "Cautela: a data final fica a mais da metade do tempo de história usado no cálculo (2 anos à "
+                                                 "frente, com 3 anos de história usados no cálculo)."}]
+    assert [(ponto["data"], ponto["total"]) for ponto in cenario["trajetoria"]] == [("202401", 22.0), ("202407", 22.0), ("202501", 22.0),
+                                                                                   ("202507", 22.0)]
+    assert cenario["final"] == {"data": "202507", "base": 19.0, "intervencao": 3.0, "total": 22.0, "faixa": None}
+    assert cenario["texto"] == ("Cenário hipotético, não é previsão: com o método persistência (o último valor se mantém) e as premissas "
+                                "janela de jul/2020 a jul/2023; acréscimo de 3 profissionais em jan/2024, com permanência total (hipótese), "
+                                "Distrito 13 teria 22 profissionais em jul/2025. Base: registros até jul/2023.")
+    # A faixa fica indisponível, com o motivo e os números da própria base; nada é emprestado da base do Brasil.
+    sem_faixa = "A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem 88 em 1 ano, mesmo juntando os portes vizinhos e os menores."
+    assert cenario["faixa"] == {"estado": "indisponivel", "motivo": sem_faixa, "rotulo": None, "em_10": 8}
+    assert cenario["entenda"] == {
+        "jeito": {"texto": "O cenário parte do último registro usado (jul/2023) e mantém o valor dele. Nesta base, nenhum outro jeito errou "
+                           "menos que manter o último valor, quando refeito no passado.",
+                  "exemplo": "De 19 profissionais em jul/2023, a base do cenário vai a 19 um ano depois, sem contar intervenções."},
+        "faixa": {"texto": sem_faixa,
+                  "exemplo": "Sem a faixa, o cenário mostra só a linha: ela não diz quanto o valor real costuma se afastar."}}
+    # A retroprojeção da planilha: 6 origens (julho de 2017 a 2022), 18 combinações de origem e prazo e os dois candidatos que a
+    # base permite (sem grupo de cima, não há o crescimento do grupo).
+    retro = resposta["retroprojecao"]
+    assert retro["origens"] == ["201707", "201807", "201907", "202007", "202107", "202207"] and list(retro["niveis"]) == ["municipios"]
+    escolha = dict(retro["escolha"])
+    candidatos = escolha.pop("candidatos")
+    assert escolha == {"metodo": "M0", "rotulo": "persistência (o último valor se mantém)", "motivo": "nenhum_vale", "origens": 6,
+                       "combinacoes": 18, "excecoes": [],
+                       "texto": "Para os distritos: nesta base, nenhum jeito de projetar errou menos que manter o último valor, quando "
+                                "conferido com o passado: o cenário mantém o último valor."}
+    assert [(item["metodo"], round(item["frente_ao_m0"], 3), item["menos_erro_em"], item["combinacoes"], item["vale"]) for item in candidatos] == [
+        ("M1", 1.482, 0, 18, False), ("M0g", 1.173, 5, 18, False)]
+    assert [(item["porte"], item["anos"], item["estado"], item["casos"], item["pede"]) for item in retro["faixas"]] == [
+        ("10 a 19", 1, "indisponivel", 88, 200), ("10 a 19", 2, "indisponivel", 73, 200), ("10 a 19", 3, "indisponivel", 58, 200),
+        ("10 a 19", 4, "indisponivel", 44, 200), ("20 a 49", 1, "indisponivel", 120, 200), ("20 a 49", 2, "indisponivel", 100, 200),
+        ("20 a 49", 3, "indisponivel", 80, 200), ("20 a 49", 4, "indisponivel", 60, 200), ("50 a 99", 1, "indisponivel", 120, 200),
+        ("50 a 99", 2, "indisponivel", 100, 200), ("50 a 99", 3, "indisponivel", 80, 200), ("50 a 99", 4, "indisponivel", 60, 200)]
+    assert [item["chave"] for item in resposta["metodos"]] == ["M0", "M0d", "M0g", "M1", "M2", "M3", "manual"]
+    assert resposta["notas"][1] == ("O registro mais recente da base é jul/2023: o que vem depois dele no gráfico é simulado, nunca observado. "
+                                    "A base só tem profissionais, com registros de janeiro e julho (6 meses entre um e outro).")
+    # Nenhum texto traz o vocabulário da base do Brasil (os nomes dos campos da resposta não são textos).
+    achados = sorted({texto for texto in textos(resposta) if DO_BRASIL.search(texto)})
+    assert not achados, achados[:3]
+    # A faixa de 5 em cada 10 pede menos casos (80 por prazo): esta base a sustenta em 1 ano, com os portes vizinhos.
+    de_5 = corpo(pedir_ao_simulador({**do_13, "faixa": 5}))
+    assert de_5["faixa"] == {"em_10": 5, "opcoes": [5, 8, 9], "padrao": 8}
+    assert {chave: de_5["territorios"][0]["cenarios"][0]["faixa"][chave] for chave in ("estado", "em_10", "porte", "ate_anos", "como")} == {
+        "estado": "disponivel", "em_10": 5, "porte": "10 a 19", "ate_anos": 1, "como": "vizinhas"}
+    # Um método pedido pela pessoa: o crescimento da base toda (M0g) e a taxa composta do próprio distrito (M1), sem faixa.
+    do_m0g = corpo(pedir_ao_simulador({**do_13, "cenarios": [{"id": "a", "metodo": "M0g"}]}))["territorios"][0]["cenarios"][0]
+    assert (do_m0g["estado"], do_m0g["metodo"]["usado"], do_m0g["metodo"]["e_o_escolhido"]) == ("calculado", "M0g", False)
+    assert do_m0g["parametros"]["crescimento_da_base_pct"] == pytest.approx(-0.0449438, abs=1e-6)
+    assert do_m0g["final"]["total"] == pytest.approx(18.983, abs=1e-3)
+    assert do_m0g["texto"] == ("Cenário hipotético, não é previsão: com o método persistência com o crescimento recente da base toda e as "
+                               "premissas janela de jul/2020 a jul/2023; crescimento da base toda de −0,04% ao ano; sem intervenção, "
+                               "Distrito 13 teria 19 profissionais em jul/2025. Base: registros até jul/2023.")
+    do_m1 = corpo(pedir_ao_simulador({**do_13, "cenarios": [{"id": "a", "metodo": "M1"}]}))["territorios"][0]["cenarios"][0]
+    assert do_m1["final"]["total"] == pytest.approx(16.2598, abs=1e-4) and "taxa de −7,49% ao ano" in do_m1["texto"]
+    # Sem grupo de cima, o crescimento do grupo não se aplica, e o motivo diz o que usar.
+    sem_grupo = corpo(pedir_ao_simulador({**do_13, "cenarios": [{"id": "a", "metodo": "M0d"}]}))["territorios"][0]["cenarios"][0]
+    assert (sem_grupo["estado"], sem_grupo["motivo"]) == ("nao_aplicavel", (
+        "A persistência com o crescimento recente do grupo vale para os distritos e conjuntos de distritos, numa base com grupo de cima; "
+        "nos outros casos, use o crescimento da base toda (M0g) ou a taxa composta do próprio território (M1)."))
+    # A base inteira: os 20 distritos calculados, todos com o jeito que a base escolheu.
+    todos = corpo(pedir_ao_simulador({"base": {"municipios": {"todos": True}}, "horizonte": "202407", **DA_PLANILHA}))
+    assert len(todos["territorios"]) == 20
+    assert {(item["cenarios"][0]["estado"], item["cenarios"][0]["metodo"]["usado"]) for item in todos["territorios"]} == {("calculado", "M0")}
+    # O pedido do modo avançado com a planilha (ajuste de 14/11/2026, antes da Pausa 2): vários cenários, um conjunto, o todo como
+    # território (a soma dos distritos com registro, com o nome que a pessoa deu) e as referências — o todo, outro distrito, o
+    # conjunto e um valor —, com os nomes da planilha nos textos e nos avisos de sobreposição.
+    avancado = corpo(pedir_ao_simulador({
+        "base": {"municipios": {"ids": ["name:Distrito 02"]}}, "brasil": True, "horizonte": "202507", **DA_PLANILHA,
+        "conjuntos": [{"id": "g1", "rotulo": "Par", "membros": ["name:Distrito 02", "name:Distrito 03"]}],
+        "cenarios": [{"id": "c1", "metodo": "padrao", "intervencoes": [
+            {"tipo": "acrescimo", "quantidade": 2, "em": "202401", "ate": "202501", "a_cada_meses": 6}]}, {"id": "c2", "metodo": "M0g"}],
+        "referencias": [{"id": "r1", "territorio": "br", "tipo": "fixa"}, {"id": "r2", "territorio": "name:Distrito 05", "tipo": "dinamica"},
+                        {"id": "r3", "territorio": "g1", "tipo": "fixa"}, {"id": "r4", "tipo": "valor", "valor": 40, "rotulo": "Meta local"}]}))
+    assert [(item["id"], item["tipo"], item["rotulo"], [c["estado"] for c in item["cenarios"]]) for item in avancado["territorios"]] == [
+        ("name:Distrito 02", "municipio", "Distrito 02", ["calculado", "calculado"]), ("g1", "conjunto", "Par", ["calculado", "calculado"]),
+        ("br", "brasil", "Solária", ["calculado", "nao_aplicavel"])]
+    assert [(ref["id"], ref["rotulo"], ref["estado"], ref["descricao"]) for ref in avancado["referencias"]] == [
+        ("r1", "Solária", "calculada", "fixa: o valor de jul/2023 mantido"),
+        ("r2", "Distrito 05", "calculada", "dinâmica: persistência (o último valor se mantém), com registros até jul/2023"),
+        ("r3", "Par", "calculada", "fixa: o valor de jul/2023 mantido"), ("r4", "Meta local", "calculada", "valor informado por você, mantido")]
+    do_02 = avancado["territorios"][0]["cenarios"][0]
+    assert do_02["final"]["total"] == 38.0 and "acréscimo de 2 profissionais em cada território do cenário, a cada 6 meses, de jan/2024 a jan/2025" in do_02["texto"]
+    com_o_todo, com_o_distrito, com_o_conjunto, com_o_valor = do_02["comparacoes"]
+    assert com_o_todo["texto"] == ("Em jul/2025, Distrito 02 teria 38 profissionais, e a referência Solária (fixa: o valor de jul/2023 mantido), 741: "
+                                   "703 abaixo da referência (índice 5,1; 100 é a referência). Não alcança no horizonte simulado (até jul/2025).")
+    assert com_o_todo["avisos"][0] == "A referência (Solária) contém o território: a comparação não é independente."
+    assert com_o_distrito["texto"].startswith("Em jul/2025, Distrito 02 teria 38 profissionais, e a referência Distrito 05 (dinâmica: persistência")
+    assert com_o_conjunto["avisos"][0] == "O território e a referência têm 1 distrito em comum: a comparação não é independente."
+    assert (com_o_valor["avisos"], com_o_valor["alcance"]) == ([], {"estado": "nao_alcanca", "data": None})
+    # O todo: o jeito escolhido para os distritos (aqui, manter o último valor), como provisório; o crescimento da base toda não
+    # vale para ele, que é a própria base toda.
+    o_todo = avancado["territorios"][2]
+    assert o_todo["unidade"] == "soma das contagens de todos os distritos com registro na data"
+    assert [aviso["codigo"] for aviso in o_todo["cenarios"][0]["avisos"]] == ["PADRAO_E_O_ULTIMO_VALOR", "PADRAO_PROVISORIO_DO_NIVEL", "HORIZONTE_CAUTELA"]
+    assert o_todo["cenarios"][1]["motivo"] == ("O crescimento da base toda não vale para a Solária: a série é a própria base toda. Use a taxa "
+                                               "composta (M1).")
+    assert o_todo["cenarios"][0]["comparacoes"][0]["avisos"] == ["A referência é o próprio território."]
+    assert o_todo["cenarios"][0]["comparacoes"][1]["avisos"][0] == "O território (Solária) contém a referência: a comparação não é independente."
+    assert ("A Solária é a soma dos distritos com registro em cada data e entra com um padrão provisório (o jeito escolhido para os distritos). "
+            "Num conjunto, o valor é a soma dos componentes, não o número de profissionais diferentes.") in avancado["notas"]
+    achados = sorted({texto for texto in textos(avancado) if DO_BRASIL.search(texto)})
+    assert not achados, achados[:3]
+    # Por taxa, sem população na planilha, a comparação diz que não é calculável, com o motivo; nada é inventado.
+    por_taxa = corpo(pedir_ao_simulador({**do_13, "referencias": [{"id": "r1", "territorio": "name:Distrito 05", "tipo": "fixa"}],
+                                         "comparacao": {"metrica": "taxa"}}))["territorios"][0]["cenarios"][0]["comparacoes"][0]
+    assert (por_taxa["estado"], por_taxa["motivo"]) == ("nao_calculavel", "Sem população válida no último registro para a hipótese de população constante.")
+    # Recusas, em português: o que falta na planilha ou no pedido.
+    recusa(pedir_ao_simulador({"base": {"municipios": {"todos": True}}, **DA_PLANILHA, "faixa": 7}), "Faixa inválida: escolha 5, 8 ou 9 em cada 10.")
+    recusa(pedir_ao_simulador({"base": {"municipios": {"ids": ["name:Nada"]}}, **DA_PLANILHA}), "Território fora da base: name:Nada.")
+    recusa(pedir_ao_simulador(do_13, mapa={}), "Escolha a coluna territorial")
+    recusa(client.post("/api/simulador", data={"options": "{}"}), "Escolha a base do Brasil ou envie uma planilha")
+    # Sem as premissas que o portão das análises pede, a rota devolve a mesma pendência do painel, para a tela perguntar.
+    pendente = pedir_ao_simulador({"base": {"municipios": {"todos": True}}})
+    assert pendente.status_code == 422 and pendente.json()["pendencia"]["chave"] == "confirmed_roles"
 
 
 # --------------------------------------------------------------------------------------------- base versionada
@@ -446,9 +643,20 @@ def test_real_perfil_da_base_do_brasil(real):
         "Distância até o município mais próximo com mais médicos por habitante (sinal 11, só contexto).",
         "Alertas moderados nos estados como unidade desde jun/2015 (o 2º ano da base).",
         "Alertas elevados nos estados como unidade desde jun/2019 (o 6º ano da base).",
-        "Sinais anuais (declínio persistente e desaceleração), pela série de junho."]
-    assert perfil["nao_da_para"] == [{"o_que": "Alertas críticos nos estados como unidade",
-                                      "motivo": "eles pedem 999 comparações, e esta base chega a 270."}]
+        "Sinais anuais (declínio persistente e desaceleração), pela série de junho.",
+        "Cenários do Simulador com o jeito de projetar que a base escolheu: persistência com o crescimento recente do estado.",
+        "A faixa de 8 em cada 10 do Simulador, até 4 anos à frente (conferida com o que veio depois até 2 anos; depois, provisória).",
+        "Cenários do Simulador nos estados como unidade com o jeito de projetar que a base escolheu: taxa composta da janela."]
+    assert perfil["nao_da_para"] == [
+        {"o_que": "Alertas críticos nos estados como unidade", "motivo": "eles pedem 999 comparações, e esta base chega a 270."},
+        {"o_que": "A faixa do Simulador nos estados como unidade", "motivo": "ela pede 200 casos por prazo, e esta base tem 189."}]
+    # O que a retroprojeção do Simulador sustenta na base do Brasil (Proposta V3, seções C.3 e C.4): nos municípios, o crescimento
+    # recente do estado e a faixa até 4 anos (conferida até 2); nos estados, a taxa composta, sem faixa (189 casos em 1 ano).
+    assert perfil["simulador"] == {
+        "municipios": {"metodo": "M0d", "rotulo": "persistência com o crescimento recente do estado", "motivo": "escolhido", "origens": 7,
+                       "faixa_ate_anos": 4, "conferida_ate_anos": 2, "casos_em_1_ano": 38920, "pede": 200},
+        "estados": {"metodo": "M1", "rotulo": "taxa composta da janela", "motivo": "escolhido", "origens": 7, "faixa_ate_anos": 0,
+                    "conferida_ate_anos": 0, "casos_em_1_ano": 189, "pede": 200}}
     assert perfil["regua_dos_estados"]["elevado"]["desde"] == "201906" and perfil["regua"]["critico"]["sem_comparacoes_no_ultimo"] == 43
     # A lista da base do Brasil diz o que a base tem, e nenhum sinal fica indisponível.
     lista = client.post("/api/detector", data={"dataset": "brazil", "scope": "municipal",

@@ -940,22 +940,30 @@ números; abre com o mouse, com um toque ou pelo teclado). "Ajustar critérios" 
 delas: trocar um valor torna a configuração exploratória, e "Voltar ao padrão" fica sempre à vista. Os sinais comparados em 2
 anos só calculam a variação em trechos com população comparável, lidos da própria base (com a população do Ministério da Saúde,
 desde 13/11/2026, a base inteira é um trecho só). Nos detalhes, "Abrir no Simulador" e "Simular recuperação" levam o território
-ao Simulador de Cenários (na base do Brasil: o Simulador ainda não funciona com planilhas). Os cálculos são do motor (`POST /api/detector`), sem o provedor de IA. Regras, rota, estudo de
+ao Simulador de Cenários (também com uma planilha). Os cálculos são do motor (`POST /api/detector`), sem o provedor de IA. Regras, rota, estudo de
 calibração e limitações: [Docs/DETECTOR_DE_SINAIS.md](Docs/DETECTOR_DE_SINAIS.md); a referência metodológica é
 [Docs/DETECTOR_E_SIMULADOR_V3.md](Docs/DETECTOR_E_SIMULADOR_V3.md) (a [V2.2](Docs/DETECTOR_E_SIMULADOR_V2_2.md) continua valendo
 no que a V3 não muda).
 
-## Simulador de Cenários Territoriais (comando V22)
+## Simulador de Cenários Territoriais (comandos V22 e V23)
 
-Na base do Brasil, o botão **Simulador de Cenários**, na navegação principal, monta cenários hipotéticos para os territórios de uma
-**seleção local** (uma cópia da seleção principal, que só volta a ela por "Aplicar à seleção principal"). Em quatro etapas, a
-pessoa escolhe os territórios, a janela histórica e o método da base do cenário (a persistência, a persistência com o crescimento
-recente do estado, que é o padrão provisório dos municípios, a taxa composta, a tendência linear robusta, a tendência log-linear
-ou uma taxa informada por ela), as intervenções (acréscimos e retiradas de médicos, com a permanência como hipótese) e a data
-final, em qualquer mês. Os resultados separam o observado, a base do cenário, a intervenção e, quando sustentada, a faixa de 80%
-(só no método padrão dos municípios, até 4 anos). Cada cenário traz o texto fixo "Cenário hipotético, não é previsão: …"; nada é
-previsão, observação atual nem recomendação de provimento. A média aritmética das taxas aparece só como descrição do passado. O
-Brasil pode entrar como território, só no Simulador, pela contagem nacional. Cada cenário pode ser comparado com **referências**
+O botão **Simulador de Cenários**, na navegação principal, monta cenários hipotéticos para os territórios de uma **seleção
+local** (uma cópia da seleção principal, que só volta a ela por "Aplicar à seleção principal"). Vale para a base do Brasil e,
+desde 14/11/2026 (comando V23, Proposta V3, Parte C), para uma planilha enviada, com os nomes dela (numa planilha só com anos,
+as datas do cenário são anos). Ele abre em **modo simples,
+numa tela só**: o território, o que testar (só continuar como vinha, acrescentar, retirar ou chegar a uma meta) e até quando; o
+resultado traz o gráfico, a frase fixa, três números e os "Entenda" do jeito de projetar e da faixa. "Continuar como vinha" usa
+**o jeito de projetar que a própria base escolheu**: o Agente refaz no passado as projeções que teria feito, confere com o que
+aconteceu depois e fica com o jeito que errou menos que manter o último valor (na base do Brasil, o crescimento recente do
+estado, nos municípios, e a taxa composta, nos estados; sem história bastante, mantém o último valor). A **faixa de 8 em cada
+10** (ou de 5, ou de 9) vem da mesma retroprojeção e é conferida no tempo: "conferida", "provisória" ou "indisponível", com o
+motivo. Em **"Avançado"** ficam as quatro etapas de antes: os territórios, a janela histórica e o método da base do cenário (a
+persistência, a persistência com o crescimento recente do estado ou da base toda, a taxa composta, a tendência linear robusta, a
+tendência log-linear ou uma taxa informada pela pessoa), as intervenções (acréscimos e retiradas de médicos, com a permanência
+como hipótese) e a data final, em qualquer mês. Os resultados separam o observado, a base do cenário, a intervenção e, quando
+sustentada, a faixa. Cada cenário traz o texto fixo "Cenário hipotético, não é previsão: …"; nada é previsão, observação atual
+nem recomendação de provimento. A média aritmética das taxas aparece só como descrição do passado. O Brasil pode entrar como
+território, só no Simulador, pela contagem nacional. Cada cenário pode ser comparado com **referências**
 (um município, um estado, o Brasil, um conjunto ou um valor da pessoa; fixas ou dinâmicas; por quantidade ou por taxa com a
 população constante), com a diferença, o índice e o alcance ("não alcança no horizonte simulado", sem data inventada), e pode
 ter um **planejamento inverso**: o menor número inteiro de médicos por evento que alcança uma meta hipotética (um número, o

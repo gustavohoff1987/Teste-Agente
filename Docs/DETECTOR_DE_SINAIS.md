@@ -231,8 +231,10 @@ Com uma **planilha enviada**:
 - **Nomes.** Os do painel "Colunas" (a unidade, o grupo e o todo), com a concordância ("a comuna mais próxima", "das demais
   comunas"). A contagem é de "profissionais", "vínculos" ou "postos", pela unidade de contagem informada.
 
-O **Simulador de Cenários** ainda funciona só com a base do Brasil; com uma planilha, o botão dele fica desligado, com o motivo, e
-o detalhe do Detector não oferece "Abrir no Simulador" nem "Simular recuperação".
+O **Simulador de Cenários** também abre com uma planilha (comando V23, Parte C), nos dois modos e também quando ela só traz o
+ano: o detalhe do Detector oferece "Abrir no Simulador" e, quando o território tem patamar, "Simular recuperação". Só sem datas
+que o Agente reconheça o botão do Simulador fica desligado, com o motivo, e o detalhe não oferece essas duas ações
+([Simulador de Cenários](SIMULADOR_DE_CENARIOS.md), seção "Qualquer base").
 
 ## Rota
 
@@ -396,7 +398,6 @@ exploratória.
 - Numa planilha enviada, o grupo de cima não entra como unidade (a planilha não tem a contagem própria dele), e não há régua
   própria dos grupos. O que a planilha não tem (população, coordenadas, grupo de cima ou série anual) deixa os sinais que dependem
   disso indisponíveis, com o motivo.
-- O Simulador de Cenários ainda funciona só com a base do Brasil: com uma planilha, o Detector não leva o território a ele.
 
 ## Testes
 

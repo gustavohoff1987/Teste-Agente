@@ -426,12 +426,10 @@ def main():
         guarda("total-informado")
 
         # 7c. As ferramentas com uma planilha (comando V23, "qualquer base"; muda de propósito este trecho, que conferia as duas
-        # ferramentas desligadas): o Simulador de Cenários continua só com a base que vem com o Agente, com o motivo em palavras que
-        # não usam o vocabulário da base brasileira; o Detector de Sinais abre com a planilha, e o perfil da base vem antes dele,
-        # aberto (é uma base nova), com o "dá para / não dá para" que o motor leu dela.
-        expect(area.get_by_test_id("analise-ferramenta-simulador")).to_be_disabled()
-        expect(area.get_by_test_id("analise-ferramentas-motivo")).to_have_text(
-            "O Simulador de Cenários ainda funciona só com a base que vem com o Agente. Com uma planilha enviada, use o Detector de Sinais.")
+        # ferramentas desligadas e, depois, o Simulador desligado com o motivo): as duas ferramentas abrem com a planilha. O perfil
+        # da base vem antes delas, aberto (é uma base nova), com o "dá para / não dá para" que o motor leu dela.
+        expect(area.get_by_test_id("analise-ferramenta-simulador")).to_be_enabled()
+        expect(area.get_by_test_id("analise-ferramentas-motivo")).to_have_count(0)
         do_detector = []
         page.on("response", lambda r: do_detector.append(r) if is_post(r, "/api/detector") else None)
         botao = area.get_by_test_id("analise-ferramenta-detector")
@@ -468,7 +466,10 @@ def main():
         expect(perfil).to_have_attribute("data-estado", "pronto", timeout=180000)
         do_perfil = next(r for r in do_detector if options_of(r.request).get("perfil") is True).json()["perfil"]
         assert (do_perfil["origem"], do_perfil["territorios"], do_perfil["registros"]) == ("planilha", 16, 5), do_perfil
-        assert [item["o_que"] for item in do_perfil["nao_da_para"]] == ["Alertas elevados", "Alertas críticos"], do_perfil["nao_da_para"]
+        assert [item["o_que"] for item in do_perfil["nao_da_para"]] == [
+            "Alertas elevados", "Alertas críticos", "Escolher o jeito de projetar do Simulador pela retroprojeção"], do_perfil["nao_da_para"]
+        assert do_perfil["nao_da_para"][2]["motivo"].startswith("ela pede 3 origens com 3 anos antes e 1 ano depois, e esta base tem "), (
+            do_perfil["nao_da_para"])
         assert do_perfil["nao_da_para"][1]["motivo"].startswith("eles pedem 999 comparações, e esta base chega a "), do_perfil["nao_da_para"]
         assert any(frase.startswith("Alertas moderados desde ") for frase in do_perfil["da_para"]), do_perfil["da_para"]
         expect(perfil).to_have_attribute("data-origem", "planilha")
@@ -487,10 +488,9 @@ def main():
         detalhe = detector.get_by_test_id("detector-detalhe")
         expect(detalhe).to_be_visible(timeout=180000)
         expect(detalhe.get_by_test_id("detector-fenomeno")).to_have_count(11)
-        # Sem o Simulador para a planilha, o detalhe não oferece "Abrir no Simulador" nem "Simular recuperação".
+        # Com o Simulador valendo para a planilha, o detalhe oferece "Abrir no Simulador".
         expect(detalhe.get_by_test_id("detector-historico-botao")).to_be_visible()
-        expect(detalhe.get_by_test_id("detector-abrir-no-simulador")).to_have_count(0)
-        expect(detalhe.get_by_test_id("detector-simular-recuperacao")).to_have_count(0)
+        expect(detalhe.get_by_test_id("detector-abrir-no-simulador")).to_be_visible()
         expect(detalhe.get_by_test_id("detector-grupo")).to_have_count(5)
         expect(detalhe.locator('[data-testid="detector-fenomeno"][data-chave="estrutural"]')).to_contain_text("profissionais")
         expect(detalhe.locator('[data-testid="detector-fenomeno"][data-chave="contexto"]')).to_have_attribute("data-estado", "contexto")
@@ -504,6 +504,72 @@ def main():
         expect(perfil).to_have_attribute("data-estado", "pronto")
         page.wait_for_timeout(500)
         assert sum(1 for r in do_detector if options_of(r.request).get("perfil") is True) == pedidos_do_perfil == 1, pedidos_do_perfil
+
+        # 7d. O Simulador de Cenários com a planilha (comando V23, Parte C da Proposta V3): aberto pelo detalhe do Detector, no modo
+        # simples, com a comuna já escolhida. O pedido leva a planilha e o que a descreve. A base tem 5 registros: sem história para
+        # a retroprojeção, "continuar como vinha" mantém o último valor, com o aviso, e a faixa fica indisponível, com o motivo. Os
+        # nomes são os da planilha, também no gráfico. O modo avançado também vale com a planilha (7e).
+        da_comuna = primeira.get_attribute("data-id")
+        aperta(detalhe.get_by_test_id("detector-abrir-no-simulador"))
+        simulador = area.get_by_test_id("simulador")
+        expect(simulador).to_have_attribute("data-modo", "simples", timeout=60000)
+        expect(simulador.get_by_test_id("simulador-do-detector")).to_be_visible()
+        expect(simulador.get_by_test_id("simulador-simples")).to_be_visible()
+        expect(simulador.get_by_test_id("simulador-modo-avancado")).to_be_enabled()
+        expect(simulador.get_by_test_id("simulador-avancado")).to_be_enabled()
+        expect(simulador.get_by_test_id("simulador-territorio")).to_have_value(da_comuna)
+        with page.expect_response(lambda r: is_post(r, "/api/simulador"), timeout=180000) as evento:
+            aperta(simulador.get_by_test_id("simulador-calcular"))
+        assert evento.value.status == 200, evento.value.text()[:2000]
+        cenarios, pedido = evento.value.json(), options_of(evento.value.request)
+        assert uploaded_filename(evento.value.request) == "solaria_comunas.xlsx", uploaded_filename(evento.value.request)
+        assert pedido["rotulos"]["unidade"]["plural"] == "comunas" and pedido["premissas"], pedido
+        assert pedido["base"]["municipios"]["ids"] == [da_comuna], pedido["base"]
+        fonte = cenarios["fonte"]
+        assert (fonte["origem"], fonte["base"], fonte["rotulos"]["unidades"], fonte["rotulos"]["todo"]) == (
+            "planilha", "planilha enviada", "comunas", "Solária"), fonte
+        assert cenarios["retroprojecao"]["escolha"]["motivo"] == "poucas_origens", cenarios["retroprojecao"]["escolha"]
+        assert [item["id"] for item in cenarios["territorios"]] == [da_comuna], [item["id"] for item in cenarios["territorios"]]
+        do_cenario = cenarios["territorios"][0]["cenarios"][0]
+        assert (do_cenario["estado"], do_cenario["metodo"]["usado"], do_cenario["metodo"]["e_o_escolhido"], do_cenario["faixa"]["estado"]) == (
+            "calculado", "M0", True, "indisponivel"), do_cenario
+        assert "SEM_RETROPROJECAO" in [aviso["codigo"] for aviso in do_cenario["avisos"]], do_cenario["avisos"]
+        assert do_cenario["faixa"]["motivo"] == ("A faixa de 8 em cada 10 vem da retroprojeção, e esta base não tem retroprojeção bastante: são "
+                                                 "menos de 3 origens com 3 anos antes e 1 ano depois."), do_cenario["faixa"]
+        resultado = simulador.get_by_test_id("simulador-resultado")
+        expect(resultado).to_have_attribute("data-estado", "calculado", timeout=180000)
+        expect(resultado).to_have_attribute("data-metodo", "M0")
+        expect(resultado).to_have_attribute("data-faixa", "indisponivel")
+        expect(resultado.get_by_test_id("simulador-texto")).to_have_text(do_cenario["texto"])
+        expect(resultado.get_by_test_id("simulador-faixa-estado")).to_have_text("Faixa de 8 em cada 10: indisponível")
+        expect(resultado.locator('[data-testid="simulador-avisos"] li[data-codigo="SEM_RETROPROJECAO"]')).to_be_visible()
+        expect(resultado.get_by_test_id("simulador-grafico-fonte")).to_have_text(
+            "Fonte: planilha enviada (" + fonte["categoria"].lower() + "), registros até jun/2024.")
+        guarda("simulador")
+
+        # 7e. O modo avançado com a planilha (ajuste de 14/11/2026, antes da Pausa 2): as quatro etapas com os nomes dela. A busca
+        # oferece as comunas e o todo (a Solária, a soma das comunas com registro), nunca o grupo de cima como unidade nem o Brasil.
+        aperta(simulador.get_by_test_id("simulador-modo-avancado"))
+        expect(simulador).to_have_attribute("data-modo", "avancado")
+        etapa_1 = simulador.get_by_test_id("simulador-territorios")
+        expect(etapa_1).to_be_visible()
+        expect(etapa_1).to_contain_text("Acrescentar um território (comuna ou a Solária), só no Simulador")
+        expect(etapa_1).to_contain_text("Acrescentar uma referência (comuna)")
+        expect(etapa_1.get_by_test_id("simulador-referencia-brasil")).to_have_text("A Solária")
+        simulador.get_by_test_id("simulador-busca").fill("solária")
+        expect(simulador.locator('[data-testid="simulador-acrescentar"][data-id="br"]')).to_have_text("A Solária (a soma das comunas com registro)")
+        expect(simulador.locator('[data-testid="simulador-acrescentar"][data-id^="uf:"]')).to_have_count(0)
+        simulador.get_by_test_id("simulador-busca").fill("")
+        guarda("simulador-avancado-1")
+        for numero, corpo_da_etapa in ((2, "simulador-base"), (3, "simulador-intervencoes-etapa"), (4, "simulador-resultados")):
+            aperta(simulador.get_by_test_id("simulador-etapa-" + str(numero)))
+            expect(simulador.get_by_test_id(corpo_da_etapa)).to_be_visible()
+            guarda("simulador-avancado-" + str(numero))
+        # Na etapa 3, as intervenções falam da contagem da planilha; na 4, a tabela e a faixa também.
+        aperta(simulador.get_by_test_id("simulador-etapa-3"))
+        aperta(simulador.get_by_test_id("simulador-intervencao-nova"))
+        expect(simulador.get_by_test_id("simulador-intervencao-tipo").locator("option").first).to_have_text("Acréscimo de profissionais")
+        guarda("simulador-avancado-intervencao")
 
         # 8. Nada do Brasil e nenhuma concordância de antes em tudo o que esteve à vista.
         for nome, texto in vistos.items():
