@@ -183,7 +183,8 @@ Os campos mantêm os identificadores de antes (`simulador-janela-inicio`, `simul
    - a **janela histórica**, em frase, com início e fim livres entre as competências reais (o fim é a origem do cenário): a
      lista do início mostra quanto tempo antes da origem cada registro fica ("3 anos (desde jun/2021)", "10 anos e 5 meses (desde
      jan/2014)"). Os atalhos (últimos 5 anos e série completa) são só atalhos. A janela igual à que a base escolheu vale como o
-     padrão (`data-padrao="true"` na frase), e a volta a ela é pelo "Voltar ao padrão". Com a origem antes do último registro, o
+     padrão (`data-padrao="true"` na frase), e a volta a ela é pelo "Voltar ao padrão". Sem janela escolhida, a frase mostra a
+     janela padrão, que é a do próximo cálculo, mesmo quando o cálculo à vista foi feito com outra. Com a origem antes do último registro, o
      trecho até ele é **retroprojeção**, ao lado do observado;
    - o **jeito de projetar** de cada cenário (o método da base do cenário, lista abaixo), em frase, com uma explicação simples
      de cada um. "Continuar como vinha (o jeito escolhido pela base)" é o padrão; os demais ficam à escolha da pessoa. Cada

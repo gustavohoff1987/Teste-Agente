@@ -1376,6 +1376,10 @@ test('etapa 7: o "(Entenda)" geral no título, um "Voltar ao padrão" único e a
   assert.ok(tela.includes('<p data-testid="simulador-frase-da-janela" data-padrao={config.janela ? "false" : "true"} className="ferramenta-frase">Janela histórica: o crescimento é'));
   assert.ok(tela.includes('{tempoEntre(c, janela?.fim ?? ultimoRegistro) + " (desde " + competenciaCurta(c) + ")"}</option>)}'));
   assert.equal(tela.split('janelaOuPadrao(').length - 1, 4, 'os dois campos e os dois atalhos da janela');
+  // Sem janela escolhida, a frase mostra a janela padrão — a do último cálculo só quando ele foi feito com a janela padrão: depois
+  // de "Voltar ao padrão", a janela de um cálculo anterior feito com outra janela não aparece como se fosse a que vale.
+  assert.ok(tela.includes('const janela = config.janela ?? (resposta?.janela.padrao ? resposta.janela : null) ?? janelaPadrao(p.competencias);'));
+  assert.ok(!tela.includes('config.janela ?? resposta?.janela ??'));
   assert.ok(tela.includes('<p data-testid="simulador-frase-do-jeito" className="ferramenta-frase">Jeito de projetar:{" "}'));
   assert.ok(tela.includes('<option value="">a janela geral</option>') && tela.includes('<option key={c} value={c}>uma janela própria, desde {competenciaCurta(c)}</option>)}'));
   assert.ok(tela.includes('? "Do efeito da retirada, a cada ano permanecem" : "Dos " + r.profissionais + " acrescentados, a cada ano permanecem"}{" "}'));

@@ -35,6 +35,22 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-15 · Correção do CI da rodada 2 da etapa 7: sem janela escolhida, a frase da janela do Simulador mostra a janela padrão, e não a do último cálculo (CI 43741096158)
+- **Classificação (regra 1):** correção de uma falha do CI, dentro do item 6 do comando de 15/11/2026 (o "Voltar ao padrão" único).
+  Decorre do pedido e não contraria a SPEC nem uma divergência aprovada. Só a tela muda: o pedido e os cálculos são os mesmos.
+- **Antes:** no modo avançado, sem janela escolhida, os campos da janela (etapa 2) mostravam a janela do último cálculo, mesmo
+  quando ele tinha sido feito com outra janela. Depois de um cálculo com os últimos 5 anos, "Voltar ao padrão" devolvia a janela
+  ao padrão, mas a frase continuava dizendo "5 anos (desde jun/2019)", e o cálculo seguinte usava os 3 anos da janela padrão. O
+  mesmo acontecia antes da rodada 2, com o atalho "Janela padrão (3 anos)"; nenhum teste conferia o campo depois dele.
+- **Agora:** sem janela escolhida, a frase mostra **a janela padrão**, que é a do próximo cálculo: a do último cálculo só quando
+  ele foi feito com a janela padrão; senão, a padrão lida das datas da base.
+- **Permanece:** a janela escolhida pela pessoa, que continua à vista; o pedido ao motor; os resultados à vista (a linha das
+  versões continua dizendo a janela com que cada cálculo foi feito); o modo simples.
+- **Motivo:** o CI 43741096158 falhou em `backend/tests/ui_simulador.py` (job `ui-block1`): depois de "Voltar ao padrão", o roteiro
+  esperava o início da janela em jun/2021 e encontrou jun/2019. O defeito era do produto, e o roteiro não mudou.
+- **Documentação e testes:** `Docs/SIMULADOR_DE_CENARIOS.md` (a janela, na etapa 2) e `frontend/tests/simulador.test.mjs` (a regra da
+  janela à vista); o passo do roteiro `backend/tests/ui_simulador.py` que falhou é o que cobre o comportamento.
+
 ### 2026-11-15 · Etapa 7 do comando V23, rodada 2: as premissas do Simulador em frases, a comparação pela razão e com a população crescendo, o "(Entenda)" geral, um "Voltar ao padrão" único e a recusa de projeção que indica o Simulador com qualquer base
 - **Classificação (regra 1):** itens 5 e 6 do comando do responsável de 15/11/2026 (decisões da Pausa 2) e a parte do item 7
   que trata da conversa. Decorrem do pedido (escopo): a seção C.5 da Proposta V3 completa ("todas as premissas em frases com

@@ -382,7 +382,10 @@ export default function SimuladorDeCenarios(props: Props) {
     setAvisoLocal(motivo);
     if (!motivo) mudarLocal(local);
   }
-  const janela = config.janela ?? resposta?.janela ?? janelaPadrao(p.competencias);
+  // A janela à vista: a escolhida; sem escolha, a padrão — a que o motor usou no último cálculo, quando ele foi feito com a janela
+  // padrão, ou a padrão lida das datas da base. A janela de um cálculo feito com outra janela não é a padrão: depois de "Voltar ao
+  // padrão", a frase mostra a janela que o próximo cálculo vai usar, e não a do cálculo que ficou na tela.
+  const janela = config.janela ?? (resposta?.janela.padrao ? resposta.janela : null) ?? janelaPadrao(p.competencias);
   const emUso = cenariosEmUso(config);
   const cores = new Map<string, string>([...emUso.map((cenario, indice) => [cenario.id, CORES[indice % CORES.length]] as [string, string]),
     [ID_DA_REFERENCIA, "var(--cor-texto-3)"]]);
