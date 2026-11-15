@@ -163,6 +163,11 @@ projetar que a base escolheu ("Cenários do Simulador com o jeito de projetar qu
 e 1 ano depois, e esta base tem N"); e a faixa de 8 em cada 10 — até quantos anos existe e até quantos foi conferida com o que
 veio depois —, ou o motivo de não haver ("ela pede 200 casos por prazo, e esta base tem N").
 
+Desde 15/11/2026 (etapa 7 do comando V23), numa planilha com a coluna de grupo, o resumo traz também **o que a régua e a
+retroprojeção sustentam nos grupos de cima como unidade** ("Alertas moderados nas zonas como unidade desde …", "Alertas elevados
+nas zonas como unidade: eles pedem 99 comparações, e esta base chega a 20"), como na base do Brasil com os estados: o grupo entra
+como unidade pela soma das unidades dele.
+
 Desde 15/11/2026 (revisão das capturas, na Pausa 2 do comando V23), o "não dá para" diz **cada sinal que a base não sustenta,
 com todos os motivos dele** (`perfil_da_base._sinais_indisponiveis`, sobre `detector.motivos_da_falta`), iguais aos que o detalhe
 de um território mostra; os sinais com os mesmos motivos ficam na mesma linha, e cada linha traz o campo `sinais`. Antes, o perfil

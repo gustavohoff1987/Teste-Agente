@@ -421,17 +421,20 @@ def referencia_do_territorio(base: Base, territorio: Territorio) -> tuple[np.nda
         return taxa, "demais " + r["unidades"] + " " + _e([_do_grupo(base, uf) for uf in ufs]) + \
             (" (soma municipal)" if base.do_brasil else " (soma)"), None
     if territorio.nivel == "estados":
+        r = series_brasil.rotulos(base)
         dentro = {territorio.uf} if territorio.tipo == "estado" else {membro[3:] for membro in territorio.membros}
         outros = [uf for uf in base.estados if uf not in dentro]
         if not outros:
-            return vazio, "", "Não há outros estados com registro: não há referência na mesma unidade."
+            return vazio, "", ("Não há outros estados com registro: não há referência na mesma unidade." if base.do_brasil else
+                               "Não há " + ("outros " if r["os_grupos"].startswith("os ") else "outras ") + r["grupos"] +
+                               " com registro: não há referência na mesma unidade.")
         contagens = np.vstack([base.estados[uf] for uf in outros])
         populacoes = np.vstack([np.where(np.isnan(base.populacao[list(base.do_estado.get(uf, ()))]).any(axis=0), np.nan,
                                          np.nansum(base.populacao[list(base.do_estado.get(uf, ()))], axis=0)) for uf in outros])
         completo = ~np.isnan(contagens).any(axis=0) & ~np.isnan(populacoes).any(axis=0)
         with np.errstate(invalid="ignore", divide="ignore"):
             taxa = np.where(completo, POR * np.nansum(contagens, axis=0) / np.nansum(populacoes, axis=0), np.nan)
-        return taxa, "demais estados (soma das contagens estaduais)", None
+        return taxa, ("demais estados (soma das contagens estaduais)" if base.do_brasil else "demais " + r["grupos"] + " (soma)"), None
     return vazio, "", "Não há referência na mesma unidade para este território."
 
 
@@ -651,7 +654,7 @@ def posicao(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
         ufs = sorted(estados)
         na_data, n = percentis(np.array([estados[uf][qd.e] for uf in ufs]))
         saida.update({"percentil": _num(na_data[ufs.index(territorio.uf)]), "universo": n,
-                      "nome_do_universo": "estados com taxa válida"})
+                      "nome_do_universo": series_brasil.rotulos(base)["grupos"] + " com taxa válida"})
         if saida["percentil"] is None:
             return {**saida, "estado": "nao_calculavel", "motivo": "Sem taxa válida na data."}
         if qd.motivo:
@@ -723,8 +726,9 @@ def contexto(base: Base, qd: Quadro, territorio: Territorio) -> dict:
         return {**saida, "estado": "nao_calculavel", "motivo": "Sem a taxa " + series_brasil.rotulos(base)["do_todo"] +
                 " na data: o critério não pode ser aplicado."}
     if territorio.nivel != "municipios":
-        return {**saida, "estado": "nao_aplicavel", "motivo": "O estado como unidade não tem um ponto único: a distância é medida "
-                "de cada município."}
+        r = series_brasil.rotulos(base)
+        return {**saida, "estado": "nao_aplicavel", "motivo": r["o_grupo"][:1].upper() + r["o_grupo"][1:] + " como unidade não tem um ponto "
+                "único: a distância é medida de cada " + r["unidade"] + "."}
     linhas = [territorio.linha] if territorio.tipo == "municipio" else _linhas_dos_membros(base, territorio)
     if any(bool(qd.atende[linha]) for linha in linhas):
         return {**saida, "estado": "atende_ao_criterio"}

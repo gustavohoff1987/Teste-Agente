@@ -172,6 +172,9 @@ class Base:
     grupos: dict = field(repr=False, default_factory=dict)      # grupo de cima → (nome curto, nome); vazio: os estados do Brasil
     prefixo_do_id: str = "code:"                                # o prefixo dos identificadores das unidades ("code:" ou "name:")
     contagens: dict | None = None                               # o que a contagem conta, por tipo de território (None: Brasil)
+    # Numa planilha, `estados` não é uma contagem própria dos grupos (a base do Brasil tem a fonte estadual): é a soma das unidades
+    # de cada grupo, nas datas em que todas têm registro. O todo da planilha não segue o nível dos grupos: continua com as unidades.
+    grupos_por_soma: bool = False
     descricao: dict | None = None                               # {"base", "categoria"}: como a fonte se apresenta
     avisos: tuple = ()                                          # o que a leitura da base teve a dizer (perfil da base)
 
@@ -335,9 +338,13 @@ def _prefixo(base: Base, valor) -> str:
     """A chave de um grupo de cima no pedido: na base do Brasil, o prefixo da UF ("13" ou "uf:13"); numa planilha, o valor da
     coluna de grupo."""
     if not base.do_brasil:
-        if str(valor) not in base.do_estado:
-            raise ValueError(rotulos(base)["grupo"].capitalize() + " sem registro na base: " + str(valor) + ".")
-        return str(valor)
+        # O valor da coluna de grupo, como ele é; ou o identificador do grupo como unidade ("uf:<valor>"), como vem numa referência.
+        texto = str(valor)
+        if texto not in base.do_estado and texto.startswith("uf:") and texto[3:] in base.do_estado:
+            return texto[3:]
+        if texto not in base.do_estado:
+            raise ValueError(rotulos(base)["grupo"].capitalize() + " sem registro na base: " + texto + ".")
+        return texto
     texto = str(valor)[3:] if isinstance(valor, str) and valor.startswith("uf:") else str(valor)
     if texto not in STATES:
         raise ValueError("Estado sem registro: " + str(valor) + ".")
@@ -351,12 +358,16 @@ def municipio(base: Base, codigo: str) -> Territorio:
 
 
 def estado(base: Base, prefixo: str) -> Territorio:
+    """O grupo de cima como unidade: na base do Brasil, o estado, pela contagem estadual; numa planilha (etapa 7 do comando V23),
+    o grupo da coluna escolhida, pela soma das unidades dele, com o nome do grupo e a palavra que a base usa ("Norte (zona)")."""
     serie = base.estados.get(prefixo)
     if serie is None:
         if not base.do_brasil:
-            raise ValueError("Esta base não tem uma contagem própria d" + rotulos(base)["o_grupo"] + ": " + rotulos(base)["o_grupo"] +
-                             " não entra como unidade. Use um conjunto com " + rotulos(base)["os_unidades"] + " desse grupo.")
+            raise ValueError(rotulos(base)["grupo"].capitalize() + " sem registro na base: " + str(prefixo) + ".")
         raise ValueError("Estado sem registro na fonte estadual: " + STATES[prefixo][1] + ".")
+    if not base.do_brasil:
+        return Territorio(id="uf:" + prefixo, tipo="estado", nivel="estados", rotulo=nome_do_grupo(base, prefixo)[1] + " (" + rotulos(base)["grupo"] + ")",
+                          uf=prefixo, serie=serie, unidade=contagem_de(base, "estado"))
     return Territorio(id="uf:" + prefixo, tipo="estado", nivel="estados", rotulo=STATES[prefixo][1] + " (" + STATES[prefixo][0] + ")",
                       uf=prefixo, serie=serie, unidade=contagem_de(base, "estado"))
 
@@ -419,6 +430,12 @@ def selecao(base: Base, opcoes: dict, com_brasil: bool = False) -> list[Territor
         raise ValueError("Conjuntos com o mesmo id no pedido.")
     inteiros = set(unidades) | {membro[3:] for conjunto in conjuntos if conjunto.nivel == "estados" for membro in conjunto.membros}
     sobrepostos = sorted({base.prefixos[linha] for linha in linhas} & inteiros)
+    if sobrepostos and not base.do_brasil:
+        r = rotulos(base)
+        raise ValueError(r["unidades"].capitalize() + " de " + ", ".join(nome_do_grupo(base, p)[1] for p in sobrepostos[:5]) + " estão na seleção "
+                         "junto com " + r["o_grupo"] + " " + ("inteiro" if r["o_grupo"].startswith("o ") else "inteira") + " (como unidade): " +
+                         r["o_grupo"] + " já está na análise e não é " + ("somado" if r["o_grupo"].startswith("o ") else "somada") +
+                         " a " + ("eles" if r["os_unidades"].startswith("os ") else "elas") + " (RQ-DAD-30).")
     if sobrepostos:
         raise ValueError("Municípios de " + ", ".join(nome_do_grupo(base, p)[1] for p in sobrepostos[:5]) + " estão na seleção junto com o "
                          "estado inteiro (como unidade ou num conjunto de estados): o estado já está na análise e não é somado "

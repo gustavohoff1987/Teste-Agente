@@ -466,11 +466,20 @@ def main():
         expect(perfil).to_have_attribute("data-estado", "pronto", timeout=180000)
         do_perfil = next(r for r in do_detector if options_of(r.request).get("perfil") is True).json()["perfil"]
         assert (do_perfil["origem"], do_perfil["territorios"], do_perfil["registros"]) == ("planilha", 16, 5), do_perfil
-        assert [item["o_que"] for item in do_perfil["nao_da_para"]] == [
+        # O que a base não sustenta nas comunas e, desde a etapa 7 do comando V23 (o grupo de cima entra como unidade), nos condados
+        # como unidade: são só 4 condados e 5 registros, e nenhum nível tem comparações bastantes. Muda de propósito: antes, o
+        # resumo trazia só as três linhas das comunas.
+        do_que = {item["o_que"]: item["motivo"] for item in do_perfil["nao_da_para"]}
+        assert [o_que for o_que in do_que if "como unidade" not in o_que] == [
             "Alertas elevados", "Alertas críticos", "Escolher o jeito de projetar do Simulador pela retroprojeção"], do_perfil["nao_da_para"]
-        assert do_perfil["nao_da_para"][2]["motivo"].startswith("ela pede 3 origens com 3 anos antes e 1 ano depois, e esta base tem "), (
-            do_perfil["nao_da_para"])
-        assert do_perfil["nao_da_para"][1]["motivo"].startswith("eles pedem 999 comparações, e esta base chega a "), do_perfil["nao_da_para"]
+        assert [o_que for o_que in do_que if "como unidade" in o_que] == [
+            "Alertas moderados nos condados como unidade", "Alertas elevados nos condados como unidade",
+            "Alertas críticos nos condados como unidade",
+            "Escolher o jeito de projetar do Simulador nos condados como unidade pela retroprojeção"], do_perfil["nao_da_para"]
+        assert do_que["Escolher o jeito de projetar do Simulador pela retroprojeção"].startswith(
+            "ela pede 3 origens com 3 anos antes e 1 ano depois, e esta base tem "), do_perfil["nao_da_para"]
+        assert do_que["Alertas críticos"].startswith("eles pedem 999 comparações, e esta base chega a "), do_perfil["nao_da_para"]
+        assert do_que["Alertas moderados nos condados como unidade"].startswith("eles pedem 19 comparações, e esta base chega a "), do_perfil["nao_da_para"]
         assert any(frase.startswith("Alertas moderados desde ") for frase in do_perfil["da_para"]), do_perfil["da_para"]
         expect(perfil).to_have_attribute("data-origem", "planilha")
         expect(perfil.get_by_test_id("perfil-da-base-botao")).to_have_attribute("aria-expanded", "true")
@@ -548,18 +557,43 @@ def main():
         guarda("simulador")
 
         # 7e. O modo avançado com a planilha (ajuste de 14/11/2026, antes da Pausa 2): as quatro etapas com os nomes dela. A busca
-        # oferece as comunas e o todo (a Solária, a soma das comunas com registro), nunca o grupo de cima como unidade nem o Brasil.
+        # oferece as comunas, o todo (a Solária, a soma das comunas com registro) e, desde a etapa 7 do comando V23, o condado como
+        # unidade (a soma das comunas dele); nunca o Brasil.
         aperta(simulador.get_by_test_id("simulador-modo-avancado"))
         expect(simulador).to_have_attribute("data-modo", "avancado")
         aperta(simulador.get_by_test_id("simulador-etapa-1"))   # depois de um cálculo, o modo avançado abre nos resultados
         etapa_1 = simulador.get_by_test_id("simulador-territorios")
         expect(etapa_1).to_be_visible()
-        expect(etapa_1).to_contain_text("Acrescentar um território (comuna ou a Solária), só no Simulador")
-        expect(etapa_1).to_contain_text("Acrescentar uma referência (comuna)")
+        expect(etapa_1).to_contain_text("Acrescentar um território (comuna, condado ou a Solária), só no Simulador")
+        expect(etapa_1).to_contain_text("Acrescentar uma referência (comuna ou condado)")
         expect(etapa_1.get_by_test_id("simulador-referencia-brasil")).to_have_text("A Solária")
         simulador.get_by_test_id("simulador-busca").fill("solária")
         expect(simulador.locator('[data-testid="simulador-acrescentar"][data-id="br"]')).to_have_text("A Solária (a soma das comunas com registro)")
         expect(simulador.locator('[data-testid="simulador-acrescentar"][data-id^="uf:"]')).to_have_count(0)
+        # O condado como unidade (etapa 7 do comando V23; muda de propósito este trecho, que conferia que a busca nunca o oferecia):
+        # a busca o oferece com o nome da planilha, a seleção local o mostra como "Costa Ondina (condado)", o pedido o leva em
+        # `estados_unidade`, e o cenário vem com a soma das comunas dele, dita no texto da contagem.
+        simulador.get_by_test_id("simulador-busca").fill("ondina")
+        do_condado = simulador.locator('[data-testid="simulador-acrescentar"][data-id^="uf:"]')
+        expect(do_condado).to_have_count(1)
+        expect(do_condado).to_have_attribute("data-id", "uf:Costa Ondina")
+        expect(do_condado).to_have_text("Costa Ondina como condado (unidade)")
+        aperta(do_condado)
+        expect(simulador.locator('[data-testid="simulador-local"][data-id="uf:Costa Ondina"]')).to_contain_text("Costa Ondina (condado)")
+        with page.expect_response(lambda r: is_post(r, "/api/simulador"), timeout=180000) as evento:
+            aperta(simulador.get_by_test_id("simulador-calcular-direto"))
+        assert evento.value.status == 200, evento.value.text()[:2000]
+        com_o_condado, pedido = evento.value.json(), options_of(evento.value.request)
+        assert pedido["estados_unidade"] == ["Costa Ondina"], pedido
+        o_condado = next(item for item in com_o_condado["territorios"] if item["id"] == "uf:Costa Ondina")
+        assert (o_condado["tipo"], o_condado["nivel"], o_condado["rotulo"]) == ("estado", "estados", "Costa Ondina (condado)"), o_condado
+        assert o_condado["unidade"] == ("soma das contagens das comunas do condado, nas datas em que todas têm registro (não é o número de "
+                                        "pessoas diferentes do condado)"), o_condado["unidade"]
+        assert o_condado["cenarios"][0]["estado"] == "calculado" and "Costa Ondina (condado) teria " in o_condado["cenarios"][0]["texto"], (
+            o_condado["cenarios"][0])
+        expect(simulador.get_by_test_id("simulador-resultados")).to_be_visible(timeout=180000)
+        guarda("simulador-avancado-condado")
+        aperta(simulador.get_by_test_id("simulador-etapa-1"))
         simulador.get_by_test_id("simulador-busca").fill("")
         guarda("simulador-avancado-1")
         for numero, corpo_da_etapa in ((2, "simulador-base"), (3, "simulador-intervencoes-etapa"), (4, "simulador-resultados")):

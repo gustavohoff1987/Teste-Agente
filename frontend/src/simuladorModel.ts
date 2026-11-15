@@ -178,19 +178,27 @@ export const comOBrasil = (local: SelecaoLocal, incluir: boolean): SelecaoLocal 
 /** Acrescenta um município (se o estado dele não estiver como unidade nem num conjunto de estados) ou um estado como unidade (os
  * municípios dele saem: o estado inteiro e os municípios dele não entram juntos; um conjunto de municípios com membros no estado
  * impede, como na Seleção de Territórios). Devolve a seleção e, quando nada mudou, o motivo. */
-export function acrescentarTerritorio(local: SelecaoLocal, alvo: { tipo: "municipio" | "estado"; id: string; grupo: string }): { local: SelecaoLocal; motivo: string | null } {
+export function acrescentarTerritorio(local: SelecaoLocal, alvo: { tipo: "municipio" | "estado"; id: string; grupo: string },
+  /** Numa planilha enviada: o grupo de cima de cada unidade (na base do Brasil, ele vem do código IBGE) e os nomes da base, para
+   * os motivos dizerem "a zona desta área", e não "o estado deste município". */
+  daPlanilha?: { grupoDe: (id: string) => string; r: NomesDaBase; formas: FormasDaBase }): { local: SelecaoLocal; motivo: string | null } {
+  const noGrupo = (id: string): boolean => daPlanilha ? daPlanilha.grupoDe(id) === alvo.id : id.startsWith("code:" + alvo.id);
+  // Os nomes com a concordância da base: "o estado deste município", "a zona desta área".
+  const f = daPlanilha?.formas ?? FORMAS_DO_BRASIL, r = daPlanilha?.r ?? NOMES_DO_BRASIL;
+  const este = (comArtigo: string, nome: string): string => (comArtigo.startsWith("o ") ? "este " : "esta ") + nome;
   if (alvo.tipo === "municipio") {
     if (local.municipios.includes(alvo.id)) return { local, motivo: "Este território já está na seleção do Simulador." };
-    if (local.estados.includes(alvo.grupo)) return { local, motivo: "O estado deste município está na seleção como unidade: tire o estado para usar o município." };
+    if (local.estados.includes(alvo.grupo)) return { local, motivo: comMaiuscula(f.oGrupo) + " d" + este(f.oUnidade, r.unidade) +
+      " está na seleção como unidade: tire " + f.oGrupo + " para usar " + f.oUnidade + "." };
     const comOEstado = local.conjuntos.find(conjunto => conjunto.membros.includes("uf:" + alvo.grupo));
     if (comOEstado) return { local, motivo: "O estado deste município está no conjunto " + comOEstado.rotulo + ": tire o conjunto para usar o município." };
     return { local: { ...local, municipios: [...local.municipios, alvo.id].sort(comparar) }, motivo: null };
   }
-  if (local.estados.includes(alvo.id)) return { local, motivo: "Este estado já está na seleção do Simulador." };
-  const comMembros = local.conjuntos.find(conjunto => conjunto.membros.some(id => id.startsWith("code:" + alvo.id)));
-  if (comMembros) return { local, motivo: "O conjunto " + comMembros.rotulo + " tem municípios neste estado: tire o conjunto para usar o estado como unidade." };
-  const prefixo = "code:" + alvo.id;
-  return { local: { ...local, estados: [...local.estados, alvo.id].sort(comparar), municipios: local.municipios.filter(id => !id.startsWith(prefixo)) }, motivo: null };
+  if (local.estados.includes(alvo.id)) return { local, motivo: comMaiuscula(este(f.oGrupo, r.grupo)) + " já está na seleção do Simulador." };
+  const comMembros = local.conjuntos.find(conjunto => conjunto.membros.some(noGrupo));
+  if (comMembros) return { local, motivo: "O conjunto " + comMembros.rotulo + " tem " + r.unidades + " n" + este(f.oGrupo, r.grupo) +
+    ": tire o conjunto para usar " + f.oGrupo + " como unidade." };
+  return { local: { ...local, estados: [...local.estados, alvo.id].sort(comparar), municipios: local.municipios.filter(id => !noGrupo(id)) }, motivo: null };
 }
 export function tirarTerritorio(local: SelecaoLocal, id: string): SelecaoLocal {
   return { municipios: local.municipios.filter(item => item !== id), estados: local.estados.filter(item => "uf:" + item !== id),

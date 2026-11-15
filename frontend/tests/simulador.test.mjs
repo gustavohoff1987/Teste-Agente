@@ -1393,3 +1393,43 @@ test('etapa 7: o "(Entenda)" geral no título, um "Voltar ao padrão" único e a
   assert.ok(css.includes('select.ferramenta-campo-da-frase { max-width: min(100%, 30em); text-align: left; }'));
   assert.ok(css.includes('.ferramenta-frase-inteira { grid-column: 1 / -1; }'));
 });
+
+test('etapa 7: numa planilha, o grupo de cima entra como unidade — a seleção das ferramentas, a busca do Simulador e os motivos com os nomes da base', () => {
+  // A regra de acrescentar um território com uma planilha: o grupo de cada unidade vem da base (e não do código IBGE), e os
+  // motivos usam os nomes dela, com a concordância ("a zona desta área").
+  const zonas = {'code:A00': 'Norte', 'code:A01': 'Norte', 'code:A10': 'Sul', 'code:A11': 'Sul'};
+  const daPlanilha = {grupoDe: id => zonas[id] ?? '',
+    r: {...S.NOMES_DO_BRASIL, profissional: 'posto', profissionais: 'postos', unidade: 'área', unidades: 'áreas', grupo: 'zona', grupos: 'zonas', todo: 'a base toda'},
+    formas: {...S.FORMAS_DO_BRASIL, oUnidade: 'a área', osUnidades: 'as áreas', oGrupo: 'a zona', osGrupos: 'as zonas', dosGrupos: 'das zonas'}};
+  const local = {municipios: ['code:A00', 'code:A10'], estados: [], conjuntos: [{id: 'c1', rotulo: 'Par do Sul', membros: ['code:A10', 'code:A11']}]};
+  const tentar = (de, tipo, id, grupo) => S.acrescentarTerritorio(de, {tipo, id, grupo}, daPlanilha);
+  // A zona como unidade tira da seleção local as áreas dela (a zona inteira já as conta); as das outras zonas ficam.
+  const comNorte = tentar(local, 'estado', 'Norte', 'Norte');
+  assert.deepEqual(comNorte, {local: {...local, municipios: ['code:A10'], estados: ['Norte']}, motivo: null});
+  assert.equal(tentar(local, 'estado', 'Sul', 'Sul').motivo, 'O conjunto Par do Sul tem áreas nesta zona: tire o conjunto para usar a zona como unidade.');
+  assert.equal(tentar(comNorte.local, 'estado', 'Norte', 'Norte').motivo, 'Esta zona já está na seleção do Simulador.');
+  assert.equal(tentar(comNorte.local, 'municipio', 'code:A01', 'Norte').motivo, 'A zona desta área está na seleção como unidade: tire a zona para usar a área.');
+  assert.deepEqual(tentar(comNorte.local, 'municipio', 'code:A11', 'Sul').local.municipios, ['code:A10', 'code:A11']);
+  // O pedido leva a zona em `estados_unidade`, como o estado na base do Brasil, e o território dela é "uf:<zona>".
+  assert.deepEqual(S.selecaoLocalParaOPedido(comNorte.local), {base: {municipios: {todos: false, estados: [], ids: ['code:A10']}}, estados_unidade: ['Norte'],
+    conjuntos: [{id: 'c1', rotulo: 'Par do Sul', membros: ['code:A10', 'code:A11']}]});
+  assert.deepEqual(S.territoriosDaSelecaoLocal(comNorte.local, {unidade: id => id, grupo: grupo => grupo + ' (zona)', todo: 'a base toda'}).map(item => item.id),
+    ['code:A10', 'uf:Norte', 'c1']);
+  // Sem a planilha, a regra e os motivos são os de antes (o estado pelo código IBGE).
+  const doBrasil = {municipios: ['code:410690', 'code:130260'], estados: [], conjuntos: []};
+  assert.deepEqual(S.acrescentarTerritorio(doBrasil, {tipo: 'estado', id: '41', grupo: '41'}), {local: {municipios: ['code:130260'], estados: ['41'], conjuntos: []}, motivo: null});
+  // Na tela: a busca do Simulador oferece o grupo de cima em qualquer base (nos territórios e nas referências), com o nome que a
+  // base dá a ele; a seleção das ferramentas não tira mais o grupo de cima da planilha — só o nível acima dele fica fora.
+  const tela = ler('SimuladorDeCenarios.tsx'), area = ler('AreaDeAnalise.tsx');
+  assert.ok(tela.includes('estados: p.grupos.filter(g => sem(g.nome + " " + g.sigla).includes(pedido)).slice(0, 4),') && !tela.includes('estados: daPlanilha ? []'));
+  assert.ok(tela.includes('acrescentarTerritorio(config!.local, alvo, daPlanilha && p.grupoDe ? { grupoDe: p.grupoDe, r: nomesDaBase, formas } : undefined);'));
+  assert.ok(tela.includes('{g.nome} como {r.grupo} (unidade)</button></li>)}') && tela.includes('{g.nome} ({r.grupo})</button></li>)}'));
+  assert.ok(tela.includes('? r.unidade + (p.grupos.length ? ", " + r.grupo : "") + " ou " + formas.oTodo : "município, estado ou o Brasil"}), só no Simulador'));
+  assert.ok(tela.includes('? r.unidade + (p.grupos.length ? " ou " + r.grupo : "") : "município ou estado"})'));
+  assert.ok(tela.includes('? r.unidades + (p.grupos.length ? ", " + r.grupos + " como unidade" : "") + " e conjuntos" : "municípios, estados como unidade e conjuntos"}).</>'));
+  assert.ok(!/como estado \(unidade\)|\(estado\)<\/button>/.test(tela), 'nenhum "estado" escrito na busca');
+  assert.match(area, /if \(tipo === "brasil"\) return completa;\s+if \(def\.nivel === "regioes"\) return null;\s+return Object\.keys\(completa\)\.length \? completa : null;/);
+  assert.ok(!area.includes('estados_unidade: _semContagemPropria') && !area.includes('não tem contagem própria'));
+  assert.ok(area.includes('const nivelForaDasFerramentas = tipo === "arquivo" && !semSelecao(def) && def.nivel === "regioes";'));
+  assert.ok(area.includes('const avisoDasFerramentas = nivelForaDasFerramentas ? "Numa planilha, as ferramentas avaliam " + rotulos.unidade.plural + ", " +'));
+});

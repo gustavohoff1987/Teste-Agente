@@ -2185,24 +2185,24 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const dispDaAba = aba !== "territorios" ? disponivelDe(aba) : null;
   const motivoDaAba = fonte && dispDaAba && !dispDaAba.disponivel ? dispDaAba : null;
   // A seleção em uso, no contrato das ferramentas. Na base do Brasil, os municípios, os estados como unidade e os conjuntos. Numa
-  // planilha enviada (comando V23, "qualquer base"), as unidades e os conjuntos delas: o grupo de cima como unidade não tem contagem
-  // própria na planilha e fica fora da ferramenta, com o aviso.
-  const gruposComoUnidade = tipo === "arquivo" && !semSelecao(def) && (def.nivel !== "municipios" || def.estados.length > 0);
+  // planilha enviada (comando V23, "qualquer base"), as unidades, os conjuntos delas e, desde a etapa 7 do comando, o grupo de cima
+  // como unidade (a soma das unidades dele, como nas análises). Só o nível acima do grupo (o papel grupo_territorial_superior)
+  // fica fora das ferramentas, com o aviso: elas não têm esse nível.
+  const nivelForaDasFerramentas = tipo === "arquivo" && !semSelecao(def) && def.nivel === "regioes";
   const selecaoParaFerramentas = useMemo(() => {
     if (!tipo || semSelecao(def)) return null;
     const completa = selecaoDasFerramentas(def, grupoDe);
     if (tipo === "brasil") return completa;
-    if (def.nivel !== "municipios") return null;
-    const { estados_unidade: _semContagemPropria, ...daPlanilha } = completa;
-    return Object.keys(daPlanilha).length ? daPlanilha : null;
+    if (def.nivel === "regioes") return null;
+    return Object.keys(completa).length ? completa : null;
   }, [tipo, def.nivel, def.base, def.estados, def.conjuntos, grupoDe]);
   // O que o pedido das ferramentas diz da planilha, como o do painel: os nomes do painel "Colunas", as premissas e a categoria.
   const baseDasFerramentas: OpcoesDaBase | undefined = useMemo(() => tipo !== "arquivo" ? undefined : {
     ...(rotulosDoPedido ? { rotulos: rotulosDoPedido } : {}), ...(Object.keys(def.premissas).length ? { premissas: def.premissas } : {}),
     ...(def.categoria ? { categoria: def.categoria } : {}) }, [tipo, rotulosDoPedido, def.premissas, def.categoria]);
-  const avisoDasFerramentas = gruposComoUnidade ? "Numa planilha, o grupo de cima como unidade (" + (rotulos.grupo?.plural ?? "grupos") +
-    ") não tem contagem própria: a ferramenta avalia " + rotulos.unidade.plural + " e os conjuntos. Para avaliar um grupo, selecione os territórios " +
-    "dele ou monte um conjunto." : null;
+  const avisoDasFerramentas = nivelForaDasFerramentas ? "Numa planilha, as ferramentas avaliam " + rotulos.unidade.plural + ", " +
+    (rotulos.grupo?.plural ?? "grupos") + " como unidade e os conjuntos: o nível acima d" + (generoDe(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!) === "f" ? "as " : "os ") +
+    (rotulos.grupo?.plural ?? "grupos") + " fica fora. Selecione os territórios que quer avaliar." : null;
   // O Simulador de Cenários vale para qualquer base desde o comando V23 (Parte C da Proposta V3): com uma planilha, nos dois modos
   // (o simples e o avançado), com os nomes dela, e também quando ela só traz o ano (as datas do cenário são anos). Só fica
   // desligado quando a planilha não tem datas que o Agente reconheça; o motivo não usa o vocabulário da base brasileira (regra de

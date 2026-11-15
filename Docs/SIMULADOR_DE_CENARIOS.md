@@ -508,6 +508,14 @@ retroprojeção, a escolha do jeito de projetar e as faixas são recalculadas pa
   território", num distrito de 10 a 19 enfermeiros); a de 5 em cada 10 existe em 1 ano, com os portes vizinhos. A planilha
   informa que os trabalhadores contados são "Enfermeiros", e os textos dizem "enfermeiro" e "enfermeiros".
 
+- **O grupo de cima como unidade** (desde 15/11/2026, etapa 7 do comando V23): numa planilha com a coluna de grupo, o grupo
+  entra como território e como referência — a busca o oferece ("Costa Ondina como condado (unidade)"), a seleção local o mostra
+  como "Costa Ondina (condado)", e o pedido o leva em `estados_unidade`. A série dele é a soma das unidades dele, nas datas em
+  que todas têm registro, e a contagem diz isso. O grupo inteiro e as unidades dele não entram juntos (RQ-DAD-30): acrescentar o
+  grupo tira da seleção local as unidades dele. A retroprojeção dos grupos é própria (poucos territórios: em geral, o cenário
+  mantém o último valor, sem faixa, com o motivo). **O todo da planilha não muda**: continua sendo a soma das unidades com
+  registro, com o jeito escolhido para as unidades.
+
 Com uma planilha, valem **os dois modos** (ajuste de 14/11/2026, antes da Pausa 2):
 
 - o **modo avançado** usa os nomes dela em todos os textos (a contagem, a unidade, o todo), inclusive nas intervenções, no
@@ -523,7 +531,8 @@ O que **não** vale com uma planilha:
 
 - sem datas que o Agente reconheça, o botão do Simulador fica desligado, com o motivo: "O Simulador de Cenários precisa de datas
   na planilha que o Agente reconheça (AAAAMM, AAAA-MM, AAAA-MM-DD ou só o ano).";
-- o grupo de cima não entra como unidade nem como referência (a planilha não tem a contagem própria dele): a busca não o oferece;
+- o nível acima do grupo (o papel `grupo_territorial_superior`) não entra nas ferramentas, e não há conjuntos de grupos (numa
+  planilha, os conjuntos são de unidades);
 - a comparação por taxa pede população: sem ela, a comparação vem "não calculável", com o motivo ("Sem população válida no último
   registro para a hipótese de população constante.").
 
@@ -943,8 +952,9 @@ O que o estudo sustenta e o que não sustenta:
   quanto custa.
 - Uma intervenção vale para cada território do cenário; o número do planejamento inverso é próprio de cada território, e por
   isso só pode ser usado como intervenção com um território só na seleção local.
-- Numa planilha enviada, o grupo de cima não entra como unidade (ela não tem a contagem própria dele), e a comparação por taxa
-  pede população (seção "Qualquer base"). Numa planilha só com anos, os calendários se repetem em anos inteiros.
+- Numa planilha enviada, o grupo de cima como unidade é a soma das unidades dele, nas datas em que todas têm registro (ela não
+  tem a contagem própria do grupo), e a comparação por taxa pede população (seção "Qualquer base"). Numa planilha só com anos, os
+  calendários se repetem em anos inteiros.
 - A escolha de 5, 8 ou 9 em cada 10 fica no modo avançado; o modo simples usa 8.
 
 **Assistente de conversa.** Ele continua recusando previsões e projeções livres (AT-04) e não monta cenários. Desde 11/11/2026,

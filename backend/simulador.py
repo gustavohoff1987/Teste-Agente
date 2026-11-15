@@ -616,9 +616,12 @@ def _antes(base: Base, origem: int) -> int | None:
     return int(achados[0]) if achados.size else None
 
 
-def _retro_do(retros: dict, territorio: Territorio) -> Retroprojecao | None:
+def _retro_do(retros: dict, territorio: Territorio, base: Base | None = None) -> Retroprojecao | None:
     """A retroprojeção do nível do território: a das unidades da base, ou a dos grupos de cima como unidade (que vale também
-    para o todo, que não tem retroprojeção própria; numa base sem a contagem própria dos grupos, o todo usa a das unidades)."""
+    para o todo, que não tem retroprojeção própria; numa base sem a contagem própria dos grupos — uma planilha, em que o grupo é a
+    soma das unidades dele —, o todo usa a das unidades)."""
+    if territorio.tipo == "brasil" and base is not None and base.grupos_por_soma:
+        return retros.get("municipios")
     do_nivel = retros.get("municipios" if territorio.nivel == "municipios" else "estados")
     return retros.get("municipios") if do_nivel is None and territorio.tipo == "brasil" else do_nivel
 
@@ -647,8 +650,10 @@ def _crescimento_da_base(base: Base, origem: int, nivel: str = "municipios") -> 
     antes = _antes(base, origem)
     if antes is None:
         return None, "não há registros 3 anos antes do último registro usado"
-    toda = np.nansum(base.quantidade, axis=0) if nivel == "municipios" or not base.estados else \
-        np.nansum(np.vstack(list(base.estados.values())), axis=0)
+    # A base toda do nível: as unidades; ou os grupos de cima — na base do Brasil, também para o todo (a contagem própria deles);
+    # numa planilha, o todo é a soma das unidades e continua com elas.
+    das_unidades = nivel == "municipios" or not base.estados or (nivel == "brasil" and base.grupos_por_soma)
+    toda = np.nansum(base.quantidade, axis=0) if das_unidades else np.nansum(np.vstack(list(base.estados.values())), axis=0)
     if not toda[antes] > 0 or not toda[origem] > 0:
         return None, "a soma da base toda é zero nesses 3 anos"
     return float((toda[origem] / toda[antes]) ** (1.0 / ANOS_DA_DERIVA) - 1), None
@@ -717,7 +722,7 @@ def _base_do_cenario(base: Base, cal: detector.Calibracao, retro: Retroprojecao 
             provisorio = True
             avisos.append({"codigo": "PADRAO_PROVISORIO_DO_NIVEL", "texto":
                            "Para " + r["o_todo"] + ", o método padrão é provisório: uma série só não tem retroprojeção própria, e vale o "
-                           "jeito escolhido para " + (r["os_grupos"] if base.estados else r["os_unidades"]) + "." +
+                           "jeito escolhido para " + (r["os_grupos"] if base.estados and not base.grupos_por_soma else r["os_unidades"]) + "." +
                            (" Ele só foi conferido num período de crescimento." if base.do_brasil else "")})
     parametros = {"n0": n0, "origem": base.periodos[origem], "janela": {"inicio": base.periodos[indices[0]], "fim": base.periodos[origem],
                                                                           "registros": len(indices)}}
@@ -1067,7 +1072,7 @@ def _simular(base: Base, cal: detector.Calibracao, retros: dict, territorio: Ter
     """Um território num cenário: a base B(t), as intervenções I(t), o total, a faixa (quando sustentada), os avisos e o texto."""
     if cenario["janela"] not in (None, {}):
         inicio, fim, _ = _janela(base, cenario["janela"])
-    retro = _retro_do(retros, territorio)
+    retro = _retro_do(retros, territorio, base)
     r = series_brasil.rotulos(base)
     resultado = _base_do_cenario(base, cal, retro, territorio, cenario["metodo"], cenario["taxa"], inicio, fim)
     cabecalho = {"id": cenario["id"], "nome": cenario["nome"], "metodo": {"pedido": cenario["metodo"]}}
@@ -1275,10 +1280,15 @@ def _notas(base: Base, niveis: set, com_referencias: bool = False, com_planejame
     if niveis - {"municipios"}:
         # Com a contagem própria dos grupos (a base do Brasil), eles entram como unidade, e o todo é a contagem dele; sem ela (uma
         # planilha), o todo é a soma das unidades com registro.
+        # Numa planilha com a coluna de grupo, o grupo como unidade é a soma das unidades dele (nas datas em que todas têm registro).
+        do_todo = (r["o_todo"][:1].upper() + r["o_todo"][1:] + " é a soma d" + r["os_unidades"] + " com registro em cada data e entra com "
+                   "um padrão provisório (o jeito escolhido para " + r["os_unidades"] + ").")
         notas.append((r["grupos"][:1].upper() + r["grupos"][1:] + " como unidade usam a contagem própria de cada um, e " + r["o_todo"] +
-                      ", a contagem do todo, com um padrão provisório (o jeito escolhido para o nível de baixo)." if base.estados else
-                      r["o_todo"][:1].upper() + r["o_todo"][1:] + " é a soma d" + r["os_unidades"] + " com registro em cada data e entra com "
-                      "um padrão provisório (o jeito escolhido para " + r["os_unidades"] + ").") +
+                      ", a contagem do todo, com um padrão provisório (o jeito escolhido para o nível de baixo)."
+                      if base.estados and not base.grupos_por_soma else
+                      r["grupos"][:1].upper() + r["grupos"][1:] + " como unidade são a soma d" + r["os_unidades"] + " de cada " +
+                      ("um" if r["o_grupo"].startswith("o ") else "uma") + ", nas datas em "
+                      "que tod" + r["os_unidades"][:2] + " têm registro. " + do_todo if base.estados else do_todo) +
                      " Num conjunto, o valor é a soma dos componentes, não o número de " + r["profissionais"] + " diferentes.")
     if com_referencias:
         hipotese = ("população constante" if not crescimento_pct else _hipotese_de_populacao(base, crescimento_pct) +
@@ -1350,7 +1360,7 @@ def _curva_da_referencia(base: Base, cal: detector.Calibracao, retros: dict, ref
     if ref["tipo"] == "valor":
         return {"estado": "calculada", "funcao": lambda mes: ref["valor"], "descricao": "valor informado por você, mantido",
                 "usado": None, "avisos": [], "origem": None}
-    resultado = _base_do_cenario(base, cal, _retro_do(retros, ref["territorio"]), ref["territorio"], ref["metodo"], ref["taxa"], inicio, fim)
+    resultado = _base_do_cenario(base, cal, _retro_do(retros, ref["territorio"], base), ref["territorio"], ref["metodo"], ref["taxa"], inicio, fim)
     if resultado["estado"] != "calculado":
         return {"estado": "nao_calculavel", "motivo": resultado["motivo"]}
     origem, funcao, serie = resultado["origem"], resultado["funcao"], ref["territorio"].serie

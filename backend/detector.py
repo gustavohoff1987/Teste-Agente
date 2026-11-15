@@ -1122,7 +1122,9 @@ def _limitacoes(base: Base, av: dict) -> str:
     if av["tipo"] == "conjunto":
         partes.append("No conjunto, a soma só existe nos registros em que todos os componentes têm valor.")
     if av["tipo"] == "estado":
-        partes.append("O " + r["grupo"] + " como unidade é comparado com a base dos " + r["grupos"] + ", que é pequena: os níveis mais "
+        # Com a concordância do nome que a base dá ao grupo de cima: "O estado … comparado … dos estados", "A zona … comparada … das zonas".
+        partes.append(r["o_grupo"][:1].upper() + r["o_grupo"][1:] + " como unidade é " +
+                      ("comparado" if r["o_grupo"].startswith("o ") else "comparada") + " com a base " + r["dos_grupos"] + ", que é pequena: os níveis mais "
                       "graves podem não ter comparações suficientes.")
     return " ".join(partes)
 
@@ -1648,7 +1650,8 @@ def _texto_contexto(base: Base, av: dict, p: dict) -> dict:
     nao = ("Não é distância por estrada, tempo de viagem nem acesso. Não indica falta de atendimento nem como a rede de saúde se "
            "organiza, e não tem nível.")
     if s["estado"] == "nao_aplicavel":
-        return _item(None, "contexto", None, "Não se aplica ao " + r["grupo"] + " como unidade", s["motivo"], regra, "Não se aplica.",
+        return _item(None, "contexto", None, "Não se aplica " + ("ao " if r["o_grupo"].startswith("o ") else "à ") + r["grupo"] + " como unidade",
+                     s["motivo"], regra, "Não se aplica.",
                      significa, nao, entenda, exemplo)
     if s["estado"] == "atende_ao_criterio":
         return _item(None, "contexto", None, "Acima do critério (" + (limiar.split(" em ")[0] if limiar else "o critério") + " ou mais)",
@@ -1962,8 +1965,9 @@ def calibrar_estados(base: Base) -> Calibracao | None:
 
 def _fonte(base: Base) -> dict:
     descricao = base.descricao or {"base": "Brasil", "categoria": "MEDICINA"}
-    contagens = {tipo: series_brasil.contagem_de(base, tipo) for tipo in (("municipio", "estado", "conjunto") if base.do_brasil else
-                                                                           ("municipio", "conjunto"))}
+    # O grupo de cima como unidade: na base do Brasil, sempre; numa planilha, quando ela tem a coluna de grupo.
+    contagens = {tipo: series_brasil.contagem_de(base, tipo) for tipo in (("municipio", "estado", "conjunto") if base.do_brasil or base.estados
+                                                                           else ("municipio", "conjunto"))}
     return {"base": descricao["base"], "categoria": descricao["categoria"], "versao": base.versao, "primeira": base.periodos[0],
             "ultima": base.periodos[-1], "competencias": len(base.periodos), "rotulos": series_brasil.rotulos_publicos(base),
             "origem": base.origem, "ancora": base.ancora,
@@ -1992,7 +1996,8 @@ def _notas(base: Base, personalizado: bool, niveis: set) -> list[str]:
              "Zero é registro observado (zero confirmado); a data sem registro é ausência de dado, nunca zero.",
              "A distância (sinal 11) é só contexto: em linha reta, não é acesso nem tempo de viagem, e nunca vira alerta."]
     if "estados" in niveis:
-        notas.append("O " + r["grupo"] + " como unidade tem régua própria, com a base dos " + r["grupos"] + ": é uma base pequena, e os "
+        notas.append(r["o_grupo"][:1].upper() + r["o_grupo"][1:] + " como unidade tem régua própria, com a base " + r["dos_grupos"] +
+                     ": é uma base pequena, e os "
                      "níveis mais graves podem ficar sem comparações suficientes.")
     if "conjunto" in niveis:
         notas.append("Um conjunto não tem nível: não há outros iguais para comparar. A tela mostra os fatos; o conjunto é a soma das "

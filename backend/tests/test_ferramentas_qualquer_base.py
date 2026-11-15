@@ -161,9 +161,14 @@ def test_planilha_com_codigo_grupo_populacao_e_coordenadas():
     b = series_da_planilha.base_da_planilha(*_com_tudo())
     assert (b.periodos[0], b.periodos[1], b.periodos[-1], b.ancora, b.prefixo_do_id) == ("201901", "201907", "202407", "07", "code:")
     assert b.codigos[:2] == ("A00", "A01") and b.nomes[:2] == ("Área 00", "Área 01")
-    # O grupo de cima é o valor da coluna escolhida; a planilha não tem contagem própria do grupo.
+    # O grupo de cima é o valor da coluna escolhida. A planilha não tem contagem própria do grupo: desde a etapa 7 do comando V23
+    # (15/11/2026), ele entra como unidade pela soma das unidades dele (antes, `estados` vinha vazio, e o grupo não entrava).
     assert b.do_estado == {"Norte": (0, 1, 2), "Sul": (3, 4, 5)} and b.grupos == {"Norte": ("Norte", "Norte"), "Sul": ("Sul", "Sul")}
-    assert b.estados == {} and series_brasil.nome_do_grupo(b, "Sul") == ("Sul", "Sul")
+    assert b.grupos_por_soma is True and series_brasil.nome_do_grupo(b, "Sul") == ("Sul", "Sul")
+    assert {grupo: serie.tolist() for grupo, serie in b.estados.items()} == {"Norte": [93.0, 96.0, 99.0] * 4, "Sul": [108.0, 111.0, 114.0] * 4}
+    assert b.estados["Norte"].tolist() == b.quantidade[:3].sum(axis=0).tolist()
+    assert b.contagens["estado"] == ("soma das contagens das áreas da zona, nas datas em que todas têm registro (não é o número de pessoas "
+                                     "diferentes da zona)")
     assert b.populacao[0][:2].tolist() == [10000.0, 10100.0] and (b.latitude[0][0], b.longitude[1][0]) == (-10.0, -50.2)
     # A concordância vem dos nomes do painel "Colunas" (área e zona são femininos); sem o nome do todo, "a base toda".
     r = series_brasil.rotulos(b)
@@ -180,10 +185,89 @@ def test_planilha_com_codigo_grupo_populacao_e_coordenadas():
     assert lista["indisponiveis"] == {} and lista["fonte"]["tem"] == {"populacao": True, "coordenadas": True, "grupo": True, "serie_anual": True}
     assert (lista["comparacao"]["estado"], lista["comparacao"]["trechos"]) == ("comparavel", [[2019, 2024]])
     assert lista["fonte"]["formas"]["o_unidade"] == "a área" and lista["fonte"]["rotulos"]["grupos"] == "zonas"
-    # O grupo de cima não entra como unidade: a planilha não tem a contagem dele.
-    with pytest.raises(ValueError, match="Esta base não tem uma contagem própria da zona: a zona não entra como unidade. Use um conjunto "
-                                         "com as áreas desse grupo."):
-        detector.compute(None, {"estados_unidade": ["Norte"]}, base=b)
+
+
+def test_grupo_de_cima_da_planilha_entra_como_unidade_pela_soma_das_unidades_dele():
+    """Etapa 7 do comando V23 (decisão do responsável de 15/11/2026): numa planilha, o grupo de cima entra como unidade no Detector
+    e no Simulador. A planilha não tem uma contagem própria do grupo: a série dele é a soma das unidades dele, só nas datas em que
+    todas têm registro (como um conjunto com todas elas), com o nome do grupo e a palavra que a base usa ("Norte (zona)"). Antes, o
+    pedido era recusado ("Esta base não tem uma contagem própria da zona: a zona não entra como unidade…")."""
+    b = series_da_planilha.base_da_planilha(*_com_tudo())
+    norte = series_brasil.selecao(b, {"estados_unidade": ["Norte"]})[0]
+    assert (norte.id, norte.tipo, norte.nivel, norte.rotulo, norte.uf, norte.unidade) == (
+        "uf:Norte", "estado", "estados", "Norte (zona)", "Norte", b.contagens["estado"])
+    assert norte.serie.tolist() == [93.0, 96.0, 99.0] * 4
+    # No Detector: a zona ao lado das áreas de outra zona, com a régua própria das zonas (uma base pequena) e os nomes da base.
+    mista = detector.compute(None, {"base": {"municipios": {"estados": ["Sul"]}}, "estados_unidade": ["Norte"]}, base=b)
+    assert [(linha["id"], linha["tipo"], linha["rotulo"]) for linha in mista["linhas"]] == [
+        ("code:A10", "municipio", "Área 10"), ("code:A11", "municipio", "Área 11"), ("code:A12", "municipio", "Área 12"),
+        ("uf:Norte", "estado", "Norte (zona)")]
+    assert mista["fonte"]["unidades"]["estado"] == b.contagens["estado"] and "calibracao_dos_estados" in mista
+    assert ("A zona como unidade tem régua própria, com a base das zonas: é uma base pequena, e os níveis mais graves podem ficar sem "
+            "comparações suficientes.") in mista["notas"]
+    detalhe = detector.compute(None, {"estados_unidade": ["Norte", "Sul"], "detalhe": "uf:Norte"}, base=b)
+    assert (detalhe["territorio"]["rotulo"], detalhe["territorio"]["unidade"]) == ("Norte (zona)", b.contagens["estado"])
+    do_sinal = {item["chave"]: item for item in detalhe["fenomenos"]}
+    assert do_sinal["estrutural"]["observado"] == (
+        "Em jul/2024, a zona tinha 99 postos; em jan/2024, 96. Contagem: soma das contagens das áreas da zona, nas datas em que todas têm "
+        "registro (não é o número de pessoas diferentes da zona).")
+    assert "A zona como unidade é comparada com a base das zonas, que é pequena" in do_sinal["estrutural"]["limitacoes"]
+    assert do_sinal["perda"]["sem_comparacoes"]["texto"] == "Sem comparações suficientes para o elevado e o crítico: há 20, e o elevado pede 99."
+    assert do_sinal["defasagem"]["situacao"] == "A taxa passou de 0,86 para 0,87 vezes a das demais zonas em 2 anos"
+    assert "e a das demais zonas (soma), de 3,42" in do_sinal["defasagem"]["observado"]
+    assert (do_sinal["contexto"]["situacao"], do_sinal["contexto"]["observado"]) == (
+        "Não se aplica à zona como unidade", "A zona como unidade não tem um ponto único: a distância é medida de cada área.")
+    # Nenhum texto dos sinais traz o vocabulário da base do Brasil (os valores "estado" e "estados" dos campos `tipo` e `nivel`
+    # são do contrato, não textos).
+    for item in detalhe["fenomenos"]:
+        achados = sorted({texto for texto in textos({chave: valor for chave, valor in item.items() if chave not in ("estado", "chave")})
+                          if DO_BRASIL.search(texto)})
+        assert not achados, (item["chave"], achados[:3])
+    # A zona inteira e as áreas dela não entram juntas (RQ-DAD-30), com os nomes da base; uma zona que não existe é recusada.
+    with pytest.raises(ValueError, match=re.escape("Áreas de Norte estão na seleção junto com a zona inteira (como unidade): a zona já está "
+                                                   "na análise e não é somada a elas (RQ-DAD-30).")):
+        detector.compute(None, {"base": {"municipios": {"ids": ["code:A00"]}}, "estados_unidade": ["Norte"]}, base=b)
+    with pytest.raises(ValueError, match="Zona sem registro na base: x."):
+        series_brasil.selecao(b, {"estados_unidade": ["x"]})
+    # O perfil da base diz o que a régua e a retroprojeção das zonas como unidade sustentam.
+    lido = perfil_da_base.perfil(b)
+    assert "Alertas moderados nas zonas como unidade desde jul/2024 (o 6º ano da base)." in lido["da_para"]
+    assert [item for item in lido["nao_da_para"] if "como unidade" in item["o_que"]] == [
+        {"o_que": "Alertas elevados nas zonas como unidade", "motivo": "eles pedem 99 comparações, e esta base chega a 20."},
+        {"o_que": "Alertas críticos nas zonas como unidade", "motivo": "eles pedem 999 comparações, e esta base chega a 20."},
+        {"o_que": "Escolher o jeito de projetar do Simulador nas zonas como unidade pela retroprojeção",
+         "motivo": "ela pede 3 origens com 3 anos antes e 1 ano depois, e esta base tem 2; o cenário mantém o último valor."}]
+    # No Simulador: a zona como território e como referência (pelo identificador "uf:<zona>"), com os textos da base. O todo da
+    # planilha continua com o jeito escolhido para as áreas, como antes: a soma das zonas não é um nível próprio.
+    cenarios = simulador.compute(None, {
+        "estados_unidade": ["Norte"], "brasil": True, "horizonte": "202607",
+        "cenarios": [{"id": "c1", "metodo": "padrao", "intervencoes": [{"tipo": "acrescimo", "quantidade": 3, "em": "202501"}]}],
+        "referencias": [{"id": "g", "territorio": "uf:Sul"}]}, base=b)
+    da_zona, do_todo = cenarios["territorios"]
+    assert (da_zona["id"], da_zona["tipo"], da_zona["nivel"], da_zona["rotulo"], da_zona["unidade"]) == (
+        "uf:Norte", "estado", "estados", "Norte (zona)", b.contagens["estado"])
+    assert da_zona["cenarios"][0]["texto"] == (
+        "Cenário hipotético, não é previsão: com o método persistência (o último valor se mantém) e as premissas janela de jul/2021 a "
+        "jul/2024; acréscimo de 3 postos em cada território do cenário, em jan/2025, com permanência total (hipótese), Norte (zona) teria "
+        "102 postos em jul/2026. Base: registros até jul/2024.")
+    da_referencia = da_zona["cenarios"][0]["comparacoes"][0]
+    assert (cenarios["referencias"][0]["rotulo"], cenarios["referencias"][0]["unidade"]) == ("Sul (zona)", b.contagens["estado"])
+    assert da_referencia["texto"].startswith("Em jul/2026, Norte (zona) teria 102 postos, e a referência Sul (zona) (fixa: o valor de jul/2024 "
+                                             "mantido), 114: 12 abaixo da referência (índice 89,5; 100 é a referência).")
+    assert ("Zonas como unidade são a soma das áreas de cada uma, nas datas em que todas têm registro. A base toda é a soma das áreas com "
+            "registro em cada data e entra com um padrão provisório (o jeito escolhido para as áreas). Num conjunto, o valor é a soma dos "
+            "componentes, não o número de postos diferentes.") in cenarios["notas"]
+    do_padrao = next(aviso["texto"] for aviso in do_todo["cenarios"][0]["avisos"] if aviso["codigo"] == "PADRAO_PROVISORIO_DO_NIVEL")
+    assert do_padrao == ("Para a base toda, o método padrão é provisório: uma série só não tem retroprojeção própria, e vale o jeito escolhido "
+                         "para as áreas.")
+    # A soma só existe quando todas as unidades do grupo têm registro: sem o registro de uma área numa data, a zona fica sem valor
+    # nela (ausência de dado, nunca uma queda que não houve); o todo continua sendo a soma das áreas com registro.
+    quadro, mapa, opcoes = _com_tudo()
+    incompleta = series_da_planilha.base_da_planilha(quadro[~((quadro["cod"] == "A01") & (quadro["quando"] == "2020-07"))], mapa, opcoes)
+    assert np.isnan(incompleta.estados["Norte"][3]) and incompleta.estados["Norte"][2] == 99.0 and incompleta.estados["Sul"][3] == 108.0
+    assert incompleta.brasil[3] == 93.0 - 31.0 + 108.0
+    na_data = detector.compute(None, {"estados_unidade": ["Norte"], "janela": {"fim": "202007"}}, base=incompleta)["linhas"][0]
+    assert (na_data["estrutural"]["estado"], na_data["alerta"]["nivel"]) == ("ausencia_de_dado", None)
 
 
 def test_datas_aceitas_e_recusas_da_planilha():

@@ -246,6 +246,16 @@ def _montar(frame, mapping: dict, opcoes: dict, versao: str) -> Base:
     # O todo: a soma das unidades com registro em cada data (NaN quando nenhuma tem).
     com_registro = (~np.isnan(quantidade)).sum(axis=0)
     todo = np.where(com_registro > 0, np.nansum(quantidade, axis=0), np.nan)
+    # O grupo de cima como unidade (etapa 7 do comando V23): a planilha não tem uma contagem própria do grupo, e ele entra pela soma
+    # das unidades dele — só nas datas em que todas têm registro, como um conjunto com todas elas (uma soma sem uma das unidades
+    # pareceria uma queda que não houve). Nas outras datas, é ausência de dado.
+    dos_grupos = {}
+    for grupo, linhas in do_grupo.items():
+        parte = quantidade[linhas]
+        soma = np.where(np.isnan(parte).any(axis=0), np.nan, np.nansum(parte, axis=0))
+        soma.setflags(write=False)
+        dos_grupos[grupo] = soma
+    grupo_de_cima = ctx.labels.grupo or painel.PADRAO.grupo
 
     contagem = str(ctx.premissas.get("count_unit") or "")
     o_que_conta, aviso_da_contagem = _o_que_conta(contagem, str(ctx.premissas.get("custom_count_unit") or "").strip(), unidade.singular,
@@ -257,14 +267,17 @@ def _montar(frame, mapping: dict, opcoes: dict, versao: str) -> Base:
     return Base(
         versao=versao, periodos=tuple(competencias), meses=np.array([series_brasil.mes_da_competencia(p) for p in competencias]),
         codigos=codigos, nomes=nomes, prefixos=tuple(grupos_das_unidades), quantidade=quantidade, populacao=populacao,
-        latitude=latitude, longitude=longitude, estados={}, brasil=todo,
+        latitude=latitude, longitude=longitude, estados=dos_grupos, grupos_por_soma=True, brasil=todo,
         indice={codigo: posicao for posicao, codigo in enumerate(codigos)},
         do_estado={grupo: tuple(linhas) for grupo, linhas in do_grupo.items()},
         origem="planilha", ancora=series_brasil.mes_ancora(tuple(competencias)),
         rotulos=_nomes(ctx.labels, contagem, str(ctx.premissas.get("object_declaration") or ctx.premissas.get("category_constant") or "")),
         grupos={grupo: (grupo, grupo) for grupo in do_grupo}, prefixo_do_id=prefixo,
         contagens={"municipio": o_que_conta, "conjunto": "soma das contagens dos componentes (não é o número de pessoas diferentes do conjunto)",
-                   "brasil": "soma das contagens de " + unidade.g("todos os", "todas as") + " " + unidade.plural + " com registro na data"},
+                   "brasil": "soma das contagens de " + unidade.g("todos os", "todas as") + " " + unidade.plural + " com registro na data",
+                   **({"estado": "soma das contagens d" + unidade.g("os", "as") + " " + unidade.plural + " d" + grupo_de_cima.g("o", "a") + " " +
+                       grupo_de_cima.singular + ", nas datas em que " + unidade.g("todos", "todas") + " têm registro (não é o número de pessoas "
+                       "diferentes d" + grupo_de_cima.g("o", "a") + " " + grupo_de_cima.singular + ")"} if dos_grupos else {})},
         descricao={"base": "planilha enviada", "categoria": str(ctx.premissas.get("object_declaration") or ctx.category),
                    "tem_populacao": bool(ctx.density),
                    "tem_coordenadas": tem_coordenadas, "tem_grupo": bool(do_grupo), "periodos_da_planilha": dict(zip(competencias, ordenados))},

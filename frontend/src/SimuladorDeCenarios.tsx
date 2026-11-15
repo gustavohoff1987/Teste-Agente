@@ -366,11 +366,11 @@ export default function SimuladorDeCenarios(props: Props) {
     intervencoes: config.cenarios[indice].intervencoes.map((item, n) => n === k ? { ...item, ...parte } : item) });
   const total = totalDaSelecaoLocal(config.local);
   const termo = sem(busca.trim());
-  // Numa planilha enviada, o grupo de cima não entra como unidade (ela não tem a contagem própria dele), e o todo é a soma das
-  // unidades com registro, com o nome que a pessoa deu.
+  // Numa planilha enviada, o grupo de cima entra como unidade (desde a etapa 7 do comando V23: a soma das unidades dele), e o todo
+  // é a soma das unidades com registro, com o nome que a pessoa deu.
   const procurar = (pedido: string) => pedido.length < 2 ? null : {
     brasil: sem(daPlanilha ? nomesDaBase.todo : "brasil").includes(pedido),
-    estados: daPlanilha ? [] : p.grupos.filter(g => sem(g.nome + " " + g.sigla).includes(pedido)).slice(0, 4),
+    estados: p.grupos.filter(g => sem(g.nome + " " + g.sigla).includes(pedido)).slice(0, 4),
     municipios: p.unidades.filter(item => !item.selection_reason &&
       sem(comNomesAnteriores(item.name + " " + (item.code ?? ""), item.former_names)).includes(pedido)).slice(0, 8) };
   const achados = procurar(termo);
@@ -378,7 +378,7 @@ export default function SimuladorDeCenarios(props: Props) {
   /** Os territórios da seleção local que também estão na seleção principal: só eles vão a ela (o Brasil fica só no Simulador). */
   const paraAPrincipal = total - (config.local.brasil ? 1 : 0);
   function acrescentar(alvo: { tipo: "municipio" | "estado"; id: string; grupo: string }) {
-    const { local, motivo } = acrescentarTerritorio(config!.local, alvo);
+    const { local, motivo } = acrescentarTerritorio(config!.local, alvo, daPlanilha && p.grupoDe ? { grupoDe: p.grupoDe, r: nomesDaBase, formas } : undefined);
     setAvisoLocal(motivo);
     if (!motivo) mudarLocal(local);
   }
@@ -761,7 +761,8 @@ export default function SimuladorDeCenarios(props: Props) {
           <li>O valor de um conjunto é a soma das contagens dos componentes, não o número de {daPlanilha ? "pessoas" : "médicos"} diferentes.</li>
         </ul>}
       </div>}
-      <label className="analise-rotulo-campo ferramenta-busca">Acrescentar um território ({daPlanilha ? r.unidade + " ou " + formas.oTodo : "município, estado ou o Brasil"}), só no Simulador
+      <label className="analise-rotulo-campo ferramenta-busca">Acrescentar um território ({daPlanilha
+        ? r.unidade + (p.grupos.length ? ", " + r.grupo : "") + " ou " + formas.oTodo : "município, estado ou o Brasil"}), só no Simulador
         <input type="search" data-testid="simulador-busca" className="analise-campo" value={busca} autoComplete="off" placeholder="Digite o nome"
           onChange={event => { setBusca(event.target.value); setAvisoLocal(null); }}/></label>
       {achados && <ul data-testid="simulador-achados" className="ferramenta-achados">
@@ -769,7 +770,7 @@ export default function SimuladorDeCenarios(props: Props) {
           onClick={() => { if (config.local.brasil) setAvisoLocal(comMaiuscula(formas.oTodo) + " já está na seleção do Simulador."); else { setAvisoLocal(null); mudarLocal(comOBrasil(config.local, true)); } }}>
           <Plus size={13} aria-hidden="true"/>{daPlanilha ? nomeDoTodo + " (" + oQueEOTodo + ")" : "Brasil (contagem nacional de médicos únicos)"}</button></li>}
         {achados.estados.map(g => <li key={"uf" + g.id}><button type="button" data-testid="simulador-acrescentar" data-id={"uf:" + g.id} className="analise-botao-secundario"
-          onClick={() => acrescentar({ tipo: "estado", id: g.id, grupo: g.id })}><Plus size={13} aria-hidden="true"/>{g.nome} como estado (unidade)</button></li>)}
+          onClick={() => acrescentar({ tipo: "estado", id: g.id, grupo: g.id })}><Plus size={13} aria-hidden="true"/>{g.nome} como {r.grupo} (unidade)</button></li>)}
         {achados.municipios.map(item => <li key={item.id}><button type="button" data-testid="simulador-acrescentar" data-id={item.id} className="analise-botao-secundario"
           onClick={() => acrescentar({ tipo: "municipio", id: item.id, grupo: p.grupoDe ? p.grupoDe(item.id) : item.state_code || item.id.slice(5, 7) })}>
           <Plus size={13} aria-hidden="true"/>{nomeDe(item.id)}</button></li>)}
@@ -797,13 +798,14 @@ export default function SimuladorDeCenarios(props: Props) {
               onClick={() => mudar({ referencias: referencias.filter(item => item.id !== ref.id) })}><Trash2 size={14} aria-hidden="true"/></button>
           </li>)}
         </ul>}
-        <label className="analise-rotulo-campo ferramenta-busca">Acrescentar uma referência ({daPlanilha ? r.unidade : "município ou estado"})
+        <label className="analise-rotulo-campo ferramenta-busca">Acrescentar uma referência ({daPlanilha
+          ? r.unidade + (p.grupos.length ? " ou " + r.grupo : "") : "município ou estado"})
           <input type="search" data-testid="simulador-referencia-busca" className="analise-campo" value={buscaDeReferencia} autoComplete="off" placeholder="Digite o nome"
             disabled={referencias.length >= MAX_REFERENCIAS} onChange={event => { setBuscaDeReferencia(event.target.value); setAvisoDeReferencia(null); }}/></label>
         {achadosDeReferencia && <ul data-testid="simulador-referencia-achados" className="ferramenta-achados">
           {achadosDeReferencia.estados.map(g => <li key={"uf" + g.id}><button type="button" data-testid="simulador-referencia-acrescentar" data-id={"uf:" + g.id}
             className="analise-botao-secundario" onClick={() => acrescentarReferencia({ alvo: "uf:" + g.id, rotulo: estadoComoUnidade(g.id), tipo: "fixa" })}>
-            <Plus size={13} aria-hidden="true"/>{g.nome} (estado)</button></li>)}
+            <Plus size={13} aria-hidden="true"/>{g.nome} ({r.grupo})</button></li>)}
           {achadosDeReferencia.municipios.map(item => <li key={item.id}><button type="button" data-testid="simulador-referencia-acrescentar" data-id={item.id}
             className="analise-botao-secundario" onClick={() => acrescentarReferencia({ alvo: item.id, rotulo: nomeDe(item.id), tipo: "fixa" })}>
             <Plus size={13} aria-hidden="true"/>{nomeDe(item.id)}</button></li>)}
@@ -945,7 +947,8 @@ export default function SimuladorDeCenarios(props: Props) {
         ano (todos ficam) é a hipótese padrão. Um acréscimo anual acontece uma vez por ano.</p>
       <p data-testid="simulador-por-territorio" role="note" className="ferramenta-aviso">{total > 1
         ? <>Cada intervenção vale para <strong>cada território</strong> do cenário, não para o total: com {total.toLocaleString("pt-BR")} territórios na seleção do
-          Simulador, um acréscimo de 5 {r.profissionais} soma 5 a cada um deles ({daPlanilha ? r.unidades + " e conjuntos" : "municípios, estados como unidade e conjuntos"}).</>
+          Simulador, um acréscimo de 5 {r.profissionais} soma 5 a cada um deles ({daPlanilha
+            ? r.unidades + (p.grupos.length ? ", " + r.grupos + " como unidade" : "") + " e conjuntos" : "municípios, estados como unidade e conjuntos"}).</>
         : <>A intervenção vale para o território do cenário. Com mais territórios, ela vale para cada um deles, não para o total.</>}</p>
       {(config.modo === "simples" ? config.cenarios.slice(0, 1) : config.cenarios).map((cenario, indice) => intervencoesDo(cenario, indice))}
       <div className="ferramenta-detalhe-acoes">

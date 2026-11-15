@@ -252,8 +252,13 @@ Com uma **planilha enviada**:
 - **Intervalos.** Só se comparam mudanças com o mesmo tempo entre registros; durações com até 1 mês de diferença ficam juntas.
 - **Série anual.** Usa o mês presente em todos os anos (o mês do último registro, quando ele se repete em todos). Sem nenhum, os
   sinais anuais (3, 4 e 8 a 10) ficam indisponíveis.
-- **Territórios.** As unidades da planilha (pelo código, quando há a coluna; senão, pelo nome) e os conjuntos delas. O **grupo de
-  cima não entra como unidade**: a planilha não tem uma contagem própria do grupo. A tela avisa e avalia as unidades e os conjuntos.
+- **Territórios.** As unidades da planilha (pelo código, quando há a coluna; senão, pelo nome), os conjuntos delas e, desde
+  15/11/2026 (etapa 7 do comando V23), **o grupo de cima como unidade**. A planilha não tem uma contagem própria do grupo: a
+  série dele é **a soma das unidades dele, nas datas em que todas têm registro** (como um conjunto com todas elas; nas outras
+  datas, é ausência de dado, nunca uma queda), e a contagem diz isso ("soma das contagens das áreas da zona, nas datas em que
+  todas têm registro"). O grupo aparece com o nome dele e a palavra da base ("Norte (zona)"), tem a régua própria dos grupos —
+  uma base pequena, em que os níveis mais graves costumam ficar "sem comparações suficientes" — e não entra junto com as unidades
+  dele (RQ-DAD-30). Só o nível acima do grupo (o papel `grupo_territorial_superior`) fica fora das ferramentas, com o aviso.
 - **O que a base não tem.** Sem população, os sinais 8 a 11 ficam **"Indisponível nesta base"**, com o motivo, em vez de "não
   calculável"; sem grupo de cima, o sinal 10; sem coordenadas com o referencial informado, o sinal 11. **Cada sinal diz tudo o
   que falta para ele** (`detector.motivos_da_falta`), e o detalhe do território e o perfil da base dizem o mesmo: sem população e
@@ -347,7 +352,8 @@ territorial, o período e a contagem; as premissas pendentes voltam em `pendenci
 
 A seleção segue o contrato compartilhado das ferramentas (`series_brasil.selecao`): o estado como unidade (ou num conjunto de
 estados) e os municípios dele não entram juntos (RQ-DAD-30); um conjunto reúne territórios do mesmo nível. Numa planilha, os
-identificadores são `code:<código>` (com a coluna de código) ou `name:<nome>`, e o grupo de cima em `estados_unidade` é recusado.
+identificadores são `code:<código>` (com a coluna de código) ou `name:<nome>`; o grupo de cima vai em `estados_unidade` pelo valor
+da coluna de grupo e volta como o território `uf:<valor>` (desde 15/11/2026; antes, era recusado).
 
 ## Calibração
 
@@ -489,9 +495,10 @@ exploratória.
 - **O mapa não desenha divisas:** o produto não tem a malha territorial (só as coordenadas dos municípios). O mapa mostra os
   pontos pelo nível e a sigla do grupo de cima junto aos pontos dele.
 - O histórico de sinais cobre os sinais 1 a 7.
-- Numa planilha enviada, o grupo de cima não entra como unidade (a planilha não tem a contagem própria dele), e não há régua
-  própria dos grupos. O que a planilha não tem (população, coordenadas, grupo de cima ou série anual) deixa os sinais que dependem
-  disso indisponíveis, com o motivo.
+- Numa planilha enviada, o grupo de cima como unidade é a soma das unidades dele (a planilha não tem a contagem própria do
+  grupo): não é o número de pessoas diferentes do grupo, e só existe nas datas em que todas as unidades dele têm registro. A
+  régua dos grupos é montada com poucos territórios. O que a planilha não tem (população, coordenadas, grupo de cima ou série
+  anual) deixa os sinais que dependem disso indisponíveis, com o motivo.
 
 ## Testes
 

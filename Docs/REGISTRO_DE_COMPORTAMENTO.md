@@ -35,6 +35,56 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-15 · Etapa 7 do comando V23, rodada 2 (segunda parte): numa planilha, o grupo de cima entra como unidade no Detector e no Simulador
+- **Classificação (regra 1):** o resto do item 7 do comando do responsável de 15/11/2026 ("Planilhas: o grupo de cima entra como
+  unidade"). Decorre do pedido (escopo) e não contraria a SPEC nem uma divergência aprovada (compatibilidade): os níveis
+  continuam sem se somar (RQ-DAD-30: o grupo inteiro e as unidades dele não entram juntos); a soma é rotulada como soma, e não
+  como pessoas diferentes (RQ-REP-14); nas análises, o grupo de uma planilha já era a soma das unidades (decisão "Soma
+  automática", de 06/11/2026, divergência aprovada de CAP-AGR-01). As rotas e os campos que as respostas já traziam não mudaram.
+  Nada vai ao provedor de IA. A SPEC e a base não foram editadas.
+- **Antes:** numa planilha, o grupo de cima não entrava nas ferramentas. O motor recusava `estados_unidade` ("Esta base não tem
+  uma contagem própria da zona: a zona não entra como unidade. Use um conjunto com as áreas desse grupo."); a tela tirava o grupo
+  da seleção levada às ferramentas, com um aviso, e, com "Só os condados" marcado, o Detector ficava sem seleção; a busca do
+  Simulador não oferecia o grupo.
+- **Agora:** numa planilha com a coluna de grupo, **o grupo de cima entra como unidade** no Detector de Sinais e no Simulador de
+  Cenários:
+  - a série do grupo é **a soma das unidades dele, nas datas em que todas têm registro** (como um conjunto com todas elas). Sem
+    o registro de uma unidade numa data, o grupo fica sem valor nela (ausência de dado): uma soma sem uma das unidades pareceria
+    uma queda que não houve. A contagem diz isso: "soma das contagens das áreas da zona, nas datas em que todas têm registro
+    (não é o número de pessoas diferentes da zona)";
+  - o território é `uf:<valor da coluna de grupo>`, com o nome do grupo e a palavra da base ("Norte (zona)", "Costa Ondina
+    (condado)"); o pedido o leva em `estados_unidade`, e uma referência do Simulador, em `territorio: "uf:<valor>"`;
+  - no Detector, o grupo tem a **régua própria dos grupos** (poucos territórios: os níveis mais graves costumam ficar "sem
+    comparações suficientes", com os números), e os textos usam os nomes e a concordância da base ("A zona como unidade é
+    comparada com a base das zonas", "Não se aplica à zona como unidade", "a das demais zonas (soma)");
+  - no Simulador, a busca oferece o grupo nos territórios e nas referências ("Costa Ondina como condado (unidade)"), a retroprojeção
+    dos grupos é própria, e acrescentar o grupo tira da seleção local as unidades dele (os motivos dizem "A zona desta área está
+    na seleção como unidade: tire a zona para usar a área.");
+  - o grupo inteiro e as unidades dele não entram juntos, com os nomes da base no motivo ("Áreas de Norte estão na seleção junto
+    com a zona inteira (como unidade): a zona já está na análise e não é somada a elas (RQ-DAD-30).");
+  - o perfil da base passa a dizer o que a régua e a retroprojeção sustentam "nas zonas como unidade" (na planilha fictícia dos
+    roteiros, quatro linhas novas no "não dá para": os três níveis e a escolha do jeito de projetar nos condados como unidade);
+  - a seleção levada às ferramentas deixa de tirar o grupo; só o nível acima dele (o papel `grupo_territorial_superior`) fica
+    fora, com o aviso "Numa planilha, as ferramentas avaliam comunas, condados como unidade e os conjuntos: o nível acima dos
+    condados fica fora.".
+- **Permanece:** a base do Brasil (os estados pela contagem estadual, os mesmos textos e valores); as unidades e os conjuntos de
+  uma planilha; **o todo da planilha**, que continua sendo a soma das unidades com registro em cada data, com o jeito escolhido
+  para as unidades (a soma dos grupos não vira um nível para ele); a planilha sem a coluna de grupo (nada muda: `estados`
+  continua vazio); um grupo que não existe continua recusado ("Zona sem registro na base: x."); os conjuntos de uma planilha
+  continuam sendo de unidades.
+- **Motivo:** decisão do responsável na Pausa 2 do comando V23 (15/11/2026): o grupo de cima entrava nas análises e ficava fora
+  das ferramentas.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md` ("Qualquer base", a rota e as limitações), `Docs/SIMULADOR_DE_CENARIOS.md`
+  ("Qualquer base" e as limitações), `Docs/PERFIL_DA_BASE_DETECTOR_SIMULADOR.md` (seção 9) e `README.md`; pytest
+  `backend/tests/test_ferramentas_qualquer_base.py` (teste novo: a série e a contagem do grupo, o Detector e o Simulador com a
+  zona, a régua e o perfil das zonas, RQ-DAD-30, o grupo sem uma unidade numa data e o todo como antes); Node
+  `frontend/tests/simulador.test.mjs` (a regra de acrescentar com uma planilha, o pedido e a tela); navegador
+  `backend/tests/ui_planilha_ficticia.py` (o perfil com as linhas dos condados, a busca do Simulador com o condado, o pedido e o
+  cenário dele). Valores que mudaram de propósito nos testes: em `test_ferramentas_qualquer_base.py`, `b.estados` da planilha com
+  zonas (de vazio para as somas) e a recusa do grupo como unidade, que deu lugar ao teste novo; em `ui_planilha_ficticia.py`, as
+  linhas "não dá para" do perfil (as três das comunas mais as quatro dos condados), os rótulos da busca ("comuna, condado ou a
+  Solária"; "comuna ou condado") e o trecho que conferia que a busca nunca oferecia o grupo.
+
 ### 2026-11-15 · Correção do CI da rodada 2 da etapa 7: sem janela escolhida, a frase da janela do Simulador mostra a janela padrão, e não a do último cálculo (CI 43741096158)
 - **Classificação (regra 1):** correção de uma falha do CI, dentro do item 6 do comando de 15/11/2026 (o "Voltar ao padrão" único).
   Decorre do pedido e não contraria a SPEC nem uma divergência aprovada. Só a tela muda: o pedido e os cálculos são os mesmos.
