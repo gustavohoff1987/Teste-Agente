@@ -281,7 +281,8 @@ def test_detector_na_planilha_mostra_o_que_ela_sustenta_e_os_motivos_do_que_nao_
     assert lista["entenda"]["ferramenta"]["exemplo"] == ("Uma queda de 18 para 11 enfermeiros é rara quando, entre as mudanças anteriores de "
                                                        "distritos de 10 a 19 enfermeiros, só 1 em cada 100 foi igual ou pior: alerta elevado.")
     assert lista["notas"][0] == "O registro mais recente da base é jul/2023: os sinais descrevem a situação até essa data, não a de hoje."
-    # O detalhe de um território: os sinais 8 a 11 dizem "Indisponível nesta base", com o motivo, e não "não calculável".
+    # O detalhe de um território: os sinais 8 a 11 dizem "Indisponível nesta base", com o motivo, e não "não calculável". Cada um
+    # diz todos os motivos dele, os mesmos de `indisponiveis` e do perfil da base (revisão das capturas de 15/11/2026).
     detalhe = detector.compute(None, {"base": {"municipios": {"todos": True}}, "detalhe": "name:Distrito 13"}, base=b)
     assert detalhe["territorio"]["rotulo"] == "Distrito 13" and detalhe["territorio"]["unidade"] == b.contagens["municipio"]
     assert [(item["numero"], item["nivel"], item["estado_do_nivel"]) for item in detalhe["fenomenos"]] == [
@@ -289,10 +290,17 @@ def test_detector_na_planilha_mostra_o_que_ela_sustenta_e_os_motivos_do_que_nao_
         ("7", None, "sem_alerta"), ("8", None, "indisponivel"), ("9", None, "indisponivel"), ("10", None, "indisponivel"),
         ("11", None, "indisponivel"), ("12", None, "juntos")]
     do_sinal = {item["chave"]: item for item in detalhe["fenomenos"]}
-    for chave in ("disponibilidade", "posicao", "defasagem", "contexto"):
+    # Os sinais 8 e 9 pedem só a população; o 10, também o grupo de cima; o 11, também as coordenadas.
+    for chave, motivo in (("disponibilidade", SEM_POPULACAO), ("posicao", SEM_POPULACAO), ("defasagem", SEM_POPULACAO + " " + SEM_GRUPO),
+                          ("contexto", SEM_POPULACAO + " " + SEM_COORDENADAS)):
         assert (do_sinal[chave]["situacao"], do_sinal[chave]["observado"], do_sinal[chave]["sem_comparacoes"]) == (
-            "Indisponível nesta base", SEM_POPULACAO, None)
-        assert do_sinal[chave]["habitual"] == "Não avaliado: a base não tem população: sem ela, não há taxa por habitante."
+            "Indisponível nesta base", motivo, None), chave
+        assert do_sinal[chave]["habitual"] == "Não avaliado: a" + motivo[1:], chave
+    assert do_sinal["posicao"]["habitual"] == "Não avaliado: a base não tem população: sem ela, não há taxa por habitante."
+    assert do_sinal["defasagem"]["habitual"] == ("Não avaliado: a base não tem população: sem ela, não há taxa por habitante. A base não tem "
+                                                 "grupo de cima: não há referência para comparar.")
+    assert do_sinal["contexto"]["habitual"] == ("Não avaliado: a base não tem população: sem ela, não há taxa por habitante. A base não tem "
+                                                "coordenadas com o referencial informado: a distância não pode ser medida.")
     assert do_sinal["estrutural"]["observado"] == ("Em jul/2023, o distrito tinha 19 enfermeiros; em jan/2023, 20. Contagem: pessoas "
                                                   "registradas em cada distrito (quem aparece em mais de um conta em cada um).")
     assert do_sinal["perda"]["sem_comparacoes"] == {"niveis": ["critico"], "nivel": "critico", "comparacoes": 360, "pede": 999,
