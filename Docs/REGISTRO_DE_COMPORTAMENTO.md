@@ -124,6 +124,10 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 - **Motivo:** comando V23 do responsável (13/11/2026), Parte C da Proposta V3: uma tela simples para a pergunta mais comum, um
   padrão que a própria base justifica em vez de um método fixo, uma faixa conferida com o que veio depois e as duas ferramentas
   com qualquer base.
+- **Correção de 14/11/2026 (CI 43633601839):** no modo simples, marcar outra opção de "O que testar" depois de "Chegar a uma
+  meta" não tirava a meta (a tela juntava o cenário novo com o de antes, e a opção marcada voltava para a meta). Passou a
+  trocar o cenário inteiro: uma opção de cada vez, como descrito acima. O defeito só existiu entre os commits `04a4a4b0` e o
+  desta correção, sem publicação.
 - **Documentação e testes:** `Docs/SIMULADOR_DE_CENARIOS.md` (o modo simples, a regra de escolha, a faixa, "Qualquer base", a
   rota e as tabelas do estudo de retroprojeção, refeito por `scripts/calibrar_simulador.py`), `Docs/PERFIL_DA_BASE_DETECTOR_SIMULADOR.md`
   (seção 9), `Docs/DETECTOR_DE_SINAIS.md`, `Docs/PAINEL_INTEGRADO_INTERFACE.md` e `README.md`; pytest

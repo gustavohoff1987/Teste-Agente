@@ -551,6 +551,7 @@ def main():
         # oferece as comunas e o todo (a Solária, a soma das comunas com registro), nunca o grupo de cima como unidade nem o Brasil.
         aperta(simulador.get_by_test_id("simulador-modo-avancado"))
         expect(simulador).to_have_attribute("data-modo", "avancado")
+        aperta(simulador.get_by_test_id("simulador-etapa-1"))   # depois de um cálculo, o modo avançado abre nos resultados
         etapa_1 = simulador.get_by_test_id("simulador-territorios")
         expect(etapa_1).to_be_visible()
         expect(etapa_1).to_contain_text("Acrescentar um território (comuna ou a Solária), só no Simulador")

@@ -297,6 +297,8 @@ export default function SimuladorDeCenarios(props: Props) {
     setEtapa(3);
   }
   const mudarCenario = (indice: number, parte: Partial<CenarioDaTela>) => mudar({ cenarios: config.cenarios.map((cenario, k) => k === indice ? { ...cenario, ...parte } : cenario) });
+  /** Põe outro cenário no lugar (sem juntar com o de antes): trocar o que testar tira a meta ou a intervenção que havia. */
+  const trocarCenario = (indice: number, novo: CenarioDaTela) => mudar({ cenarios: config.cenarios.map((cenario, k) => k === indice ? novo : cenario) });
   const mudarIntervencao = (indice: number, k: number, parte: Partial<IntervencaoDaTela>) => mudarCenario(indice, {
     intervencoes: config.cenarios[indice].intervencoes.map((item, n) => n === k ? { ...item, ...parte } : item) });
   const total = totalDaSelecaoLocal(config.local);
@@ -545,7 +547,7 @@ export default function SimuladorDeCenarios(props: Props) {
         <div className="ferramenta-teste-opcoes">
           {TESTES.map(item => <label key={item.chave} className="analise-caixa ferramenta-caixa"><input type="radio" name="simulador-teste"
             data-testid={"simulador-teste-" + item.chave} checked={teste === item.chave}
-            onChange={() => mudarCenario(0, comOTeste(cenarioDoSimples, item.chave, anosDepois(ultimoRegistro, 1)))}/>{item.rotulo}</label>)}
+            onChange={() => trocarCenario(0, comOTeste(cenarioDoSimples, item.chave, anosDepois(ultimoRegistro, 1)))}/>{item.rotulo}</label>)}
         </div>
         {(teste === "acrescentar" || teste === "retirar") && cenarioDoSimples.intervencoes[0] && <p className="ferramenta-frase">
           {teste === "acrescentar" ? "Acrescentar " : "Retirar "}
