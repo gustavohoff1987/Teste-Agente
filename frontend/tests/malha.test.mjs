@@ -40,8 +40,7 @@ test('a malha lida do TopoJSON: as áreas pelo código da base, as divisas dos e
   // As divisas dos estados: os arcos entre municípios de estados diferentes (2 e 3) e os de um município só (a borda: 4 a 7). Os
   // arcos 0 e 1, entre municípios do mesmo estado, não são divisa de estado.
   assert.equal(malha.divisasDosEstados.length, 6);
-  assert.deepEqual(malha.divisasDosEstados.slice(0, 2), [{linha: [[-50, -9.5], [-49.5, -9.5]], caixa: [-50, -9.5, -49.5, -9.5]},
-    {linha: [[-49.5, -9.5], [-49, -9.5]], caixa: [-49.5, -9.5, -49, -9.5]}]);
+  assert.deepEqual(malha.divisasDosEstados.slice(0, 2), [[[-50, -9.5], [-49.5, -9.5]], [[-49.5, -9.5], [-49, -9.5]]]);
   // O que não é uma topologia com áreas não vira malha.
   for (const ruim of [null, undefined, 7, {}, {type: 'Topology'}, {type: 'Topology', arcs: [], objects: {x: {geometries: []}}},
     {type: 'FeatureCollection', arcs: [], objects: {}}]) assert.equal(M.decodificarMalha(ruim), null);
@@ -56,9 +55,9 @@ test('as divisas a desenhar: as áreas com a cor do nível, as divisas dos estad
   const geral = M.divisasDoMapa(malha, [A, C, semArea]);
   assert.deepEqual([geral.ufs, geral.comBordas, geral.moldura], [['11', '12'], false, [-50, -10, -49.5, -9]]);
   assert.deepEqual(geral.areas, [{id: 'code:110001', aneis: malha.areas.get('110001').aneis, cor: '#b00020', chave: 'critico'}]);
-  assert.equal(geral.linhas.length, 6, 'as divisas dos estados que tocam a moldura');
+  assert.equal(geral.linhas.length, 6, 'todas as divisas dos estados: o desenho deixa de fora o que não cabe nele');
   // Aproximado no estado 12: a moldura é o estado inteiro, as divisas dos municípios dele aparecem (as áreas sem cor: C, que
-  // está à vista sem nível, e D, que nem está à vista), e a área colorida que toca a moldura continua com a cor.
+  // está à vista sem nível, e D, que nem está à vista), e a área colorida do outro estado continua com a cor.
   const perto = M.divisasDoMapa(malha, [A, C, semArea], '12');
   assert.deepEqual([perto.comBordas, perto.moldura], [true, [-50, -9.5, -49, -9]]);
   assert.deepEqual(perto.areas.map(area => [area.id, area.cor ?? null]), [['code:110001', '#b00020'], ['code:120001', null], ['malha:120005', null]]);
@@ -71,7 +70,6 @@ test('as divisas a desenhar: as áreas com a cor do nível, as divisas dos estad
   const vezesDez = ([x, y]) => [x * 10, y * 10];
   assert.equal(M.caminhoDaMalha([[[0, 0], [1, 0], [1, 1]], [[5, 5]], [[2, 2], [3, 2]]], vezesDez), 'M0.0,0.0L10.0,0.0L10.0,10.0M20.0,20.0L30.0,20.0');
   assert.equal(M.caminhoDaMalha([[[0, 0], [1, 0], [1, 1]]], vezesDez, true), 'M0.0,0.0L10.0,0.0L10.0,10.0Z');
-  assert.deepEqual([M.caixasSeTocam([0, 0, 1, 1], [1, 1, 2, 2]), M.caixasSeTocam([0, 0, 1, 1], [1.1, 0, 2, 1])], [true, false]);
 });
 
 test('a malha é pedida uma vez só; se o arquivo não puder ser lido, a tela segue sem as divisas e a próxima abertura tenta de novo', async () => {
@@ -99,6 +97,20 @@ test('o arquivo versionado da malha: a fonte, a data e o SHA-256 conferem, e ela
   assert.deepEqual([malha.areas.size, malha.ufs.size, malha.divisasDosEstados.length], [5570, 27, 1669]);
   assert.ok([...malha.areas.values()].every(area => /^\d{6}$/.test(area.codigo) && area.uf === area.codigo.slice(0, 2) && area.aneis.length >= 1 &&
     area.aneis.every(anel => anel.length >= 4 && anel.every(([lon, lat]) => lon > -75 && lon < -28 && lat > -34.5 && lat < 6))), 'toda área fica no Brasil');
+  // O mapa aproximado em Santa Catarina, com um município de Roraima à vista em crítico: a moldura é Santa Catarina, e nada é
+  // cortado por ela — o desenho mostra um pouco além da moldura (ela não tem a proporção do mapa), e um ponto que aparece ao
+  // lado do estado tem a área dele. Vão ao desenho as duas áreas com nível, as 294 outras de Santa Catarina (sem cor; Florianópolis,
+  // que está à vista sem nível, pelo identificador da tela) e todas as divisas dos estados.
+  const boaVista = {id: 'code:140010', codigo: '140010', cor: '#b00020', chave: 'critico'}, lages = {id: 'code:420930', codigo: '420930', cor: '#e07a1f', chave: 'elevado'};
+  const perto = M.divisasDoMapa(malha, [boaVista, {id: 'code:420540', codigo: '420540'}, lages], '42');
+  assert.deepEqual([perto.comBordas, perto.ufs, perto.moldura.map(n => +n.toFixed(2))], [true, ['14', '42'], [-53.84, -29.35, -48.37, -25.98]]);
+  assert.deepEqual([perto.areas.filter(area => area.cor).map(area => area.id), perto.areas.filter(area => !area.cor).length, perto.linhas.length],
+    [['code:140010', 'code:420930'], 294, 1669]);
+  assert.ok(perto.areas.some(area => area.id === 'code:420540' && !area.cor));
+  assert.equal(perto.areas.filter(area => area.id.startsWith('malha:')).length, 293);
+  // Sem aproximar, com dois estados à vista: só as áreas com nível, todas as divisas dos estados, e a moldura das áreas à vista.
+  const geral = M.divisasDoMapa(malha, [boaVista, {id: 'code:420540', codigo: '420540'}, lages]);
+  assert.deepEqual([geral.areas.length, geral.linhas.length, geral.comBordas, geral.moldura.map(n => +n.toFixed(2))], [2, 1669, false, [-61, -28.43, -48.37, 3.58]]);
 });
 
 test('na tela: a malha só é pedida quando o mapa do Detector abre, só na base do Brasil; a planilha segue sem divisas e diz isso', () => {

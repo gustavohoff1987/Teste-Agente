@@ -12,8 +12,8 @@ export type AreaDaMalha = { codigo: string; uf: string; aneis: Ponto[][]; caixa:
 export type Malha = {
   /** A área de cada município, pelo código de 6 dígitos da base (os 6 primeiros do `codarea` da malha). */
   areas: Map<string, AreaDaMalha>;
-  /** As divisas dos estados: cada trecho, uma linha, com o retângulo dela. */
-  divisasDosEstados: { linha: Ponto[]; caixa: Caixa }[];
+  /** As divisas dos estados: cada trecho, uma linha. */
+  divisasDosEstados: Ponto[][];
   /** O retângulo de cada estado (pelo prefixo de 2 dígitos), a união dos municípios dele. */
   ufs: Map<string, Caixa>;
 };
@@ -61,11 +61,7 @@ export function decodificarMalha(bruto: unknown): Malha | null {
   if (!areas.size) return null;
   // A divisa de um estado: o arco usado por um município só (a borda do país e o litoral) ou por municípios de estados diferentes.
   const divisasDosEstados = [...usos.entries()].filter(([, usado]) => usado.length === 1 || new Set(usado).size > 1)
-    .sort(([a], [b]) => a - b).map(([indice]) => {
-      let caixa: Caixa | undefined;
-      for (const [x, y] of arcos[indice]) caixa = uniao(caixa, [x, y, x, y]);
-      return { linha: arcos[indice], caixa: caixa! };
-    });
+    .sort(([a], [b]) => a - b).map(([indice]) => arcos[indice]);
   return { areas, divisasDosEstados, ufs };
 }
 
@@ -92,9 +88,6 @@ export function caminhoDaMalha(linhas: Ponto[][], xy: (ponto: Ponto) => [number,
   return caminho;
 }
 
-/** As duas caixas se tocam? (para desenhar só as áreas que aparecem no mapa). */
-export const caixasSeTocam = (a: Caixa, b: Caixa): boolean => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
-
 /** Um território à vista no mapa: o identificador dele na tela, o código de 6 dígitos da base e, quando ele tem nível no desenho,
  * a cor do nível e o que ela diz. */
 export type NoMapa = { id: string; codigo: string; cor?: string; chave?: string };
@@ -106,7 +99,9 @@ export type DivisasDoMapa = { areas: { id: string; aneis: Ponto[][]; cor?: strin
 /** As divisas a desenhar num mapa: as áreas dos municípios à vista que têm nível, com a cor dele (o que a malha tiver a mais, e
  * quem não tem nível, fica sem cor); as divisas dos estados, sempre; e as dos municípios quando o mapa é aproximado num estado
  * (`aproximado`, o prefixo dele) ou quando os territórios à vista são de um estado só. A moldura é o estado aproximado ou, sem
- * ele, o retângulo das áreas à vista. Só desenho: nada é medido. */
+ * ele, o retângulo das áreas à vista: é só o que o desenho enquadra. O desenho mostra um pouco além dela (a moldura não tem a
+ * proporção do mapa), e por isso nada é cortado aqui: toda área com nível e toda divisa de estado vão ao desenho, que deixa de
+ * fora o que não cabe nele — assim, um ponto que aparece ao lado do estado aproximado tem a área dele. Só desenho: nada é medido. */
 export function divisasDoMapa(malha: Malha, aVista: NoMapa[], aproximado = ""): DivisasDoMapa {
   const comArea = aVista.filter(item => malha.areas.has(item.codigo));
   const ufs = [...new Set(comArea.map(item => malha.areas.get(item.codigo)!.uf))].sort();
@@ -114,17 +109,13 @@ export function divisasDoMapa(malha: Malha, aVista: NoMapa[], aproximado = ""): 
   const comBordas = !!emFoco || ufs.length === 1;
   let moldura: Caixa | null = emFoco ? malha.ufs.get(emFoco)! : null;
   if (!emFoco) for (const item of comArea) moldura = uniao(moldura ?? undefined, malha.areas.get(item.codigo)!.caixa);
-  const naMoldura = (caixa: Caixa): boolean => !moldura || caixasSeTocam(caixa, moldura);
   const doCodigo = new Map(comArea.map(item => [item.codigo, item]));
   const areas: DivisasDoMapa["areas"] = [];
-  for (const item of comArea) {
-    const area = malha.areas.get(item.codigo)!;
-    if (item.cor && naMoldura(area.caixa)) areas.push({ id: item.id, aneis: area.aneis, cor: item.cor, chave: item.chave });
-  }
+  for (const item of comArea) if (item.cor) areas.push({ id: item.id, aneis: malha.areas.get(item.codigo)!.aneis, cor: item.cor, chave: item.chave });
   if (comBordas) {
     const estados = new Set(emFoco ? [emFoco] : ufs);
     for (const area of malha.areas.values())
       if (estados.has(area.uf) && !doCodigo.get(area.codigo)?.cor) areas.push({ id: doCodigo.get(area.codigo)?.id ?? "malha:" + area.codigo, aneis: area.aneis });
   }
-  return { areas, comBordas, linhas: malha.divisasDosEstados.filter(divisa => naMoldura(divisa.caixa)).map(divisa => divisa.linha), moldura, ufs };
+  return { areas, comBordas, linhas: malha.divisasDosEstados, moldura, ufs };
 }

@@ -168,8 +168,9 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
     etapa 7 do comando V23; `data-divisas="carregadas"`), da malha municipal do IBGE (ver "A malha das divisas"):
     - **as divisas dos estados ficam sempre à vista** (`analise-mapa-divisas-dos-estados`);
     - **as dos municípios aparecem ao aproximar ou com um estado só**: quando a pessoa escolhe um estado em "Aproximar o mapa em"
-      (`detector-mapa-aproximar`, com os estados dos territórios à vista; o mapa enquadra o estado inteiro) ou quando os
-      territórios à vista são de um estado só;
+      (`detector-mapa-aproximar`, com os estados dos territórios à vista; o mapa enquadra o estado inteiro, e o que aparece dos
+      vizinhos em volta dele continua com os pontos, as áreas com nível e as divisas dos estados) ou quando os territórios à
+      vista são de um estado só;
     - **a área de cada município à vista com nível leva a cor do nível** (`analise-mapa-area`), por baixo do ponto dele; quem não
       tem nível, e o que a malha tiver a mais, fica sem cor;
     - **a malha só é pedida quando o mapa abre**, uma vez; enquanto carrega, o mapa mostra os pontos e diz "As divisas estão
@@ -577,5 +578,9 @@ o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudan�
   municípios de Santa Catarina fora dele, ditos na legenda) e o gráfico; os sinais comparados em jun/2021; "Simular
   recuperação"; a tela de celular, com o "Entenda" pelo toque, a lista em cartões, a série do território desenhada na largura
   da tela (texto de 12 px) e o mapa na largura da tela, com as divisas; o mapa com as divisas dos estados, as dos municípios de
-  Santa Catarina e as áreas com a cor do nível; e o perfil da base do Brasil, fechado até a pessoa pedir. `backend/tests/ui_planilha_ficticia.py` (suíte `bloco1`) — o Detector com uma planilha enviada: o perfil aberto
+  Santa Catarina e as áreas com a cor do nível; e o perfil da base do Brasil, fechado até a pessoa pedir.
+  `backend/tests/ui_detector_mapa.py` (mesma suíte) — o mapa com municípios de dois estados à vista (Santa Catarina e Roraima):
+  as divisas dos estados sem as dos municípios; "Aproximar o mapa em", que enquadra o estado com as divisas dos municípios dele
+  sem cortar as áreas com nível; um estado só à vista pela busca; e a malha pedida uma vez só, quando o mapa abre.
+  `backend/tests/ui_planilha_ficticia.py` (suíte `bloco1`) — o Detector com uma planilha enviada: o perfil aberto
   antes da ferramenta, a lista e o detalhe com os nomes da planilha e o Simulador desligado, com o motivo.

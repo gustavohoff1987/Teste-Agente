@@ -49,6 +49,10 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
   - as divisas dos **estados** ficam sempre à vista;
   - as dos **municípios** aparecem ao aproximar o mapa num estado ("Aproximar o mapa em", com os estados dos territórios à vista;
     o mapa enquadra o estado inteiro) ou quando os territórios à vista são de um estado só;
+  - **correção do mesmo dia, vista nas capturas do fim da etapa 7:** no mapa aproximado, os municípios vizinhos que aparecem na
+    faixa ao lado do estado tinham o ponto, mas não a área com a cor do nível nem as divisas dos estados (o desenho cortava
+    pelo retângulo do estado, e o mapa mostra um pouco além dele, porque o retângulo não tem a proporção do mapa). Agora nada é
+    cortado antes do desenho: toda área com nível e toda divisa de estado que aparecem no mapa são desenhadas;
   - a **área** de cada município à vista com nível leva a cor do nível, por baixo do ponto dele (também a dos municípios sem
     coordenada válida, que não têm ponto); quem não tem nível, e o que a malha tivesse a mais, fica sem cor;
   - a malha **só é pedida quando o mapa abre**, uma vez; enquanto carrega, o mapa mostra os pontos e diz "As divisas estão sendo
@@ -69,7 +73,12 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
   arquivo versionado e a tela); pytest `backend/tests/test_detector.py`, no job `dados-reais` (cada município da base tem divisa,
   e a malha não tem geometria além deles); navegador `backend/tests/ui_detector.py` (as divisas dos estados, as dos municípios de
   Santa Catarina, as áreas com a cor do nível e o mapa no celular). Valor que mudou de propósito nos testes: em
-  `ui_detector.py`, a legenda do mapa na base do Brasil deixa de dizer "A base não tem as divisas".
+  `ui_detector.py`, a legenda do mapa na base do Brasil deixa de dizer "A base não tem as divisas". Com a correção do mesmo dia:
+  o roteiro novo `backend/tests/ui_detector_mapa.py`, registrado na suíte `base-versionada` (Santa Catarina e Roraima à vista:
+  as divisas dos estados sem as dos municípios; "Aproximar o mapa em" enquadra o estado, com as divisas dos municípios e sem
+  cortar as áreas com nível; um estado só à vista pela busca; a malha pedida uma vez só), e, em `malha.test.mjs`, o mapa
+  aproximado em Santa Catarina com um município de Roraima à vista (as duas áreas com nível e as 1.669 divisas de estado vão ao
+  desenho). No modelo, saíram o corte pelo retângulo (`caixasSeTocam`) e o retângulo de cada divisa de estado.
 
 ### 2026-11-15 · Etapa 7 do comando V23, rodada 2 (segunda parte): numa planilha, o grupo de cima entra como unidade no Detector e no Simulador
 - **Classificação (regra 1):** o resto do item 7 do comando do responsável de 15/11/2026 ("Planilhas: o grupo de cima entra como

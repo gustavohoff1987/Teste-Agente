@@ -72,6 +72,9 @@ SUITES = {
                      ("ui_criterios.py", {"ADT_BLOCK1_REAL": "1"}),
                      # O Detector de Sinais Territoriais (comando V22, etapa 3): a tabela, os filtros, os detalhes e os parâmetros.
                      ("ui_detector.py", {"ADT_BLOCK1_REAL": "1"}),
+                     # O mapa do Detector com as divisas (comando V23, etapa 7): dois estados à vista, "Aproximar o mapa em" e a
+                     # malha pedida uma vez só.
+                     ("ui_detector_mapa.py", {"ADT_BLOCK1_REAL": "1"}),
                      # O Simulador de Cenários Territoriais (comando V22, etapa 4): a seleção local, as quatro etapas, os cenários, as
                      # faixas, as exportações e "Aplicar à seleção principal".
                      ("ui_simulador.py", {"ADT_BLOCK1_REAL": "1"})],
