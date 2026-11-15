@@ -265,7 +265,8 @@ test('a resposta do motor vira os tipos da tela, sem calcular nada', () => {
     'margem; ela acompanha a intervenção. Faixa provisória: ainda não deu para conferi-la com dados que vieram depois, ou a conferência ficou um pouco abaixo do esperado.'));
   assert.equal(S.textoDaFaixa({...calculado, final: {...calculado.final, faixa: null}}),
     'Faixa de 8 em cada 10: indisponível nesta data: ela vai só até 4 anos depois do último registro usado.');
-  const semCasos = 'A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem 189 em 1 ano, mesmo juntando os portes vizinhos e os menores.';
+  const semCasos = 'A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem 189 em 1 ano para o porte deste território, mesmo juntando os ' +
+    'portes vizinhos e os menores.';
   assert.equal(S.textoDaFaixa({...calculado, final: {...calculado.final, faixa: null},
     faixa: {estado: 'indisponivel', motivo: semCasos, rotulo: null, em10: 8, ateAnos: null, conferencia: null, como: null}}), 'Faixa de 8 em cada 10: indisponível. ' + semCasos);
   assert.deepEqual(['M0', 'M0d', 'M0g', 'M1'].map(metodo => S.NOME_CURTO_DO_METODO[metodo]),
@@ -806,7 +807,8 @@ test('a faixa em palavras: conferida, provisória, indisponível com o motivo e 
   assert.equal(S.textoDaFaixa(calculado, true), 'Faixa de 8 em cada 10 (aproximação) em jun/2026: de 48,2 a 74,9 médicos. No passado da base, em 8 de cada 10 casos de ' +
     'territórios com o porte desta soma (uma aproximação para o conjunto)' + meio + ' Conferida com o que veio depois.');
   // 3. Indisponível, com o motivo do motor (sem motivo, só "indisponível"): nada é extrapolado.
-  const semCasos = 'A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem 189 em 1 ano, mesmo juntando os portes vizinhos e os menores.';
+  const semCasos = 'A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem 189 em 1 ano para o porte deste território, mesmo juntando os ' +
+    'portes vizinhos e os menores.';
   const semFaixa = {estado: 'indisponivel', motivo: semCasos, rotulo: null, em10: 8, ateAnos: null, conferencia: null, como: null};
   const semFinal = {...calculado, final: {...calculado.final, faixa: null}};
   assert.equal(S.textoDaFaixa({...semFinal, faixa: semFaixa}), 'Faixa de 8 em cada 10: indisponível. ' + semCasos);
@@ -910,8 +912,11 @@ test('a tela: o modo simples numa tela só, e as quatro etapas só no modo avan�
   // O território é um dos da seleção local, e o que testar vem do modelo (TESTES e comOTeste): nada é calculado na tela.
   assert.ok(tela.includes('const doSimples = territoriosDaSelecaoLocal(config.local, { unidade: nomeDe, grupo: estadoComoUnidade, todo: r.todo });'));
   assert.ok(tela.includes('const territorioDoSimples = doSimples.some(item => item.id === config.territorio) ? config.territorio! : primeiroDaSelecao(config.local) ?? "";'));
-  // Trocar o território tira a meta, que era do território de antes (revisão das capturas, 14/11/2026).
-  assert.match(simples, /<select data-testid="simulador-territorio" className="analise-campo" value=\{territorioDoSimples\} disabled=\{!doSimples\.length\}\s+onChange=\{event => mudar\(aoTrocarDeTerritorio\(config, event\.target\.value\)\)\}>/);
+  // Trocar o território tira a meta, que era do território de antes (revisão das capturas, 14/11/2026), e o resultado anterior, que
+  // também era dele (15/11/2026): o aviso "As escolhas mudaram depois deste cálculo" fica para as mudanças no mesmo território.
+  assert.match(simples, /<select data-testid="simulador-territorio" className="analise-campo" value=\{territorioDoSimples\} disabled=\{!doSimples\.length\}\s+onChange=\{event => trocarDeTerritorio\(event\.target\.value\)\}>/);
+  assert.match(tela, /function trocarDeTerritorio\(id: string\) \{\s+if \(id === territorioDoSimples\) return;\s+controle\.current\?\.abort\(\);\s+mudar\(aoTrocarDeTerritorio\(config!, id\)\);\s+setResposta\(null\); setCalculado\(""\); setErro\(null\); setCarregando\(false\); setFoco\(null\);\s+\}/);
+  assert.equal(tela.split('aoTrocarDeTerritorio(').length - 1, 1, 'a troca de território passa sempre por trocarDeTerritorio');
   assert.match(simples, /\{TESTES\.map\(item => <label key=\{item\.chave\}[^>]*><input type="radio" name="simulador-teste"\s+data-testid=\{"simulador-teste-" \+ item\.chave\} checked=\{teste === item\.chave\}\s+onChange=\{\(\) => trocarCenario\(0, comOTeste\(cenarioDoSimples, item\.chave, anosDepois\(ultimoRegistro, 1\)\)\)\}\/>\{item\.rotulo\}<\/label>\)\}/);
   assert.ok(tela.includes('const teste = testeDoCenario(cenarioDoSimples);'));
   assert.match(simples, /<button type="button" data-testid="simulador-calcular" className="analise-botao-primario" disabled=\{!!pendencia \|\| carregando\} onClick=\{calcular\}>\s+\{carregando \? "Calculando…" : "Calcular"\}<\/button>/);
@@ -1086,6 +1091,23 @@ test('qualquer base: os nomes da planilha antes da primeira resposta, e o cenár
   assert.deepEqual(S.nomesDaPlanilha({premissas: {count_unit: 'vinculos'}}),
     {profissional: 'vínculo', profissionais: 'vínculos', unidade: 'unidade', unidades: 'unidades', grupo: 'grupo', grupos: 'grupos', todo: 'a base toda'});
   assert.deepEqual([S.nomesDaPlanilha({premissas: {count_unit: 'postos'}}).profissionais, S.nomesDaPlanilha({}).profissionais], ['postos', 'profissionais']);
+  // O nome dos trabalhadores informado no envio ("Quem são os trabalhadores contados?") vale para os textos quando é um plural que
+  // eles podem usar, pela mesma regra do motor (series_da_planilha.nome_dos_trabalhadores): só as palavras antes da primeira
+  // preposição vão para o singular. Nome feminino, dois nomes, sigla ou palavra que não está no plural: "profissionais".
+  assert.deepEqual(['Enfermeiros', 'médicos', 'PROFISSIONAIS', 'Técnicos de enfermagem', 'Agentes comunitários de saúde', 'Cirurgiões-dentistas',
+    'Auxiliares de enfermagem', 'Dentistas', 'Fisioterapeutas', 'Pediatras', 'Cuidadores', 'Homens'].map(S.nomeDosTrabalhadores), [
+    ['enfermeiro', 'enfermeiros'], ['médico', 'médicos'], ['profissional', 'profissionais'], ['técnico de enfermagem', 'técnicos de enfermagem'],
+    ['agente comunitário de saúde', 'agentes comunitários de saúde'], ['cirurgião-dentista', 'cirurgiões-dentistas'],
+    ['auxiliar de enfermagem', 'auxiliares de enfermagem'], ['dentista', 'dentistas'], ['fisioterapeuta', 'fisioterapeutas'], ['pediatra', 'pediatras'],
+    ['cuidador', 'cuidadores'], ['homem', 'homens']]);
+  assert.deepEqual(['Enfermeiras', 'Médicos e enfermeiros', 'ACS', 'Enfermagem', 'Agentes 2', 'Pessoas', '', null, undefined, 7].map(S.nomeDosTrabalhadores),
+    Array(10).fill(null));
+  const nomesCom = premissas => { const nomes = S.nomesDaPlanilha({premissas}); return [nomes.profissional, nomes.profissionais]; };
+  assert.deepEqual([nomesCom({count_unit: 'pessoas', object_declaration: 'Enfermeiros'}), nomesCom({count_unit: 'pessoas', category_constant: 'Técnicos de enfermagem'}),
+    nomesCom({object_declaration: '', category_constant: 'Dentistas'}), nomesCom({count_unit: 'pessoas', object_declaration: 'Enfermagem'}),
+    nomesCom({count_unit: 'vinculos', object_declaration: 'Enfermeiros'})],
+    [['enfermeiro', 'enfermeiros'], ['técnico de enfermagem', 'técnicos de enfermagem'], ['dentista', 'dentistas'], ['profissional', 'profissionais'],
+      ['vínculo', 'vínculos']]);
   const tela = ler('SimuladorDeCenarios.tsx');
   assert.ok(tela.includes('const nomesDaBase: NomesDaBase = resposta?.fonte.rotulos ?? nomesDaPlanilha(props.daBase) ?? NOMES_DO_BRASIL;'));
   // O cenário exportado diz a base em uso (sem a opção, a do Brasil) e leva o território em análise e a faixa pedida; a importação os repõe.
@@ -1192,4 +1214,49 @@ test('revisão das capturas: a meta sai ao trocar de território, a meta do pata
   assert.ok(grafico.includes('{plano.trajetoria.length > 0 && <path data-testid="simulador-plano-curva" d={caminho([origem, ...plano.trajetoria.map(ponto =>'));
   assert.ok(grafico.includes('"; linha contínua: o cenário com o acréscimo que alcança a meta (▼ na data do acréscimo)"'));
   assert.ok(grafico.includes('plano.estado === "ja_alcancada" ? "; o cenário já chega a ela, sem acréscimo" : ""'));
+});
+
+test('revisão das capturas de 15/11/2026: o singular com 1, a faixa inteira de um lado da linha, o aviso único da seleção e os gráficos na largura da tela', () => {
+  // "Acrescentar 1 profissional", "2 profissionais": o nome concorda com o número digitado (em branco ou sem número, o plural).
+  const OUTRA = {...S.NOMES_DO_BRASIL, profissional: 'enfermeiro', profissionais: 'enfermeiros'};
+  assert.deepEqual(['1', '1,0', '2', '', 'x', '0', '1,5', 1, 3].map(quantidade => S.nomeNoNumero(quantidade)),
+    ['médico', 'médico', 'médicos', 'médicos', 'médicos', 'médicos', 'médicos', 'médico', 'médicos']);
+  assert.deepEqual(['1', '2', ''].map(quantidade => S.nomeNoNumero(quantidade, OUTRA)), ['enfermeiro', 'enfermeiros', 'enfermeiros']);
+  const tela = ler('SimuladorDeCenarios.tsx');
+  assert.ok(tela.includes('{nomeNoNumero(cenarioDoSimples.intervencoes[0].quantidade, r)} em{" "}'));
+  assert.ok(tela.includes('{nomeNoNumero(metaNoCampo(cenarioDoSimples.planejamento), r)} na data final, com um acréscimo em{" "}'));
+  // A faixa pode ficar inteira de um lado da linha do cenário (a de 5 em cada 10 de um estado, em 4 anos): a frase diz o que isso
+  // quer dizer. Com a linha dentro da faixa (ou na borda dela), sem faixa ou sem cenário calculado, nada.
+  const [calculado, retirada] = S.normalizarSimulador(BRUTO).territorios[0].cenarios;
+  const com = (total, inferior, superior) => ({...calculado, final: {...calculado.final, total, faixa: {...calculado.final.faixa, inferior, superior}}});
+  const fora = lado => ' A faixa fica inteira ' + lado + ' da linha do cenário: no passado da base, neste porte e neste prazo, o número observado ficou, na maior ' +
+    'parte dos casos, ' + lado + ' do que este jeito de projetar dava.';
+  assert.deepEqual([com(60, 48.2, 74.9), com(60, 61, 74.9), com(60, 40, 59.5), com(60, 60, 70), com(60, 50, 60), {...calculado, final: {...calculado.final, faixa: null}},
+    retirada].map(S.faixaSemALinha), ['', fora('acima'), fora('abaixo'), '', '', '', '']);
+  assert.ok(S.textoDaFaixa(com(60, 61, 74.9)).endsWith(' Conferida com o que veio depois.' + fora('acima')));
+  assert.ok(S.textoDaFaixa(com(60, 48.2, 74.9)).endsWith(' Conferida com o que veio depois.'));
+  // No modo avançado, de onde vem a seleção é dito numa mensagem só: quando ela não acompanha a seleção principal, a própria frase
+  // vira o aviso (antes, um aviso amarelo repetia a frase de cima).
+  assert.equal(tela.split('data-testid="simulador-origem-da-selecao"').length - 1, 1);
+  assert.equal(tela.split('data-testid="simulador-nao-acompanha"').length - 1, 1);
+  assert.match(tela, /<p data-testid="simulador-origem-da-selecao" data-acompanha=\{config\.acompanha \? "true" : "false"\} role=\{config\.acompanha \? undefined : "status"\}\s+className=\{config\.acompanha \? "ferramenta-apoio" : "ferramenta-exploratorio"\}>/);
+  assert.ok(tela.includes('<span data-testid="simulador-nao-acompanha">{config.doDetector ? <><strong>não acompanha</strong> a seleção principal ({p.resumoDaPrincipal}).</>'));
+  assert.ok(!tela.includes('<p data-testid="simulador-nao-acompanha"'), 'o aviso separado saiu');
+  // Os gráficos das ferramentas são desenhados na largura que têm na tela: o texto mantém 12 px também no celular, onde o gráfico
+  // fica mais alto e mostra menos datas no eixo.
+  const grafico = tela.slice(tela.indexOf('function GraficoDoCenario('), tela.indexOf('export default function SimuladorDeCenarios('));
+  assert.ok(grafico.includes('const [refDoGrafico, medida] = useLargura(760, semDesenho);'), 'a medida recomeça quando o desenho aparece');
+  assert.ok(grafico.includes('const { largura, altura, estreito } = tamanhoDoGrafico(medida, 860, 300, 340);'));
+  assert.ok(grafico.includes('const passoDosAnos = Math.max(1, Math.ceil(anos.length / (estreito ? 5 : 10)));'));
+  assert.ok(grafico.includes('const espacoDoSimulado = largura - xDoUltimo - 4;'));
+  assert.ok(grafico.includes('const nomeDoSimulado = espacoDoSimulado >= 118 ? "simulado (hipótese)" : espacoDoSimulado >= 52 ? "simulado" : "";'));
+  assert.ok(grafico.includes('{nomeDoSimulado && <text x={xDoUltimo + 4} y={topo + 11} className="ferramenta-serie-texto">{nomeDoSimulado}</text>}'));
+  assert.ok(grafico.includes('<figure ref={refDoGrafico as RefObject<HTMLElement>} data-testid="simulador-grafico" data-largura={largura}'));
+  assert.ok(!/const largura = \d/.test(grafico), 'nenhuma largura fixa no gráfico do cenário');
+  const painelChart = ler('PainelChart.tsx');
+  assert.ok(painelChart.includes('export function useLargura(inicial = 900, chave: unknown = null): [RefObject<HTMLElement>, number] {') &&
+    painelChart.includes('  }, [chave]);'));
+  for (const trecho of ['export function tamanhoDoGrafico(medida: number, larguraMaxima: number, altura: number, alturaNoEstreito: number): { largura: number;',
+    'const largura = Math.max(280, Math.min(larguraMaxima, Math.round(medida)));', 'const estreito = largura < 560;',
+    'return { largura, altura: estreito ? alturaNoEstreito : altura, estreito };']) assert.ok(painelChart.includes(trecho), trecho);
 });

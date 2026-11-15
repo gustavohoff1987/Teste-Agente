@@ -838,19 +838,24 @@ def _base_do_cenario(base: Base, cal: detector.Calibracao, retro: Retroprojecao 
             "janela_do_metodo": janela_do_metodo}
 
 
-def _aviso_do_horizonte(anos: float, janela: float) -> dict:
-    """Os avisos H/W (seção 7.3): informativos, sem garantia estatística."""
+def _aviso_do_horizonte(anos: float, janela: float, sem_historia: bool = False) -> dict:
+    """Os avisos H/W (seção 7.3): informativos, sem garantia estatística. `sem_historia`: o cenário mantém o último valor (M0), que
+    não usa a história; a comparação continua sendo com os 3 anos de referência, mas o texto não diz que eles foram "usados no
+    cálculo" (numa base com registros espaçados, a janela à vista nem tem 3 anos)."""
     razao = anos / janela if janela > 0 else math.inf
-    tempos = " (" + _tempo(anos) + " à frente, com " + _tempo(janela) + " de história usados no cálculo)."
+    if sem_historia:
+        tempo = "tempo de referência"
+        tempos = " (" + _tempo(anos) + " à frente; a referência são " + _tempo(janela) + ", porque manter o último valor não usa a história)."
+    else:
+        tempo = "tempo de história usado no cálculo"
+        tempos = " (" + _tempo(anos) + " à frente, com " + _tempo(janela) + " de história usados no cálculo)."
     if razao <= 0.5:
-        return {"nivel": "normal", "texto": "A data final fica a até metade do tempo de história usado no cálculo" + tempos}
+        return {"nivel": "normal", "texto": "A data final fica a até metade do " + tempo + tempos}
     if razao <= 1:
-        return {"nivel": "cautela", "texto": "Cautela: a data final fica a mais da metade do tempo de história usado no cálculo" + tempos}
+        return {"nivel": "cautela", "texto": "Cautela: a data final fica a mais da metade do " + tempo + tempos}
     if razao <= 2:
-        return {"nivel": "extrapolacao", "texto": "Extrapolação além da janela: a data final fica mais longe do que o tempo de história "
-                "usado no cálculo" + tempos}
-    return {"nivel": "extrapolacao_extrema", "texto": "Extrapolação extrema: a data final fica a mais do dobro do tempo de história usado "
-            "no cálculo" + tempos}
+        return {"nivel": "extrapolacao", "texto": "Extrapolação além da janela: a data final fica mais longe do que o " + tempo + tempos}
+    return {"nivel": "extrapolacao_extrema", "texto": "Extrapolação extrema: a data final fica a mais do dobro do " + tempo + tempos}
 
 
 def _efeito(intervencoes: list[dict], territorio: Territorio, mes: int) -> float:
@@ -872,7 +877,9 @@ def _premissas(base: Base, resultado: dict, cenario: dict, territorio: Territori
     no pedido (`varios`), o texto diz que a intervenção vale para cada território do cenário (cada um recebe a quantidade
     inteira), ou só para os indicados."""
     p, r = resultado["parametros"], series_brasil.rotulos(base)
-    partes = ["janela de " + detector.curta(p["janela"]["inicio"]) + " a " + detector.curta(p["janela"]["fim"])]
+    # Uma janela com um registro só (uma base com registros espaçados) é dita assim, e não "de jun/2024 a jun/2024".
+    partes = ["janela com um registro só (" + detector.curta(p["janela"]["fim"]) + ")" if p["janela"]["inicio"] == p["janela"]["fim"] else
+              "janela de " + detector.curta(p["janela"]["inicio"]) + " a " + detector.curta(p["janela"]["fim"])]
     if resultado["usado"] == "M0d":
         partes.append(("crescimento " + comparativos._do_grupo(base, territorio.uf) + " de " + _pct(p["deriva_pct"], 2) + " ao ano")
                       if "deriva_pct" in p else "o crescimento recente d" + r["o_grupo"] + " de cada membro")
@@ -972,8 +979,10 @@ def _faixa_do_cenario(base: Base, retro: Retroprojecao | None, territorio: Terri
         if primeiro is None:
             faixa["motivo"] = "A base não tem retroprojeções de territórios de " + ROTULOS_DOS_PORTES_DA_FAIXA[porte] + " " + r["profissionais"] + "."
         elif primeiro["motivo"] == "poucos_casos":
+            # Os casos contados são os do porte do território (com os vizinhos e os menores), e não os da base inteira, que o
+            # perfil da base mostra: a frase diz isso, para um número não parecer contradizer o outro.
             faixa["motivo"] = (de_cada + " pede " + _br(primeiro["pede"]) + " casos por prazo, e esta base tem " + _br(primeiro["casos"]) +
-                               " em " + _tempo(prazo) + ", mesmo juntando os portes vizinhos e os menores.")
+                               " em " + _tempo(prazo) + " para o porte deste território, mesmo juntando os portes vizinhos e os menores.")
         else:
             faixa["motivo"] = ("Conferida com o que veio depois, " + de_cada[0].lower() + de_cada[1:] + " cobriu " +
                                _br(math.floor(primeiro["cobertura"] + 0.5)) + "% dos casos em " + _tempo(prazo) + ", para uma meta de " +
@@ -1119,7 +1128,7 @@ def _simular(base: Base, cal: detector.Calibracao, retros: dict, territorio: Ter
         avisos.append({"codigo": "BASE_TRUNCADA_EM_ZERO", "texto": "A tendência da janela levaria a um número negativo: a base do cenário "
                        "para em zero (um número negativo de " + r["profissionais"] + " não é um estoque válido)."})
     anos_do_horizonte = (horizonte - mes_da_origem) / 12.0
-    hw = _aviso_do_horizonte(anos_do_horizonte, resultado["janela_do_metodo"])
+    hw = _aviso_do_horizonte(anos_do_horizonte, resultado["janela_do_metodo"], sem_historia=usado == "M0")
     if hw["nivel"] != "normal":
         avisos.append({"codigo": "HORIZONTE_" + hw["nivel"].upper(), "texto": hw["texto"]})
     if faixa["estado"] == "disponivel" and anos_do_horizonte > faixa["ate_anos"] + 1e-9:

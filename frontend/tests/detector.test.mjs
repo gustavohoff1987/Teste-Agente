@@ -614,3 +614,24 @@ test('qualquer base (seção A.3): o que a base tem, os sinais indisponíveis ne
   assert.equal((graficos.match(/rotulos=\{ROTULOS_BRASIL\}/g) ?? []).length, 0);
   assert.equal((graficos.match(/rotulos=\{rotulosDoPainel\}/g) ?? []).length, 2);
 });
+
+test('revisão das capturas de 15/11/2026: a série do território na largura da tela e as datas da série da taxa como nos outros gráficos', () => {
+  const tela = ler('DetectorDeSinais.tsx');
+  const serie = tela.slice(tela.indexOf('function SerieObservada('), tela.indexOf('data-testid="detector-serie"') + 200);
+  // A série observada é desenhada na largura que tem na tela (o texto mantém 12 px no celular), mais alta e com menos datas no
+  // eixo numa tela estreita: um ano a cada quatro, sem encostar na data do último registro.
+  assert.ok(serie.includes('const [refDoGrafico, medida] = useLargura(640, !valores.length);'), 'a medida recomeça quando a série aparece');
+  assert.ok(serie.includes('const { largura, altura, estreito } = tamanhoDoGrafico(medida, 720, 170, 220);'));
+  assert.ok(serie.includes('const deQuantosAnos = estreito ? 4 : 2;'));
+  assert.ok(serie.includes('<figure ref={refDoGrafico as RefObject<HTMLElement>} data-testid="detector-serie" data-largura={largura} className="ferramenta-serie">'));
+  assert.ok(!/const largura = \d/.test(serie), 'nenhuma largura fixa na série observada');
+  assert.ok(tela.includes('(Number(ponto.competencia.slice(0, 4)) % deQuantosAnos === 0 && pontos.length - 1 - indice >= deQuantosAnos))'));
+  // A série da taxa (sinais 8 e 10) escreve as datas como os outros gráficos do Detector ("jan/2014", e não "01/2014"): a Série
+  // temporal das análises continua com o formato dela, que é o padrão do componente.
+  assert.ok(ler('DetectorGraficos.tsx').includes('referencias={series.referencias} rotuloDaData={competenciaCurta}/>'));
+  const arquivo = ler('PainelSeries.tsx');
+  const series = arquivo.slice(arquivo.indexOf('export default function PainelSeries('), arquivo.indexOf('export function LegendaDaSerie('));
+  assert.ok(series.startsWith('export default function PainelSeries({ itens, competencias, indicador, rotulos, referencias = [], rotuloDaData = exibirCompetencia }: Props) {'));
+  assert.equal(series.split('rotuloDaData(').length - 1, 4, 'o eixo, a dica e a descrição usam a mesma função');
+  assert.equal(series.split('exibirCompetencia(').length - 1, 0, 'nenhuma data do gráfico escrita fora dela');
+});

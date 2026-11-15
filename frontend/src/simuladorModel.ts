@@ -277,6 +277,10 @@ export function configDoDetector(alvo: { local: SelecaoLocal; rotulo: string; si
       // O patamar vai com a precisão do Detector (a média de 4 registros: múltiplos de 0,25), para a conta usar o mesmo valor.
       planejamento: { ...novoPlano(anosDepois(ultimoRegistro, 1)), meta: "patamar", valor: String(patamar).replace(".", ",") } }] };
 }
+/** O nome do que a contagem conta, concordando com o número digitado: "1 profissional", "2 profissionais" (em branco ou sem
+ * número, o plural). */
+export const nomeNoNumero = (quantidade: string | number, r: NomesDaBase = NOMES_DO_BRASIL): string =>
+  (typeof quantidade === "number" ? quantidade : numero(quantidade)) === 1 ? r.profissional : r.profissionais;
 /** O que o campo da meta mostra no modo simples. A meta que veio do Detector é o patamar, uma média que pode ter decimal (78,25): o
  * campo mostra a meta em uso, o inteiro arredondado para cima (79), como o motor a calcula. O plano guarda o patamar sem arredondar,
  * para a tela e o motor dizerem de onde a meta veio. */
@@ -383,17 +387,50 @@ export function formasDaPlanilha(daBase: { rotulos?: unknown } | undefined): For
     noTodo: !doTodo ? "em toda a base" : artigo ? "n" + artigo + " " + doTodo : "em " + doTodo,
     oTodo: !doTodo ? "a base toda" : (artigo ? artigo + " " : "") + doTodo };
 }
+const PREPOSICOES = ["de", "da", "do", "das", "dos", "em", "na", "no", "nas", "nos", "para", "com", "por", "sem", "a", "à"];
+const DOS_DOIS_GENEROS = ["ista", "iatra", "euta"];
+const PLURAIS: [string, string][] = [["ões", "ão"], ["ães", "ão"], ["ãos", "ão"], ["ais", "al"], ["éis", "el"], ["eis", "el"], ["óis", "ol"], ["ns", "m"]];
+const palavraNoSingular = (palavra: string): string | null => {
+  for (const [plural, singular] of PLURAIS) if (palavra.endsWith(plural) && palavra.length > plural.length + 1) return palavra.slice(0, -plural.length) + singular;
+  if (/[aeiou][rz]es$/.test(palavra)) return palavra.slice(0, -2);
+  return palavra.endsWith("s") && !palavra.endsWith("ss") ? palavra.slice(0, -1) : null;
+};
+/** [singular, plural] do nome dos trabalhadores informado no envio ("Enfermeiros" → ["enfermeiro", "enfermeiros"]), a mesma regra
+ * do motor (`series_da_planilha.nome_dos_trabalhadores`): só as palavras antes da primeira preposição vão para o singular; null
+ * quando o nome não é um plural que os textos possam usar com segurança (mais de um nome, sigla, nome feminino ou palavra que não
+ * está no plural). */
+export function nomeDosTrabalhadores(declarado: unknown): [string, string] | null {
+  const nome = (typeof declarado === "string" ? declarado : "").toLowerCase().split(/\s+/).filter(Boolean).join(" ");
+  if (!nome || nome.length > 60 || /[^a-zà-öø-ÿ \-]/.test(nome) || /(^| )(e|ou)( |$)/.test(nome)) return null;
+  const palavras = nome.split(" "), singulares: string[] = [];
+  for (let posicao = 0; posicao < palavras.length; posicao++) {
+    const palavra = palavras[posicao];
+    if (PREPOSICOES.includes(palavra)) { singulares.push(...palavras.slice(posicao)); break; }
+    const partes = palavra.split("-").map(palavraNoSingular);
+    if (partes.some(parte => parte === null) || (posicao === 0 && palavra.length < 5)) {
+      if (posicao === 0) return null;
+      singulares.push(palavra);
+      continue;
+    }
+    singulares.push(partes.join("-"));
+  }
+  const primeira = singulares[0].split("-")[0];
+  if (primeira.endsWith("a") && !DOS_DOIS_GENEROS.some(fim => primeira.endsWith(fim))) return null;
+  return [singulares.join(" "), nome];
+}
 /** Os nomes de uma planilha enviada antes da primeira resposta do motor, pelo que o pedido diz dela (os nomes do painel "Colunas" e
- * a unidade de contagem), como o motor os monta: "profissionais", "vínculos" ou "postos"; a unidade, o grupo de cima e o todo.
- * Sem planilha (a base do Brasil), null. */
+ * a unidade de contagem), como o motor os monta: o nome dos trabalhadores informado no envio, "profissionais", "vínculos" ou
+ * "postos"; a unidade, o grupo de cima e o todo. Sem planilha (a base do Brasil), null. */
 export function nomesDaPlanilha(daBase: { rotulos?: unknown; premissas?: unknown } | undefined): NomesDaBase | null {
   if (!daBase) return null;
   const item = (valor: unknown): Record<string, unknown> => valor && typeof valor === "object" && !Array.isArray(valor) ? valor as Record<string, unknown> : {};
   const nome = (valor: unknown): string | null => typeof valor === "string" && valor.trim() ? valor.trim() : null;
   const r = item(daBase.rotulos), unidade = item(r.unidade), grupo = item(r.grupo), todo = item(r.todo);
-  const contagem = nome(item(daBase.premissas).count_unit);
+  const premissas = item(daBase.premissas), contagem = nome(premissas.count_unit);
+  // O que a contagem conta: vínculos ou postos, quando a unidade de contagem diz isso; senão, o nome dos trabalhadores informado no
+  // envio, quando ele serve aos textos; senão, "profissionais" (como o motor).
   const [profissional, profissionais] = contagem === "vinculos" ? ["vínculo", "vínculos"] : contagem === "postos" ? ["posto", "postos"]
-    : ["profissional", "profissionais"];
+    : nomeDosTrabalhadores(premissas.object_declaration || premissas.category_constant) ?? ["profissional", "profissionais"];
   return { profissional, profissionais, unidade: nome(unidade.singular) ?? "unidade", unidades: nome(unidade.plural) ?? "unidades",
     grupo: nome(grupo.singular) ?? "grupo", grupos: nome(grupo.plural) ?? "grupos", todo: nome(todo.nome) ?? "a base toda" };
 }
@@ -646,7 +683,17 @@ export function textoDaFaixa(cenario: CenarioCalculado, conjunto = false, r: Nom
   return nome + " " + (conjunto ? "(aproximação) " : "") + "em " + competenciaCurta(cenario.final.data) + ": de " + formatarMedicos(faixa.inferior) +
     " a " + formatarMedicos(faixa.superior) + " " + r.profissionais + ". No passado da base, em " + cenario.faixa.em10 + " de cada 10 casos de territórios " + deQuem +
     ", o número observado ficou dentro dessa margem; ela acompanha a intervenção." + (faixa.estado === "conferida" ? " Conferida com o que veio depois."
-      : " Faixa provisória: ainda não deu para conferi-la com dados que vieram depois, ou a conferência ficou um pouco abaixo do esperado.");
+      : " Faixa provisória: ainda não deu para conferi-la com dados que vieram depois, ou a conferência ficou um pouco abaixo do esperado.") +
+    faixaSemALinha(cenario);
+}
+/** A faixa pode ficar inteira de um lado da linha do cenário (por exemplo, a de 5 em cada 10 de um estado, em 4 anos): não é erro
+ * da conta, e a frase diz o que isso quer dizer. Com a linha dentro da faixa, nada. */
+export function faixaSemALinha(cenario: CenarioCalculado): string {
+  const faixa = cenario.final?.faixa, total = cenario.final?.total;
+  if (!faixa || total === undefined || (faixa.inferior <= total + 1e-9 && faixa.superior >= total - 1e-9)) return "";
+  const lado = faixa.inferior > total ? "acima" : "abaixo";
+  return " A faixa fica inteira " + lado + " da linha do cenário: no passado da base, neste porte e neste prazo, o número observado ficou, na maior parte " +
+    "dos casos, " + lado + " do que este jeito de projetar dava.";
 }
 /** As contas da data final, com uma casa: a base do cenário, a intervenção e o total (o texto do cenário arredonda para o inteiro). */
 export function contasDoFinal(cenario: CenarioCalculado, r: NomesDaBase = NOMES_DO_BRASIL): string {

@@ -18,6 +18,10 @@ def test_dez_faixas_de_porte_com_as_quatro_acima_de_300():
     assert [reguas.porte_de(valor) for valor in (0, 0.5, -3, None, float("nan"))] == [None] * 5
     matriz = np.array([[1.0, 300.0, np.nan], [0.0, 2999.0, 10000.0]])
     assert reguas.portes(matriz).tolist() == [[0, 6, -1], [-1, 7, 9]]
+    # Um valor com casas (uma média, por exemplo) fica na faixa da parte inteira: nenhum valor a partir de 1 fica sem porte
+    # (antes, 3,5 ou 9,5 caíam entre duas faixas). Com contagens inteiras, nada muda.
+    assert [reguas.porte_de(valor) for valor in (1.0, 3.5, 3.99, 4.0, 9.5, 19.9, 9999.5, 10000.2)] == [0, 0, 0, 1, 1, 2, 8, 9]
+    assert reguas.portes(np.array([0.5, 1.0, 3.5, 9.5, 19.9, 20.0, np.nan])).tolist() == [-1, 0, 0, 1, 2, 3, -1]
 
 
 def test_raridade_conta_a_propria_mudanca_e_fixa_os_minimos_dos_niveis():

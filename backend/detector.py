@@ -650,6 +650,7 @@ def _declinio(base: Base, cal: Calibracao | None, linha: int | None, serie: np.n
         reducoes, posicao = reducoes + 1, posicao - 1
     primeiro = anuais[posicao]
     saida = {"reducoes": reducoes, "de": base.periodos[primeiro], "ate": base.periodos[ultimo], "junhos": len(anuais),
+             "registros_anuais": len(anuais),   # o mesmo número, com um nome que vale para qualquer base (`junhos` fica, pelo contrato)
              "inicial": _num(valor(primeiro)), "final": _num(valor(ultimo)), "classe": None, "criterio": POR_CONVENCAO}
     if not reducoes:
         saida["estado"] = "sem_sinal"
@@ -1441,11 +1442,13 @@ def _texto_patamar(base: Base, av: dict, p: dict) -> dict:
         " (patamar de " + _do_patamar(s["patamar"]) + ")"
     if estado == "nivel_sem_classificacao":
         return _item(None, "sem_nivel", POR_CONVENCAO, frase, observado, regra, SEM_NIVEL_NO_CONJUNTO, significa, nao, entenda, exemplo)
+    # Não avaliado: a frase diz o motivo, como nos sinais 5 e 8 a 10 (revisão das capturas de 15/11/2026).
     if estado == "descontinuidade_de_registro":
-        return _item(None, "nao_avaliado", POR_CONVENCAO, frase, observado, regra,
+        return _item(None, "nao_avaliado", POR_CONVENCAO, frase + " · descontinuidade de registro", observado, regra,
                      "Não avaliado: os últimos registros têm uma descontinuidade de registro.", significa, nao, entenda, exemplo)
     if estado == "descritivo":
-        return _item(None, "nao_avaliado", POR_CONVENCAO, frase, observado, regra,
+        abaixo_do_minimo = ", abaixo do mínimo de " + _br(limites["minimo"]) + ")"
+        return _item(None, "nao_avaliado", POR_CONVENCAO, frase[:-1] + abaixo_do_minimo, observado, regra,
                      "Só descritivo: o patamar é menor que " + _br(limites["minimo"]) + " " + r["profissionais"] + ", e poucas unidades "
                      "mudam muito o percentual.", significa, nao, entenda, exemplo)
     if estado == "sem_sinal":
@@ -1662,8 +1665,15 @@ def _texto_contexto(base: Base, av: dict, p: dict) -> dict:
     if s["percentil_da_distancia"] is not None:
         habitual = "A distância é maior que a de " + _pct(s["percentil_da_distancia"], 0) + " dos territórios abaixo do critério. Só " \
             "contexto, sem nível."
-    return _item(None, "contexto", None, "A " + _br(round(s["distancia_km"], 1)) + " km de " + ref["rotulo"] + ", em linha reta", observado,
-                 regra, habitual, significa, nao, entenda, exemplo)
+    # A frase diz o que é o território de referência (tabela B.2): o mais próximo com taxa de pelo menos X% da taxa da base toda,
+    # com o X em uso, e em que posição essa distância fica (revisão das capturas de 15/11/2026).
+    frase = ("A " + _br(round(s["distancia_km"], 1)) + " km, em linha reta, de " + ref["rotulo"] + ": " + r["o_unidade"] + " mais " +
+             ("próximo" if r["o_unidade"].startswith("o ") else "próxima") + " com pelo menos " +
+             _pct(p["contexto"]["taxa_do_brasil_pct"], 0) + " da taxa " + r["do_todo"] + " (" + _taxa(c["taxa_minima"]) + " " +
+             r["profissionais"] + " por 1.000 habitantes)")
+    if s["percentil_da_distancia"] is not None:
+        frase += ". Mais longe que " + _pct(s["percentil_da_distancia"], 0) + " d" + r["os_unidades"] + " abaixo desse critério"
+    return _item(None, "contexto", None, frase, observado, regra, habitual, significa, nao, entenda, exemplo)
 
 
 NOMES_CURTOS_DOS_SINAIS = {"estrutural": "poucos {profissionais}", "ausencia": "nenhum {profissional} registrado",
@@ -1738,26 +1748,42 @@ def fenomenos(base: Base, av: dict, e: int, p: dict) -> list[dict]:
 _FALTAS: dict[str, dict] = {}
 
 
+# O que pode faltar numa base, na ordem em que os textos dizem: a frase curta (para o resumo do perfil) e a frase inteira (para o
+# detalhe do sinal).
+MOTIVOS_DA_FALTA = {
+    "serie_anual": ("a base não tem série anual", "A base não tem série anual: nenhum mês se repete em todos os anos."),
+    "dois_anos": ("a base não tem dois anos completos de registros, nos mesmos meses",
+                  "A base não tem dois anos completos de registros, nos mesmos meses, para o patamar."),
+    "populacao": ("a base não tem população", "A base não tem população: sem ela, não há taxa por habitante."),
+    "grupo": ("a base não tem grupo de cima", "A base não tem grupo de cima: não há referência para comparar."),
+    "coordenadas": ("a base não tem coordenadas com o referencial informado",
+                    "A base não tem coordenadas com o referencial informado: a distância não pode ser medida."),
+}
+
+
+def motivos_da_falta(base: Base) -> dict[str, tuple[str, ...]]:
+    """Tudo o que falta na base para cada sinal existir (seção A.3 da Proposta V3, coluna "Se faltar"): a série anual (sinais 3, 4
+    e 8 a 10), os dois anos completos (7), a população (8 a 11), o grupo de cima (10) e as coordenadas (11). Devolve {sinal: as
+    chaves de MOTIVOS_DA_FALTA}, com **todos** os motivos de cada sinal (não só o primeiro), para o perfil e o detalhe dizerem o
+    mesmo; vazio na base do Brasil."""
+    faltam = {"serie_anual": not base.ancora, "dois_anos": not _blocos(base), "populacao": not np.isfinite(base.populacao).any(),
+              "grupo": not base.do_estado, "coordenadas": not np.isfinite(base.latitude).any()}
+    precisa = {"declinio": ("serie_anual",), "desaceleracao": ("serie_anual",), "patamar": ("dois_anos",),
+               "disponibilidade": ("serie_anual", "populacao"), "posicao": ("serie_anual", "populacao"),
+               "defasagem": ("serie_anual", "populacao", "grupo"), "contexto": ("populacao", "coordenadas")}
+    saida = {sinal: tuple(motivo for motivo in motivos if faltam[motivo]) for sinal, motivos in precisa.items()}
+    return {sinal: motivos for sinal, motivos in saida.items() if motivos}
+
+
 def falta_na_base(base: Base) -> dict:
-    """O que falta na base para cada sinal existir (seção A.3 da Proposta V3, coluna "Se faltar"): a série anual (sinais 3, 4 e 8 a
-    10), a população (8 a 11), o grupo de cima (10) e as coordenadas (11). Devolve {sinal: motivo}; vazio na base do Brasil."""
+    """{sinal: motivo}: o texto de tudo o que falta na base para o sinal existir (as frases inteiras, uma depois da outra); vazio na
+    base do Brasil. Desde 15/11/2026 (revisão das capturas), traz todos os motivos de cada sinal: o sinal 10 sem população e sem
+    grupo de cima diz as duas coisas, como o perfil da base."""
     with _LOCK:
         guardada = _FALTAS.get(base.versao)
     if guardada is not None:
         return guardada
-    faltas: dict[str, str] = {}
-    if not base.ancora:
-        for chave in ("declinio", "desaceleracao", "disponibilidade", "posicao", "defasagem"):
-            faltas[chave] = "A base não tem série anual: nenhum mês se repete em todos os anos."
-    if not _blocos(base):
-        faltas["patamar"] = "A base não tem dois anos completos de registros, nos mesmos meses, para o patamar."
-    if not np.isfinite(base.populacao).any():
-        for chave in ("disponibilidade", "posicao", "defasagem", "contexto"):
-            faltas.setdefault(chave, "A base não tem população: sem ela, não há taxa por habitante.")
-    if not base.do_estado:
-        faltas.setdefault("defasagem", "A base não tem grupo de cima: não há referência para comparar.")
-    if not np.isfinite(base.latitude).any():
-        faltas.setdefault("contexto", "A base não tem coordenadas com o referencial informado: a distância não pode ser medida.")
+    faltas = {sinal: " ".join(MOTIVOS_DA_FALTA[motivo][1] for motivo in motivos) for sinal, motivos in motivos_da_falta(base).items()}
     with _LOCK:
         if len(_FALTAS) > 4:
             _FALTAS.clear()

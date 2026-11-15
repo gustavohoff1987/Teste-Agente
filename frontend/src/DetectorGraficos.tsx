@@ -116,7 +116,7 @@ export function SerieDaTaxa({ detalhe, profissionais = "médicos", rotulosDoPain
   if (!series || !detalhe.comparativo) return null;
   return <figure data-testid="detector-serie-da-taxa" data-referencias={series.referencias.length} className="ferramenta-grafico">
     <PainelSeries itens={[series.item]} competencias={detalhe.comparativo.competencias} indicador="densidade" rotulos={rotulosDoPainel}
-      referencias={series.referencias}/>
+      referencias={series.referencias} rotuloDaData={competenciaCurta}/>
     <figcaption className="ferramenta-apoio">Taxa de {profissionais} por 1.000 habitantes de {detalhe.rotulo} em cada registro{series.referencias.length
       ? " e, tracejada, a " + (feminino && detalhe.tipo !== "estado" ? "das " : "dos ") + detalhe.comparativo.referencia.rotulo : ""}. O valor de cada data vale nela; a variação entre datas só é
       lida {textoDosTrechos(detalhe.comparativo.trechos)}, quando a população da base é comparável de um ano para o outro.

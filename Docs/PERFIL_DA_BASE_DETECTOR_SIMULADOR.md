@@ -146,11 +146,11 @@ pedir.
 | Datas e intervalos | Mede os meses entre registros e só compara mudanças com o mesmo tempo entre eles; durações com até 1 mês de diferença ficam juntas | — |
 | Série anual | O mês presente em todos os anos (o mês do último registro, quando ele se repete em todos); numa planilha só com anos, um registro por ano | Ficam indisponíveis os sinais anuais (3, 4 e 8 a 10) |
 | Portes | As 10 faixas pelo número de profissionais, no último registro de cada território; faltando casos, a faixa junta-se às vizinhas | — |
-| Grupo de cima | Na base do Brasil, o estado (pelo prefixo do código IBGE); numa planilha, a coluna de grupo escolhida | O Simulador usa o crescimento da base toda; o sinal 10 fica indisponível |
-| População | Os trechos de população comparável, lidos da própria base | Ficam indisponíveis os sinais 8 a 11 e as comparações por habitante do Simulador |
+| Grupo de cima | Na base do Brasil, o estado (pelo prefixo do código IBGE); numa planilha, a coluna de grupo escolhida | O sinal 10 fica indisponível. No Simulador, o crescimento da base toda é testado no lugar do crescimento do grupo; o jeito de projetar sai da retroprojeção |
+| População | Os trechos de população comparável, lidos da própria base | Ficam indisponíveis os sinais 8 a 11 e a comparação por taxa (por habitante) do Simulador |
 | Coordenadas | Com o referencial informado (na base do Brasil, SIRGAS 2000, do perfil oficial) | O sinal 11 fica indisponível |
 | O que a contagem conta | A unidade de contagem informada, como nas análises: pessoas, vínculos, postos ou outra | Aviso de dupla contagem |
-| Nomes | Os do painel "Colunas" (a unidade, o grupo e o todo), com a concordância | — |
+| Nomes | Os do painel "Colunas" (a unidade, o grupo e o todo), com a concordância; a contagem leva o nome dos trabalhadores informado no envio ("enfermeiros"), quando ele serve aos textos; senão, "profissionais", "vínculos" ou "postos" | — |
 
 O resumo **"com esta base, dá para… / não dá para… (motivo)"** vem da régua do Detector: desde que data a maioria dos territórios
 com registro pôde ser comparada em cada nível (19, 99 e 999 comparações, com a retaguarda das faixas vizinhas e, só no moderado,
@@ -162,6 +162,17 @@ projetar que a base escolheu ("Cenários do Simulador com o jeito de projetar qu
 último valor porque nenhum jeito errou menos que isso, ou que falta história para escolher ("ela pede 3 origens com 3 anos antes
 e 1 ano depois, e esta base tem N"); e a faixa de 8 em cada 10 — até quantos anos existe e até quantos foi conferida com o que
 veio depois —, ou o motivo de não haver ("ela pede 200 casos por prazo, e esta base tem N").
+
+Desde 15/11/2026 (revisão das capturas, na Pausa 2 do comando V23), o "não dá para" diz **cada sinal que a base não sustenta,
+com todos os motivos dele** (`perfil_da_base._sinais_indisponiveis`, sobre `detector.motivos_da_falta`), iguais aos que o detalhe
+de um território mostra; os sinais com os mesmos motivos ficam na mesma linha, e cada linha traz o campo `sinais`. Antes, o perfil
+dizia que o sinal 10 faltava por não haver grupo de cima e o 11, por não haver coordenadas, e o detalhe mostrava os dois só como
+falta de população. O que falta para o Simulador vem em linhas próprias:
+
+- **sem grupo de cima**, o Simulador **testa** o crescimento da base toda no lugar do crescimento do grupo, e o jeito de projetar
+  sai da retroprojeção (pode ser manter o último valor). Antes, o perfil dizia "o Simulador usa o crescimento da base toda", o
+  que contradizia o cenário quando a retroprojeção escolhia manter o último valor;
+- **sem população**, a comparação por taxa (por 1.000 habitantes) do Simulador fica no "não dá para", com o motivo.
 
 **Base do Brasil** (5.570 municípios, 22 registros, de jan/2014 a jun/2024; 5 ou 7 meses entre eles; a série anual é a de junho):
 
@@ -190,12 +201,21 @@ durante 10 anos, de jan/2014 a jul/2023, sem grupo de cima, sem população e se
     de projetar errou menos que isso.
 - Não dá para:
   - alertas críticos: eles pedem 999 comparações, e esta base chega a 360;
-  - "Mais longe da referência" (sinal 10) e o crescimento do grupo no Simulador: a base não tem grupo de cima; o Simulador usa o
-    crescimento da base toda;
-  - sinais por habitante (8 a 11) e comparações por habitante no Simulador: a base não tem população;
+  - "Menos enfermeiros por habitante" e "perda de posição" (sinais 8 e 9): a base não tem população;
+  - "Mais longe da referência" (sinal 10): a base não tem população nem grupo de cima;
+  - "Distância" (sinal 11): a base não tem população nem coordenadas com o referencial informado;
+  - o crescimento do grupo de cima como jeito de projetar no Simulador: a base não tem grupo de cima; no lugar dele, o Simulador
+    testa o crescimento da base toda, e o jeito de projetar sai da retroprojeção;
+  - a comparação por taxa (por 1.000 habitantes) no Simulador: a base não tem população;
   - a faixa do Simulador: ela pede 200 casos por prazo, e esta base tem 120.
 
+A planilha informa no envio que os trabalhadores contados são "Enfermeiros": os textos das duas ferramentas dizem "enfermeiro" e
+"enfermeiros" ("19 enfermeiros", "Poucos enfermeiros ou nenhum enfermeiro registrado"), como a base do Brasil diz "médicos".
+
 Com essa planilha, o Detector mostra, em jul/2023, 1 território em elevado, 4 em moderado e 15 sem alerta; os sinais 8 a 11
-aparecem como "Indisponível nesta base", com o motivo, e a queda recente diz "Sem comparações suficientes para o crítico: há 360,
-e ele pede 999." No Simulador, "continuar como vinha" mantém o último valor, com o aviso, e a faixa de 8 em cada 10 fica
-indisponível, com os números da própria base.
+aparecem como "Indisponível nesta base", cada um com todos os motivos dele (o 10: "A base não tem população: sem ela, não há taxa
+por habitante. A base não tem grupo de cima: não há referência para comparar."), e a queda recente diz "Sem comparações
+suficientes para o crítico: há 360, e ele pede 999." No Simulador, "continuar como vinha" mantém o último valor, com o aviso, e
+a faixa de 8 em cada 10 fica indisponível, com os números da própria base: o perfil conta os casos da base toda em 1 ano (120), e
+o cenário de um território, os do porte dele, com os portes vizinhos e os menores ("esta base tem 88 em 1 ano para o porte deste
+território", num distrito de 10 a 19 enfermeiros).

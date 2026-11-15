@@ -434,7 +434,12 @@ def test_patamar_moderado_por_convencao_e_os_niveis_seguintes_pela_raridade():
     av = avaliar(pequeno, "110200", T - 1)
     assert (av["patamar"]["patamar"], av["patamar"]["estado"]) == (1.75, "descritivo")
     do_pequeno = texto_do(pequeno, av, T - 1, "patamar")
-    assert do_pequeno["situacao"] == "43% abaixo do que já teve (patamar de 1,75)"
+    # Quando o sinal 7 não é avaliado, a frase diz o motivo, como nos sinais 5 e 8 a 10 (revisão das capturas de 15/11/2026).
+    assert (do_pequeno["nivel"], do_pequeno["estado_do_nivel"]) == (None, "nao_avaliado")
+    assert do_pequeno["situacao"] == "43% abaixo do que já teve (patamar de 1,75, abaixo do mínimo de 20)"
+    acima = base({**fundo(3), "110200": serie((2, 3), (3, 1))})
+    assert texto_do(acima, avaliar(acima, "110200", T - 1), T - 1, "patamar")["situacao"] == (
+        "No patamar ou acima dele (patamar de 3, abaixo do mínimo de 20)")
     assert do_pequeno["observado"].startswith("O patamar é de 1,75 médicos (média de jan/2014 a jun/2015). O último registro tem 1: −42,9% ante "
                                               "o patamar.")
     assert [detector._do_patamar(valor) for valor in (1.75, 78.25, 58.5, 20.0, 130, 1097.75)] == ["1,75", "78,25", "58,5", "20", "130", "1.098"]
@@ -449,6 +454,9 @@ def test_declinio_persistente_por_convencao_nos_tres_niveis():
     critico = declinio([50, 45, 40, 34, 30])     # 4 quedas anuais seguidas e perda de 40%
     assert (critico["estado"], critico["classe"], critico["reducoes"], critico["perda_pct"]) == ("classificado", "critico", 4, pytest.approx(40.0))
     assert (critico["de"], critico["ate"], critico["inicial"], critico["final"], critico["criterio"]) == ("202006", "202406", 50, 30, "por convenção")
+    # Os registros da série anual na janela (os 11 junhos de 2014 a 2024): `registros_anuais` é o nome que vale para qualquer base;
+    # `junhos` continua na resposta, com o mesmo número.
+    assert critico["registros_anuais"] == critico["junhos"] == 11
     elevado = declinio([50, 50, 46, 42, 38])     # 3 quedas e 24%
     assert (elevado["classe"], elevado["reducoes"], elevado["perda_pct"]) == ("elevado", 3, pytest.approx(24.0))
     moderado = declinio([50, 50, 50, 47, 44])    # 2 quedas e 12%
@@ -922,7 +930,11 @@ def test_contexto_geografico_e_a_distancia_ao_municipio_mais_proximo_que_atende_
     av = avaliar(b, "210003", e)
     assert av["dimensoes"]["contexto"] is None and "contexto" not in av["sinais"] and "classe" not in av["contexto"]
     texto = texto_do(b, av, e, "contexto")
-    assert texto["numero"] == "11" and texto["situacao"] == "A 334 km de M210001, em linha reta"
+    # A frase diz o que é o território de referência (tabela B.2): o mais próximo com taxa de pelo menos X% da taxa da base toda,
+    # com o X em uso, e em que posição essa distância fica (revisão das capturas de 15/11/2026).
+    assert texto["numero"] == "11" and texto["situacao"] == (
+        "A 334 km, em linha reta, de M210001: o município mais próximo com pelo menos 100% da taxa do Brasil (2,00 médicos por 1.000 "
+        "habitantes). Mais longe que 75% dos municípios abaixo desse critério")
     assert texto["observado"] == ("O território fica a 334 km, em linha reta, de M210001 (3,00 por 1.000 habitantes), o mais próximo com taxa "
                                   "igual ou maior que 2,00 médicos por 1.000 habitantes em jun/2024 (100% da taxa do Brasil, de 2,00).")
     assert texto["habitual"] == "A distância é maior que a de 75% dos territórios abaixo do critério. Só contexto, sem nível."
@@ -944,6 +956,13 @@ def test_contexto_geografico_e_a_distancia_ao_municipio_mais_proximo_que_atende_
     assert avaliar(b, "210003", e, p=com_70)["contexto"]["estado"] == "atende_ao_criterio"
     de_perto = avaliar(b, "210002", e, p=com_70)["contexto"]
     assert (de_perto["criterio"]["taxa_minima"], de_perto["referencia"]["id"], de_perto["universo"]) == (pytest.approx(1.4), "code:210001", 1)
+    assert texto_do(b, avaliar(b, "210002", e, p=com_70), e, "contexto", p=com_70)["situacao"] == (
+        "A 111,3 km, em linha reta, de M210001: o município mais próximo com pelo menos 70% da taxa do Brasil (1,40 médicos por 1.000 "
+        "habitantes). Mais longe que 50% dos municípios abaixo desse critério")
+    # Num conjunto, a distância é a do componente mais próximo, sem posição entre os territórios.
+    assert texto_do(b, detector.avaliar(b, cal, baixos, 0, e, P), e, "contexto")["situacao"] == (
+        "A 111,3 km, em linha reta, de M210001: o município mais próximo com pelo menos 100% da taxa do Brasil (2,00 médicos por 1.000 "
+        "habitantes)")
     # O mapa: a lista diz quem da seleção fica sem ponto e por quê — a base não traz a coordenada na data, ou traz a latitude ou a
     # longitude fora do intervalo válido (revisão das capturas, 14/11/2026). Numa base sem coordenadas, não há mapa nem lista.
     todos = {"base": {"municipios": {"todos": True}}}
@@ -1318,6 +1337,14 @@ def test_real_rio_rufino_pico_que_volta(real):
         {"tipo": "pico_que_volta", "de": "202301", "em": "202306", "ate": "202401", "valores": [4, 87, 5]}]
     assert next(ponto for ponto in volta["serie"] if ponto["competencia"] == "202306")["marca"] == "pico_que_volta"
     assert "pico que volta" in volta["fenomenos"][0]["qualidade"]
+    # Em jun/2024, o patamar de Rio Rufino é de 3,25 médicos, abaixo do mínimo de 20: o sinal 7 não é avaliado, e a frase diz por
+    # quê; a do sinal 11 diz o que é o território de referência e a posição da distância (revisão das capturas de 15/11/2026).
+    frases = {item["chave"]: item for item in detalhe("202406")["fenomenos"]}
+    assert (frases["patamar"]["estado_do_nivel"], frases["patamar"]["situacao"]) == (
+        "nao_avaliado", "No patamar ou acima dele (patamar de 3,25, abaixo do mínimo de 20)")
+    assert frases["contexto"]["situacao"] == (
+        "A 21,3 km, em linha reta, de BOCAINA DO SUL (SC): o município mais próximo com pelo menos 100% da taxa do Brasil (2,36 médicos "
+        "por 1.000 habitantes). Mais longe que 40% dos municípios abaixo desse critério")
 
 
 def test_real_distrito_federal_quebra_de_fonte(real):
@@ -1458,6 +1485,11 @@ def test_real_fenomenos_8_a_12_comparacao_so_com_populacao_comparavel(real):
     assert manaus["distancia_km"] == pytest.approx(752.233, abs=1e-3) and manaus["percentil"] == pytest.approx(99.012, abs=1e-3)
     assert (linhas["code:130260"]["alerta"]["estado"], linhas["code:130260"]["alerta"]["nivel"]) == ("sem_alerta", None)
     assert "code:110020" in antes["coordenadas"] and "code:130260" in antes["coordenadas"]
+    de_manaus = corpo(pedir({"base": {"municipios": {"ids": ["code:130260"]}}, "detalhe": "code:130260", "janela": {"fim": "202106"}}))
+    assert next(item for item in de_manaus["fenomenos"] if item["chave"] == "contexto")["situacao"] == (
+        "A 752,2 km, em linha reta, de PORTO VELHO (RO): o município mais próximo com pelo menos 100% da taxa do Brasil (2,01 médicos por "
+        "1.000 habitantes). Mais longe que 99% dos municípios abaixo desse critério")
+    assert (de_manaus["territorio"]["declinio"]["junhos"], de_manaus["territorio"]["declinio"]["registros_anuais"]) == (8, 8)
     # Os detalhes de um território trazem os 11 itens (os 12 sinais; 1 e 2 juntos) e as séries dos gráficos dos sinais 8 e 10.
     detalhe = corpo(pedir({"base": {"municipios": {"ids": ["code:350530"]}}, "detalhe": "code:350530", "janela": {"fim": "202106"}}))
     assert [item["numero"] for item in detalhe["fenomenos"]] == ["1–2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]

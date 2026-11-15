@@ -68,10 +68,57 @@ def _competencias(rotulos: list[str]) -> list[str]:
     return saida
 
 
-def _nomes(labels, contagem: str) -> dict:
-    """Os nomes da base para os textos (seção A.2.6), com as formas de artigo e preposição que a concordância pede."""
+PREPOSICOES = ("de", "da", "do", "das", "dos", "em", "na", "no", "nas", "nos", "para", "com", "por", "sem", "a", "à")
+# Terminações em "a" que valem para os dois gêneros ("dentista", "pediatra", "fisioterapeuta"): os textos concordam no masculino
+# ("Poucos médicos", "nenhum médico registrado"), e um nome feminino ("enfermeiras") ficaria errado neles.
+DOS_DOIS_GENEROS = ("ista", "iatra", "euta")
+PLURAIS = (("ões", "ão"), ("ães", "ão"), ("ãos", "ão"), ("ais", "al"), ("éis", "el"), ("eis", "el"), ("óis", "ol"), ("ns", "m"))
+
+
+def _palavra_no_singular(palavra: str) -> str | None:
+    """O singular de uma palavra no plural, pelas regras comuns do português; None quando ela não está no plural."""
+    for plural, singular in PLURAIS:
+        if palavra.endswith(plural) and len(palavra) > len(plural) + 1:
+            return palavra[:-len(plural)] + singular
+    if re.search(r"[aeiou][rz]es$", palavra):               # auxiliares → auxiliar; cuidadores → cuidador
+        return palavra[:-2]
+    return palavra[:-1] if palavra.endswith("s") and not palavra.endswith("ss") else None
+
+
+def nome_dos_trabalhadores(declarado) -> tuple[str, str] | None:
+    """(singular, plural) do nome dos trabalhadores informado no envio ("Enfermeiros" → ("enfermeiro", "enfermeiros"); "Técnicos de
+    enfermagem" → ("técnico de enfermagem", "técnicos de enfermagem")), para os textos das ferramentas dizerem o nome da base, como
+    a do Brasil diz "médicos". Só as palavras antes da primeira preposição vão para o singular. None quando o nome não é um plural
+    que os textos possam usar com segurança — mais de um nome ("médicos e enfermeiros"), sigla, nome feminino ou palavra que não
+    está no plural: a tela fica com "profissional" e "profissionais"."""
+    nome = " ".join(str(declarado or "").lower().split())
+    if not nome or len(nome) > 60 or re.search(r"[^a-zà-öø-ÿ \-]", nome) or re.search(r"(^| )(e|ou)( |$)", nome):
+        return None
+    palavras, singulares = nome.split(" "), []
+    for posicao, palavra in enumerate(palavras):
+        if palavra in PREPOSICOES:
+            singulares += palavras[posicao:]
+            break
+        partes = [_palavra_no_singular(parte) for parte in palavra.split("-")]
+        if any(parte is None for parte in partes) or (posicao == 0 and len(palavra) < 5):
+            if posicao == 0:
+                return None
+            singulares.append(palavra)
+            continue
+        singulares.append("-".join(partes))
+    primeira = singulares[0].split("-")[0]
+    if primeira.endswith("a") and not primeira.endswith(DOS_DOIS_GENEROS):
+        return None
+    return " ".join(singulares), nome
+
+
+def _nomes(labels, contagem: str, declarado: str = "") -> dict:
+    """Os nomes da base para os textos (seção A.2.6), com as formas de artigo e preposição que a concordância pede. O que a
+    contagem conta: vínculos ou postos, quando a unidade de contagem diz isso; senão, o nome dos trabalhadores informado no envio
+    ("enfermeiros"), quando ele serve aos textos; senão, "profissionais"."""
     unidade, grupo, todo = labels.unidade, labels.grupo, labels.todo
-    profissional, profissionais = {"vinculos": ("vínculo", "vínculos"), "postos": ("posto", "postos")}.get(contagem, ("profissional", "profissionais"))
+    profissional, profissionais = {"vinculos": ("vínculo", "vínculos"), "postos": ("posto", "postos")}.get(
+        contagem, nome_dos_trabalhadores(declarado) or ("profissional", "profissionais"))
     return {"profissional": profissional, "profissionais": profissionais, "unidade": unidade.singular, "unidades": unidade.plural,
             "grupo": grupo.singular, "grupos": grupo.plural, "todo": todo.nome if todo else "a base toda",
             "o_unidade": unidade.g("o", "a") + " " + unidade.singular, "os_unidades": unidade.g("os", "as") + " " + unidade.plural,
@@ -213,7 +260,8 @@ def _montar(frame, mapping: dict, opcoes: dict, versao: str) -> Base:
         latitude=latitude, longitude=longitude, estados={}, brasil=todo,
         indice={codigo: posicao for posicao, codigo in enumerate(codigos)},
         do_estado={grupo: tuple(linhas) for grupo, linhas in do_grupo.items()},
-        origem="planilha", ancora=series_brasil.mes_ancora(tuple(competencias)), rotulos=_nomes(ctx.labels, contagem),
+        origem="planilha", ancora=series_brasil.mes_ancora(tuple(competencias)),
+        rotulos=_nomes(ctx.labels, contagem, str(ctx.premissas.get("object_declaration") or ctx.premissas.get("category_constant") or "")),
         grupos={grupo: (grupo, grupo) for grupo in do_grupo}, prefixo_do_id=prefixo,
         contagens={"municipio": o_que_conta, "conjunto": "soma das contagens dos componentes (não é o número de pessoas diferentes do conjunto)",
                    "brasil": "soma das contagens de " + unidade.g("todos os", "todas as") + " " + unidade.plural + " com registro na data"},

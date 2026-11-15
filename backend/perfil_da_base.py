@@ -123,13 +123,40 @@ def _frases_da_regua(base: Base, capacidade: dict, quem: str) -> tuple[list[str]
     return da, nao
 
 
+NUMEROS_DOS_SINAIS = {"declinio": 3, "desaceleracao": 4, "patamar": 7, "disponibilidade": 8, "posicao": 9, "defasagem": 10, "contexto": 11}
+
+
+def _motivo_em_frase(motivos: tuple) -> str:
+    """"a base não tem população nem grupo de cima.": os motivos de um sinal numa frase só (as frases curtas do Detector)."""
+    curtas = [detector.MOTIVOS_DA_FALTA[motivo][0] for motivo in motivos]
+    resto = [frase.removeprefix("a base não tem ") for frase in curtas[1:]]
+    return curtas[0] + ("" if not resto else (", " + ", ".join(resto[:-1]) if len(resto) > 1 else "") + " nem " + resto[-1]) + "."
+
+
+def _sinais_indisponiveis(base: Base) -> list[dict]:
+    """As linhas "não dá para" dos sinais que a base não sustenta, com **todos** os motivos de cada um (os mesmos do detalhe do
+    território): os sinais com os mesmos motivos ficam na mesma linha."""
+    por_motivos: dict[tuple, list[str]] = {}
+    for sinal, motivos in detector.motivos_da_falta(base).items():
+        por_motivos.setdefault(motivos, []).append(sinal)
+    linhas = []
+    for motivos, sinais in por_motivos.items():
+        sinais.sort(key=NUMEROS_DOS_SINAIS.get)
+        nomes = ['"' + ("distância" if sinal == "contexto" else detector.nome_do_sinal(base, sinal)) + '"' for sinal in sinais]
+        numeros = [str(NUMEROS_DOS_SINAIS[sinal]) for sinal in sinais]
+        o_que = _lista(nomes) + (" (sinal " if len(sinais) == 1 else " (sinais ") + _lista(numeros) + ")"
+        linhas.append({"o_que": o_que[:2].upper() + o_que[2:], "motivo": _motivo_em_frase(motivos), "sinais": sinais,
+                       "ordem": NUMEROS_DOS_SINAIS[sinais[0]]})
+    linhas.sort(key=lambda linha: linha.pop("ordem"))
+    return linhas
+
+
 def perfil(base: Base, cal: detector.Calibracao | None = None) -> dict:
     """O perfil da base e o resumo "dá para / não dá para" (seção A.3)."""
     cal = cal if cal is not None else detector.calibrar(base)
     r = series_brasil.rotulos(base)
     descricao = base.descricao or {"base": "Brasil", "categoria": "MEDICINA"}
     t = len(base.periodos)
-    faltas = detector.falta_na_base(base)
     tem_populacao = bool(np.isfinite(base.populacao).any())
     tem_coordenadas = bool(np.isfinite(base.latitude).any())
     tem_grupo = bool(base.do_estado)
@@ -154,10 +181,8 @@ def perfil(base: Base, cal: detector.Calibracao | None = None) -> dict:
         motivo = "nenhum mês se repete em todos os anos."
         itens.append({"chave": "serie_anual", "titulo": "Série anual", "lido": "A base não tem série anual: " + motivo,
                       "falta": "Ficam indisponíveis os sinais anuais (3, 4 e 8 a 10) e a retroprojeção do Simulador."})
-        nao_da_para.append({"o_que": "Sinais anuais (declínio persistente, desaceleração e os comparados em 2 anos) e a retroprojeção "
-                                     "do Simulador", "motivo": motivo})
-    if "patamar" in faltas:
-        nao_da_para.append({"o_que": '"Abaixo do que já teve" (sinal 7)', "motivo": faltas["patamar"][:1].lower() + faltas["patamar"][1:]})
+    # Os sinais que a base não sustenta, cada um com todos os motivos (os mesmos que o detalhe do território diz).
+    nao_da_para += _sinais_indisponiveis(base)
 
     # Portes: quantos territórios em cada faixa, no último registro de cada um.
     ultimos = np.full(len(base.codigos), np.nan)
@@ -180,10 +205,14 @@ def perfil(base: Base, cal: detector.Calibracao | None = None) -> dict:
                       "lido": _br(len(base.do_estado)) + " " + (r["grupo"] if len(base.do_estado) == 1 else r["grupos"]) +
                       (" (pelo prefixo do código IBGE)." if base.do_brasil else " (a coluna de grupo escolhida).")})
     else:
+        # Sem grupo de cima, o Simulador **testa** o crescimento da base toda no lugar do crescimento do grupo: o jeito de projetar
+        # em uso é o que a retroprojeção escolher (pode ser manter o último valor), e as linhas do Simulador, mais abaixo, dizem qual.
         itens.append({"chave": "grupo", "titulo": "Grupo de cima", "lido": "A base não tem coluna de grupo.",
-                      "falta": "O Simulador usa o crescimento da base toda; o sinal 10 fica indisponível."})
-        nao_da_para.append({"o_que": '"Mais longe da referência" (sinal 10) e o crescimento do grupo no Simulador',
-                            "motivo": "a base não tem grupo de cima; o Simulador usa o crescimento da base toda."})
+                      "falta": "O sinal 10 fica indisponível. No Simulador, o crescimento da base toda é testado no lugar do "
+                               "crescimento do grupo; o jeito de projetar sai da retroprojeção."})
+        nao_da_para.append({"o_que": "O crescimento do grupo de cima como jeito de projetar no Simulador",
+                            "motivo": "a base não tem grupo de cima; no lugar dele, o Simulador testa o crescimento da base toda, e o "
+                                      "jeito de projetar sai da retroprojeção."})
 
     # População: os trechos comparáveis, lidos da própria base.
     if tem_populacao:
@@ -194,9 +223,8 @@ def perfil(base: Base, cal: detector.Calibracao | None = None) -> dict:
             da_para.append("Sinais por habitante (8 a 10) e comparações por habitante no Simulador, " + _dos_trechos(trechos) + ".")
     else:
         itens.append({"chave": "populacao", "titulo": "População", "lido": "A base não tem coluna de população.",
-                      "falta": "Ficam indisponíveis os sinais 8 a 11 e as comparações por habitante do Simulador."})
-        nao_da_para.append({"o_que": "Sinais por habitante (8 a 11) e comparações por habitante no Simulador",
-                            "motivo": "a base não tem população."})
+                      "falta": "Ficam indisponíveis os sinais 8 a 11 e a comparação por taxa (por habitante) do Simulador."})
+        nao_da_para.append({"o_que": "A comparação por taxa (por 1.000 habitantes) no Simulador", "motivo": "a base não tem população."})
 
     # Coordenadas.
     if tem_coordenadas:
@@ -208,8 +236,6 @@ def perfil(base: Base, cal: detector.Calibracao | None = None) -> dict:
     else:
         itens.append({"chave": "coordenadas", "titulo": "Coordenadas", "lido": "A base não tem coordenadas com o referencial informado.",
                       "falta": "O sinal 11 (distância) fica indisponível."})
-        if tem_populacao:
-            nao_da_para.append({"o_que": "Distância (sinal 11)", "motivo": "a base não tem coordenadas com o referencial informado."})
 
     # O que a contagem conta.
     aviso = next((item["texto"] for item in base.avisos if item.get("codigo") == "DUPLA_CONTAGEM"), None)

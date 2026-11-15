@@ -20,14 +20,17 @@ export const MAX_SERIES = 12;
  * valores do motor em cada competência (POST /api/painel/lugar), tracejada, junto das linhas dos territórios. */
 export type SerieDeReferencia = { id: string; rotulo: string; observacoes: { competencia: string; valor: number | null }[] };
 type Props = { itens: PainelItem[]; competencias: string[]; indicador: PainelIndicador; rotulos: RotulosTerritoriais;
-  referencias?: SerieDeReferencia[] };
+  referencias?: SerieDeReferencia[];
+  /** Como escrever cada data no eixo, na dica e na descrição (o padrão é o da Série temporal, "01/2014"; o Detector de Sinais usa
+   * "jan/2014", como nos outros gráficos dele). */
+  rotuloDaData?: (competencia: string) => string };
 
 const observacoesDaSerie = (item: PainelItem) => item.serie?.observacoes ?? [];
 /** A referência no formato de um item da série, só para o desenho (montarSeries e o domínio). */
 const comoItem = (referencia: SerieDeReferencia) => ({ id: "referencia:" + referencia.id, rotulo: referencia.rotulo,
   serie: { observacoes: referencia.observacoes, comparavel: true, motivo: null } }) as unknown as PainelItem;
 
-export default function PainelSeries({ itens, competencias, indicador, rotulos, referencias = [] }: Props) {
+export default function PainelSeries({ itens, competencias, indicador, rotulos, referencias = [], rotuloDaData = exibirCompetencia }: Props) {
   const [ref, largura] = useLargura(800);
   const paleta = paletaDoGrafico(useEsquemaDeCor());
   const [foco, setFoco] = useState<string | null>(null);
@@ -59,14 +62,14 @@ export default function PainelSeries({ itens, competencias, indicador, rotulos, 
       largura: larguraDoTexto(serie.rotulo, 12) })), larguraSvg - 2, 15);
     return <svg width="100%" height={alturaSvg} viewBox={`0 0 ${larguraSvg} ${alturaSvg}`} role="img" className="analise-svg"
       aria-label={(titulo ? titulo + ": " : "") + "série temporal de " + especie.rotulo.toLowerCase() + ", " + grupo.length + " " +
-        (grupo.length === 1 ? rotulos.unidade.singular : rotulos.unidade.plural) + ", de " + exibirCompetencia(competencias[0]) + " a " +
-        exibirCompetencia(competencias[competencias.length - 1])}>
+        (grupo.length === 1 ? rotulos.unidade.singular : rotulos.unidade.plural) + ", de " + rotuloDaData(competencias[0]) + " a " +
+        rotuloDaData(competencias[competencias.length - 1])}>
       {ticksY.map(valor => <line key={"g" + valor} x1={esquerda} x2={larguraSvg - direita} y1={y(valor)} y2={y(valor)} stroke={paleta.grade} strokeWidth={1}/>)}
       <line x1={esquerda} x2={esquerda} y1={topo} y2={base} stroke={paleta.eixo} strokeWidth={1}/>
       <line x1={esquerda} x2={larguraSvg - direita} y1={base} y2={base} stroke={paleta.eixo} strokeWidth={1}/>
       {ticksY.map(valor => <text key={"t" + valor} x={esquerda - 6} y={y(valor) + 4} textAnchor="end" className="analise-marca-texto">{textoDaMarca(valor)}</text>)}
       {marcasX.filter((_, indice) => indice % passo === 0 || indice === marcasX.length - 1).map(marca =>
-        <text key={marca.competencia} x={marca.x} y={base + 16} textAnchor="middle" className="analise-marca-texto">{exibirCompetencia(marca.competencia)}</text>)}
+        <text key={marca.competencia} x={marca.x} y={base + 16} textAnchor="middle" className="analise-marca-texto">{rotuloDaData(marca.competencia)}</text>)}
       {/* O todo e o grupo como referência (06/11/2026): tracejados, com o nome no fim. */}
       {deReferencia.map(serie => <g key={serie.id} data-testid="analise-serie-referencia" data-id={serie.id.replace(/^referencia:/, "")}
         data-pontos={serie.pontos.length} aria-hidden="true">
@@ -91,7 +94,7 @@ export default function PainelSeries({ itens, competencias, indicador, rotulos, 
       {ponto && series.filter(serie => serie.id === ponto.serie).map(serie => {
         const alvo = serie.pontos.find(item => item.competencia === ponto.competencia);
         if (!alvo) return null;
-        const texto = serie.rotulo + " · " + formatarNumero(alvo.valor, especie.contagem) + " · " + exibirCompetencia(alvo.competencia);
+        const texto = serie.rotulo + " · " + formatarNumero(alvo.valor, especie.contagem) + " · " + rotuloDaData(alvo.competencia);
         const larguraTexto = larguraDoTexto(texto, 12) + 8;
         const x = Math.min(larguraSvg - larguraTexto - 2, Math.max(2, alvo.x - larguraTexto / 2));
         return <g key="dica" pointerEvents="none" data-testid="analise-serie-dica">

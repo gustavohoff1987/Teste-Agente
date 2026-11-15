@@ -152,8 +152,8 @@ def _br(valor, casas=0):
 
 def poucos_casos(casos, em_10=8, prazo="1 ano"):
     """O motivo de um cenário sem faixa por falta de casos: quantos a faixa pede e quantos a base tem, no prazo da primeira."""
-    return "A faixa de %d em cada 10 pede %d casos por prazo, e esta base tem %d em %s, mesmo juntando os portes vizinhos e os menores." % (
-        em_10, FAIXAS[em_10][2], casos, prazo)
+    return ("A faixa de %d em cada 10 pede %d casos por prazo, e esta base tem %d em %s para o porte deste território, mesmo juntando os "
+            "portes vizinhos e os menores.") % (em_10, FAIXAS[em_10][2], casos, prazo)
 
 
 def faixa_ate(prazo, em_10=8):
@@ -746,10 +746,17 @@ def test_avisos_de_horizonte_frente_a_janela_do_metodo():
     for data, (nivel, codigo) in esperado.items():
         resultado = simular(b, alvo, {"metodo": "M0"}, data)
         assert resultado["horizonte"]["aviso"] == nivel and avisos(resultado) == ([codigo] if codigo else []), data
-    # O aviso diz os dois tempos, em palavras simples.
+    # O aviso diz os dois tempos, em palavras simples. Manter o último valor não usa a história: a comparação é com os 3 anos de
+    # referência, e o texto diz isso (antes, dizia "3 anos de história usados no cálculo", o que não era verdade neste método).
     assert simular(b, alvo, {"metodo": "M0"}, "202806")["avisos"][0]["texto"] == (
-        "Extrapolação além da janela: a data final fica mais longe do que o tempo de história usado no cálculo (4 anos à frente, com "
-        "3 anos de história usados no cálculo).")
+        "Extrapolação além da janela: a data final fica mais longe do que o tempo de referência (4 anos à frente; a referência são 3 anos, "
+        "porque manter o último valor não usa a história).")
+    assert simular(b, alvo, {"metodo": "M0"}, "202606")["avisos"][0]["texto"] == (
+        "Cautela: a data final fica a mais da metade do tempo de referência (2 anos à frente; a referência são 3 anos, porque manter o "
+        "último valor não usa a história).")
+    assert simular(b, alvo, {"metodo": "M1"}, janela={"inicio": "202306", "fim": "202406"})["avisos"][0]["texto"] == (
+        "Extrapolação além da janela: a data final fica mais longe do que o tempo de história usado no cálculo (2 anos à frente, com "
+        "1 ano de história usados no cálculo).")
     assert simulador._tempo(1.0) == "1 ano" and simulador._tempo(29 / 12) == "2,4 anos"
     # A janela do próprio método conta: com 1 ano de janela, 2 anos de horizonte já são extrapolação.
     curta = simular(b, alvo, {"metodo": "M1"}, janela={"inicio": "202306", "fim": "202406"})
@@ -1014,6 +1021,9 @@ def test_padrao_sem_a_taxa_composta_do_territorio_volta_ao_ultimo_valor():
         assert (padrao["parametros"]["n0"], padrao["parametros"]["janela"]["registros"], padrao["final"]["total"]) == (n0, registros, n0), codigo
         assert padrao["faixa"] == sem_faixa and padrao["entenda"]["faixa"] == {"texto": sem_faixa["motivo"], "exemplo": SEM_FAIXA}, codigo
         assert padrao["entenda"]["jeito"]["texto"] == "O cenário parte do último registro usado (jun/2024) e mantém o valor dele. " + NAO_PODE_SER_USADO
+        # A janela com um registro só é dita assim no texto do cenário, e não "de jun/2024 a jun/2024".
+        assert ("as premissas janela com um registro só (jun/2024); sem intervenção" if registros == 1 else
+                "as premissas janela de jun/2021 a jun/2024; sem intervenção") in padrao["texto"], padrao["texto"]
         pelo_nome = simular(b, alvo, {"metodo": "M1"}, retros=retros)
         assert pelo_nome["estado"] == "nao_aplicavel" and "com início em zero, a taxa não é definida" in pelo_nome["motivo"], codigo
     # Com uma intervenção, o território em zero passa a ter os médicos acrescentados: o padrão já não fica "não aplicável".

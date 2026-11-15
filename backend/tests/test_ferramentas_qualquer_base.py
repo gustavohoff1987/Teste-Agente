@@ -43,6 +43,8 @@ PREMISSAS = {"count_unit": "pessoas", "confirmed_roles": ["territory", "period",
 ROTULOS = {"unidade": {"singular": "distrito", "plural": "distritos"}, "todo": {"nome": "Solária", "artigo": "a"}}
 DA_PLANILHA = {"premissas": PREMISSAS, "rotulos": ROTULOS}
 SEM_POPULACAO = "A base não tem população: sem ela, não há taxa por habitante."
+SEM_GRUPO = "A base não tem grupo de cima: não há referência para comparar."
+SEM_COORDENADAS = "A base não tem coordenadas com o referencial informado: a distância não pode ser medida."
 # O vocabulário da base do Brasil, que não pode aparecer nos textos de uma planilha (critério de aceitação da estrutura comum).
 DO_BRASIL = re.compile(r"\bjunho\b|\bBrasil\b|\bUFs?\b|\bestados?\b|médic|municíp")
 
@@ -107,10 +109,12 @@ def test_planilha_de_teste_vira_a_mesma_estrutura_da_base_do_brasil():
     # Sem população, sem coordenadas e sem grupo de cima: nada é inventado.
     assert np.isnan(b.populacao).all() and np.isnan(b.latitude).all() and b.do_estado == {} and b.estados == {} and set(b.prefixos) == {""}
     assert series_brasil.rotulos(b) == {
-        "profissional": "profissional", "profissionais": "profissionais", "unidade": "distrito", "unidades": "distritos", "grupo": "grupo",
+        "profissional": "enfermeiro", "profissionais": "enfermeiros", "unidade": "distrito", "unidades": "distritos", "grupo": "grupo",
         "grupos": "grupos", "todo": "Solária", "o_unidade": "o distrito", "os_unidades": "os distritos", "o_grupo": "o grupo",
         "os_grupos": "os grupos", "dos_grupos": "dos grupos", "do_todo": "da Solária", "no_todo": "na Solária", "o_todo": "a Solária"}
-    assert series_brasil.rotulos_publicos(b) == {"profissional": "profissional", "profissionais": "profissionais", "unidade": "distrito",
+    # O que a contagem conta leva o nome dos trabalhadores informado no envio ("Enfermeiros"), como a base do Brasil diz "médicos"
+    # (revisão das capturas de 15/11/2026); sem um nome que sirva aos textos, fica "profissionais".
+    assert series_brasil.rotulos_publicos(b) == {"profissional": "enfermeiro", "profissionais": "enfermeiros", "unidade": "distrito",
                                                  "unidades": "distritos", "grupo": "grupo", "grupos": "grupos", "todo": "Solária"}
     assert b.contagens == {
         "municipio": "pessoas registradas em cada distrito (quem aparece em mais de um conta em cada um)",
@@ -199,6 +203,23 @@ def test_datas_aceitas_e_recusas_da_planilha():
     # Vínculos e postos: o nome da contagem e o aviso de dupla contagem.
     vinculos = montar([["A", "202001", 3], ["A", "202007", 4]], da_base={"premissas": {**PREMISSAS, "count_unit": "vinculos"}})
     assert series_brasil.rotulos(vinculos)["profissionais"] == "vínculos" and vinculos.avisos[0]["codigo"] == "DUPLA_CONTAGEM"
+    # O nome dos trabalhadores informado no envio vale para os textos quando é um plural que eles podem usar: só as palavras antes
+    # da primeira preposição vão para o singular. Um nome feminino (os textos concordam no masculino), dois nomes, uma sigla ou
+    # uma palavra que não está no plural ficam com "profissional" e "profissionais" (revisão das capturas de 15/11/2026).
+    assert [series_da_planilha.nome_dos_trabalhadores(nome) for nome in (
+        "Enfermeiros", "médicos", "PROFISSIONAIS", "Técnicos de enfermagem", "Agentes comunitários de saúde", "Cirurgiões-dentistas",
+        "Auxiliares de enfermagem", "Dentistas", "Fisioterapeutas", "Pediatras", "Cuidadores", "Homens")] == [
+        ("enfermeiro", "enfermeiros"), ("médico", "médicos"), ("profissional", "profissionais"),
+        ("técnico de enfermagem", "técnicos de enfermagem"), ("agente comunitário de saúde", "agentes comunitários de saúde"),
+        ("cirurgião-dentista", "cirurgiões-dentistas"), ("auxiliar de enfermagem", "auxiliares de enfermagem"), ("dentista", "dentistas"),
+        ("fisioterapeuta", "fisioterapeutas"), ("pediatra", "pediatras"), ("cuidador", "cuidadores"), ("homem", "homens")]
+    assert [series_da_planilha.nome_dos_trabalhadores(nome) for nome in (
+        "Enfermeiras", "Médicos e enfermeiros", "ACS", "Enfermagem", "Agentes 2", "Pessoas", "", None)] == [None] * 8
+    sem_nome = montar([["A", "202001", 3], ["A", "202007", 4]], da_base={"premissas": {**PREMISSAS, "object_declaration": "Enfermagem"}})
+    assert (series_brasil.rotulos(sem_nome)["profissional"], series_brasil.rotulos(sem_nome)["profissionais"]) == ("profissional", "profissionais")
+    sem_coluna = montar([["A", "202001", 3], ["A", "202007", 4]], da_base={"premissas": {
+        "count_unit": "pessoas", "confirmed_roles": ["territory", "period", "count"], "category_constant": "Técnicos de enfermagem"}})
+    assert series_brasil.rotulos(sem_coluna)["profissional"] == "técnico de enfermagem"
     # Recusas, em português, com o que fazer.
     for linhas, trecho in (
             ([["A", "primeiro", 3], ["A", "segundo", 4]], "não traz datas que o Agente reconheça: use AAAAMM, AAAA-MM, AAAA-MM-DD ou o ano."),
@@ -249,11 +270,16 @@ def test_detector_na_planilha_mostra_o_que_ela_sustenta_e_os_motivos_do_que_nao_
         ("vizinhas", 262, "vizinhas", 262), ("porte", 182, "vizinhas", 360), ("vizinhas", 280, "vizinhas", 280)]
     assert lista["sem_coordenada"] == []      # sem coordenadas, não há mapa nem lista de quem fica fora dele
     # O que a base não tem: os sinais por habitante e a distância ficam indisponíveis, com o motivo; nada é inventado.
-    assert lista["indisponiveis"] == {chave: SEM_POPULACAO for chave in ("disponibilidade", "posicao", "defasagem", "contexto")}
+    # Cada sinal diz todos os motivos (revisão das capturas de 15/11/2026): o 10 pede população e grupo de cima; o 11, população
+    # e coordenadas. São os mesmos motivos do perfil da base.
+    assert lista["indisponiveis"] == {"disponibilidade": SEM_POPULACAO, "posicao": SEM_POPULACAO,
+                                      "defasagem": SEM_POPULACAO + " " + SEM_GRUPO, "contexto": SEM_POPULACAO + " " + SEM_COORDENADAS}
+    assert detector.motivos_da_falta(b) == {"disponibilidade": ("populacao",), "posicao": ("populacao",),
+                                            "defasagem": ("populacao", "grupo"), "contexto": ("populacao", "coordenadas")}
     assert (lista["comparacao"]["estado"], lista["comparacao"]["motivo"], lista["comparacao"]["trechos"]) == ("indisponivel", SEM_POPULACAO, [])
     assert lista["coordenadas"] == {} and "calibracao_dos_estados" not in lista
-    assert lista["entenda"]["ferramenta"]["exemplo"] == ("Uma queda de 18 para 11 profissionais é rara quando, entre as mudanças anteriores de "
-                                                       "distritos de 10 a 19 profissionais, só 1 em cada 100 foi igual ou pior: alerta elevado.")
+    assert lista["entenda"]["ferramenta"]["exemplo"] == ("Uma queda de 18 para 11 enfermeiros é rara quando, entre as mudanças anteriores de "
+                                                       "distritos de 10 a 19 enfermeiros, só 1 em cada 100 foi igual ou pior: alerta elevado.")
     assert lista["notas"][0] == "O registro mais recente da base é jul/2023: os sinais descrevem a situação até essa data, não a de hoje."
     # O detalhe de um território: os sinais 8 a 11 dizem "Indisponível nesta base", com o motivo, e não "não calculável".
     detalhe = detector.compute(None, {"base": {"municipios": {"todos": True}}, "detalhe": "name:Distrito 13"}, base=b)
@@ -267,7 +293,7 @@ def test_detector_na_planilha_mostra_o_que_ela_sustenta_e_os_motivos_do_que_nao_
         assert (do_sinal[chave]["situacao"], do_sinal[chave]["observado"], do_sinal[chave]["sem_comparacoes"]) == (
             "Indisponível nesta base", SEM_POPULACAO, None)
         assert do_sinal[chave]["habitual"] == "Não avaliado: a base não tem população: sem ela, não há taxa por habitante."
-    assert do_sinal["estrutural"]["observado"] == ("Em jul/2023, o distrito tinha 19 profissionais; em jan/2023, 20. Contagem: pessoas "
+    assert do_sinal["estrutural"]["observado"] == ("Em jul/2023, o distrito tinha 19 enfermeiros; em jan/2023, 20. Contagem: pessoas "
                                                   "registradas em cada distrito (quem aparece em mais de um conta em cada um).")
     assert do_sinal["perda"]["sem_comparacoes"] == {"niveis": ["critico"], "nivel": "critico", "comparacoes": 360, "pede": 999,
                                                     "texto": "Sem comparações suficientes para o crítico: há 360, e ele pede 999."}
@@ -296,12 +322,12 @@ def test_planilha_so_com_anos_tem_as_datas_e_os_textos_sem_mes():
         "name:Distrito 11": "2 quedas anuais seguidas: −11,1% desde 2021", "name:Distrito 13": "3 quedas anuais seguidas: −20,8% desde 2020"}
     detalhe = detector.compute(None, {"base": {"municipios": {"todos": True}}, "detalhe": "name:Distrito 02"}, base=b)
     do_sinal = {item["chave"]: item for item in detalhe["fenomenos"]}
-    assert do_sinal["estrutural"]["observado"].startswith("Em 2023, a unidade tinha 32 profissionais; em 2022, 40.")
+    assert do_sinal["estrutural"]["observado"].startswith("Em 2023, a unidade tinha 32 enfermeiros; em 2022, 40.")
     assert "na série anual (de um ano para o outro)" in do_sinal["declinio"]["criterio"]
     assert do_sinal["declinio"]["entenda"]["texto"].startswith("Olha o registro de cada ano e conta quantos anos seguidos o número caiu.")
     assert "nos 4 registros anuais até o último" in do_sinal["desaceleracao"]["criterio"]
     assert do_sinal["desaceleracao"]["observado"].startswith("De 2020 a 2023, os valores anuais foram 41 → 39 → 40 → 32.")
-    assert do_sinal["perda"]["observado"] == "De 2022 a 2023 (12 meses), passou de 40 para 32 profissionais (−8, −20,0%)."
+    assert do_sinal["perda"]["observado"] == "De 2022 a 2023 (12 meses), passou de 40 para 32 enfermeiros (−8, −20,0%)."
     # Nenhuma data vira mês: "202300" é 2023, nunca "dez/2023".
     meses = re.compile(r"\b(?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)/\d{4}|janeiro|fevereiro|março|abril|junho|julho|agosto|setembro|"
                        r"outubro|novembro|dezembro")
@@ -325,8 +351,8 @@ def test_planilha_so_com_anos_tem_as_datas_e_os_textos_sem_mes():
     assert (cenario["estado"], cenario["metodo"]["usado"], cenario["metodo"]["escolhido_pela_base"]) == ("calculado", "M0", "M0")
     assert [(ponto["data"], ponto["total"]) for ponto in cenario["trajetoria"]] == [("202400", 34.0), ("202500", 34.0)]
     assert cenario["texto"] == ("Cenário hipotético, não é previsão: com o método persistência (o último valor se mantém) e as premissas "
-                                "janela de 2020 a 2023; acréscimo de 2 profissionais em 2024, com permanência total (hipótese), Distrito 02 "
-                                "teria 34 profissionais em 2025. Base: registros até 2023.")
+                                "janela de 2020 a 2023; acréscimo de 2 enfermeiros em 2024, com permanência total (hipótese), Distrito 02 "
+                                "teria 34 enfermeiros em 2025. Base: registros até 2023.")
     assert not [texto for texto in textos(cenarios) if meses.search(texto) or DO_BRASIL.search(texto)]
     with pytest.raises(ValueError, match=r"Data final inválida: use o ano \(AAAA00\), até 2100\."):
         simulador.compute(None, {**pedido, "horizonte": "202507"}, base=b)
@@ -339,12 +365,12 @@ def test_planilha_so_com_anos_tem_as_datas_e_os_textos_sem_mes():
     periodico = do_avancado["territorios"][0]["cenarios"][0]
     assert [(ponto["data"], ponto["total"]) for ponto in periodico["trajetoria"]] == [("202400", 34.0), ("202500", 36.0), ("202600", 38.0), ("202700", 38.0)]
     assert periodico["texto"] == ("Cenário hipotético, não é previsão: com o método persistência (o último valor se mantém) e as premissas "
-                                  "janela de 2020 a 2023; acréscimo de 2 profissionais a cada 12 meses, de 2024 a 2026, com permanência total "
-                                  "(hipótese), Distrito 02 teria 38 profissionais em 2027. Base: registros até 2023.")
+                                  "janela de 2020 a 2023; acréscimo de 2 enfermeiros a cada 12 meses, de 2024 a 2026, com permanência total "
+                                  "(hipótese), Distrito 02 teria 38 enfermeiros em 2027. Base: registros até 2023.")
     planejado = periodico["planejamento"]
     assert (planejado["estado"], planejado["por_evento"], planejado["eventos"], planejado["datas"]) == ("calculado", 1, 3, ["202400", "202500", "202600"])
-    assert planejado["texto"].startswith("Meta hipotética: 40 profissionais em 2027. Menor acréscimo inteiro que alcança a meta, nas hipóteses "
-                                         "deste cenário: 1 profissional em cada um dos 3 eventos, de 2024 a 2026 (3 no total).")
+    assert planejado["texto"].startswith("Meta hipotética: 40 enfermeiros em 2027. Menor acréscimo inteiro que alcança a meta, nas hipóteses "
+                                         "deste cenário: 1 enfermeiro em cada um dos 3 eventos, de 2024 a 2026 (3 no total).")
     assert not [texto for texto in textos(do_avancado) if meses.search(texto) or DO_BRASIL.search(texto)]
     meio_ano = {**anual_avancado, "cenarios": [{"id": "c1", "metodo": "padrao", "intervencoes": [
         {"tipo": "acrescimo", "quantidade": 2, "em": "202400", "ate": "202600", "a_cada_meses": 6}]}]}
@@ -362,24 +388,35 @@ def test_perfil_da_planilha_de_teste_da_para_e_nao_da_para():
         ("datas", "Datas e intervalos", "20 registros, de jan/2014 a jul/2023, com 6 meses entre eles. Só se comparam mudanças com o mesmo "
          "tempo entre registros.", None),
         ("serie_anual", "Série anual", "Usa os registros de julho, o mês presente em todos os anos (10 anos, de 2014 a 2023).", None),
-        ("portes", "Portes", "20 distritos, em 3 faixas de porte pelo número de profissionais (2 de 10 a 19, 13 de 20 a 49 e 5 de 50 a 99). "
+        ("portes", "Portes", "20 distritos, em 3 faixas de porte pelo número de enfermeiros (2 de 10 a 19, 13 de 20 a 49 e 5 de 50 a 99). "
          "Quando faltam casos numa faixa, ela se junta às vizinhas.", None),
-        ("grupo", "Grupo de cima", "A base não tem coluna de grupo.", "O Simulador usa o crescimento da base toda; o sinal 10 fica indisponível."),
+        # Sem grupo de cima, o Simulador testa o crescimento da base toda no lugar do crescimento do grupo: o jeito em uso é o que
+        # a retroprojeção escolher (aqui, manter o último valor), e o perfil não diz mais que ele "usa" esse crescimento.
+        ("grupo", "Grupo de cima", "A base não tem coluna de grupo.", "O sinal 10 fica indisponível. No Simulador, o crescimento da base toda "
+         "é testado no lugar do crescimento do grupo; o jeito de projetar sai da retroprojeção."),
         ("populacao", "População", "A base não tem coluna de população.",
-         "Ficam indisponíveis os sinais 8 a 11 e as comparações por habitante do Simulador."),
+         "Ficam indisponíveis os sinais 8 a 11 e a comparação por taxa (por habitante) do Simulador."),
         ("coordenadas", "Coordenadas", "A base não tem coordenadas com o referencial informado.", "O sinal 11 (distância) fica indisponível."),
         ("contagem", "O que a contagem conta", "Pessoas registradas em cada distrito (quem aparece em mais de um conta em cada um).", None),
-        ("nomes", "Nomes", "A contagem é de profissionais; os territórios são os distritos; o todo, a Solária.", None)]
+        ("nomes", "Nomes", "A contagem é de enfermeiros; os territórios são os distritos; o todo, a Solária.", None)]
     # O resumo, como no exemplo da seção A.3 da Proposta V3: o que a base sustenta e, do que não sustenta, o motivo com os números.
     assert perfil["da_para"] == ["Alertas moderados desde jan/2015 (o 2º ano da base).", "Alertas elevados desde jan/2018 (o 5º ano da base).",
                                  "Sinais anuais (declínio persistente e desaceleração), pela série de julho.",
                                  "Cenários do Simulador mantendo o último valor: na retroprojeção desta base, nenhum jeito de projetar "
                                  "errou menos que isso."]
+    # Os sinais que a base não sustenta, cada um com todos os motivos (os mesmos do detalhe do território); sem população, a
+    # comparação por taxa do Simulador também fica no "não dá para", com o motivo.
     assert perfil["nao_da_para"] == [
         {"o_que": "Alertas críticos", "motivo": "eles pedem 999 comparações, e esta base chega a 360."},
-        {"o_que": "\"Mais longe da referência\" (sinal 10) e o crescimento do grupo no Simulador",
-         "motivo": "a base não tem grupo de cima; o Simulador usa o crescimento da base toda."},
-        {"o_que": "Sinais por habitante (8 a 11) e comparações por habitante no Simulador", "motivo": "a base não tem população."},
+        {"o_que": "\"Menos enfermeiros por habitante\" e \"perda de posição\" (sinais 8 e 9)", "motivo": "a base não tem população.",
+         "sinais": ["disponibilidade", "posicao"]},
+        {"o_que": "\"Mais longe da referência\" (sinal 10)", "motivo": "a base não tem população nem grupo de cima.", "sinais": ["defasagem"]},
+        {"o_que": "\"Distância\" (sinal 11)", "motivo": "a base não tem população nem coordenadas com o referencial informado.",
+         "sinais": ["contexto"]},
+        {"o_que": "O crescimento do grupo de cima como jeito de projetar no Simulador",
+         "motivo": "a base não tem grupo de cima; no lugar dele, o Simulador testa o crescimento da base toda, e o jeito de projetar sai da "
+                   "retroprojeção."},
+        {"o_que": "A comparação por taxa (por 1.000 habitantes) no Simulador", "motivo": "a base não tem população."},
         {"o_que": "A faixa do Simulador", "motivo": "ela pede 200 casos por prazo, e esta base tem 120."}]
     # O que a retroprojeção do Simulador sustenta nesta base: 6 origens, nenhum jeito melhor que manter o último valor, sem faixa.
     assert perfil["simulador"] == {"municipios": {
@@ -481,21 +518,24 @@ def test_rota_do_simulador_aceita_a_planilha_e_a_base_escolhe_o_jeito_de_projeta
     assert cenario["avisos"] == [
         {"codigo": "PADRAO_E_O_ULTIMO_VALOR", "texto": "Nesta base, nenhum jeito de projetar errou menos que manter o último valor, quando "
                                                        "conferido com o passado: o cenário mantém o último valor."},
-        {"codigo": "HORIZONTE_CAUTELA", "texto": "Cautela: a data final fica a mais da metade do tempo de história usado no cálculo (2 anos à "
-                                                 "frente, com 3 anos de história usados no cálculo)."}]
+        # Manter o último valor não usa a história: o aviso compara com os 3 anos de referência e diz isso.
+        {"codigo": "HORIZONTE_CAUTELA", "texto": "Cautela: a data final fica a mais da metade do tempo de referência (2 anos à frente; a "
+                                                 "referência são 3 anos, porque manter o último valor não usa a história)."}]
     assert [(ponto["data"], ponto["total"]) for ponto in cenario["trajetoria"]] == [("202401", 22.0), ("202407", 22.0), ("202501", 22.0),
                                                                                    ("202507", 22.0)]
     assert cenario["final"] == {"data": "202507", "base": 19.0, "intervencao": 3.0, "total": 22.0, "faixa": None}
     assert cenario["texto"] == ("Cenário hipotético, não é previsão: com o método persistência (o último valor se mantém) e as premissas "
-                                "janela de jul/2020 a jul/2023; acréscimo de 3 profissionais em jan/2024, com permanência total (hipótese), "
-                                "Distrito 13 teria 22 profissionais em jul/2025. Base: registros até jul/2023.")
+                                "janela de jul/2020 a jul/2023; acréscimo de 3 enfermeiros em jan/2024, com permanência total (hipótese), "
+                                "Distrito 13 teria 22 enfermeiros em jul/2025. Base: registros até jul/2023.")
     # A faixa fica indisponível, com o motivo e os números da própria base; nada é emprestado da base do Brasil.
-    sem_faixa = "A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem 88 em 1 ano, mesmo juntando os portes vizinhos e os menores."
+    # Os 88 casos são os do porte deste território (com os vizinhos e os menores); a base toda tem 120, que é o número do perfil.
+    sem_faixa = ("A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem 88 em 1 ano para o porte deste território, mesmo "
+                 "juntando os portes vizinhos e os menores.")
     assert cenario["faixa"] == {"estado": "indisponivel", "motivo": sem_faixa, "rotulo": None, "em_10": 8}
     assert cenario["entenda"] == {
         "jeito": {"texto": "O cenário parte do último registro usado (jul/2023) e mantém o valor dele. Nesta base, nenhum outro jeito errou "
                            "menos que manter o último valor, quando refeito no passado.",
-                  "exemplo": "De 19 profissionais em jul/2023, a base do cenário vai a 19 um ano depois, sem contar intervenções."},
+                  "exemplo": "De 19 enfermeiros em jul/2023, a base do cenário vai a 19 um ano depois, sem contar intervenções."},
         "faixa": {"texto": sem_faixa,
                   "exemplo": "Sem a faixa, o cenário mostra só a linha: ela não diz quanto o valor real costuma se afastar."}}
     # A retroprojeção da planilha: 6 origens (julho de 2017 a 2022), 18 combinações de origem e prazo e os dois candidatos que a
@@ -517,7 +557,7 @@ def test_rota_do_simulador_aceita_a_planilha_e_a_base_escolhe_o_jeito_de_projeta
         ("50 a 99", 2, "indisponivel", 100, 200), ("50 a 99", 3, "indisponivel", 80, 200), ("50 a 99", 4, "indisponivel", 60, 200)]
     assert [item["chave"] for item in resposta["metodos"]] == ["M0", "M0d", "M0g", "M1", "M2", "M3", "manual"]
     assert resposta["notas"][1] == ("O registro mais recente da base é jul/2023: o que vem depois dele no gráfico é simulado, nunca observado. "
-                                    "A base só tem profissionais, com registros de janeiro e julho (6 meses entre um e outro).")
+                                    "A base só tem enfermeiros, com registros de janeiro e julho (6 meses entre um e outro).")
     # Nenhum texto traz o vocabulário da base do Brasil (os nomes dos campos da resposta não são textos).
     achados = sorted({texto for texto in textos(resposta) if DO_BRASIL.search(texto)})
     assert not achados, achados[:3]
@@ -533,7 +573,7 @@ def test_rota_do_simulador_aceita_a_planilha_e_a_base_escolhe_o_jeito_de_projeta
     assert do_m0g["final"]["total"] == pytest.approx(18.983, abs=1e-3)
     assert do_m0g["texto"] == ("Cenário hipotético, não é previsão: com o método persistência com o crescimento recente da base toda e as "
                                "premissas janela de jul/2020 a jul/2023; crescimento da base toda de −0,04% ao ano; sem intervenção, "
-                               "Distrito 13 teria 19 profissionais em jul/2025. Base: registros até jul/2023.")
+                               "Distrito 13 teria 19 enfermeiros em jul/2025. Base: registros até jul/2023.")
     do_m1 = corpo(pedir_ao_simulador({**do_13, "cenarios": [{"id": "a", "metodo": "M1"}]}))["territorios"][0]["cenarios"][0]
     assert do_m1["final"]["total"] == pytest.approx(16.2598, abs=1e-4) and "taxa de −7,49% ao ano" in do_m1["texto"]
     # Sem grupo de cima, o crescimento do grupo não se aplica, e o motivo diz o que usar.
@@ -563,12 +603,12 @@ def test_rota_do_simulador_aceita_a_planilha_e_a_base_escolhe_o_jeito_de_projeta
         ("r2", "Distrito 05", "calculada", "dinâmica: persistência (o último valor se mantém), com registros até jul/2023"),
         ("r3", "Par", "calculada", "fixa: o valor de jul/2023 mantido"), ("r4", "Meta local", "calculada", "valor informado por você, mantido")]
     do_02 = avancado["territorios"][0]["cenarios"][0]
-    assert do_02["final"]["total"] == 38.0 and "acréscimo de 2 profissionais em cada território do cenário, a cada 6 meses, de jan/2024 a jan/2025" in do_02["texto"]
+    assert do_02["final"]["total"] == 38.0 and "acréscimo de 2 enfermeiros em cada território do cenário, a cada 6 meses, de jan/2024 a jan/2025" in do_02["texto"]
     com_o_todo, com_o_distrito, com_o_conjunto, com_o_valor = do_02["comparacoes"]
-    assert com_o_todo["texto"] == ("Em jul/2025, Distrito 02 teria 38 profissionais, e a referência Solária (fixa: o valor de jul/2023 mantido), 741: "
+    assert com_o_todo["texto"] == ("Em jul/2025, Distrito 02 teria 38 enfermeiros, e a referência Solária (fixa: o valor de jul/2023 mantido), 741: "
                                    "703 abaixo da referência (índice 5,1; 100 é a referência). Não alcança no horizonte simulado (até jul/2025).")
     assert com_o_todo["avisos"][0] == "A referência (Solária) contém o território: a comparação não é independente."
-    assert com_o_distrito["texto"].startswith("Em jul/2025, Distrito 02 teria 38 profissionais, e a referência Distrito 05 (dinâmica: persistência")
+    assert com_o_distrito["texto"].startswith("Em jul/2025, Distrito 02 teria 38 enfermeiros, e a referência Distrito 05 (dinâmica: persistência")
     assert com_o_conjunto["avisos"][0] == "O território e a referência têm 1 distrito em comum: a comparação não é independente."
     assert (com_o_valor["avisos"], com_o_valor["alcance"]) == ([], {"estado": "nao_alcanca", "data": None})
     # O todo: o jeito escolhido para os distritos (aqui, manter o último valor), como provisório; o crescimento da base toda não
@@ -581,7 +621,7 @@ def test_rota_do_simulador_aceita_a_planilha_e_a_base_escolhe_o_jeito_de_projeta
     assert o_todo["cenarios"][0]["comparacoes"][0]["avisos"] == ["A referência é o próprio território."]
     assert o_todo["cenarios"][0]["comparacoes"][1]["avisos"][0] == "O território (Solária) contém a referência: a comparação não é independente."
     assert ("A Solária é a soma dos distritos com registro em cada data e entra com um padrão provisório (o jeito escolhido para os distritos). "
-            "Num conjunto, o valor é a soma dos componentes, não o número de profissionais diferentes.") in avancado["notas"]
+            "Num conjunto, o valor é a soma dos componentes, não o número de enfermeiros diferentes.") in avancado["notas"]
     achados = sorted({texto for texto in textos(avancado) if DO_BRASIL.search(texto)})
     assert not achados, achados[:3]
     # Por taxa, sem população na planilha, a comparação diz que não é calculável, com o motivo; nada é inventado.

@@ -8,6 +8,8 @@
 > divergir da [V2.2](DETECTOR_E_SIMULADOR_V2_2.md), vale este. Em caso de conflito sobre autorização, vale a seção 0 do comando.
 > **Correção de 13/11/2026** (decisão do responsável na pausa 1): a fonte da população, no item 6 da seção 0 e na Parte D, que
 > falavam em "2000–2024, publicada em jan/2025"; a Parte D ganhou a nota "O que foi feito na troca".
+> **Acréscimo de 15/11/2026** (decisões do responsável na pausa 2): a Parte F ganhou a nota "O que a calibração mostrou e o que
+> foi decidido", com os números da calibração feita com a régua nova.
 
 O que não for tratado aqui continua como na V2.2:
 - a histerese;
@@ -525,6 +527,20 @@ Esboço ilustrativo: nomes e números são marcadores.
 
 **Depois da troca da população**
 - Refazer os testes dos sinais 8 a 10 e das comparações por taxa.
+
+**O que a calibração mostrou e o que foi decidido** (nota de 15/11/2026; decisões do responsável na pausa 2, com os números de
+`scripts/calibrar_detector.py`, que estão em [Detector de Sinais](DETECTOR_DE_SINAIS.md), seção "Calibração")
+- **Proporção de territórios com algum alerta.** Em jun/2024, 1.454 dos 5.570 municípios têm algum alerta: **26,1% no total**,
+  contando os sinais por convenção (sobretudo "Poucos médicos"), e **9,9% só com os sinais comparados com a base**. Decisão: o
+  limite de cerca de 20% vale para a conta só com os sinais comparados com a base (9,9%). **O padrão continua 1 em 20.**
+- **Crítico do sinal 7.** Decisão: continua valendo, porque 0,1% é um teto, e a taxa fica abaixo dele. A conta só com as
+  avaliações em que o crítico podia sair (as que tinham 999 comparações ou mais) dá **11 alertas em 27.570 avaliações: 0,04%**.
+  A tabela de todas as datas dividia os mesmos 11 alertas por todas as 30.358 avaliações do sinal (também 0,04%, depois de
+  arredondar): a conta foi refeita com o denominador certo, e o resultado não mudou. Nas avaliações em que o elevado podia sair
+  (99 comparações ou mais), o elevado e o crítico juntos somam 310 em 28.507: 1,09%, para uma meta de 1%.
+- **Moderado dos estados.** Com as marcas de descontinuidade, o moderado dos estados como unidade saiu em **7,2% de 513
+  avaliações** (a proposta tinha medido 6,7% em 510, sem as marcas), para uma meta de 5%. Decisão: **manter 1 em 20** e
+  acompanhar.
 
 ---
 

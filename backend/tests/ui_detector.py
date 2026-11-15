@@ -522,6 +522,10 @@ def main():
         # Os trechos de população comparável vêm do motor, lidos da própria base: com a população nova, um trecho só.
         assert detalhe_2021["comparativo"]["trechos"] == [[2014, 2024]], detalhe_2021["comparativo"]["trechos"]
         expect(serie_da_taxa).to_contain_text("a variação entre datas só é lida de 2014 a 2024, quando a população da base é comparável")
+        # As datas do eixo são escritas como nos outros gráficos do Detector ("jun/2021", e não "06/2021"; revisão das capturas de
+        # 15/11/2026). A última data do eixo aparece sempre.
+        expect(serie_da_taxa.locator("svg").first).to_contain_text("jun/2021")
+        expect(serie_da_taxa.locator("svg").first).not_to_contain_text("06/2021")
         oito = next(item for item in detalhe_2021["fenomenos"] if item["chave"] == "disponibilidade")
         assert oito["numero"] == "8" and oito["nivel"] == alvo["disponibilidade"]["classe"] and oito["criterio_do_nivel"] == "comparado com a base", oito
         assert "Comparado com a base: entre " in oito["habitual"], oito["habitual"]
@@ -692,6 +696,16 @@ def main():
         do_sinal.get_by_test_id("detector-entenda-botao").tap()   # o segundo toque fecha
         expect(do_sinal.get_by_test_id("detector-entenda-caixa")).to_have_count(0)
         assert tela.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") <= 1, "o detalhe passa da largura da janela"
+        # A série do território é desenhada na largura que tem na tela (revisão das capturas de 15/11/2026): o desenho não é
+        # encolhido, o texto dos eixos fica com 12 px de verdade, e o gráfico é mais alto que no computador (220 em vez de 170).
+        serie = detalhe.get_by_test_id("detector-serie")
+        serie.scroll_into_view_if_needed()
+        expect(serie).not_to_have_attribute("data-largura", "640")   # a largura medida, e não a do primeiro desenho
+        medidas = serie.evaluate("""e => { const svg = e.querySelector("svg"), texto = svg.querySelector("text");
+          return { largura: Number(e.dataset.largura), caixa: svg.viewBox.baseVal.width, altura: svg.viewBox.baseVal.height,
+                   naTela: svg.getBoundingClientRect().width, fonte: parseFloat(getComputedStyle(texto).fontSize) }; }""")
+        assert 280 <= medidas["largura"] == medidas["caixa"] <= 390 and medidas["altura"] == 220, medidas
+        assert abs(medidas["naTela"] - medidas["caixa"]) <= 1 and medidas["fonte"] == 12, medidas
         tela.screenshot(path=str(OUTPUT / "detector-11-celular-detalhe-real.png"), full_page=False)
         assert not chamadas_llm, "o Detector calcula sem o provedor de IA"
         assert not falhas_no_celular, falhas_no_celular

@@ -35,9 +35,11 @@ EPS = 1e-12
 
 
 def porte_de(valor) -> int | None:
-    """O índice da faixa de porte (PORTES) de uma contagem; None para zero, ausente ou abaixo de 1."""
+    """O índice da faixa de porte (PORTES) de uma contagem; None para zero, ausente ou abaixo de 1. Um valor com casas (uma média,
+    por exemplo 3,5) fica na faixa da parte inteira: nenhum valor a partir de 1 fica sem porte."""
     if valor is None or valor != valor or valor < 1:
         return None
+    valor = np.floor(valor)
     for indice, (minimo, maximo) in enumerate(PORTES):
         if valor >= minimo and (maximo is None or valor <= maximo):
             return indice
@@ -48,6 +50,7 @@ def portes(valores: np.ndarray) -> np.ndarray:
     """A faixa de porte de cada valor (−1 para zero, ausente ou abaixo de 1)."""
     saida = np.full(np.shape(valores), -1, dtype=np.int8)
     with np.errstate(invalid="ignore"):
+        valores = np.floor(valores)          # um valor com casas fica na faixa da parte inteira, como em `porte_de`
         for indice, (minimo, maximo) in enumerate(PORTES):
             dentro = (valores >= minimo) & ((valores <= maximo) if maximo is not None else True)
             saida[dentro] = indice

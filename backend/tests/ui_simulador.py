@@ -55,8 +55,8 @@ PERSISTENCIA = {"id": "m0", "nome": "Persistência (referência)", "metodo": "M0
 # faixa para os estados como unidade nesta base.
 PROVISORIA = ("Faixa provisória: ainda não deu para conferi-la com dados que vieram depois, ou a conferência ficou um pouco abaixo do "
               "esperado.")
-SEM_CASOS = ("A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem 189 em 1 ano, mesmo juntando os portes vizinhos e "
-             "os menores.")
+SEM_CASOS = ("A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem 189 em 1 ano para o porte deste território, mesmo "
+             "juntando os portes vizinhos e os menores.")
 MEIO_DA_FAIXA = ", o número observado ficou dentro dessa margem; ela acompanha a intervenção."
 
 
@@ -333,6 +333,28 @@ def main():
             "Fonte: base do Brasil (medicina), registros de janeiro e junho até jun/2024.")
         expect(simulador.get_by_test_id("simulador-versoes")).to_contain_text("Método " + VERSAO)
         expect(simulador.get_by_test_id("simulador-versoes")).to_contain_text("último registro da base: jun/2024")
+        # O gráfico é desenhado na largura que tem na tela (revisão das capturas de 15/11/2026: no celular, o desenho era encolhido,
+        # e o texto dos eixos ficava pequeno demais). No computador, até 860 px; numa tela de celular, na largura dela, mais alto
+        # (340 em vez de 300), com o texto em 12 px de verdade e sem passar da largura da janela.
+        def medidas_do_grafico():
+            return grafico.evaluate("""e => { const svg = e.querySelector("svg"), texto = svg.querySelector("text");
+              return { largura: Number(e.dataset.largura), caixa: svg.viewBox.baseVal.width, altura: svg.viewBox.baseVal.height,
+                       naTela: svg.getBoundingClientRect().width, fonte: parseFloat(getComputedStyle(texto).fontSize) }; }""")
+        expect(grafico).not_to_have_attribute("data-largura", "760")   # a largura medida, e não a do primeiro desenho
+        no_computador = medidas_do_grafico()
+        assert 560 <= no_computador["largura"] == no_computador["caixa"] <= 860 and no_computador["altura"] == 300, no_computador
+        assert abs(no_computador["naTela"] - no_computador["caixa"]) <= 1 and no_computador["fonte"] == 12, no_computador
+        page.set_viewport_size({"width": 390, "height": 844})
+        expect(grafico).not_to_have_attribute("data-largura", str(no_computador["largura"]))
+        no_celular = medidas_do_grafico()
+        assert 280 <= no_celular["largura"] == no_celular["caixa"] <= 390 and no_celular["altura"] == 340, no_celular
+        assert abs(no_celular["naTela"] - no_celular["caixa"]) <= 1 and no_celular["fonte"] == 12, no_celular
+        grafico.scroll_into_view_if_needed()
+        caixa_do_grafico = grafico.bounding_box()
+        assert caixa_do_grafico["x"] >= 0 and caixa_do_grafico["x"] + caixa_do_grafico["width"] <= 390 + 0.5, caixa_do_grafico
+        page.screenshot(path=str(OUTPUT / "simulador-00a-simples-celular-real.png"), full_page=False)
+        page.set_viewport_size({"width": 1440, "height": 1000})
+        expect(grafico).to_have_attribute("data-largura", str(no_computador["largura"]))
         # Os dois "Entenda" abrem pelo clique, com o texto e o exemplo do motor.
         assert cenario["entenda"]["jeito"] == {
             "texto": "O cenário parte do último registro usado (jun/2024) e soma o crescimento recente do estado: +6,21% ao ano nos 3 anos "
@@ -402,10 +424,16 @@ def main():
         expect(quantidade).to_have_value("1")
         expect(em).to_have_value("2025-06")
         expect(o_que_testar).to_contain_text("É uma hipótese sua: o crescimento histórico não é aplicado a quem entra.")
+        # O nome concorda com o número digitado: "Acrescentar 1 médico", "5 médicos" (revisão das capturas de 15/11/2026).
+        frase_do_teste = simulador.get_by_test_id("simulador-frase-do-teste")
+        expect(frase_do_teste).to_contain_text("médico em")
+        expect(frase_do_teste).not_to_contain_text("médicos")
         quantidade.fill("")
+        expect(frase_do_teste).to_contain_text("médicos em")
         expect(simulador.get_by_test_id("simulador-calcular")).to_be_disabled()
         expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Informe quantos entram ou saem em cada intervenção.")
         quantidade.fill("5")
+        expect(frase_do_teste).to_contain_text("médicos em")
         em.fill("2025-01")
         expect(simulador.get_by_test_id("simulador-pendencia")).to_have_count(0)
         corpo, enviado = calcular()
@@ -492,16 +520,24 @@ def main():
 
         # 3g-2. Trocar o território tira a meta: ela era do território de antes (revisão das capturas, 14/11/2026: o Pará ficava
         # com a meta do município anterior, e o resultado dizia "nada a acrescentar"). O campo fica em branco, à espera de outra;
-        # a data do acréscimo continua, nada é pedido, e voltar ao território de antes não traz a meta de volta.
+        # a data do acréscimo continua, nada é pedido, e voltar ao território de antes não traz a meta de volta. O resultado de
+        # antes também sai da tela, porque era do outro território (revisão das capturas de 15/11/2026: ele ficava à vista, com o
+        # aviso "As escolhas mudaram depois deste cálculo").
         antes_da_troca = len(pedidos)
+        expect(resultado_simples).to_have_count(1)
         territorio.select_option("uf:" + PR)
         expect(valor_da_meta).to_have_value("")
         expect(simples).to_have_attribute("data-teste", "meta")
         expect(em).to_have_value("2025-01")
         expect(simulador.get_by_test_id("simulador-calcular")).to_be_disabled()
         expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Informe a meta: um número acima de zero.")
+        expect(simulador).to_have_attribute("data-estado", "configurando")
+        expect(resultado_simples).to_have_count(0)
+        expect(simulador.get_by_test_id("simulador-desatualizado")).to_have_count(0)
+        expect(simulador.get_by_test_id("simulador-grafico")).to_have_count(0)
         territorio.select_option(EIRUNEPE)
         expect(valor_da_meta).to_have_value("")
+        expect(resultado_simples).to_have_count(0)   # voltar ao território de antes não traz o resultado dele de volta
         page.wait_for_timeout(300)
         assert len(pedidos) == antes_da_troca, "trocar o território não pede nada ao motor"
 

@@ -21,8 +21,10 @@ import { useEsquemaDeCor } from "./useEsquemaDeCor";
 // (23/10/2026): superfície, tintas, grade e eixo vêm da paleta do esquema de cor do aparelho (paletaDoGrafico); a impressão é
 // sempre clara.
 
-/** Largura do contêiner em pixels (ignora larguras nulas de uma área oculta). */
-export function useLargura(inicial = 900): [RefObject<HTMLElement>, number] {
+/** Largura do contêiner em pixels (ignora larguras nulas de uma área oculta). Quando o elemento medido só existe em parte dos
+ * desenhos (um gráfico que dá lugar a uma frase quando não há o que desenhar), `chave` diz quando ele aparece: a medida recomeça
+ * a cada mudança dela. */
+export function useLargura(inicial = 900, chave: unknown = null): [RefObject<HTMLElement>, number] {
   const ref = useRef<HTMLElement>(null);
   const [largura, setLargura] = useState(inicial);
   useEffect(() => {
@@ -34,8 +36,17 @@ export function useLargura(inicial = 900): [RefObject<HTMLElement>, number] {
     const observador = new ResizeObserver(medir);
     observador.observe(elemento);
     return () => observador.disconnect();
-  }, []);
+  }, [chave]);
   return [ref, largura];
+}
+
+/** O tamanho de um gráfico das ferramentas desenhado na largura real da tela (medida por `useLargura`): o texto mantém o tamanho
+ * dele (12 px) em vez de encolher junto com o desenho. Numa tela estreita (menos de 560 px, o celular), o gráfico fica mais alto. */
+export function tamanhoDoGrafico(medida: number, larguraMaxima: number, altura: number, alturaNoEstreito: number): { largura: number;
+  altura: number; estreito: boolean } {
+  const largura = Math.max(280, Math.min(larguraMaxima, Math.round(medida)));
+  const estreito = largura < 560;
+  return { largura, altura: estreito ? alturaNoEstreito : altura, estreito };
 }
 
 export type FaseAnimacao = "parado" | "preparar" | "tocar";

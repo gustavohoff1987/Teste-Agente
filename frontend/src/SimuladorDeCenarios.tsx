@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type RefObject } from "react";
 import { ChevronRight, Download, LoaderCircle, Plus, Trash2, Upload, X } from "lucide-react";
 import Entenda from "./Entenda";
+import { tamanhoDoGrafico, useLargura } from "./PainelChart";
 import { ErroDoMotor, pedirAoMotor, type FonteDoMotor } from "./painelApi";
 import type { GrupoInfo, UnidadeDoCatalogo } from "./painelModel";
 import { comNomesAnteriores } from "./painelModel";
@@ -9,7 +10,7 @@ import {
   anosDepois, cenariosEmUso, comOBrasil, comOPlanoComoIntervencao, competenciaCurta, configInicial, contasDoFinal, hipotesePertinente, metodoNaTabela, tempoDesde,
   copiarSelecao, csvDasComparacoes, csvDoSimulador, doCampoDeMes, exportarCenario, formatarMedicos, formatarPercentualInteiro, formatarTaxa, importarCenario, janelaPadrao,
   comoConjunto, mesDe, normalizarSimulador, novaIntervencao, novaReferencia, novoCenario, novoPlano, paraCampoDeMes, pedidoDoSimulador, pendenciaDoPedido, referenciasValidas,
-  textoDaFaixa, textoDaHipotese, textoDoFinal, tirarTerritorio, totalDaSelecaoLocal, aoTrocarDeTerritorio, metaNoCampo, textoDaMetaDoPatamar,
+  textoDaFaixa, textoDaHipotese, textoDoFinal, tirarTerritorio, totalDaSelecaoLocal, aoTrocarDeTerritorio, metaNoCampo, textoDaMetaDoPatamar, nomeNoNumero,
   NOMES_DO_BRASIL, TESTES, comOTeste, nomeCurtoDoMetodo, nomesDaPlanilha, primeiroDaSelecao, territoriosDaSelecaoLocal, testeDoCenario, tresNumeros,
   FORMAS_DO_BRASIL, comMaiuscula, ehAnual, formasDaPlanilha, janelaDeAnos, type FormasDaBase,
   type CenarioCalculado, type CenarioDaTela, type ConfigDoSimulador, type IntervencaoDaTela, type MetodoDoCenario, type NomesDaBase, type PlanejamentoDoCenario, type PlanoDaTela,
@@ -93,8 +94,13 @@ function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica, r, fonte
   r: NomesDaBase; fonte: RespostaDoSimulador["fonte"]; em10: number }) {
   const calculados = territorio.cenarios.filter(cenario => cenario.estado === "calculado" && cenario.trajetoria.length);
   const observados = territorio.observado.filter(ponto => ponto.valor !== null);
-  if (!observados.length || !calculados.length) return <p className="ferramenta-apoio">Sem cenário calculado para desenhar.</p>;
-  const largura = 760, altura = 300, esquerda = 52, direita = 16, topo = 14, base = 40;
+  const semDesenho = !observados.length || !calculados.length;
+  // O desenho é feito na largura que o gráfico tem na tela (e não encolhido de 760 px): o texto dos eixos mantém 12 px também no
+  // celular, onde o gráfico fica mais alto e mostra menos anos no eixo (revisão das capturas de 15/11/2026).
+  const [refDoGrafico, medida] = useLargura(760, semDesenho);
+  if (semDesenho) return <p className="ferramenta-apoio">Sem cenário calculado para desenhar.</p>;
+  const { largura, altura, estreito } = tamanhoDoGrafico(medida, 860, 300, 340);
+  const esquerda = 52, direita = 16, topo = 14, base = 40;
   const inicio = mesDe(observados[0].competencia);
   const fim = Math.max(mesDe(ultimoRegistro), ...calculados.map(cenario => mesDe(cenario.trajetoria[cenario.trajetoria.length - 1].data)));
   // "Chegar a uma meta": a meta de cada cenário (uma linha na altura dela) e, com o acréscimo calculado, o caminho com ele.
@@ -124,10 +130,15 @@ function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica, r, fonte
   // Numa base com um registro por ano, o registro do ano fica um mês antes da virada (a data "AAAA00"): a marca do ano vai nele.
   const doAno = ehAnual(ultimoRegistro) ? -1 : 0;
   for (let ano = Math.ceil((inicio - doAno) / 12); ano * 12 + doAno <= fim; ano++) anos.push(ano);
-  const passoDosAnos = Math.max(1, Math.ceil(anos.length / 10));
+  const passoDosAnos = Math.max(1, Math.ceil(anos.length / (estreito ? 5 : 10)));
   const xDoUltimo = x(mesDe(ultimoRegistro));
+  // O nome do trecho simulado, no alto, só com o que cabe até a borda do desenho (numa tela estreita, o trecho é curto; a legenda
+  // diz o resto).
+  const espacoDoSimulado = largura - xDoUltimo - 4;
+  const nomeDoSimulado = espacoDoSimulado >= 118 ? "simulado (hipótese)" : espacoDoSimulado >= 52 ? "simulado" : "";
   const marcas: { x: number; y: number }[] = [];
-  return <figure data-testid="simulador-grafico" className="ferramenta-serie ferramenta-serie-larga">
+  return <figure ref={refDoGrafico as RefObject<HTMLElement>} data-testid="simulador-grafico" data-largura={largura}
+    className="ferramenta-serie ferramenta-serie-larga">
     <svg viewBox={"0 0 " + largura + " " + altura} width="100%" role="img" aria-label={"Cenários de " + territorio.rotulo +
       ": observado até " + competenciaCurta(ultimoRegistro) + "; depois, cenários hipotéticos. " + calculados.map(cenario => cenario.nome + ": " +
         formatarMedicos(cenario.final!.total) + " " + r.profissionais + " em " + competenciaCurta(cenario.final!.data)).join("; ") +
@@ -136,7 +147,7 @@ function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica, r, fonte
       <rect x={xDoUltimo} y={topo} width={Math.max(0, largura - direita - xDoUltimo)} height={altura - topo - base} className="ferramenta-serie-fora"/>
       <line x1={esquerda} x2={largura - direita} y1={altura - base} y2={altura - base} className="ferramenta-serie-eixo"/>
       <line x1={xDoUltimo} x2={xDoUltimo} y1={topo} y2={altura - base} className="ferramenta-serie-eixo" strokeDasharray="2 3"/>
-      <text x={xDoUltimo + 4} y={topo + 11} className="ferramenta-serie-texto">simulado (hipótese)</text>
+      {nomeDoSimulado && <text x={xDoUltimo + 4} y={topo + 11} className="ferramenta-serie-texto">{nomeDoSimulado}</text>}
       <text x={xDoUltimo - 4} y={topo + 11} textAnchor="end" className="ferramenta-serie-texto">observado</text>
       {[0, 0.5, 1].map(parte => <text key={parte} x={esquerda - 6} y={y(maximo / 1.06 * parte) + 4} textAnchor="end" className="ferramenta-serie-texto">
         {formatarMedicos(Math.round(maximo / 1.06 * parte))}</text>)}
@@ -331,6 +342,14 @@ export default function SimuladorDeCenarios(props: Props) {
   const mudarCenario = (indice: number, parte: Partial<CenarioDaTela>) => mudar({ cenarios: config.cenarios.map((cenario, k) => k === indice ? { ...cenario, ...parte } : cenario) });
   /** Põe outro cenário no lugar (sem juntar com o de antes): trocar o que testar tira a meta ou a intervenção que havia. */
   const trocarCenario = (indice: number, novo: CenarioDaTela) => mudar({ cenarios: config.cenarios.map((cenario, k) => k === indice ? novo : cenario) });
+  /** Trocar o território do modo simples: a meta de antes sai (era do outro território) e o resultado anterior também — ele era do
+   * território de antes, e o aviso "As escolhas mudaram depois deste cálculo" fica só para mudanças no mesmo território. */
+  function trocarDeTerritorio(id: string) {
+    if (id === territorioDoSimples) return;
+    controle.current?.abort();
+    mudar(aoTrocarDeTerritorio(config!, id));
+    setResposta(null); setCalculado(""); setErro(null); setCarregando(false); setFoco(null);
+  }
   const mudarIntervencao = (indice: number, k: number, parte: Partial<IntervencaoDaTela>) => mudarCenario(indice, {
     intervencoes: config.cenarios[indice].intervencoes.map((item, n) => n === k ? { ...item, ...parte } : item) });
   const total = totalDaSelecaoLocal(config.local);
@@ -556,7 +575,7 @@ export default function SimuladorDeCenarios(props: Props) {
       <div className="ferramenta-controles analise-nao-imprimir">
         <label className="analise-rotulo-campo">Território
           <select data-testid="simulador-territorio" className="analise-campo" value={territorioDoSimples} disabled={!doSimples.length}
-            onChange={event => mudar(aoTrocarDeTerritorio(config, event.target.value))}>
+            onChange={event => trocarDeTerritorio(event.target.value)}>
             {doSimples.map(item => <option key={item.id} value={item.id}>{item.rotulo}</option>)}
           </select></label>
         <label className="analise-rotulo-campo">Até quando
@@ -581,21 +600,22 @@ export default function SimuladorDeCenarios(props: Props) {
             data-testid={"simulador-teste-" + item.chave} checked={teste === item.chave}
             onChange={() => trocarCenario(0, comOTeste(cenarioDoSimples, item.chave, anosDepois(ultimoRegistro, 1)))}/>{item.rotulo}</label>)}
         </div>
-        {(teste === "acrescentar" || teste === "retirar") && cenarioDoSimples.intervencoes[0] && <p className="ferramenta-frase">
+        {(teste === "acrescentar" || teste === "retirar") && cenarioDoSimples.intervencoes[0] && <p data-testid="simulador-frase-do-teste" className="ferramenta-frase">
           {teste === "acrescentar" ? "Acrescentar " : "Retirar "}
           <input data-testid="simulador-teste-quantidade" inputMode="decimal" className="ferramenta-campo-da-frase" size={4}
             aria-label={(teste === "acrescentar" ? "Quantos acrescentar" : "Quantos retirar")} value={cenarioDoSimples.intervencoes[0].quantidade}
-            onChange={event => mudarIntervencao(0, 0, { quantidade: event.target.value })}/> {r.profissionais} em{" "}
+            onChange={event => mudarIntervencao(0, 0, { quantidade: event.target.value })}/>{" "}
+          {nomeNoNumero(cenarioDoSimples.intervencoes[0].quantidade, r)} em{" "}
           <CampoDeData testid="simulador-teste-em" className="ferramenta-campo-da-frase" rotulo="Data da mudança" valor={cenarioDoSimples.intervencoes[0].em}
             ultimo={ultimoRegistro} comMinimo onMudar={data => mudarIntervencao(0, 0, { em: data, ate: data })}/>. É uma hipótese sua: o
           crescimento histórico não é aplicado a quem entra.</p>}
-        {teste === "meta" && cenarioDoSimples.planejamento && <p className="ferramenta-frase">
+        {teste === "meta" && cenarioDoSimples.planejamento && <p data-testid="simulador-frase-do-teste" className="ferramenta-frase">
           Chegar a{" "}
           <input data-testid="simulador-teste-meta-valor" inputMode="decimal" className="ferramenta-campo-da-frase" size={6} aria-label="Meta hipotética"
             value={metaNoCampo(cenarioDoSimples.planejamento)}
             // A meta digitada é um número da pessoa: deixa de ser o patamar trazido pelo Detector (ou a referência do modo avançado).
             onChange={event => mudarPlano(0, { valor: event.target.value, meta: "valor" })}/>{" "}
-          {r.profissionais} na data final, com um acréscimo em{" "}
+          {nomeNoNumero(metaNoCampo(cenarioDoSimples.planejamento), r)} na data final, com um acréscimo em{" "}
           <CampoDeData testid="simulador-teste-em" className="ferramenta-campo-da-frase" rotulo="Data do acréscimo" valor={cenarioDoSimples.planejamento.em}
             ultimo={ultimoRegistro} comMinimo onMudar={data => mudarPlano(0, { em: data, ate: data })}/>.{" "}
           <span data-testid="simulador-teste-meta-origem">{cenarioDoSimples.planejamento.meta === "patamar" ? textoDaMetaDoPatamar(cenarioDoSimples.planejamento, r)
@@ -675,13 +695,18 @@ export default function SimuladorDeCenarios(props: Props) {
     </ol>}
 
     {etapaVisivel === 1 && <div data-testid="simulador-territorios" className="ferramenta-etapa-corpo">
-      <p data-testid="simulador-origem-da-selecao" data-acompanha={config.acompanha ? "true" : "false"} className="ferramenta-apoio">{config.acompanha
+      {/* De onde vem a seleção do Simulador, numa mensagem só (revisão das capturas de 15/11/2026: o aviso amarelo repetia a frase de
+          cima). Quando ela não acompanha a seleção principal, a própria frase vira o aviso. */}
+      <p data-testid="simulador-origem-da-selecao" data-acompanha={config.acompanha ? "true" : "false"} role={config.acompanha ? undefined : "status"}
+        className={config.acompanha ? "ferramenta-apoio" : "ferramenta-exploratorio"}>{config.acompanha
         ? <>Esta é uma <strong>cópia</strong> da seleção principal ({p.resumoDaPrincipal}). O que você acrescentar ou tirar aqui vale só no Simulador;
           a seleção principal só muda com “Aplicar à seleção principal”.</>
-        : config.doDetector ? <>Esta seleção veio do <strong>Detector de Sinais</strong> e vale só no Simulador: não acompanha a seleção principal
-          ({p.resumoDaPrincipal}), que só muda com “Aplicar à seleção principal”.</>
-        : <>Esta seleção é <strong>só do Simulador</strong>: foi alterada aqui e não acompanha mais a seleção principal ({p.resumoDaPrincipal}), que só
-          muda com “Aplicar à seleção principal”.</>}</p>
+        : <>{config.doDetector ? <>Esta seleção veio do <strong>Detector de Sinais</strong> e vale só no Simulador:{" "}</>
+          : <>Esta seleção é <strong>só do Simulador</strong>:{" "}</>}
+          <span data-testid="simulador-nao-acompanha">{config.doDetector ? <><strong>não acompanha</strong> a seleção principal ({p.resumoDaPrincipal}).</>
+            : <>a cópia <strong>deixou de acompanhar</strong> a seleção principal ({p.resumoDaPrincipal}) depois da alteração feita aqui.</>}{" "}
+            O que mudar na Seleção de Territórios não chega {config.doDetector ? "" : "mais "}ao Simulador, e a seleção principal só muda com “Aplicar à
+            seleção principal”. “Copiar de novo a seleção principal” traz a seleção principal de volta, e a cópia volta a acompanhá-la.</span></>}</p>
       {total > MAX_TERRITORIOS && <p data-testid="simulador-muitos" role="status" className="analise-motivo">A seleção local tem {total.toLocaleString("pt-BR")} territórios, e o
         Simulador compara até {MAX_TERRITORIOS} de cada vez: tire territórios daqui (a seleção principal não muda).{" "}
         <button type="button" data-testid="simulador-esvaziar" className="analise-link" onClick={() => mudarLocal({ municipios: [], estados: [], conjuntos: [] })}>
@@ -730,11 +755,6 @@ export default function SimuladorDeCenarios(props: Props) {
         {!achados.brasil && !achados.estados.length && !achados.municipios.length && <li className="ferramenta-apoio">Nada encontrado com “{busca.trim()}”.</li>}
       </ul>}
       {avisoLocal && <p data-testid="simulador-aviso-local" role="status" className="ferramenta-apoio">{avisoLocal}</p>}
-      {!config.acompanha && <p data-testid="simulador-nao-acompanha" role="status" className="ferramenta-exploratorio">{config.doDetector
-        ? <>A seleção aberta pelo Detector de Sinais <strong>não acompanha</strong> a seleção principal: o que mudar na Seleção de Territórios não chega ao
-          Simulador. “Copiar de novo a seleção principal” traz a seleção principal de volta, e a cópia volta a acompanhá-la.</>
-        : <>A cópia <strong>deixou de acompanhar</strong> a seleção principal depois da alteração feita aqui: o que mudar na Seleção de Territórios não chega
-          mais ao Simulador. “Copiar de novo a seleção principal” traz a seleção principal de volta, e a cópia volta a acompanhá-la.</>}</p>}
       <div data-testid="simulador-referencias" data-total={referencias.length} data-metrica={config.metrica ?? "quantidade"} className="ferramenta-cartao">
         <p className="ferramenta-cartao-titulo">Referências de comparação (opcional)</p>
         <p className="ferramenta-apoio">Uma referência é um território, ou um valor seu, com que cada cenário é comparado. Ela pode ficar fora da seleção do

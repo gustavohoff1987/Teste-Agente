@@ -35,6 +35,113 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-15 · Etapa 7 do comando V23, rodada 1: os motivos dos sinais não avaliados e indisponíveis, o nome dos trabalhadores da planilha, os gráficos no celular e o resultado que sai ao trocar de território (decisões da Pausa 2 e revisão das capturas 17 a 25)
+- **Classificação (regra 1):** itens 9 a 15 do comando do responsável de 15/11/2026 (decisões da Pausa 2 e revisão das capturas
+  17 a 25), mais a parte do item 7 que é só texto (sem população, a comparação por taxa no "não dá para") e o registro das
+  decisões 1 a 3. Decorrem do pedido (escopo) e não contrariam a SPEC nem uma divergência aprovada (compatibilidade): o nível do
+  alerta continua sendo a divergência aprovada D-A, e o Simulador, a exceção aprovada à exclusão de projeção (AT-04), só nesta
+  ferramenta. Nenhuma regra, padrão ou dado mudou: os números do estudo de calibração, refeito, são os mesmos de 14/11/2026. Os
+  endereços das rotas e os campos que as respostas já traziam não mudaram (há campos novos). Nada vai ao provedor de IA. A SPEC
+  e a base não foram editadas. Ficam para as rodadas seguintes da etapa 7: as premissas em frases, o "(Entenda)" geral e o
+  "Voltar ao padrão" único do Simulador, o grupo de cima como unidade nas planilhas, a recusa de projeção na conversa, o mapa
+  com divisas (e o mapa do Detector no celular) e as coordenadas dos 6 municípios (item 4, em consulta ao responsável).
+- **Antes:**
+  - **(10) sinal 7 não avaliado:** a frase não dizia por quê ("No patamar ou acima dele (patamar de 7,25)", com "Não avaliado"
+    ao lado);
+  - **(11) sinal 11:** "A 3,2 km de MARATA (RS), em linha reta" não dizia o que era esse município;
+  - **(12) perfil, sem grupo de cima:** "o Simulador usa o crescimento da base toda", e o cenário da mesma planilha mantinha o
+    último valor (o que a retroprojeção escolheu);
+  - **(13) motivos de "Indisponível nesta base":** cada sinal dizia só o primeiro motivo. No perfil, o sinal 10 faltava por não
+    haver grupo de cima e o 11, por não haver coordenadas; no detalhe, os dois apareciam só como falta de população;
+  - **(14) celular:** a série do território (Detector) e o gráfico do cenário (Simulador) eram desenhados com 640 e 760 px de
+    largura e encolhidos para caber: no celular, os números dos eixos ficavam com cerca de 5 px;
+  - **(15) textos:** "Acrescentar 1 profissionais"; no modo avançado do Simulador, um aviso amarelo repetia a frase do alto da etapa
+    1; o gráfico da taxa (Detector) escrevia "01/2014"; a faixa indisponível dizia "esta base tem 88 em 1 ano", e o perfil da
+    mesma base, 120; e, numa planilha de enfermeiros, os textos diziam "profissionais" ("19 profissionais", "Poucos
+    profissionais");
+  - **(9) observações menores:** ao trocar o território no modo simples, o resultado do território anterior ficava na tela, com
+    "As escolhas mudaram depois deste cálculo"; o aviso de horizonte de um cenário que mantém o último valor dizia "com 3 anos de
+    história usados no cálculo"; uma janela com um registro só aparecia como "janela de jun/2024 a jun/2024"; uma faixa inteira
+    acima ou abaixo da linha do cenário não tinha explicação; `reguas.porte_de` deixava sem porte um valor com casas entre duas
+    faixas (3,5 ou 9,5); o sinal 3 trazia a quantidade de registros anuais só em `junhos`; e a raiz do repositório tinha um
+    arquivo solto (`pyflakes-4.0.3-py2.py3-none-any.whl`), fora do produto;
+  - **(7, em parte) perfil, sem população:** uma linha só, "Sinais por habitante (8 a 11) e comparações por habitante no
+    Simulador".
+- **Agora:**
+  - **(10)** a frase do sinal 7 não avaliado **diz o motivo**, como nos sinais 5 e 8 a 10: "No patamar ou acima dele (patamar
+    de 7,25, abaixo do mínimo de 20)", "43% abaixo do que já teve (patamar de 1,75, abaixo do mínimo de 20)" ou "… (patamar de
+    40) · descontinuidade de registro";
+  - **(11)** a frase do sinal 11 **diz o que é o território de referência e a posição da distância**: "A 21,3 km, em linha reta,
+    de BOCAINA DO SUL (SC): o município mais próximo com pelo menos 100% da taxa do Brasil (2,36 médicos por 1.000 habitantes).
+    Mais longe que 40% dos municípios abaixo desse critério" (Rio Rufino/SC, jun/2024). O X é o que estiver em uso em "Ajustar
+    critérios"; num conjunto, a frase não traz a posição;
+  - **(12)** o perfil diz que, sem grupo de cima, o Simulador **testa** o crescimento da base toda no lugar do crescimento do
+    grupo, e que o jeito de projetar sai da retroprojeção ("O sinal 10 fica indisponível. No Simulador, o crescimento da base
+    toda é testado no lugar do crescimento do grupo; o jeito de projetar sai da retroprojeção.");
+  - **(13)** cada sinal indisponível diz **todos os motivos**, e o perfil e o detalhe dizem o mesmo
+    (`detector.motivos_da_falta`): o sinal 10 sem população e sem grupo de cima — "A base não tem população: sem ela, não há
+    taxa por habitante. A base não tem grupo de cima: não há referência para comparar."; no perfil, "“Mais longe da referência”
+    (sinal 10): a base não tem população nem grupo de cima." e "“Distância” (sinal 11): a base não tem população nem
+    coordenadas com o referencial informado." Na resposta, `indisponiveis` traz todos os motivos de cada sinal, e as linhas de
+    `perfil.nao_da_para` dos sinais ganharam o campo `sinais`;
+  - **(14)** a série do território e o gráfico do cenário são **desenhados na largura que têm na tela** (`data-largura`): o
+    texto dos eixos mantém 12 px também no celular, onde os gráficos ficam mais altos (220 px em vez de 170; 340 em vez de 300)
+    e mostram menos datas no eixo; no gráfico do cenário, o nome do trecho simulado só aparece com o que cabe ("simulado
+    (hipótese)", "simulado" ou nada). No computador, os desenhos passam a usar a largura inteira que já ocupavam (até 720 e 860
+    px), com o texto em 12 px. O gráfico de bolhas e a série da taxa já eram desenhados assim; o mapa do Detector fica para a
+    rodada do mapa com divisas;
+  - **(15)** o nome concorda com o número ("Acrescentar 1 médico", "5 médicos"; `simulador-frase-do-teste`); no modo avançado,
+    de onde vem a seleção é dito **numa mensagem só** (`simulador-origem-da-selecao`; quando a cópia deixa de acompanhar a
+    seleção principal, a própria frase vira o aviso, e `simulador-nao-acompanha` passa a ser um trecho dela); o gráfico da taxa
+    escreve "jan/2014"; a faixa indisponível diz **de quem são os casos** ("esta base tem 88 em 1 ano para o porte deste
+    território, mesmo juntando os portes vizinhos e os menores"); e a contagem de uma planilha leva **o nome dos trabalhadores
+    informado no envio** ("Quem são os trabalhadores contados?": "Enfermeiros" → "19 enfermeiros", "Poucos enfermeiros ou nenhum
+    enfermeiro registrado", "Acrescentar 1 enfermeiro"), quando ele é um plural que os textos podem usar — só as palavras antes
+    da primeira preposição vão para o singular ("Técnicos de enfermagem" → "técnico de enfermagem"). Um nome feminino (os textos
+    concordam no masculino), dois nomes, uma sigla ou uma palavra que não está no plural ficam com "profissionais"; "vínculos" e
+    "postos" continuam valendo pela unidade de contagem. A regra é a mesma no motor
+    (`series_da_planilha.nome_dos_trabalhadores`) e na tela, antes da primeira resposta (`simuladorModel.nomeDosTrabalhadores`);
+  - **(9)** trocar o território no modo simples **tira também o resultado anterior** (o aviso "As escolhas mudaram depois deste
+    cálculo" fica para as mudanças no mesmo território); o aviso de horizonte de quem mantém o último valor diz "… do tempo de
+    referência (2 anos à frente; a referência são 3 anos, porque manter o último valor não usa a história)"; a premissa diz
+    "janela com um registro só (jun/2024)"; a frase da faixa diz quando ela fica inteira de um lado da linha ("A faixa fica
+    inteira acima da linha do cenário: no passado da base, neste porte e neste prazo, o número observado ficou, na maior parte
+    dos casos, acima do que este jeito de projetar dava."); `reguas.porte_de` e `reguas.portes` põem um valor com casas na faixa
+    da parte inteira (3,5 → de 1 a 3), como o Detector já fazia com o patamar; o sinal 3 traz `registros_anuais` ao lado de
+    `junhos` (o mesmo número, com um nome que vale para qualquer base); e o arquivo solto saiu da raiz;
+  - **(7, em parte)** sem população, **a comparação por taxa (por 1.000 habitantes) do Simulador** tem linha própria no "não dá
+    para", com o motivo, ao lado das linhas dos sinais 8 a 11;
+  - **decisões da Pausa 2 (registro):** a Parte F de `Docs/DETECTOR_E_SIMULADOR_V3.md` e a seção "Calibração" de
+    `Docs/DETECTOR_DE_SINAIS.md` registram que o limite de cerca de 20% vale para os alertas comparados com a base (9,9% em
+    jun/2024; 26,1% no total) e o padrão continua 1 em 20; que o crítico do sinal 7 continua (0,04%: 11 alertas em 27.570
+    avaliações em que o crítico podia sair, com 999 comparações ou mais — a tabela anterior dividia por todas as 30.358
+    avaliações do sinal, e o resultado arredondado é o mesmo); e que o moderado dos estados continua em 1 em 20 (7,2% em 513
+    avaliações).
+- **Permanece:** os níveis, a régua e os critérios padrão do Detector (o estudo de calibração refeito dá os mesmos números, mais a
+  tabela nova do sinal 7); o perfil da base do Brasil (as mesmas linhas); o jeito de projetar, as faixas e os valores do
+  Simulador; `declinio.junhos`; os textos da base do Brasil fora das frases acima; as planilhas que não informam o nome dos
+  trabalhadores, que continuam com "profissionais"; o gráfico de bolhas, a série da taxa (só o formato das datas mudou) e a
+  Série temporal das análises (que continua com "01/2014"); trocar o território continua tirando a meta e não pede nada ao
+  motor. Com contagens inteiras, o porte de um território não muda.
+- **Motivo:** decisões do responsável na Pausa 2 do comando V23 e revisão das capturas 17 a 25 (15/11/2026): frases que diziam
+  "não avaliado" ou "indisponível" sem o motivo inteiro, um perfil que contradizia o cenário, gráficos ilegíveis no celular e
+  textos com concordância ou nomes errados.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md` (as notas dos sinais 7 e 11, o detalhe e os gráficos, "Qualquer base",
+  a rota, a calibração com a tabela do sinal 7 e as decisões, e os testes), `Docs/SIMULADOR_DE_CENARIOS.md` (o modo simples, a
+  etapa 1 do avançado, os textos, a faixa, os avisos de horizonte, "Qualquer base" e os testes),
+  `Docs/PERFIL_DA_BASE_DETECTOR_SIMULADOR.md` (seção 9: a tabela, o "não dá para" e a planilha de teste),
+  `Docs/DETECTOR_E_SIMULADOR_V3.md` (nota na Parte F, por pedido do responsável) e `README.md`; `scripts/calibrar_detector.py` (a
+  tabela do sinal 7 só entre as avaliações em que o elevado e o crítico podiam sair); pytest `backend/tests/test_detector.py`
+  (as frases dos sinais 7 e 11, `registros_anuais` e, no job `dados-reais`, Rio Rufino e Manaus), `test_reguas.py` (o porte de um
+  valor com casas), `test_simulador.py` (o aviso de horizonte, a janela com um registro só e o motivo da faixa) e
+  `test_ferramentas_qualquer_base.py` (os motivos de cada sinal, o perfil, o nome dos trabalhadores e os textos da planilha de
+  teste com "enfermeiros"); Node `frontend/tests/simulador.test.mjs` e `frontend/tests/detector.test.mjs`; navegador
+  `backend/tests/ui_simulador.py` (o resultado que sai ao trocar de território, "Acrescentar 1 médico", o gráfico na largura da
+  tela no computador e numa tela de celular, e o motivo da faixa) e `backend/tests/ui_detector.py` (as datas da série da taxa e a
+  série do território no celular). Valores que mudaram de propósito nos testes: os textos acima (a frase do sinal 11, o sinal 7
+  não avaliado, os motivos dos sinais indisponíveis, as linhas "não dá para" da planilha de teste, "enfermeiros" no lugar de
+  "profissionais" na planilha de teste, o aviso de horizonte de quem mantém o último valor e o motivo da faixa indisponível).
+
 ### 2026-11-14 · Revisão das capturas do Detector e do Simulador: sinais 8 a 10 sem registro marcado nas pontas da janela, a régua usada de fato, quem fica fora do mapa, a meta inteira e o gráfico da meta (comando V23, antes da Pausa 2)
 - **Classificação (regra 1):** oito correções pedidas pelo responsável em 14/11/2026, na revisão das capturas da etapa 6 do
   comando V23 (itens 1 a 3 e 5 do Detector; 6 a 8 do Simulador; o item 4 é só do relatório da Pausa 2). Decorrem do pedido

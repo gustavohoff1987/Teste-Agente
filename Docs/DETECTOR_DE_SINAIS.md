@@ -99,8 +99,10 @@ Notas:
   porte.
 - **Sinal 7:** o moderado é por convenção; o elevado e o crítico pedem também a raridade do afastamento entre territórios com
   patamar do mesmo porte. Com patamar abaixo de 20, é só descritivo. O patamar é uma média e pode ter decimal: abaixo de 100, a
-  frase o mostra com as casas ("43% abaixo do que já teve (patamar de 1,75)", e não "patamar de 2"); de 100 para cima, o inteiro
-  mais próximo.
+  frase o mostra com as casas ("patamar de 1,75", e não "patamar de 2"); de 100 para cima, o inteiro mais próximo. **Quando o
+  sinal não é avaliado, a frase diz o motivo**, como nos sinais 5 e 8 a 10 (desde 15/11/2026): "43% abaixo do que já teve (patamar
+  de 1,75, abaixo do mínimo de 20)", "No patamar ou acima dele (patamar de 3,25, abaixo do mínimo de 20)" ou, com uma
+  descontinuidade nos últimos registros, "… (patamar de 40) · descontinuidade de registro".
 - **Sinais 8 a 10:** as definições são as da V2.2 (a taxa = profissionais ÷ população × 1.000; o percentil pelo posto médio, no
   universo fixo da janela; o índice = 100 × taxa do território ÷ taxa da referência, com a referência na mesma unidade e sem o
   território). O que muda é o nível: a variação em 2 anos é comparada com as variações anteriores de territórios do mesmo porte.
@@ -112,7 +114,11 @@ Notas:
   1,27 para 0,72 vezes a dos demais municípios de São Paulo em 2 anos"); o índice e os pontos ("índice de 126,8 para 72,1: −54,7
   pontos") ficam na explicação completa.
 - **Sinal 11:** nunca vira alerta e nunca usa as palavras "isolamento" ou "desassistência". O estado como unidade não tem um
-  ponto único; num conjunto, vale o componente mais próximo.
+  ponto único; num conjunto, vale o componente mais próximo. **A frase diz o que é o território de referência** — o mais próximo
+  com taxa de pelo menos X% da taxa da base toda, com o X em uso e o valor do critério — **e em que posição a distância fica**
+  entre os territórios abaixo do critério (desde 15/11/2026). Rio Rufino (SC), em jun/2024: "A 21,3 km, em linha reta, de BOCAINA
+  DO SUL (SC): o município mais próximo com pelo menos 100% da taxa do Brasil (2,36 médicos por 1.000 habitantes). Mais longe que
+  40% dos municípios abaixo desse critério". Num conjunto, a frase não traz a posição.
 - **Sinal 12:** lista os sinais com nível e diz quantos vêm da mesma queda. Sem soma de pontos e sem índice geral.
 
 **População comparável (sinais 8, 9 e 10).** A variação em 2 anos só é calculada quando a janela de comparação (na série anual)
@@ -180,8 +186,9 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
   os conjuntos e os sem alerta) ou pelo número do último registro. A ordem não é um índice. Os cabeçalhos "Alerta" e "Por quê"
   têm "Entenda" (os níveis e os termos: porte, patamar, percentil e "1 em cada N"). No celular, a lista vira cartões.
 - **Detalhe** (a seta de cada linha, `detector-detalhe`): o alerta do território, com o porquê e, quando há, "vêm da mesma
-  queda: contam como um evento" (`detector-mesma-queda`); a série observada, só com os registros reais e as marcas de registro; a
-  **série da taxa** (`detector-serie-da-taxa`), com a da referência tracejada; e os 12 sinais em quatro grupos
+  queda: contam como um evento" (`detector-mesma-queda`); a série observada (`detector-serie`), só com os registros reais e as
+  marcas de registro; a **série da taxa** (`detector-serie-da-taxa`), com a da referência tracejada e as datas escritas como nos
+  outros gráficos do Detector ("jun/2021"); e os 12 sinais em quatro grupos
   (`detector-grupo`) — **Quantos há** (1–2), **Como mudou** (3 a 7), **Comparado com outros** (8 a 10) e **Onde fica** (11) —,
   mais **Juntos** (12). Em cada sinal (`detector-fenomeno`): o nível com o tipo de critério (ou "Sem alerta", "Sem comparações
   suficientes", "Sem nível (conjunto)", "Sem dado para avaliar", "Não avaliado" ou "Só contexto"), **uma frase**, o que a base
@@ -189,6 +196,9 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
   completa** (`detector-fenomeno-explicacao`) traz os sete campos: o que foi observado, qual critério, comparado com o comum, o
   que significa, o que não significa, limitações do dado e qualidade do registro. Há também o **histórico de sinais**
   (`detector-historico`, sinais 1 a 7), em que cada data é avaliada só com o que era conhecido nela.
+- **Gráficos na largura da tela** (desde 15/11/2026): a série observada é desenhada na largura que tem na tela (`data-largura`),
+  em vez de ser encolhida: o texto dos eixos mantém 12 px também no celular, onde o gráfico fica mais alto (220 px, em vez de
+  170) e mostra menos datas no eixo (um ano a cada quatro).
 - **"Entenda"** (`frontend/src/Entenda.tsx`, igual no Detector e no Simulador): fica escondido e abre com o mouse (ao passar por
   cima), com um toque ou pelo teclado (ao receber o foco; Enter ou Espaço fixam); fecha ao sair (o mouse deixa o botão e a
   caixa, o foco sai deles, Esc ou um toque fora). Traz duas ou três frases simples e um exemplo com números; a explicação
@@ -245,13 +255,21 @@ Com uma **planilha enviada**:
 - **Territórios.** As unidades da planilha (pelo código, quando há a coluna; senão, pelo nome) e os conjuntos delas. O **grupo de
   cima não entra como unidade**: a planilha não tem uma contagem própria do grupo. A tela avisa e avalia as unidades e os conjuntos.
 - **O que a base não tem.** Sem população, os sinais 8 a 11 ficam **"Indisponível nesta base"**, com o motivo, em vez de "não
-  calculável"; sem grupo de cima, o sinal 10; sem coordenadas com o referencial informado, o sinal 11. Na lista, o filtro
+  calculável"; sem grupo de cima, o sinal 10; sem coordenadas com o referencial informado, o sinal 11. **Cada sinal diz tudo o
+  que falta para ele** (`detector.motivos_da_falta`), e o detalhe do território e o perfil da base dizem o mesmo: sem população e
+  sem grupo de cima, o sinal 10 diz as duas coisas ("A base não tem população: sem ela, não há taxa por habitante. A base não tem
+  grupo de cima: não há referência para comparar."); sem população e sem coordenadas, o sinal 11 também. Na lista, o filtro
   "Sinal" e "Ajustar critérios" ficam só com os sinais que existem na base. O Mapa fica desligado sem coordenadas, e o
   Gráfico, sem a distância, cada um com o motivo.
 - **O que a base não sustenta.** Os níveis continuam pedindo 19, 99 e 999 comparações: numa base curta, o elevado e o crítico
   aparecem como "sem comparações suficientes", com os números ("há 360, e ele pede 999").
 - **Nomes.** Os do painel "Colunas" (a unidade, o grupo e o todo), com a concordância ("a comuna mais próxima", "das demais
-  comunas"). A contagem é de "profissionais", "vínculos" ou "postos", pela unidade de contagem informada.
+  comunas"). A contagem é de "vínculos" ou "postos", quando a unidade de contagem informada diz isso. Senão, leva **o nome dos
+  trabalhadores informado no envio** ("Quem são os trabalhadores contados?"), quando ele é um plural que os textos podem usar:
+  "Enfermeiros" vira "enfermeiro" e "enfermeiros" ("Poucos enfermeiros ou nenhum enfermeiro registrado"); "Técnicos de
+  enfermagem", "técnico de enfermagem" (só as palavras antes da primeira preposição vão para o singular). Um nome feminino (os
+  textos concordam no masculino), dois nomes ("médicos e enfermeiros"), uma sigla ou uma palavra que não está no plural
+  ("Enfermagem") ficam com "profissional" e "profissionais" (`series_da_planilha.nome_dos_trabalhadores`).
 
 O **Simulador de Cenários** também abre com uma planilha (comando V23, Parte C), nos dois modos e também quando ela só traz o
 ano: o detalhe do Detector oferece "Abrir no Simulador" e, quando o território tem patamar, "Simular recuperação". Só sem datas
@@ -288,8 +306,9 @@ porte, as `comparacoes` do próprio porte e, em cada nível, a régua usada de f
 o estado dela, os trechos de população comparável e o critério da distância), `coordenadas`, `sem_coordenada` (as unidades da
 seleção que ficam fora do mapa: `id` e `motivo`, `ausente` ou `fora_do_intervalo`), `notas` e `limitacoes`. Desde o comando V23, `fonte` traz também `origem` (`brasil` ou `planilha`), `ancora` (o mês da série anual; `00` com
 um registro por ano), `tem` (`populacao`, `coordenadas`, `grupo` e `serie_anual`) e `formas` (os nomes com artigo e preposição:
-"o município", "a comuna", "do Brasil"); e a lista traz `indisponiveis` (sinal → motivo; vazio na base do Brasil). Com população
-ausente, `comparacao.estado` é `indisponivel`, com o `motivo`.
+"o município", "a comuna", "do Brasil"); e a lista traz `indisponiveis` (sinal → motivo; vazio na base do Brasil; desde
+15/11/2026, com todos os motivos do sinal, um depois do outro). Com população ausente, `comparacao.estado` é `indisponivel`, com
+o `motivo`.
 
 Em cada linha:
 
@@ -300,7 +319,9 @@ Em cada linha:
   `desaceleracao`, `instabilidade`, `disponibilidade`, `posicao`, `defasagem`, `contexto` e `coexistencia`; `registro`; `ultima`;
   `porte`; num conjunto, `ids_dos_membros`; num município que mudou de nome, `nomes_anteriores`. Nos sinais 8 a 10, o `estado`
   pode ser `descontinuidade_de_registro` (a janela começa ou termina num registro marcado); no detalhe, `territorio.<sinal>.marca`
-  diz qual (`tipo`: `pico_que_volta` ou `quebra_de_fonte`; `ponta`: `inicio` ou `fim`; `competencia`).
+  diz qual (`tipo`: `pico_que_volta` ou `quebra_de_fonte`; `ponta`: `inicio` ou `fim`; `competencia`). No sinal 3,
+  `declinio.registros_anuais` (desde 15/11/2026) é o número de registros da série anual na janela, com um nome que vale para
+  qualquer base; `declinio.junhos`, o nome de antes, continua na resposta, com o mesmo número.
 
 No detalhe, cada item de `fenomenos` traz `chave`, `numero`, `nome`, `grupo`, `nivel`, `estado_do_nivel` (`alerta`,
 `sem_alerta`, `sem_comparacoes`, `sem_nivel`, `sem_dado`, `nao_avaliado`, `contexto`, `juntos` ou `indisponivel` — o sinal que a
@@ -330,7 +351,8 @@ identificadores são `code:<código>` (com a coluna de código) ou `name:<nome>`
 
 ## Calibração
 
-Estudo de 13/11/2026, refeito em 14/11/2026 (depois da revisão das capturas), com a base versionada e a população nova
+Estudo de 13/11/2026, refeito em 14/11/2026 (depois da revisão das capturas) e em 15/11/2026 (com a tabela do sinal 7 só entre
+as avaliações em que o elevado e o crítico podiam sair; os demais números não mudaram), com a base versionada e a população nova
 (`scripts/calibrar_detector.py`, somente leitura; versão da base `faa54169c5b6`, método `DETECTOR-SINAIS/V3/1`). Cada data é
 avaliada só com as mudanças anteriores a ela, e as descontinuidades de registro já conhecidas ficam fora do passado, como no
 produto. Na revisão, os sinais 8 a 10 deixaram de usar janelas com um registro marcado numa ponta: só os números desses três
@@ -358,8 +380,9 @@ não tem 999 comparações de tamanho parecido: o crítico fica "sem comparaçõ
 
 **Estados como unidade** (régua própria, 567 mudanças): moderado desde jun/2015, em 7,2% de 513 avaliações (meta 5%; a proposta
 mediu 6,7% em 510, sem as marcas de descontinuidade); elevado desde jun/2019, nenhum alerta em 275 avaliações; crítico nunca (em
-jun/2024, os estados têm 270 comparações, e o crítico pede 999). O moderado dos estados fica um pouco acima da meta: é preciso
-acompanhar.
+jun/2024, os estados têm 270 comparações, e o crítico pede 999). O moderado dos estados fica um pouco acima da meta. **Decisão do
+responsável (15/11/2026, Pausa 2): o moderado dos estados continua em 1 em cada 20**; os 7,2% em 513 avaliações ficam
+registrados aqui e na Parte F da [Proposta V3](DETECTOR_E_SIMULADOR_V3.md).
 
 **Alertas de cada sinal, em todas as datas** (municípios, critérios padrão):
 
@@ -379,13 +402,26 @@ Leitura: os sinais comparados com a base ficam perto das metas (5%, 1% e 0,1%). 
 de 0,1% e passa a valer onde há 999 comparações. O sinal 3, por convenção, fica perto do que a raridade daria. Os sinais 1 e 2 são
 uma convenção sobre o número de profissionais: um quarto das avaliações municipais tem 5 médicos ou menos.
 
+**Sinal 7, o elevado e o crítico só entre as avaliações em que eles podiam sair** (conferência pedida pelo responsável em
+15/11/2026, na Pausa 2). A tabela acima divide os alertas por todas as 30.358 avaliações do sinal; esta conta só as que tinham
+as comparações que o nível pede, no porte do patamar ou com as faixas vizinhas:
+
+| Nível | Comparações que pede | Avaliações em que podia sair | Alertas | Taxa | Meta |
+|---|---:|---:|---:|---:|---:|
+| Elevado (ou crítico) | 99 | 28.507 | 310 | 1,09% | 1% |
+| Crítico | 999 | 27.570 | 11 | 0,04% | 0,1% |
+
+Com o denominador certo, o crítico continua em 0,04% (11 de 27.570), dentro do teto de 0,1%: **o crítico do sinal 7 continua**
+(decisão do responsável). O elevado, contado junto com o crítico, fica em 1,09%, pouco acima da meta de 1%.
+
 **Em jun/2024** (5.570 municípios): 40 críticos, 436 elevados, 978 moderados e 4.116 sem alerta (antes da revisão: 41, 434, 977
 e 4.118). Com algum alerta: 1.454 municípios, 26,1%; com algum alerta **comparado com a base**: 9,9% (o restante vem dos sinais
 por convenção, sobretudo "Poucos médicos"). Ao longo das datas, a parcela com algum alerta comparado com a base vai de 3,2% a
 11,4%; a parcela com **algum alerta**, contando os por convenção, fica acima dos cerca de 20% que a Proposta V3 (Parte F) põe
-como sinal para rever o padrão (26,1% em jun/2024): qual das duas contas vale para esse limite é decisão do responsável. Nesta
-data, 2,89% dos municípios tiveram uma queda rara (esperado: cerca de 5%), sem aviso da base. Dos 27 estados como unidade, 3 têm
-moderado e 24, nenhum alerta.
+como sinal para rever o padrão (26,1% em jun/2024). **Decisão do responsável (15/11/2026, Pausa 2): o limite de cerca de 20% vale
+para os alertas comparados com a base** (9,9% em jun/2024), e o padrão de 1 em cada 20 continua; os dois números (26,1% e 9,9%)
+ficam registrados aqui e na Parte F da Proposta V3. Nesta data, 2,89% dos municípios tiveram uma queda rara (esperado: cerca de
+5%), sem aviso da base. Dos 27 estados como unidade, 3 têm moderado e 24, nenhum alerta.
 
 **Municípios com alerta em jun/2024, por sinal e por nível.** Um município pode ter nível em mais de um sinal: as linhas não se
 somam. O "sinal principal" é o de maior nível (no empate, o primeiro na ordem dos sinais).
@@ -468,7 +504,9 @@ exploratória.
   efeitos da mesma queda; os sinais 8 a 10 pela raridade; a distância; os sinais juntos; os textos, com o "Entenda" de duas ou
   três frases; e, da revisão das capturas de 14/11/2026, os sinais 8 a 10 sem registro de pico ou de quebra de fonte nas pontas
   da janela, a régua da data conferida com o motor território a território — com as faixas vizinhas e com todas as faixas —, o
-  patamar com decimal, o sinal 10 em palavras simples e quem fica fora do mapa, com o motivo), a rota com um catálogo sintético
+  patamar com decimal, o sinal 10 em palavras simples e quem fica fora do mapa, com o motivo; da revisão de 15/11/2026, a frase
+  do sinal 7 não avaliado com o motivo, a do sinal 11 com o território de referência e a posição da distância, e
+  `registros_anuais` ao lado de `junhos`), a rota com um catálogo sintético
   e, no job `dados-reais`, a base versionada (Brochier/RS sem alerta, a régua usada de fato, os 6 municípios fora do mapa, as
   taxas da régua por nível e por porte, a régua dos estados, a lista inteira com um nível por território, Rio Rufino/SC, o
   Distrito Federal antes de 2018, uma queda grande que persiste, a desaceleração igual à da Análise de Tendência e os sinais 8
@@ -477,18 +515,21 @@ exploratória.
   tipos de intervalo), a base montada de uma planilha (a planilha de teste `planilha_das_ferramentas.csv`, 20 distritos
   fictícios de seis em seis meses durante 10 anos, sem grupo e sem população; uma planilha com código, grupo, população e
   coordenadas; as datas aceitas e as recusas), o Detector e o perfil com a planilha (os níveis que ela sustenta, "Indisponível
-  nesta base" e "sem comparações suficientes" com os números, a planilha só com anos, nenhum vocabulário da base do Brasil), a
-  rota com o arquivo e, no job `dados-reais`, o perfil da base do Brasil.
+  nesta base" e "sem comparações suficientes" com os números, a planilha só com anos, nenhum vocabulário da base do Brasil; os
+  sinais indisponíveis com todos os motivos, iguais no detalhe e no perfil; e o nome dos trabalhadores informado no envio, com
+  os nomes que valem e os que ficam com "profissionais"), a rota com o arquivo e, no job `dados-reais`, o perfil da base do
+  Brasil.
 - Node: `frontend/tests/detector.test.mjs` — a leitura da resposta, a lista de quatro colunas, o resumo dos níveis, os filtros,
   a ordem, os critérios em frases (todos os parâmetros do motor, uma vez cada), a régua em palavras (com a origem das
   comparações e "nenhuma queda chega a esse nível"), as exportações, o mapa e o gráfico pelos níveis, quem fica fora do mapa, o
-  que o Detector leva ao Simulador, o "Entenda" (mouse, toque e teclado) e qualquer base (o que a base
-  tem, os sinais indisponíveis, as datas só com ano, a concordância e o perfil da base);
+  que o Detector leva ao Simulador, o "Entenda" (mouse, toque e teclado), qualquer base (o que a base
+  tem, os sinais indisponíveis, as datas só com ano, a concordância e o perfil da base) e a série do território na largura da
+  tela, com as datas da série da taxa como nos outros gráficos;
   `frontend/tests/modoEscuro.test.mjs` — o contraste dos níveis no modo escuro.
 - Navegador: `backend/tests/ui_detector.py` (suíte `base-versionada`) — a lista, o resumo clicável, os filtros e a ordem; o
   detalhe com os quatro grupos, o "Entenda" por mouse e teclado e a explicação completa; os critérios em frases e a configuração
   exploratória; a régua por porte, com a régua usada de fato em cada nível; o estado como unidade; o mapa (com os dois
   municípios de Santa Catarina fora dele, ditos na legenda) e o gráfico; os sinais comparados em jun/2021; "Simular
-  recuperação"; a tela de celular, com o "Entenda" pelo toque e a lista em cartões; e o perfil da base do Brasil, fechado até a
-  pessoa pedir. `backend/tests/ui_planilha_ficticia.py` (suíte `bloco1`) — o Detector com uma planilha enviada: o perfil aberto
+  recuperação"; a tela de celular, com o "Entenda" pelo toque, a lista em cartões e a série do território desenhada na largura
+  da tela (texto de 12 px); e o perfil da base do Brasil, fechado até a pessoa pedir. `backend/tests/ui_planilha_ficticia.py` (suíte `bloco1`) — o Detector com uma planilha enviada: o perfil aberto
   antes da ferramenta, a lista e o detalhe com os nomes da planilha e o Simulador desligado, com o motivo.

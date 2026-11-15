@@ -59,12 +59,14 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
 - **Território** (`simulador-territorio`): um território por vez, entre os da seleção local (a cópia da seleção principal; ver a
   etapa 1 do modo avançado). Sem escolha, o primeiro. O pedido leva só esse território. **Trocar o território tira a meta** de
   "Chegar a uma meta": ela era do território de antes (o patamar dele, ou um número pensado para ele). O campo fica em branco, à
-  espera de outra, e a data do acréscimo continua.
+  espera de outra, e a data do acréscimo continua. **O resultado anterior também sai da tela** (desde 15/11/2026): ele era do
+  outro território, e o aviso "As escolhas mudaram depois deste cálculo" fica só para as mudanças feitas no mesmo território.
 - **O que testar** (`simulador-o-que-testar`), uma opção de cada vez:
   - "Só continuar como vinha" (`simulador-teste-continuar`): sem intervenção;
   - "Acrescentar" e "Retirar" (`simulador-teste-acrescentar`, `simulador-teste-retirar`): a frase "Acrescentar [N] médicos em
-    [data]" (`simulador-teste-quantidade`, `simulador-teste-em`), uma intervenção numa data, com permanência total. A frase diz
-    que é uma hipótese da pessoa e que o crescimento histórico não é aplicado a quem entra;
+    [data]" (`simulador-frase-do-teste`, com `simulador-teste-quantidade` e `simulador-teste-em`), uma intervenção numa data, com
+    permanência total. O nome concorda com o número digitado ("Acrescentar 1 médico", "5 médicos"). A frase diz que é uma
+    hipótese da pessoa e que o crescimento histórico não é aplicado a quem entra;
   - "Chegar a uma meta" (`simulador-teste-meta`; o valor, em `simulador-teste-meta-valor`): "Chegar a [meta] médicos na data
     final, com um acréscimo em [data]" — o
     planejamento inverso com um acréscimo numa data. A meta é uma hipótese da pessoa (ou o patamar anterior, quando o Simulador é
@@ -77,15 +79,19 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
 
   Trocar de opção volta ao jeito de projetar escolhido pela base; a quantidade, a meta e a data digitadas ficam. Quando o
   cenário traz um jeito de projetar escolhido no modo avançado, o modo simples avisa (`simulador-metodo-do-avancado`) e oferece
-  "Voltar ao jeito escolhido pela base". Antes do primeiro cálculo com uma planilha, as frases já usam o nome da contagem dela
-  ("Acrescentar … profissionais", "vínculos" ou "postos").
+  "Voltar ao jeito escolhido pela base". Antes do primeiro cálculo com uma planilha, as frases já usam o nome da contagem dela:
+  o nome dos trabalhadores informado no envio ("Acrescentar … enfermeiros"), quando ele serve aos textos, ou "profissionais",
+  "vínculos" ou "postos" (`simuladorModel.nomeDosTrabalhadores`, a mesma regra do motor).
 - **Até quando** (`simulador-horizonte`): qualquer mês depois do último registro; os atalhos de 1, 2 e 4 anos
   (`simulador-atalho-1`, `-2`, `-4`) são só atalhos.
 - **Calcular** (`simulador-calcular`). O resultado (`simulador-resultado`, com `data-estado`, `data-metodo`, `data-faixa` e
   `data-conferencia`) traz, nesta ordem:
   - o **gráfico** (`simulador-grafico`): o observado, a base do cenário, a linha com a intervenção e os marcadores dos eventos, a
     faixa quando existe ("banda: faixa de 8 em cada 10"), a fronteira "observado | simulado (hipótese)" e a fonte
-    (`simulador-grafico-fonte`), com os nomes da base em uso. Em "Chegar a uma meta" (`simulador-plano-no-grafico`), o desenho
+    (`simulador-grafico-fonte`), com os nomes da base em uso. O gráfico é **desenhado na largura que tem na tela**
+    (`data-largura`; desde 15/11/2026), em vez de ser encolhido: o texto dos eixos mantém 12 px também no celular, onde o
+    gráfico fica mais alto (340 px, em vez de 300), mostra menos anos no eixo e escreve só "simulado" (ou nada) quando o
+    trecho simulado é curto. Em "Chegar a uma meta" (`simulador-plano-no-grafico`), o desenho
     mostra também **a meta** (uma linha pontilhada na altura dela, com "meta: N"; `simulador-meta-linha`), **o caminho do cenário
     com o acréscimo** calculado (linha contínua, `simulador-plano-curva`) e **a marca na data de cada acréscimo**
     (`simulador-plano-evento`); a legenda diz o que é cada um (`simulador-meta-legenda`). Quando o cenário já chega à meta, fica
@@ -117,8 +123,11 @@ também com uma planilha enviada, com os nomes dela (seção "Qualquer base"); o
      composição e a versão. "Ver a composição dos conjuntos" lista os componentes de cada conjunto.
    - Enquanto não for alterada no Simulador, a cópia **acompanha** a seleção principal. Depois da primeira alteração feita aqui (ou
      de um cenário importado), ela é só do Simulador e só muda aqui dentro ou por "Copiar de novo a seleção principal". A tela diz
-     isso duas vezes: no alto da etapa e, junto do botão "Copiar de novo a seleção principal", o aviso de que a cópia **deixou de
-     acompanhar** a seleção principal (`simulador-nao-acompanha`).
+     isso **numa mensagem só**, no alto da etapa (`simulador-origem-da-selecao`; desde 15/11/2026, sem o segundo aviso, que
+     repetia a frase de cima): enquanto a cópia acompanha a seleção principal, é uma frase de apoio; quando deixa de acompanhar,
+     a própria frase vira o aviso, com o trecho `simulador-nao-acompanha` ("a cópia **deixou de acompanhar** a seleção principal
+     … O que mudar na Seleção de Territórios não chega mais ao Simulador … “Copiar de novo a seleção principal” traz a seleção
+     principal de volta").
    - A busca acrescenta um município, um estado como unidade ou **o Brasil** **só no Simulador**; o "×" de cada território o
      tira. O estado inteiro e os municípios dele não entram juntos, como na Seleção de Territórios (RQ-DAD-30): a tela recusa,
      com o motivo. O Brasil é a contagem nacional de médicos únicos: é simulado à parte e nunca é somado aos demais.
@@ -209,8 +218,10 @@ Os textos da etapa 5 também vêm prontos do motor:
 
 Nenhum deles usa palavras de recomendação ("recomenda-se", "é preciso prover", "deveria"): decisão D-B de 10/11/2026.
 
-Numa planilha enviada, "médicos" dá lugar ao nome da contagem dela ("profissionais", "vínculos" ou "postos"), e o nome do grupo
-de cima e o do todo vêm do painel "Colunas".
+Numa planilha enviada, "médicos" dá lugar ao nome da contagem dela — o nome dos trabalhadores informado no envio ("enfermeiros"),
+quando ele é um plural que os textos podem usar, ou "profissionais", "vínculos" ou "postos" —, e o nome do grupo de cima e o do
+todo vêm do painel "Colunas". Uma janela com um registro só (numa base com registros espaçados) aparece nas premissas como
+"janela com um registro só (jun/2024)", e não "janela de jun/2024 a jun/2024".
 
 A tela e os textos de cenário usam linguagem simples (decisão D-C): "continuar como vinha", "faixa provisória", "sem intervenção",
 "indisponível", com o motivo. A **deriva do estado** do M0d aparece como "o crescimento recente do estado" (o método, como
@@ -379,8 +390,13 @@ simuladas.
   também quando o padrão é manter o último valor porque nenhum candidato errou menos (a faixa é a dele).
 - **Casos mínimos por prazo:** 200 para 8 em cada 10, 80 para 5 e 400 para 9. Faltando casos no porte, a faixa é montada com as
   faixas vizinhas (uma de cada lado); ainda faltando, com portes menores, um a um (a faixa fica mais larga, e por isso mais
-  cautelosa, com o aviso `FAIXA_COM_PORTES_MENORES`); se nada bastar, é indisponível, com os números ("ela pede 200 casos por
-  prazo, e esta base tem 88 em 1 ano").
+  cautelosa, com o aviso `FAIXA_COM_PORTES_MENORES`); se nada bastar, é indisponível, com os números ("A faixa de 8 em cada 10
+  pede 200 casos por prazo, e esta base tem 88 em 1 ano para o porte deste território, mesmo juntando os portes vizinhos e os
+  menores."). Os casos contados são os do porte do território, e não os da base toda, que o perfil da base mostra (120, na
+  planilha de teste): a frase diz isso, para um número não parecer contradizer o outro.
+- **O porte de um valor com casas** (uma média, ou o valor de um cenário) é o da parte inteira: 3,5 fica na faixa de 1 a 3, e
+  nenhum valor a partir de 1 fica sem porte (`reguas.porte_de`; antes, 3,5 ou 9,5 caíam entre duas faixas). Com contagens
+  inteiras, nada muda.
 - **Conferência no tempo:** para cada origem de teste, a faixa é remontada só com as retroprojeções cujo resultado já era
   conhecido naquela data e conferida nos casos dela. Pela cobertura (arredondada em pontos inteiros) frente à meta (80%, 50% ou
   90%): até 5 pontos abaixo, **conferida**; de 5 a 10 pontos abaixo, **provisória**; mais que isso, **indisponível**. Com menos
@@ -393,6 +409,10 @@ simuladas.
   por cobertura baixa na conferência — encerra a faixa ali; se o prazo de 1 ano não tem faixa, o cenário não tem faixa, com o
   motivo desse prazo. O resumo da faixa (a conferência, os casos e como ela foi montada) descreve a data final.
 - **Conjuntos:** a faixa do porte da soma, rotulada como aproximação.
+- **A faixa inteira de um lado da linha:** a faixa é montada com o erro observado no passado, e não em volta da linha do
+  cenário. Ela pode ficar inteira acima (ou abaixo) da linha — por exemplo, a de 5 em cada 10 de um estado, em 4 anos. Não é erro
+  da conta, e a frase da faixa na tela diz o que isso quer dizer: "A faixa fica inteira acima da linha do cenário: no passado da
+  base, neste porte e neste prazo, o número observado ficou, na maior parte dos casos, acima do que este jeito de projetar dava."
 - **Indisponível**, com o motivo e sem extrapolar: além do maior prazo com casos; território em zero; o todo (uma série só);
   outro método ou outra janela; base sem retroprojeção bastante; porte sem casos bastantes; cobertura baixa na conferência.
 - Na base do Brasil: nos municípios, a faixa de 8 em cada 10 existe até 4 anos (conferida em 1 e 2 anos; provisória em 3 e 4, e
@@ -401,7 +421,11 @@ simuladas.
 ### Avisos de horizonte
 
 Informativos, pela razão entre o tempo até a data final (H) e a janela do método (W; no M0, no M0d e no M0g, 3 anos): até W/2, normal;
-até W, cautela; até 2W, extrapolação além da janela; acima, extrapolação extrema. O aviso diz os dois tempos.
+até W, cautela; até 2W, extrapolação além da janela; acima, extrapolação extrema. O aviso diz os dois tempos. Quando o cenário
+**mantém o último valor** (M0), que não usa a história, o texto não diz que os 3 anos foram "usados no cálculo": "Cautela: a data
+final fica a mais da metade do tempo de referência (2 anos à frente; a referência são 3 anos, porque manter o último valor não
+usa a história)." Nos outros métodos, continua "… do tempo de história usado no cálculo (2 anos à frente, com 3 anos de história
+usados no cálculo)."
 
 ### Estados de um cenário
 
@@ -426,8 +450,9 @@ retroprojeção, a escolha do jeito de projetar e as faixas são recalculadas pa
 - **Exemplo, a planilha de teste** (`backend/tests/planilha_das_ferramentas.csv`: 20 distritos fictícios, de seis em seis meses,
   de jan/2014 a jul/2023, sem grupo de cima): 6 origens (jul/2017 a jul/2022); a taxa do próprio distrito errou 48% mais que
   manter o último valor, e o crescimento da base toda, 17% mais: nenhum vale, e "continuar como vinha" mantém o último valor,
-  com o aviso. A faixa de 8 em cada 10 é indisponível ("pede 200 casos por prazo, e esta base tem 88 em 1 ano", num distrito de
-  10 a 19 profissionais); a de 5 em cada 10 existe em 1 ano, com os portes vizinhos.
+  com o aviso. A faixa de 8 em cada 10 é indisponível ("pede 200 casos por prazo, e esta base tem 88 em 1 ano para o porte deste
+  território", num distrito de 10 a 19 enfermeiros); a de 5 em cada 10 existe em 1 ano, com os portes vizinhos. A planilha
+  informa que os trabalhadores contados são "Enfermeiros", e os textos dizem "enfermeiro" e "enfermeiros".
 
 Com uma planilha, valem **os dois modos** (ajuste de 14/11/2026, antes da Pausa 2):
 
@@ -882,10 +907,13 @@ enviada, a recusa ainda não cita o Simulador: o texto da conversa não mudou no
   (a escolha do jeito de projetar, as faixas e os erros acima, o Distrito Federal, Rio Rufino/SC, São Paulo como unidade, o limite
   de 100 territórios, o Brasil, as referências de Manaus, o planejamento inverso e "Simular recuperação" em Abreulândia/TO). Da
   revisão das capturas (14/11/2026): a meta do patamar inteira, arredondada para cima, com a origem no rótulo (o patamar do
-  território, com a média de 4 registros, ou o "patamar informado"), e o caminho do cenário com o acréscimo (`trajetoria`).
+  território, com a média de 4 registros, ou o "patamar informado"), e o caminho do cenário com o acréscimo (`trajetoria`). Da
+  revisão de 15/11/2026: o aviso de horizonte de quem mantém o último valor, a janela com um registro só e o motivo da faixa
+  indisponível com os casos do porte. `backend/tests/test_reguas.py` — o porte de um valor com casas.
 - pytest: `backend/tests/test_ferramentas_qualquer_base.py` — o Simulador com uma planilha: o jeito de projetar que ela escolhe, a
   faixa indisponível com o motivo, a rota com o arquivo, o pedido do modo avançado (o todo, o conjunto e as referências, com os
-  nomes dela), a planilha só com anos (as datas em anos e o calendário de ano em ano) e as linhas do Simulador no perfil da base.
+  nomes dela), a planilha só com anos (as datas em anos e o calendário de ano em ano), as linhas do Simulador no perfil da base
+  e o nome dos trabalhadores informado no envio em todos os textos.
 - pytest: `backend/tests/test_dialogo.py` — a recusa de projeção indica o Simulador só na base do Brasil.
 - Node: `frontend/tests/simulador.test.mjs` — as datas (também as de uma base só com anos), a seleção local, o que falta para
   calcular, o pedido ao motor, a leitura da resposta, os textos da tabela e da faixa, a importação e a exportação do cenário e o
@@ -895,12 +923,15 @@ enviada, a recusa ainda não cita o Simulador: o texto da conversa não mudou no
   base, a faixa "N em cada 10", os "Entenda", os nomes e as formas da base); os três números; os textos com os nomes de outra
   base; e a tela (o modo simples numa tela só, as quatro etapas só no modo avançado e o campo de data). Da revisão das capturas:
   a meta que sai ao trocar de território, o campo com a meta inteira e a frase da origem dela, a leitura do caminho com o
-  acréscimo e o desenho da meta, do caminho e da marca do acréscimo no gráfico.
+  acréscimo e o desenho da meta, do caminho e da marca do acréscimo no gráfico. Da revisão de 15/11/2026: o resultado que sai ao
+  trocar de território, o nome dos trabalhadores (a mesma regra do motor), o singular com 1, a faixa inteira de um lado da linha,
+  o aviso único da seleção e o gráfico na largura da tela.
 - Navegador: `backend/tests/ui_simulador.py` (suíte `base-versionada`) — o modo simples (só continuar, acrescentar, retirar e chegar
   a uma meta; a faixa conferida e a provisória; os "Entenda"; um estado como unidade sem faixa), o modo avançado (as quatro etapas,
   o Brasil, as referências, o planejamento inverso e a escolha de 5, 8 ou 9 em cada 10), a passagem entre os dois modos (o que é
   do avançado não vai no pedido do simples), "Abrir no Simulador" e "Simular recuperação" (a meta de 79 médicos para o patamar de
-  78,25 de Abelardo Luz/SC, com a origem; a meta trocada por um número da pessoa), a meta que sai ao trocar de território e o
-  gráfico de "Chegar a uma meta" (a linha da meta, o caminho com o acréscimo e a marca dele). Também `backend/tests/ui_detector.py`
+  78,25 de Abelardo Luz/SC, com a origem; a meta trocada por um número da pessoa), a meta e o resultado que saem ao trocar de
+  território, o gráfico de "Chegar a uma meta" (a linha da meta, o caminho com o acréscimo e a marca dele), "Acrescentar 1
+  médico" e o gráfico desenhado na largura da tela, no computador e numa tela de celular (texto de 12 px). Também `backend/tests/ui_detector.py`
   ("Simular recuperação" e o perfil da base) e `backend/tests/ui_planilha_ficticia.py` (o Simulador com a planilha fictícia, nos
   dois modos, sem o vocabulário da base do Brasil).

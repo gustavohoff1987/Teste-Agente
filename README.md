@@ -926,7 +926,8 @@ base**: territórios de tamanho parecido e só o que veio antes de cada data. Va
 que a contagem conta e os nomes) e resume **"com esta base, dá para… / não dá para…"**, com o motivo: numa planilha sem
 população, por exemplo, os sinais por habitante ficam "Indisponível nesta base", e numa base curta o crítico fica "sem
 comparações suficientes", com os números. Com uma planilha, nenhum texto usa "médicos", "município", "estado", "junho" ou
-"Brasil" que não venha dela, e o grupo de cima não entra como unidade. A primeira tela é uma lista de quatro
+"Brasil" que não venha dela, a contagem leva o nome dos trabalhadores informado no envio (por exemplo, "enfermeiros"; desde
+15/11/2026) e o grupo de cima não entra como unidade. A primeira tela é uma lista de quatro
 colunas (Território · Alerta · Por quê · Último registro), com o resumo dos níveis no alto, clicável, os filtros numa linha
 (Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico. Cada território tem **um nível só** — **moderado, elevado ou
 crítico**, o maior entre os seus 12 sinais, sem soma nem índice —, sempre escrito e com o tipo de critério: "comparado com a

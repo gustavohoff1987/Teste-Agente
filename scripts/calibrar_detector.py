@@ -115,6 +115,7 @@ def _alertas_por_sinal(base, cal, cal_dos_estados, p):
     avaliados = {chave: 0 for chave in SINAIS}
     por_data = []
     no_ultimo, principal = Counter(), Counter()   # no último registro: (sinal, nível) de cada sinal e do sinal principal do alerta
+    do_patamar = Counter()   # sinal 7: as avaliações em que o elevado e o crítico podiam sair (99 e 999 comparações) e os alertas
     for e in range(1, t):
         do_dia = Counter()
         comparados = 0
@@ -132,6 +133,14 @@ def _alertas_por_sinal(base, cal, cal_dos_estados, p):
                     continue
                 avaliados[chave] += 1
                 por_sinal[chave][sinal.get("classe")] += 1
+                if chave == "patamar":
+                    # O elevado e o crítico do sinal 7 pedem a raridade do afastamento: só contam as avaliações em que a base
+                    # tinha as comparações que cada um pede (no porte do patamar ou com as faixas vizinhas).
+                    lida = reguas.nivel_da_raridade(*(int(valor) for valor in cal.c_patamar[:, territorio.linha, e]))
+                    for nivel in ("elevado", "critico"):
+                        if lida["niveis"][nivel]["avaliado"]:
+                            do_patamar[nivel + "_podia"] += 1
+                            do_patamar[nivel] += sinal.get("classe") == nivel or (nivel == "elevado" and sinal.get("classe") == "critico")
         por_data.append((base.periodos[e], do_dia, comparados))
         print(f"  … {detector.curta(base.periodos[e])} avaliado", file=sys.stderr)
     print("\n## Alertas de cada sinal, em todas as datas (municípios; critérios padrão)\n")
@@ -144,6 +153,14 @@ def _alertas_por_sinal(base, cal, cal_dos_estados, p):
                       _pct(algum, total)]))
     print("\nAvaliações: as que tinham o registro, a janela e as comparações que o sinal pede. Ficam fora a ausência de dado, a "
           "janela insuficiente, o que é só descritivo e o que não tem comparações suficientes.")
+    print("\n## Sinal 7 (abaixo do que já teve): o elevado e o crítico só entre as avaliações em que eles podiam sair\n")
+    print(_linha(["Nível", "Comparações que pede", "Avaliações em que podia sair", "Alertas", "Taxa", "Teto"]))
+    print(_linha(["---"] * 6))
+    for nivel, nome, pede, teto in (("elevado", "Elevado (ou crítico)", 99, "1%"), ("critico", "Crítico", 999, "0,1%")):
+        print(_linha([nome, pede, _numero(do_patamar[nivel + "_podia"]), _numero(do_patamar[nivel]),
+                      _pct(do_patamar[nivel], do_patamar[nivel + "_podia"]), teto]))
+    print("\nA tabela de todas as datas divide os alertas por todas as avaliações do sinal; esta conta só as que tinham as "
+          "comparações que o nível pede, no porte do patamar ou com as faixas vizinhas.")
     print("\n## Proporção de municípios com algum alerta, por data\n")
     print(_linha(["Data", "Crítico", "Elevado", "Moderado", "Algum alerta", "Algum alerta comparado com a base", "Sem alerta",
                   "Sem comparações suficientes"]))

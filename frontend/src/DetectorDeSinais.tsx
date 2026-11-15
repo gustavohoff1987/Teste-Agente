@@ -1,7 +1,8 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ArrowDownUp, ChartScatter, ChevronDown, ChevronRight, Download, List, LoaderCircle, Map as IconeDoMapa, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { BolhasDoContexto, MapaDosNiveis, SerieDaTaxa } from "./DetectorGraficos";
 import Entenda from "./Entenda";
+import { tamanhoDoGrafico, useLargura } from "./PainelChart";
 import { ErroDoMotor, pedirAoMotor, type FonteDoMotor, type RotulosTerritoriais } from "./painelApi";
 import {
   ESTADOS_DO_ALERTA, NIVEIS, NOMES_DOS_NIVEIS, SEM_FILTROS, alvoDoSimulador, artigoDaUnidade, competenciaCurta, criteriosEmFrases, csvDoDetector, estadoDoAlerta,
@@ -63,8 +64,12 @@ function Nivel({ nivel }: { nivel: NivelDoAlerta }) {
 function SerieObservada({ detalhe }: { detalhe: DetalheDoDetector }) {
   const pontos = detalhe.serie;
   const valores = pontos.map(ponto => ponto.valor).filter((valor): valor is number => valor !== null);
+  // O desenho é feito na largura que o gráfico tem na tela (e não encolhido de 640 px): o texto dos eixos mantém 12 px também no
+  // celular, onde o gráfico fica mais alto e mostra menos datas no eixo (revisão das capturas de 15/11/2026).
+  const [refDoGrafico, medida] = useLargura(640, !valores.length);
   if (!valores.length) return <p className="ferramenta-apoio">Sem registros na série.</p>;
-  const largura = 640, altura = 170, esquerda = 44, direita = 34, topo = 12, base = 34;
+  const { largura, altura, estreito } = tamanhoDoGrafico(medida, 720, 170, 220);
+  const esquerda = 44, direita = 34, topo = 12, base = 34;
   const maximo = Math.max(...valores, 1);
   const x = (indice: number) => esquerda + (largura - esquerda - direita) * (pontos.length > 1 ? indice / (pontos.length - 1) : 0.5);
   const y = (valor: number) => topo + (altura - topo - base) * (1 - valor / maximo);
@@ -78,7 +83,8 @@ function SerieObservada({ detalhe }: { detalhe: DetalheDoDetector }) {
   const inicioDaJanela = pontos.findIndex(ponto => ponto.competencia === detalhe.janela.inicio);
   // As datas escritas no eixo: as do mês do último registro (o mês âncora da série anual), um ano sim, outro não, e a última.
   const mes = pontos[pontos.length - 1].competencia.slice(4);
-  return <figure data-testid="detector-serie" className="ferramenta-serie">
+  const deQuantosAnos = estreito ? 4 : 2;
+  return <figure ref={refDoGrafico as RefObject<HTMLElement>} data-testid="detector-serie" data-largura={largura} className="ferramenta-serie">
     <svg viewBox={"0 0 " + largura + " " + altura} width="100%" role="img"
       aria-label={"Série observada de " + detalhe.rotulo + ": " + pontos.map(ponto => competenciaCurta(ponto.competencia) + " " +
         (ponto.valor === null ? "sem registro" : ponto.valor)).join("; ")}>
@@ -96,7 +102,8 @@ function SerieObservada({ detalhe }: { detalhe: DetalheDoDetector }) {
           <title>{competenciaCurta(ponto.competencia) + ": " + formatarInteiro(ponto.valor) + (ponto.estado === "zero_confirmado" ? " (zero confirmado)" : "") +
             (ponto.marca === "pico_que_volta" ? " · pico que volta" : ponto.marca === "quebra_de_fonte" ? " · quebra de fonte"
               : ponto.marca === "verificar_registro" ? " · verificar registro" : "")}</title></circle>)}
-      {pontos.map((ponto, indice) => ponto.competencia.endsWith(mes) && (indice === pontos.length - 1 || Number(ponto.competencia.slice(0, 4)) % 2 === 0)
+      {pontos.map((ponto, indice) => ponto.competencia.endsWith(mes) && (indice === pontos.length - 1 ||
+        (Number(ponto.competencia.slice(0, 4)) % deQuantosAnos === 0 && pontos.length - 1 - indice >= deQuantosAnos))
         ? <text key={"a" + ponto.competencia} x={x(indice)} y={altura - 12} textAnchor="middle" className="ferramenta-serie-texto">
           {competenciaCurta(ponto.competencia)}</text> : null)}
     </svg>
