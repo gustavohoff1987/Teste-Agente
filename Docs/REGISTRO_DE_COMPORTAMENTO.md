@@ -35,6 +35,42 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-15 · Etapa 7 do comando V23, rodada 3: o mapa do Detector de Sinais com as divisas da malha municipal do IBGE, desenhado na largura da tela
+- **Classificação (regra 1):** item 8 do comando do responsável de 15/11/2026 ("Mapa com divisas, na base do Brasil") e a parte
+  do item 14 que faltava (o mapa do Detector no celular). Decorre do pedido (escopo) e não contraria a SPEC nem uma divergência
+  aprovada (compatibilidade): a representação cartográfica admite polígonos (RQ-REP-07), a malha serve só ao desenho (nenhum
+  valor é calculado com ela) e é um dado oficial público, versionado com a fonte, a data e o SHA-256, por pedido explícito do
+  responsável (regra 2). O arquivo fica na interface (`frontend/public/malha/`): o contêiner do motor, as rotas, o Docker e o
+  build não mudaram. A base do Brasil não foi alterada. Nada vai ao provedor de IA.
+- **Antes:** o mapa do Detector mostrava só os pontos dos municípios, pintados pelo nível, e dizia "A base não tem as divisas:
+  a sigla situa os pontos de cada estado". O desenho tinha 760 px de largura e encolhia para caber no celular (com as letras).
+- **Agora:** na base do Brasil, o mapa do Detector tem **as divisas da malha municipal do IBGE** (qualidade mínima, 5.570
+  municípios; consultada em 15/11/2026; SHA-256 `b509836495fa76a9…`):
+  - as divisas dos **estados** ficam sempre à vista;
+  - as dos **municípios** aparecem ao aproximar o mapa num estado ("Aproximar o mapa em", com os estados dos territórios à vista;
+    o mapa enquadra o estado inteiro) ou quando os territórios à vista são de um estado só;
+  - a **área** de cada município à vista com nível leva a cor do nível, por baixo do ponto dele (também a dos municípios sem
+    coordenada válida, que não têm ponto); quem não tem nível, e o que a malha tivesse a mais, fica sem cor;
+  - a malha **só é pedida quando o mapa abre**, uma vez; enquanto carrega, o mapa mostra os pontos e diz "As divisas estão sendo
+    carregadas."; se o arquivo não puder ser lido, segue só com os pontos e diz isso;
+  - numa **planilha**, não há malha: o mapa segue sem divisas e diz "A base não tem as divisas", como antes;
+  - o mapa é **desenhado na largura que tem na tela**: no celular, o texto mantém 12 px, e o mapa fica mais alto (380 px);
+  - com uma planilha que tem a coluna de grupo, a legenda do mapa e o aviso do gráfico sem distância dizem que o grupo como
+    unidade não tem ponto (antes, só na base do Brasil), porque o grupo agora entra como unidade.
+- **Permanece:** os pontos, as cores, a legenda com as contagens, os conjuntos pelo contorno, a sigla junto aos pontos e a frase
+  de quem fica fora do mapa (os 6 municípios sem coordenada válida continuam sem ponto: o item 4 do comando, sobre as
+  coordenadas, aguarda a resposta do responsável); o mapa da área de análise e os mapas da Seleção de Territórios, que não
+  mudaram; os níveis, a lista e os demais desenhos.
+- **Motivo:** decisão do responsável na Pausa 2 do comando V23 (15/11/2026) e a Proposta V3 (seção B.3: "Mapa (cores dos níveis,
+  com divisas)"): o produto não tinha a malha.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md` (a visão Mapa, a seção nova "A malha das divisas", as limitações e os
+  testes) e `README.md`; o arquivo `frontend/public/malha/municipios-ibge-qualidade-minima.json` e `fonte.json` (a fonte, a data, o
+  tamanho e o SHA-256); Node `frontend/tests/malha.test.mjs` (novo: a leitura da malha, as divisas a desenhar, o pedido único, o
+  arquivo versionado e a tela); pytest `backend/tests/test_detector.py`, no job `dados-reais` (cada município da base tem divisa,
+  e a malha não tem geometria além deles); navegador `backend/tests/ui_detector.py` (as divisas dos estados, as dos municípios de
+  Santa Catarina, as áreas com a cor do nível e o mapa no celular). Valor que mudou de propósito nos testes: em
+  `ui_detector.py`, a legenda do mapa na base do Brasil deixa de dizer "A base não tem as divisas".
+
 ### 2026-11-15 · Etapa 7 do comando V23, rodada 2 (segunda parte): numa planilha, o grupo de cima entra como unidade no Detector e no Simulador
 - **Classificação (regra 1):** o resto do item 7 do comando do responsável de 15/11/2026 ("Planilhas: o grupo de cima entra como
   unidade"). Decorre do pedido (escopo) e não contraria a SPEC nem uma divergência aprovada (compatibilidade): os níveis

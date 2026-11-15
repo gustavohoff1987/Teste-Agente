@@ -1347,6 +1347,22 @@ def test_real_rio_rufino_pico_que_volta(real):
         "por 1.000 habitantes). Mais longe que 40% dos municípios abaixo desse critério")
 
 
+def test_real_malha_das_divisas_tem_a_divisa_de_cada_municipio_da_base(real):
+    """O mapa do Detector com divisas (etapa 7 do comando V23): a malha municipal do IBGE, versionada na interface
+    (`frontend/public/malha/`) com a fonte, a data e o SHA-256. Cada código da base tem a sua divisa, e a malha não tem geometria
+    além deles (o que ela tivesse a mais, como uma lagoa, ficaria sem cor no mapa). Só leitura."""
+    pasta = Path(__file__).resolve().parents[2] / "frontend" / "public" / "malha"
+    fonte = json.loads((pasta / "fonte.json").read_text(encoding="utf-8"))
+    conteudo = (pasta / fonte["arquivo"]).read_bytes()
+    assert (len(conteudo), hashlib.sha256(conteudo).hexdigest()) == (fonte["bytes"], fonte["sha256"]), "o arquivo não é o que a fonte registra"
+    assert fonte["consultado_em"] == "2026-11-15" and fonte["fonte"].startswith("https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?")
+    codigos = [geometria["properties"]["codarea"] for geometria in json.loads(conteudo)["objects"]["BRMU"]["geometries"]]
+    assert len(codigos) == len(set(codigos)) == fonte["geometrias"] == 5570 and all(len(codigo) == 7 for codigo in codigos)
+    da_malha, da_base = {codigo[:6] for codigo in codigos}, set(real.codigos)
+    assert da_malha == da_base, (sorted(da_base - da_malha)[:5], sorted(da_malha - da_base)[:5])
+    assert {codigo[:2] for codigo in codigos} == set(real.do_estado) and len(real.do_estado) == 27
+
+
 def test_real_distrito_federal_quebra_de_fonte(real):
     body = corpo(pedir({"base": {"municipios": {"ids": ["code:530010"]}}, "detalhe": "code:530010"}))
     assert body["territorio"]["registro"] == {"estado": "descontinuidade_de_registro",

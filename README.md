@@ -929,7 +929,9 @@ comparações suficientes", com os números. Com uma planilha, nenhum texto usa 
 "Brasil" que não venha dela, a contagem leva o nome dos trabalhadores informado no envio (por exemplo, "enfermeiros"; desde
 15/11/2026) e o grupo de cima entra como unidade pela soma das unidades dele (desde 15/11/2026). A primeira tela é uma lista de quatro
 colunas (Território · Alerta · Por quê · Último registro), com o resumo dos níveis no alto, clicável, os filtros numa linha
-(Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico. Cada território tem **um nível só** — **moderado, elevado ou
+(Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico. Na base do Brasil, o Mapa tem as divisas da malha municipal do
+IBGE (um arquivo versionado da interface, pedido só quando o mapa abre): as dos estados sempre, e as dos municípios ao aproximar
+o mapa num estado (desde 15/11/2026). Cada território tem **um nível só** — **moderado, elevado ou
 crítico**, o maior entre os seus 12 sinais, sem soma nem índice —, sempre escrito e com o tipo de critério: "comparado com a
 base" (raro entre as mudanças anteriores de territórios do mesmo porte: 1 em cada 20, 100 ou 1.000) ou "por convenção". Quando a
 base não tem comparações bastantes, a tela diz **"sem comparações suficientes"**, com os números; um conjunto não tem nível; os

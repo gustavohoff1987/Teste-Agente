@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState, type RefObject } from "react";
 import MapaDosConjuntos, { type PinturaDoPonto } from "./MapaDosConjuntos";
-import PainelChart from "./PainelChart";
+import { carregarMalha, divisasDoMapa, type Malha } from "./malhaModel";
+import PainelChart, { tamanhoDoGrafico, useLargura } from "./PainelChart";
 import PainelSeries from "./PainelSeries";
 import type { PainelResposta, RotulosTerritoriais } from "./painelApi";
 import { ROTULOS_BRASIL, paletaDoGrafico } from "./painelModel";
@@ -16,7 +17,10 @@ import {
 // coordenadas que o motor mandou (POST /api/detector).
 // - MapaDosNiveis: o mapa de pontos da Seleção (MapaDosConjuntos), com cada município pintado pelo nível do alerta (ou, com o
 //   filtro "Sinal", pelo nível daquele sinal), os conjuntos pelo contorno e o nome de cada grupo de cima junto aos pontos dele.
-//   O produto não tem a malha das divisas: o nome do grupo situa os pontos, sem desenhar divisa que a base não tem.
+//   Na base do Brasil (etapa 7 do comando V23), o mapa tem as divisas da malha municipal do IBGE, pedida só quando ele abre: as
+//   dos estados ficam sempre à vista; as dos municípios aparecem quando o mapa é aproximado num estado ou quando os territórios
+//   à vista são de um estado só; a área de cada município com nível leva a cor dele. Numa planilha, não há malha: o mapa segue
+//   sem divisas e diz isso (o nome do grupo situa os pontos).
 // - BolhasDoContexto: o gráfico de bolhas do Agente (PainelChart), com X = a distância até o território mais próximo que atende
 //   ao critério (sinal 11), Y = a taxa por 1.000 habitantes (sinal 8), o tamanho pela população e a cor pelo nível.
 // - SerieDaTaxa: a Série temporal do Agente (PainelSeries), com a taxa do território e a da referência dele (sinais 8 e 10).
@@ -53,25 +57,60 @@ export function MapaDosNiveis({ resposta, linhas, sinal, onAbrir }: DoDetector &
   const fora = useMemo(() => foraDoMapa(resposta, linhas, sinal), [resposta, linhas, sinal]);
   const textoDeFora = textoDeForaDoMapa(fora, r, resposta.janela.fim);
   const doQue = sinal === "todos" || sinal === "juntos" || sinal === "registro" ? "do alerta do território" : "de “" + nomeDoSinal(sinal, r) + "”";
-  // O grupo de cima como unidade só existe na base do Brasil (a fonte estadual); numa planilha, o grupo só situa os pontos.
   const doBrasil = resposta.fonte.origem === "brasil", comGrupo = resposta.fonte.tem.grupo, oGrupo = r.oGrupo ?? "o " + r.grupo;
-  return <figure data-testid="detector-mapa" data-sinal={sinal} data-critico={contagens.critico} data-elevado={contagens.elevado}
-    data-moderado={contagens.moderado} data-fundo={camadas.fundo.length} data-conjuntos={camadas.conjuntos.length} data-grupos={camadas.grupos.length}
-    className="ferramenta-grafico">
+  // As divisas (etapa 7 do comando V23): só a base do Brasil tem a malha (a municipal do IBGE, um arquivo versionado da interface),
+  // e ela só é pedida quando o mapa abre. `undefined`: ainda carregando; `null`: sem malha (uma planilha, ou o arquivo não pôde ser
+  // lido) — o mapa segue só com os pontos e diz isso.
+  const [malha, setMalha] = useState<Malha | null | undefined>(doBrasil ? undefined : null);
+  useEffect(() => {
+    if (!doBrasil) { setMalha(null); return; }
+    let vivo = true;
+    setMalha(undefined);
+    carregarMalha(import.meta.env.BASE_URL || "/").then(lida => { if (vivo) setMalha(lida); });
+    return () => { vivo = false; };
+  }, [doBrasil]);
+  // "Aproximar o mapa em": um dos estados dos territórios à vista. O estado escolhido sai quando deixa de estar à vista.
+  const [aproximado, setAproximado] = useState("");
+  const estados = useMemo(() => camadas.grupos.map(grupo => ({ prefixo: (grupo.membros[0] ?? "").replace(/^code:/, "").slice(0, 2), sigla: grupo.nome }))
+    .filter(estado => estado.prefixo).sort((a, b) => a.sigla.localeCompare(b.sigla, "pt-BR")), [camadas]);
+  const emFoco = estados.some(estado => estado.prefixo === aproximado) ? aproximado : "";
+  const divisas = useMemo(() => !malha ? undefined : divisasDoMapa(malha, linhas.filter(linha => linha.tipo === "municipio").map(linha => {
+    const nivel = nivelNoDesenho(linha, sinal);
+    return { id: linha.id, codigo: linha.id.replace(/^code:/, ""), ...(nivel ? { cor: CORES_DOS_NIVEIS[nivel], chave: nivel } : {}) };
+  }), emFoco), [malha, linhas, sinal, emFoco]);
+  // O desenho é feito na largura que o mapa tem na tela (o texto mantém 12 px também no celular, onde o mapa fica mais alto).
+  const [refDoMapa, medida] = useLargura(760);
+  const { largura, altura } = tamanhoDoGrafico(medida, 760, 440, 380);
+  const estadoDasDivisas = !doBrasil ? "sem" : malha === undefined ? "carregando" : malha ? "carregadas" : "indisponiveis";
+  return <figure ref={refDoMapa as RefObject<HTMLElement>} data-testid="detector-mapa" data-sinal={sinal} data-critico={contagens.critico}
+    data-elevado={contagens.elevado} data-moderado={contagens.moderado} data-fundo={camadas.fundo.length} data-conjuntos={camadas.conjuntos.length}
+    data-grupos={camadas.grupos.length} data-divisas={estadoDasDivisas} data-aproximado={emFoco} data-largura={largura} className="ferramenta-grafico">
+    {malha && estados.length > 1 && <label className="analise-rotulo-campo ferramenta-busca analise-nao-imprimir">Aproximar o mapa em
+      <select data-testid="detector-mapa-aproximar" className="analise-campo" value={emFoco} onChange={event => setAproximado(event.target.value)}>
+        <option value="">todos os territórios à vista</option>
+        {estados.map(estado => <option key={estado.prefixo} value={estado.prefixo}>{estado.sigla}</option>)}
+      </select></label>}
     <MapaDosConjuntos coordenadas={coordenadas} fundo={camadas.fundo} conjuntos={camadas.conjuntos} pintura={pintura} grupos={camadas.grupos}
-      nomeDe={id => nomes.get(id) ?? id} largura={760} altura={440}
+      nomeDe={id => nomes.get(id) ?? id} largura={largura} altura={altura} divisas={divisas}
       rotulo={"Mapa dos territórios à vista em " + competenciaCurta(resposta.janela.fim) + ", pelo nível " + doQue + ": " +
         formatarInteiro(contagens.critico) + " em crítico, " + formatarInteiro(contagens.elevado) + " em elevado e " + formatarInteiro(contagens.moderado) + " em moderado"}
       vazio={(artigoDaUnidade(r) === "a" ? "Nenhuma " : "Nenhum ") + r.unidade + " à vista tem coordenada válida para o mapa."}
       onTocar={id => { if (naLista.has(id)) onAbrir(id); }}
-      legenda={"pontos coloridos: o nível " + doQue + " · pontos claros: sem nível · tracejado: conjunto" + (comGrupo ? " · letras: " + oGrupo + " dos pontos" : "")}/>
+      legenda={"pontos coloridos: o nível " + doQue + " · pontos claros: sem nível · tracejado: conjunto" + (comGrupo ? " · letras: " + oGrupo + " dos pontos" : "") +
+        (divisas ? " · áreas coloridas: o nível do " + r.unidade + " · linhas: as divisas" : "")}/>
     <LegendaDosNiveis contagens={contagens} semNivel={camadas.fundo.length}/>
     {/* Quem está na lista e não tem ponto: quantos, com que nível, quais e por quê (o motor diz o motivo). */}
     {textoDeFora && <p data-testid="detector-mapa-fora" data-quantos={fora.length} className="ferramenta-apoio">{textoDeFora}</p>}
     <figcaption className="ferramenta-apoio">Onde ficam os territórios à vista, pelo nível {doQue}. Os pontos usam as coordenadas da data avaliada;{" "}
-      {doBrasil ? "o " + r.grupo + " como unidade não tem ponto, e o conjunto" : "o conjunto"} aparece pelo contorno, sem nível. A base não tem as divisas
-      {comGrupo ? ": " + (doBrasil ? "a sigla" : "o nome") + " situa os pontos de cada " + r.grupo : ""}. Para ver um sinal só, escolha-o no filtro “Sinal”.
-      Toque num ponto para abrir os detalhes do território.</figcaption>
+      {comGrupo ? oGrupo + " como unidade não tem ponto, e o conjunto" : "o conjunto"} aparece pelo contorno, sem nível.{" "}
+      <span data-testid="detector-mapa-divisas">{estadoDasDivisas === "carregadas"
+        ? "As divisas são as da malha municipal do IBGE: as dos estados ficam sempre à vista; as dos municípios aparecem quando o mapa é aproximado " +
+          "num estado ou quando os territórios à vista são de um estado só. A área de cada município à vista com nível leva a cor dele" +
+          (divisas?.comBordas ? "; as divisas dos municípios estão à vista" : "") + "."
+        : estadoDasDivisas === "carregando" ? "As divisas estão sendo carregadas."
+        : estadoDasDivisas === "indisponiveis" ? "As divisas não puderam ser carregadas: o mapa mostra só os pontos, e a sigla situa os pontos de cada " + r.grupo + "."
+        : "A base não tem as divisas" + (comGrupo ? ": o nome situa os pontos de cada " + r.grupo : "") + "."}</span>{" "}
+      Para ver um sinal só, escolha-o no filtro “Sinal”. Toque num ponto para abrir os detalhes do território.</figcaption>
   </figure>;
 }
 
@@ -86,7 +125,7 @@ export function BolhasDoContexto({ resposta, linhas, sinal, onAbrir, rotulosDoPa
   const niveis = useMemo(() => new Map(linhas.map(linha => [linha.id, nivelNoDesenho(linha, sinal)])), [linhas, sinal]);
   const criterio = resposta.comparacao.contexto;
   if (!itens.length) return <p data-testid="detector-bolhas-vazio" role="status" className="ferramenta-apoio">Nenhum território à vista tem distância a
-    mostrar: os que atendem ao critério não têm distância{resposta.fonte.origem === "brasil" ? ", e o " + r.grupo + " como unidade não tem um ponto único" : ""}.</p>;
+    mostrar: os que atendem ao critério não têm distância{resposta.fonte.tem.grupo ? ", e " + (r.oGrupo ?? "o " + r.grupo) + " como unidade não tem um ponto único" : ""}.</p>;
   const contagens = { critico: 0, elevado: 0, moderado: 0 };
   let semNivel = 0;
   for (const item of itens) { const nivel = niveis.get(item.id); if (nivel) contagens[nivel] += 1; else semNivel += 1; }

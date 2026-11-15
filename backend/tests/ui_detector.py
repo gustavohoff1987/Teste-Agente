@@ -468,7 +468,27 @@ def main():
             expect(fora_do_mapa).to_contain_text(item["rotulo"] + (" — " + NOMES[item["alerta"]["nivel"]].lower() if item["alerta"]["nivel"] else ""))
         expect(fora_do_mapa).to_contain_text("Continuam na lista, cada qual com o seu nível.")
         expect(mapa.locator('[data-testid="analise-mapa-ponto"]')).to_have_count(len(municipais) - len(fora))   # os pontos e os de fora somam a lista
-        expect(mapa).to_contain_text("A base não tem as divisas")
+        # As divisas (etapa 7 do comando V23; muda de propósito: antes, "A base não tem as divisas"): na base do Brasil, o mapa tem
+        # a malha municipal do IBGE, pedida só quando ele abre. As divisas dos estados ficam sempre à vista; com os municípios de um
+        # estado só à vista (Santa Catarina), as dos municípios também aparecem; a área de cada município com nível leva a cor
+        # dele — também a dos dois municípios sem coordenada válida, que não têm ponto.
+        expect(mapa).to_have_attribute("data-divisas", "carregadas", timeout=60000)
+        divisas = mapa.get_by_test_id("analise-mapa-divisas")
+        expect(divisas).to_have_attribute("data-bordas", "true")
+        expect(divisas.get_by_test_id("analise-mapa-divisas-dos-estados")).to_have_count(1)
+        com_nivel = sum(1 for item in municipais if item["alerta"]["nivel"])
+        expect(divisas).to_have_attribute("data-areas-com-cor", str(com_nivel))
+        expect(divisas.get_by_test_id("analise-mapa-area")).to_have_count(com_nivel)
+        for nivel in NOMES:
+            expect(divisas.locator('[data-testid="analise-mapa-area"][data-pintura="' + nivel + '"]')).to_have_count(
+                sum(1 for item in municipais if item["alerta"]["nivel"] == nivel))
+        expect(divisas.get_by_test_id("analise-mapa-areas-sem-cor")).to_have_count(1)
+        expect(mapa.get_by_test_id("detector-mapa-aproximar")).to_have_count(0)   # um estado só à vista: não há em que aproximar
+        expect(mapa).to_have_attribute("data-aproximado", "")
+        expect(mapa.get_by_test_id("detector-mapa-divisas")).to_contain_text(
+            "As divisas são as da malha municipal do IBGE: as dos estados ficam sempre à vista")
+        expect(mapa.get_by_test_id("detector-mapa-divisas")).to_contain_text("as divisas dos municípios estão à vista")
+        expect(mapa).not_to_contain_text("A base não tem as divisas")
         expect(mapa).to_contain_text("o estado como unidade não tem ponto")
         page.screenshot(path=str(OUTPUT / "detector-06-mapa-real.png"), full_page=False)
         # Com o filtro "Sinal", o mapa pinta o nível daquele sinal, e a lista fica só com as linhas em que ele tem nível.
@@ -707,6 +727,21 @@ def main():
         assert 280 <= medidas["largura"] == medidas["caixa"] <= 390 and medidas["altura"] == 220, medidas
         assert abs(medidas["naTela"] - medidas["caixa"]) <= 1 and medidas["fonte"] == 12, medidas
         tela.screenshot(path=str(OUTPUT / "detector-11-celular-detalhe-real.png"), full_page=False)
+        # O mapa no celular (etapa 7 do comando V23): desenhado na largura da tela, mais alto (380 em vez de 440 numa tela larga, que
+        # antes encolhia para caber), com as divisas da malha; o desenho não passa da largura da janela.
+        vista_mapa = detector.get_by_test_id("detector-vista-mapa")
+        vista_mapa.scroll_into_view_if_needed()
+        vista_mapa.tap()
+        mapa_no_celular = detector.get_by_test_id("detector-mapa")
+        expect(mapa_no_celular).to_have_attribute("data-divisas", "carregadas", timeout=60000)
+        expect(mapa_no_celular).not_to_have_attribute("data-largura", "760")   # a largura medida, e não a do primeiro desenho
+        medidas = mapa_no_celular.evaluate("""e => { const svg = e.querySelector('[data-testid="analise-mapa-conjuntos"] svg'), caixa = svg.getBoundingClientRect();
+          return { largura: Number(e.dataset.largura), caixa: svg.viewBox.baseVal.width, altura: svg.viewBox.baseVal.height,
+                   naTela: caixa.width, direita: caixa.right, esquerda: caixa.left }; }""")
+        assert 280 <= medidas["largura"] == medidas["caixa"] <= 390 and medidas["altura"] == 380, medidas
+        assert abs(medidas["naTela"] - medidas["caixa"]) <= 1 and medidas["esquerda"] >= 0 and medidas["direita"] <= 390 + 0.5, medidas
+        expect(mapa_no_celular.get_by_test_id("analise-mapa-divisas-dos-estados")).to_have_count(1)
+        tela.screenshot(path=str(OUTPUT / "detector-12-celular-mapa-real.png"), full_page=False)
         assert not chamadas_llm, "o Detector calcula sem o provedor de IA"
         assert not falhas_no_celular, falhas_no_celular
         browser.close()

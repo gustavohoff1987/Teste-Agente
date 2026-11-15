@@ -164,12 +164,25 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
   `detector-vista-grafico`). No Mapa e no Gráfico, a lista continua abaixo, como detalhe.
   - **Mapa** (`detector-mapa`): o mapa de pontos da Seleção, com cada município pintado pelo nível do alerta (com o filtro
     "Sinal", pelo nível daquele sinal), a legenda escrita com as contagens (`detector-legenda-niveis`), os conjuntos pelo
-    contorno e a sigla do grupo de cima junto aos pontos dele. **O produto não tem a malha das divisas**: o mapa não as desenha
-    (ver "Limitações"). **Quem está na lista e não tem ponto** aparece numa frase abaixo da legenda (`detector-mapa-fora`):
+    contorno e a sigla do grupo de cima junto aos pontos dele. **Na base do Brasil, o mapa tem as divisas** (desde 15/11/2026,
+    etapa 7 do comando V23; `data-divisas="carregadas"`), da malha municipal do IBGE (ver "A malha das divisas"):
+    - **as divisas dos estados ficam sempre à vista** (`analise-mapa-divisas-dos-estados`);
+    - **as dos municípios aparecem ao aproximar ou com um estado só**: quando a pessoa escolhe um estado em "Aproximar o mapa em"
+      (`detector-mapa-aproximar`, com os estados dos territórios à vista; o mapa enquadra o estado inteiro) ou quando os
+      territórios à vista são de um estado só;
+    - **a área de cada município à vista com nível leva a cor do nível** (`analise-mapa-area`), por baixo do ponto dele; quem não
+      tem nível, e o que a malha tiver a mais, fica sem cor;
+    - **a malha só é pedida quando o mapa abre**, uma vez; enquanto carrega, o mapa mostra os pontos e diz "As divisas estão
+      sendo carregadas."; se o arquivo não puder ser lido, segue só com os pontos e diz isso;
+    - **numa planilha, não há malha**: o mapa segue sem divisas e diz "A base não tem as divisas" (o nome do grupo situa os
+      pontos).
+
+    O mapa é desenhado na largura que tem na tela (`data-largura`): no celular, o texto mantém 12 px, e o mapa fica mais alto.
+    **Quem está na lista e não tem ponto** aparece numa frase abaixo da legenda (`detector-mapa-fora`):
     quantos são, com que nível, quais e por quê — a base não traz a coordenada deles na data, ou traz a latitude ou a longitude
     fora do intervalo válido ("Fora do mapa: 2 municípios à vista (2 sem nível). Em jun/2024, a base traz a latitude ou a
     longitude fora do intervalo válido em: … Continuam na lista, cada qual com o seu nível."). Assim, os pontos do mapa e os de
-    fora somam a lista.
+    fora somam a lista. Com as divisas, a área desses municípios aparece (com a cor do nível, quando há), mesmo sem o ponto.
   - **Gráfico** (`detector-bolhas`): o gráfico de bolhas do Agente, com uma bolha por território à vista que tem distância a
     mostrar. Na horizontal, a distância do sinal 11; na vertical, a taxa por 1.000 habitantes; o tamanho, a população; a cor, o
     nível. Tocar numa bolha ou num ponto abre os detalhes do território.
@@ -473,6 +486,25 @@ distância por estrada, tempo de viagem nem acesso.
 mínimo de 20 no patamar e nos sinais 8 a 10 e o critério do pico que volta. Todos podem ser trocados, como configuração
 exploratória.
 
+## A malha das divisas
+
+O arquivo da malha é versionado na interface, em `frontend/public/malha/` (não vai para o contêiner do motor), e é pedido pelo
+navegador só quando o mapa do Detector abre:
+
+- `municipios-ibge-qualidade-minima.json`: a malha municipal do Brasil, em TopoJSON (objeto `BRMU`), como veio do IBGE, byte a
+  byte — 1.428.796 bytes, 5.570 geometrias, identificadas por `codarea` (7 dígitos: os 6 primeiros são o código do município
+  na base);
+- `fonte.json`: a fonte (a API de malhas geográficas do IBGE, v3:
+  `https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/json&qualidade=minima&intrarregiao=municipio`),
+  a data da consulta (15/11/2026), o tamanho e o **SHA-256**
+  (`b509836495fa76a9adf620a2a5c57b462b745bbb0613e9d98cc1123d494edc21`).
+
+**Conferência:** os 5.570 códigos da base versionada têm divisa, e a malha não tem geometria além deles (nenhuma lagoa ou área
+sem município nesta versão); o teste do job `dados-reais` confere isso, e o teste Node, o tamanho e o SHA-256 do arquivo. As
+divisas dos estados não são outro arquivo: são os trechos da malha municipal entre municípios de estados diferentes, mais a borda
+do país (1.669 trechos). `frontend/src/malhaModel.ts` lê o arquivo e monta o que o mapa desenha. Para atualizar a malha, troque
+o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudança (regras 1 e 2 do `AGENTS.md`).
+
 ## Limitações
 
 - O registro mais recente da base é jun/2024: nenhum sinal descreve a situação de hoje.
@@ -492,8 +524,9 @@ exploratória.
 - A variação em 2 anos (sinais 8 a 10) só existe em trechos com população comparável, lidos da própria base. A população é uma
   estimativa, e a taxa de um estado usa a contagem estadual sobre a soma das populações municipais.
 - A distância (sinal 11) é em linha reta entre coordenadas: não mede acesso, deslocamento nem a organização da rede.
-- **O mapa não desenha divisas:** o produto não tem a malha territorial (só as coordenadas dos municípios). O mapa mostra os
-  pontos pelo nível e a sigla do grupo de cima junto aos pontos dele.
+- **As divisas do mapa são só desenho:** a malha municipal do IBGE em qualidade mínima é simplificada (serve para situar, não
+  para medir), e nenhuma área, distância ou valor é calculado com ela. Ela existe só para a base do Brasil: numa planilha, o
+  mapa segue sem divisas, com os pontos pelo nível e o nome do grupo de cima junto aos pontos dele.
 - O histórico de sinais cobre os sinais 1 a 7.
 - Numa planilha enviada, o grupo de cima como unidade é a soma das unidades dele (a planilha não tem a contagem própria do
   grupo): não é o número de pessoas diferentes do grupo, e só existe nas datas em que todas as unidades dele têm registro. A
@@ -532,11 +565,17 @@ exploratória.
   que o Detector leva ao Simulador, o "Entenda" (mouse, toque e teclado), qualquer base (o que a base
   tem, os sinais indisponíveis, as datas só com ano, a concordância e o perfil da base) e a série do território na largura da
   tela, com as datas da série da taxa como nos outros gráficos;
-  `frontend/tests/modoEscuro.test.mjs` — o contraste dos níveis no modo escuro.
+  `frontend/tests/modoEscuro.test.mjs` — o contraste dos níveis no modo escuro;
+  `frontend/tests/malha.test.mjs` — a malha das divisas: a leitura do TopoJSON (com uma malha pequena feita à mão), as divisas a
+  desenhar (as áreas com a cor do nível, as dos estados sempre, as dos municípios ao aproximar ou com um estado só), o pedido
+  único do arquivo, o arquivo versionado (o tamanho, o SHA-256 e os 5.570 municípios) e a tela.
+- pytest, no job `dados-reais`: `backend/tests/test_detector.py` confere que cada município da base tem divisa na malha
+  versionada e que a malha não tem geometria além deles.
 - Navegador: `backend/tests/ui_detector.py` (suíte `base-versionada`) — a lista, o resumo clicável, os filtros e a ordem; o
   detalhe com os quatro grupos, o "Entenda" por mouse e teclado e a explicação completa; os critérios em frases e a configuração
   exploratória; a régua por porte, com a régua usada de fato em cada nível; o estado como unidade; o mapa (com os dois
   municípios de Santa Catarina fora dele, ditos na legenda) e o gráfico; os sinais comparados em jun/2021; "Simular
-  recuperação"; a tela de celular, com o "Entenda" pelo toque, a lista em cartões e a série do território desenhada na largura
-  da tela (texto de 12 px); e o perfil da base do Brasil, fechado até a pessoa pedir. `backend/tests/ui_planilha_ficticia.py` (suíte `bloco1`) — o Detector com uma planilha enviada: o perfil aberto
+  recuperação"; a tela de celular, com o "Entenda" pelo toque, a lista em cartões, a série do território desenhada na largura
+  da tela (texto de 12 px) e o mapa na largura da tela, com as divisas; o mapa com as divisas dos estados, as dos municípios de
+  Santa Catarina e as áreas com a cor do nível; e o perfil da base do Brasil, fechado até a pessoa pedir. `backend/tests/ui_planilha_ficticia.py` (suíte `bloco1`) — o Detector com uma planilha enviada: o perfil aberto
   antes da ferramenta, a lista e o detalhe com os nomes da planilha e o Simulador desligado, com o motivo.

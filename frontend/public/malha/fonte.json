@@ -1,0 +1,14 @@
+{
+  "arquivo": "municipios-ibge-qualidade-minima.json",
+  "o_que_e": "Malha municipal do Brasil (as divisas dos 5.570 municípios), para o desenho do mapa do Detector de Sinais. Só desenho: nenhuma área, distância ou valor é calculado com ela.",
+  "orgao": "IBGE — Instituto Brasileiro de Geografia e Estatística, API de malhas geográficas (v3)",
+  "fonte": "https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/json&qualidade=minima&intrarregiao=municipio",
+  "consultado_em": "2026-11-15",
+  "formato": "TopoJSON (objeto BRMU; a qualidade mínima da API, no período padrão dela)",
+  "bytes": 1428796,
+  "sha256": "b509836495fa76a9adf620a2a5c57b462b745bbb0613e9d98cc1123d494edc21",
+  "geometrias": 5570,
+  "identificador": "codarea, com 7 dígitos: os 6 primeiros são o código do município na base do Brasil",
+  "conferencia": "Os 5.570 códigos da base versionada têm divisa, e a malha não tem geometria além deles (conferido em 15/11/2026 e pelo teste do job dados-reais).",
+  "como_atualizar": "Baixe o arquivo da fonte, sem alterar os bytes, e troque aqui a data, o tamanho e o SHA-256; registre a mudança (AGENTS.md, regras 1 e 2)."
+}

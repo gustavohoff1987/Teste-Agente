@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { caminhoDaMalha, type Caixa, type Ponto } from "./malhaModel";
 import { coresDoMapa } from "./mapaModel";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 
@@ -42,8 +43,17 @@ type Props = {
   pintura?: Map<string, PinturaDoPonto>;
   /** Os grupos de cima (o estado, na base do Brasil): o nome de cada um aparece no centro dos pontos dele, quando cabe. */
   grupos?: ConjuntoNoMapa[];
+  /** As divisas (comando V23, etapa 7: o mapa do Detector de Sinais, na base do Brasil, com a malha municipal do IBGE). Sem elas,
+   * o mapa é o de antes, só com os pontos. */
+  divisas?: DivisasNoMapa;
 };
 export type PinturaDoPonto = { cor: string; raio?: number; chave: string; rotulo: string };
+/** As divisas a desenhar por baixo dos pontos. As áreas são as dos municípios: com `cor`, a área leva a cor do nível (o que a cor
+ * diz fica em `chave`); sem ela, fica sem cor. `comBordas`: as divisas dos municípios aparecem (o mapa aproximado num estado, ou
+ * a seleção num estado só). `linhas`: as divisas dos estados, sempre à vista. `moldura`: o retângulo que o desenho enquadra
+ * ([menor longitude, menor latitude, maior longitude, maior latitude]); sem ela, o desenho enquadra os pontos. */
+export type DivisasNoMapa = { areas: { id: string; aneis: Ponto[][]; cor?: string; chave?: string }[]; comBordas: boolean; linhas: Ponto[][];
+  moldura?: Caixa | null };
 
 const MARGEM = 14;
 const FOLGA = 7;
@@ -101,7 +111,10 @@ export default function MapaDosConjuntos(p: Props) {
       ...(p.pintura?.keys() ?? [])])].filter(id => p.coordenadas.has(id));
     if (!ids.length) return null;
     const lats = ids.map(id => p.coordenadas.get(id)![0]), lons = ids.map(id => p.coordenadas.get(id)![1]);
-    const [minLat, maxLat, minLon, maxLon] = [Math.min(...lats), Math.max(...lats), Math.min(...lons), Math.max(...lons)];
+    // O que o desenho enquadra: os pontos ou, com as divisas, a moldura dada (as áreas à vista, ou o estado em que o mapa se aproxima).
+    const moldura = p.divisas?.moldura;
+    const [minLat, maxLat, minLon, maxLon] = moldura ? [moldura[1], moldura[3], moldura[0], moldura[2]]
+      : [Math.min(...lats), Math.max(...lats), Math.min(...lons), Math.max(...lons)];
     // Projeção simples, só para desenhar: a longitude encolhida pelo cosseno da latitude média.
     const fator = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180) || 1;
     const larguraGraus = Math.max((maxLon - minLon) * fator, 0.05), alturaGraus = Math.max(maxLat - minLat, 0.05);
@@ -129,8 +142,15 @@ export default function MapaDosConjuntos(p: Props) {
       return pontos.length ? { id: grupo.id, nome: grupo.nome, x: pontos.reduce((soma, ponto) => soma + ponto[0], 0) / pontos.length,
         y: pontos.reduce((soma, ponto) => soma + ponto[1], 0) / pontos.length } : null;
     }).filter((centro): centro is { id: string; nome: string; x: number; y: number } => !!centro);
-    return { posicao, contornos, barra, centros };
-  }, [p.coordenadas, p.fundo, p.destaque, p.conjuntos, p.semConjunto, p.escalaKm, p.pintura, p.grupos, largura, altura]);
+    // As divisas, com a mesma projeção dos pontos: as áreas com cor, uma a uma; as sem cor, num caminho só (só quando as divisas dos
+    // municípios aparecem); e as linhas das divisas dos estados.
+    const doMapa = ([lon, lat]: Ponto): [number, number] => [deslocX + (lon - minLon) * fator * escala, deslocY + (maxLat - lat) * escala];
+    const divisas = p.divisas ? {
+      comCor: p.divisas.areas.filter(area => area.cor).map(area => ({ id: area.id, cor: area.cor!, chave: area.chave, d: caminhoDaMalha(area.aneis, doMapa, true) })),
+      semCor: p.divisas.comBordas ? caminhoDaMalha(p.divisas.areas.filter(area => !area.cor).flatMap(area => area.aneis), doMapa, true) : "",
+      linhas: caminhoDaMalha(p.divisas.linhas, doMapa) } : null;
+    return { posicao, contornos, barra, centros, divisas };
+  }, [p.coordenadas, p.fundo, p.destaque, p.conjuntos, p.semConjunto, p.escalaKm, p.pintura, p.grupos, p.divisas, largura, altura]);
 
   if (!desenho) return <p data-testid="analise-mapa-conjuntos-vazio" className="analise-agregar-apoio">{p.vazio ?? "Sem coordenadas para desenhar."}</p>;
   const membros = new Set(p.conjuntos.flatMap(conjunto => conjunto.membros));
@@ -191,6 +211,15 @@ export default function MapaDosConjuntos(p: Props) {
     <svg viewBox={"0 0 " + largura + " " + altura} width={largura} height={altura} role="img" aria-label={p.rotulo}
       style={{ display: "block", maxWidth: "100%", height: "auto" }}>
       <rect x={0.5} y={0.5} width={largura - 1} height={altura - 1} rx={6} fill={cores.superficie} stroke={cores.borda}/>
+      {/* As divisas, por baixo de tudo: as áreas com a cor do nível, as divisas dos municípios (quando aparecem) e as dos estados. */}
+      {desenho.divisas && <g data-testid="analise-mapa-divisas" data-areas-com-cor={desenho.divisas.comCor.length}
+        data-bordas={p.divisas?.comBordas ? "true" : "false"} pointerEvents="none">
+        {desenho.divisas.semCor && <path data-testid="analise-mapa-areas-sem-cor" d={desenho.divisas.semCor} fill="none" stroke={cores.borda} strokeWidth={0.6}/>}
+        {desenho.divisas.comCor.map(area => <path key={area.id} data-testid="analise-mapa-area" data-id={area.id} data-pintura={area.chave} d={area.d}
+          fill={area.cor} fillOpacity={0.45} stroke={p.divisas?.comBordas ? cores.tinta : "none"} strokeWidth={0.5} strokeOpacity={0.5}/>)}
+        {desenho.divisas.linhas && <path data-testid="analise-mapa-divisas-dos-estados" d={desenho.divisas.linhas} fill="none" stroke={cores.tinta}
+          strokeWidth={0.8} strokeOpacity={0.55} strokeLinejoin="round"/>}
+      </g>}
       {desenho.contornos.map(conjunto => conjunto.caminho && <g key={conjunto.id}>
         <path data-testid="analise-mapa-contorno" data-id={conjunto.id} data-nome={conjunto.nome} d={conjunto.caminho} fill={cores.tinta}
           fillOpacity={0.04} stroke={cores.tinta} strokeWidth={1.2} strokeDasharray="4 3"><title>{conjunto.descricao ?? conjunto.nome}</title></path>
