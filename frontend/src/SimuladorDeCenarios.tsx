@@ -9,7 +9,7 @@ import {
   anosDepois, cenariosEmUso, comOBrasil, comOPlanoComoIntervencao, competenciaCurta, configInicial, contasDoFinal, hipotesePertinente, metodoNaTabela, tempoDesde,
   copiarSelecao, csvDasComparacoes, csvDoSimulador, doCampoDeMes, exportarCenario, formatarMedicos, formatarPercentualInteiro, formatarTaxa, importarCenario, janelaPadrao,
   comoConjunto, mesDe, normalizarSimulador, novaIntervencao, novaReferencia, novoCenario, novoPlano, paraCampoDeMes, pedidoDoSimulador, pendenciaDoPedido, referenciasValidas,
-  textoDaFaixa, textoDaHipotese, textoDoFinal, tirarTerritorio, totalDaSelecaoLocal,
+  textoDaFaixa, textoDaHipotese, textoDoFinal, tirarTerritorio, totalDaSelecaoLocal, aoTrocarDeTerritorio, metaNoCampo, textoDaMetaDoPatamar,
   NOMES_DO_BRASIL, TESTES, comOTeste, nomeCurtoDoMetodo, nomesDaPlanilha, primeiroDaSelecao, territoriosDaSelecaoLocal, testeDoCenario, tresNumeros,
   FORMAS_DO_BRASIL, comMaiuscula, ehAnual, formasDaPlanilha, janelaDeAnos, type FormasDaBase,
   type CenarioCalculado, type CenarioDaTela, type ConfigDoSimulador, type IntervencaoDaTela, type MetodoDoCenario, type NomesDaBase, type PlanejamentoDoCenario, type PlanoDaTela,
@@ -97,8 +97,11 @@ function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica, r, fonte
   const largura = 760, altura = 300, esquerda = 52, direita = 16, topo = 14, base = 40;
   const inicio = mesDe(observados[0].competencia);
   const fim = Math.max(mesDe(ultimoRegistro), ...calculados.map(cenario => mesDe(cenario.trajetoria[cenario.trajetoria.length - 1].data)));
+  // "Chegar a uma meta": a meta de cada cenário (uma linha na altura dela) e, com o acréscimo calculado, o caminho com ele.
+  const planos = calculados.filter(cenario => cenario.planejamento?.meta && (cenario.planejamento.estado === "calculado" || cenario.planejamento.estado === "ja_alcancada"))
+    .map(cenario => ({ cenario, plano: cenario.planejamento!, meta: cenario.planejamento!.meta!.valor }));
   const teto = Math.max(1, ...observados.map(ponto => ponto.valor!), ...calculados.flatMap(cenario => cenario.trajetoria.map(ponto =>
-    Math.max(ponto.total, ponto.base, ponto.faixa?.superior ?? 0))));
+    Math.max(ponto.total, ponto.base, ponto.faixa?.superior ?? 0))), ...planos.flatMap(item => [item.meta, ...item.plano.trajetoria.map(ponto => ponto.total)]));
   // As referências, por quantidade: a curva de cada uma, lida do primeiro cenário calculado (a referência é a mesma em todos). Uma
   // referência muito acima do território (mais de 3 vezes o maior valor dele) achataria as curvas: fica fora da escala, na legenda.
   const referencias = metrica !== "quantidade" ? [] : calculados[0].comparacoes.filter(comparacao => comparacao.estado === "calculada" && comparacao.pontos.length)
@@ -176,6 +179,30 @@ function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica, r, fonte
           })}
         </g>;
       })}
+      {planos.map(({ cenario, plano, meta }) => {
+        // A meta, do último registro à data final; e, quando há acréscimo a fazer, o caminho do cenário com ele (linha contínua) e
+        // a marca em cada data em que o acréscimo entra.
+        const origem: [number, number] = [mesDe(String(cenario.parametros.origem ?? ultimoRegistro)), Number(cenario.parametros.n0 ?? 0)];
+        const cor = cores.get(cenario.id);
+        const yDaMeta = y(meta);
+        let anterior = 0;
+        return <g key={"p" + cenario.id} data-testid="simulador-plano-no-grafico" data-cenario={cenario.id} data-meta={meta} data-estado={plano.estado}>
+          <line data-testid="simulador-meta-linha" x1={xDoUltimo} x2={largura - direita} y1={yDaMeta} y2={yDaMeta} stroke={cor} strokeWidth={1.2} strokeDasharray="1 4"
+            strokeLinecap="round"><title>{plano.meta!.rotulo}</title></line>
+          <text x={largura - direita - 4} y={yDaMeta - 5 < topo + 22 ? yDaMeta + 14 : yDaMeta - 5} textAnchor="end" className="ferramenta-serie-texto ferramenta-serie-marca">
+            meta: {formatarMedicos(meta)}</text>
+          {plano.trajetoria.length > 0 && <path data-testid="simulador-plano-curva" d={caminho([origem, ...plano.trajetoria.map(ponto =>
+            [mesDe(ponto.data), ponto.total] as [number, number])])} fill="none" stroke={cor} strokeWidth={1.6}/>}
+          {plano.trajetoria.map(ponto => {
+            const mudou = ponto.intervencao !== anterior;
+            const acrescimo = ponto.intervencao - anterior;
+            anterior = ponto.intervencao;
+            return mudou ? <path key={ponto.data} data-testid="simulador-plano-evento" d={"M" + x(mesDe(ponto.data)).toFixed(1) + "," + (y(ponto.total) - 7).toFixed(1) +
+              " l5,-8 l-10,0 Z"} fill={cor}><title>{competenciaCurta(ponto.data) + ": acréscimo de " + formatarMedicos(Math.round(acrescimo * 10) / 10) +
+                " para chegar à meta"}</title></path> : null;
+          })}
+        </g>;
+      })}
       {trechosObservados.map((trecho, indice) => <path key={indice} d={caminho(trecho)} className="ferramenta-serie-linha"/>)}
       {observados.map(ponto => <circle key={ponto.competencia} data-testid="simulador-observado" cx={x(mesDe(ponto.competencia))} cy={y(ponto.valor!)}
         r={ponto.marca ? 4.5 : 2.6} className={"ferramenta-serie-ponto" + (ponto.marca ? " ferramenta-serie-ponto-marcado" : "")}>
@@ -188,6 +215,11 @@ function GraficoDoCenario({ territorio, ultimoRegistro, cores, metrica, r, fonte
         stroke={cores.get(cenario.id)} strokeWidth="2" strokeDasharray={cenario.id === ID_DA_REFERENCIA ? "2 4" : "7 4"}/></svg>{cenario.nome}: base do cenário
         {cenario.trajetoria.some(ponto => ponto.intervencao !== 0) ? "; linha contínua: com a intervenção (▼ nos eventos)" : ""}
         {cenario.trajetoria.some(ponto => ponto.faixa) ? "; banda: faixa de " + em10 + " em cada 10" + (territorio.tipo === "conjunto" ? " (aproximação)" : "") : ""}</span>)}
+      {planos.map(({ cenario, plano, meta }) => <span key={"p" + cenario.id} data-testid="simulador-meta-legenda"><svg width="28" height="8" aria-hidden="true">
+        <line x1="0" x2="28" y1="4" y2="4" stroke={cores.get(cenario.id)} strokeWidth="1.4" strokeDasharray="1 4" strokeLinecap="round"/></svg>
+        {planos.length > 1 ? cenario.nome + ": " : ""}meta hipotética de {formatarMedicos(meta)} {meta === 1 ? r.profissional : r.profissionais}
+        {plano.trajetoria.length > 0 ? "; linha contínua: o cenário com o acréscimo que alcança a meta (▼ na data do acréscimo)"
+          : plano.estado === "ja_alcancada" ? "; o cenário já chega a ela, sem acréscimo" : ""}</span>)}
       {referencias.map(ref => <span key={"r" + ref.id} data-testid="simulador-referencia-legenda" data-ref={ref.id} data-na-escala={naEscala.includes(ref) ? "true" : "false"}>
         <svg width="28" height="8" aria-hidden="true"><line x1="0" x2="28" y1="4" y2="4" className="ferramenta-serie-referencia"/></svg>{ref.marca}: referência {ref.rotulo}
         {ref.descricao ? " (" + ref.descricao + ")" : ""}{naEscala.includes(ref) ? "" : ": fora da escala deste gráfico (" + formatarMedicos(ref.final) + " " + r.profissionais + " na data final)"}</span>)}
@@ -524,7 +556,7 @@ export default function SimuladorDeCenarios(props: Props) {
       <div className="ferramenta-controles analise-nao-imprimir">
         <label className="analise-rotulo-campo">Território
           <select data-testid="simulador-territorio" className="analise-campo" value={territorioDoSimples} disabled={!doSimples.length}
-            onChange={event => mudar({ territorio: event.target.value })}>
+            onChange={event => mudar(aoTrocarDeTerritorio(config, event.target.value))}>
             {doSimples.map(item => <option key={item.id} value={item.id}>{item.rotulo}</option>)}
           </select></label>
         <label className="analise-rotulo-campo">Até quando
@@ -560,13 +592,14 @@ export default function SimuladorDeCenarios(props: Props) {
         {teste === "meta" && cenarioDoSimples.planejamento && <p className="ferramenta-frase">
           Chegar a{" "}
           <input data-testid="simulador-teste-meta-valor" inputMode="decimal" className="ferramenta-campo-da-frase" size={6} aria-label="Meta hipotética"
-            value={cenarioDoSimples.planejamento.valor}
-            onChange={event => mudarPlano(0, { valor: event.target.value, ...(cenarioDoSimples.planejamento!.meta === "referencia" ? { meta: "valor" as const } : {}) })}/>{" "}
+            value={metaNoCampo(cenarioDoSimples.planejamento)}
+            // A meta digitada é um número da pessoa: deixa de ser o patamar trazido pelo Detector (ou a referência do modo avançado).
+            onChange={event => mudarPlano(0, { valor: event.target.value, meta: "valor" })}/>{" "}
           {r.profissionais} na data final, com um acréscimo em{" "}
           <CampoDeData testid="simulador-teste-em" className="ferramenta-campo-da-frase" rotulo="Data do acréscimo" valor={cenarioDoSimples.planejamento.em}
             ultimo={ultimoRegistro} comMinimo onMudar={data => mudarPlano(0, { em: data, ate: data })}/>.{" "}
-          {cenarioDoSimples.planejamento.meta === "patamar" ? "A meta é o patamar anterior, trazido pelo Detector de Sinais: uma hipótese que você pode trocar. "
-            : "A meta é uma hipótese sua. "}O Agente calcula quantos faltariam, com o menor número inteiro.</p>}
+          <span data-testid="simulador-teste-meta-origem">{cenarioDoSimples.planejamento.meta === "patamar" ? textoDaMetaDoPatamar(cenarioDoSimples.planejamento, r)
+            : "A meta é uma hipótese sua. "}</span>O Agente calcula quantos faltariam, com o menor número inteiro.</p>}
       </fieldset>
       <div className="ferramenta-detalhe-acoes analise-nao-imprimir">
         <button type="button" data-testid="simulador-calcular" className="analise-botao-primario" disabled={!!pendencia || carregando} onClick={calcular}>

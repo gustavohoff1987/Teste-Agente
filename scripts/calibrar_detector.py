@@ -114,6 +114,7 @@ def _alertas_por_sinal(base, cal, cal_dos_estados, p):
     por_sinal = {chave: Counter() for chave in SINAIS}
     avaliados = {chave: 0 for chave in SINAIS}
     por_data = []
+    no_ultimo, principal = Counter(), Counter()   # no último registro: (sinal, nível) de cada sinal e do sinal principal do alerta
     for e in range(1, t):
         do_dia = Counter()
         comparados = 0
@@ -121,8 +122,12 @@ def _alertas_por_sinal(base, cal, cal_dos_estados, p):
             av = detector.avaliar(base, cal, territorio, 0, e, p)
             do_dia[av["alerta"]["nivel"] or av["alerta"]["estado"]] += 1
             comparados += any(item["criterio"] == detector.COMPARADO for item in av["alerta"]["sinais"])
+            if e == t - 1 and av["alerta"]["nivel"]:
+                principal[("estrutural" if av["alerta"]["sinal"] == "ausencia" else av["alerta"]["sinal"], av["alerta"]["nivel"])] += 1
             for chave in SINAIS:
                 sinal = av[chave]
+                if e == t - 1 and sinal.get("classe"):
+                    no_ultimo[(chave, sinal["classe"])] += 1
                 if sinal["estado"] in FORA_DA_AVALIACAO:
                     continue
                 avaliados[chave] += 1
@@ -149,6 +154,21 @@ def _alertas_por_sinal(base, cal, cal_dos_estados, p):
         print(_linha([detector.curta(periodo), _pct(do_dia["critico"], total, 1), _pct(do_dia["elevado"], total, 1),
                       _pct(do_dia["moderado"], total, 1), _pct(algum, total, 1), _pct(comparados, total, 1),
                       _pct(do_dia["sem_alerta"], total, 1), _pct(do_dia["sem_comparacoes"], total, 1)]))
+    # No último registro: quantos municípios têm nível em cada sinal, e em quantos o sinal é o principal do alerta (o de maior
+    # nível; no empate, o primeiro na ordem dos sinais). Um município pode ter nível em mais de um sinal: as linhas não se somam.
+    periodo, do_dia, _ = por_data[-1]
+    total = sum(do_dia.values())
+    print(f"\n## Municípios com alerta em {detector.curta(periodo)}, por sinal e por nível\n")
+    print(_linha(["Sinal", "Moderado", "Elevado", "Crítico", "Com nível no sinal", "É o sinal principal do alerta"]))
+    print(_linha(["---"] * 6))
+    for chave in SINAIS:
+        niveis = [no_ultimo[(chave, nivel)] for nivel in ("moderado", "elevado", "critico")]
+        do_principal = sum(principal[(chave, nivel)] for nivel in ("moderado", "elevado", "critico"))
+        print(_linha([NOMES[chave], *(_numero(n) for n in niveis), f"{_numero(sum(niveis))} ({_pct(sum(niveis), total, 1)})",
+                      f"{_numero(do_principal)} ({_pct(do_principal, total, 1)})"]))
+    algum = do_dia["critico"] + do_dia["elevado"] + do_dia["moderado"]
+    print(_linha(["**Território: o maior nível entre os sinais**", _numero(do_dia["moderado"]), _numero(do_dia["elevado"]),
+                  _numero(do_dia["critico"]), f"**{_numero(algum)} de {_numero(total)} ({_pct(algum, total, 1)})**", "—"]))
     if cal_dos_estados is None:
         return
     estados = [series_brasil.estado(base, uf) for uf in sorted(base.estados)]
@@ -173,24 +193,34 @@ def _limites_do_sinal_8(base):
         print("\n## Sinal 8: sem janelas anteriores para comparar\n")
         return
     fim, antes = janelas[-1], janelas[:-1]
-    usavel = np.isfinite(medida[:, antes]) & (porte[:, antes] >= 0)
+    # As janelas que o motor compara nessa data: sem quebra de fonte numa ponta e sem pico cuja volta já era conhecida.
+    usavel = regua.usavel("disponibilidade", fim)[:, antes]
     print(f"\n## Sinal 8: os limites que a raridade dá em {detector.curta(base.periodos[fim])} (variação da taxa por habitante em 2 anos)\n")
-    print(_linha(["Porte no início da janela", "Variações anteriores", "Moderado: queda maior que", "Elevado: queda maior que",
+    print(_linha(["Porte no início da janela", "Variações anteriores do porte", "Moderado: queda maior que", "Elevado: queda maior que",
                   "Crítico: queda maior que"]))
     print(_linha(["---"] * 5))
-
-    def linha(rotulo, valores):
-        ordenados = np.sort(valores)
-        celulas = [rotulo, _numero(ordenados.size)]
-        for um_em in (20, 100, 1000):
-            corte = detector._limite_da_raridade(ordenados, um_em)
-            celulas.append("sem comparações suficientes" if corte is None else f"{-corte:.1f}%".replace(".", ","))
-        print(_linha(celulas))
+    valores, faixas = medida[:, antes][usavel], porte[:, antes][usavel]
+    # A régua usada de fato em cada nível, como no produto: o porte; sem comparações bastantes, o porte com as faixas vizinhas;
+    # e, só no moderado, todas as faixas (a variação já é relativa: entre todas as faixas, é comparada como está).
+    de_onde = {"porte": "", "vizinhas": "com as faixas vizinhas", "todas": "com todas as faixas"}
     for faixa, rotulo in enumerate(reguas.ROTULOS_DOS_PORTES):
-        valores = medida[:, antes][usavel & (porte[:, antes] == faixa)]
-        if valores.size:
-            linha(rotulo, valores)
-    linha("**Todas as janelas e portes juntos**", medida[:, antes][usavel])
+        proprias = int((faixas == faixa).sum())
+        if not proprias:
+            continue
+        celulas = [rotulo, _numero(proprias)]
+        for nivel, um_em in (("moderado", 20), ("elevado", 100), ("critico", 1000)):
+            lida = detector._regua_da_faixa(valores, faixas, faixa, um_em, valores if nivel == "moderado" else None)
+            origem = de_onde[lida["origem"]]
+            if not lida["avaliado"]:
+                celulas.append(f"sem comparações suficientes ({_numero(lida['comparacoes'])} de {_numero(lida['pede'])}" +
+                               (", " + origem if origem else "") + ")")
+            else:
+                celulas.append(f"{-lida['corte']:.1f}%".replace(".", ",") + (f" ({origem}: {_numero(lida['comparacoes'])})" if origem else ""))
+        print(_linha(celulas))
+    ordenados = np.sort(valores)
+    print(_linha(["**Todas as janelas e portes juntos**", _numero(ordenados.size)] + [
+        "sem comparações suficientes" if corte is None else f"{-corte:.1f}%".replace(".", ",")
+        for corte in (detector._limite_da_raridade(ordenados, um_em) for um_em in (20, 100, 1000))]))
     print("\nPopulação comparável nesta base: " + comparativos.texto_dos_trechos(base) + ".")
 
 

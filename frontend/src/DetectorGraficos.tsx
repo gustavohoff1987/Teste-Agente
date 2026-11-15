@@ -7,7 +7,7 @@ import { ROTULOS_BRASIL, paletaDoGrafico } from "./painelModel";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import {
   CORES_DOS_NIVEIS, NIVEIS, NOMES_DOS_NIVEIS, artigoDaUnidade, camadasDoMapa, competenciaCurta, criterioDoContexto, dominiosDoContexto, formatarInteiro,
-  formatarTaxa, itensDoContexto, maisProximo, nivelNoDesenho, nomeDoSinal, seriesDoComparativo, textoDosTrechos,
+  foraDoMapa, formatarTaxa, itensDoContexto, maisProximo, nivelNoDesenho, nomeDoSinal, seriesDoComparativo, textoDeForaDoMapa, textoDosTrechos,
   type DetalheDoDetector, type LinhaDoDetector, type NivelDoAlerta, type RespostaDoDetector,
 } from "./detectorModel";
 
@@ -50,6 +50,8 @@ export function MapaDosNiveis({ resposta, linhas, sinal, onAbrir }: DoDetector &
     return mapa;
   }, [camadas]);
   const contagens = { critico: camadas.porNivel.critico.length, elevado: camadas.porNivel.elevado.length, moderado: camadas.porNivel.moderado.length };
+  const fora = useMemo(() => foraDoMapa(resposta, linhas, sinal), [resposta, linhas, sinal]);
+  const textoDeFora = textoDeForaDoMapa(fora, r, resposta.janela.fim);
   const doQue = sinal === "todos" || sinal === "juntos" || sinal === "registro" ? "do alerta do território" : "de “" + nomeDoSinal(sinal, r) + "”";
   // O grupo de cima como unidade só existe na base do Brasil (a fonte estadual); numa planilha, o grupo só situa os pontos.
   const doBrasil = resposta.fonte.origem === "brasil", comGrupo = resposta.fonte.tem.grupo, oGrupo = r.oGrupo ?? "o " + r.grupo;
@@ -64,6 +66,8 @@ export function MapaDosNiveis({ resposta, linhas, sinal, onAbrir }: DoDetector &
       onTocar={id => { if (naLista.has(id)) onAbrir(id); }}
       legenda={"pontos coloridos: o nível " + doQue + " · pontos claros: sem nível · tracejado: conjunto" + (comGrupo ? " · letras: " + oGrupo + " dos pontos" : "")}/>
     <LegendaDosNiveis contagens={contagens} semNivel={camadas.fundo.length}/>
+    {/* Quem está na lista e não tem ponto: quantos, com que nível, quais e por quê (o motor diz o motivo). */}
+    {textoDeFora && <p data-testid="detector-mapa-fora" data-quantos={fora.length} className="ferramenta-apoio">{textoDeFora}</p>}
     <figcaption className="ferramenta-apoio">Onde ficam os territórios à vista, pelo nível {doQue}. Os pontos usam as coordenadas da data avaliada;{" "}
       {doBrasil ? "o " + r.grupo + " como unidade não tem ponto, e o conjunto" : "o conjunto"} aparece pelo contorno, sem nível. A base não tem as divisas
       {comGrupo ? ": " + (doBrasil ? "a sigla" : "o nome") + " situa os pontos de cada " + r.grupo : ""}. Para ver um sinal só, escolha-o no filtro “Sinal”.

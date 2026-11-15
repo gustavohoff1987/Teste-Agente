@@ -57,7 +57,9 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
 `simulador-simples`, como no esboço da seção C.7 da Proposta V3:
 
 - **Território** (`simulador-territorio`): um território por vez, entre os da seleção local (a cópia da seleção principal; ver a
-  etapa 1 do modo avançado). Sem escolha, o primeiro. O pedido leva só esse território.
+  etapa 1 do modo avançado). Sem escolha, o primeiro. O pedido leva só esse território. **Trocar o território tira a meta** de
+  "Chegar a uma meta": ela era do território de antes (o patamar dele, ou um número pensado para ele). O campo fica em branco, à
+  espera de outra, e a data do acréscimo continua.
 - **O que testar** (`simulador-o-que-testar`), uma opção de cada vez:
   - "Só continuar como vinha" (`simulador-teste-continuar`): sem intervenção;
   - "Acrescentar" e "Retirar" (`simulador-teste-acrescentar`, `simulador-teste-retirar`): a frase "Acrescentar [N] médicos em
@@ -66,7 +68,12 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
   - "Chegar a uma meta" (`simulador-teste-meta`; o valor, em `simulador-teste-meta-valor`): "Chegar a [meta] médicos na data
     final, com um acréscimo em [data]" — o
     planejamento inverso com um acréscimo numa data. A meta é uma hipótese da pessoa (ou o patamar anterior, quando o Simulador é
-    aberto por "Simular recuperação"), e o Agente calcula quantos faltariam, com o menor número inteiro.
+    aberto por "Simular recuperação"), e o Agente calcula quantos faltariam, com o menor número inteiro. A meta que vem do
+    Detector é um **número inteiro**: o patamar, que é uma média e pode ter decimal, arredondado para cima (79 médicos para um
+    patamar de 78,25), para o resultado do cenário não parecer abaixo da meta. A frase ao lado do campo diz de onde ela veio
+    (`simulador-teste-meta-origem`: "A meta veio do Detector de Sinais: o patamar anterior, de 78,25 médicos (a maior média de
+    dois anos seguidos), arredondado para cima. É uma hipótese que você pode trocar."). Digitar outro número troca a meta por um
+    número da pessoa ("A meta é uma hipótese sua.").
 
   Trocar de opção volta ao jeito de projetar escolhido pela base; a quantidade, a meta e a data digitadas ficam. Quando o
   cenário traz um jeito de projetar escolhido no modo avançado, o modo simples avisa (`simulador-metodo-do-avancado`) e oferece
@@ -78,7 +85,11 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
   `data-conferencia`) traz, nesta ordem:
   - o **gráfico** (`simulador-grafico`): o observado, a base do cenário, a linha com a intervenção e os marcadores dos eventos, a
     faixa quando existe ("banda: faixa de 8 em cada 10"), a fronteira "observado | simulado (hipótese)" e a fonte
-    (`simulador-grafico-fonte`), com os nomes da base em uso;
+    (`simulador-grafico-fonte`), com os nomes da base em uso. Em "Chegar a uma meta" (`simulador-plano-no-grafico`), o desenho
+    mostra também **a meta** (uma linha pontilhada na altura dela, com "meta: N"; `simulador-meta-linha`), **o caminho do cenário
+    com o acréscimo** calculado (linha contínua, `simulador-plano-curva`) e **a marca na data de cada acréscimo**
+    (`simulador-plano-evento`); a legenda diz o que é cada um (`simulador-meta-legenda`). Quando o cenário já chega à meta, fica
+    só a linha dela ("o cenário já chega a ela, sem acréscimo");
   - a **frase fixa** do cenário (`simulador-texto`), que vem pronta do motor;
   - **três números** (`simulador-tres-numeros`): no último registro, na data final e a diferença (na meta, "precisaria
     acrescentar N" ou "nada a acrescentar");
@@ -190,7 +201,8 @@ Os textos da etapa 5 também vêm prontos do motor:
 > até … | valor informado por você, mantido]), [M]: [X abaixo | acima da referência | o mesmo valor] (índice [I]; 100 é a
 > referência). [Alcance.]
 
-> Meta hipotética: [voltar ao patamar de X médicos | X médicos | alcançar a referência …] em [data]. Menor acréscimo inteiro que
+> Meta hipotética: [voltar ao patamar de X médicos em [data] (patamar de X,XX, média de N registros, arredondado para cima) | X
+> médicos | alcançar a referência …] em [data]. Menor acréscimo inteiro que
 > alcança a meta, nas hipóteses deste cenário: [x] médicos [em … | em cada um dos k eventos, de … a … (total)]. Pela conta sem
 > arredondar, seriam [x,xx] por evento. [O texto do cenário com esse acréscimo.] É uma conta condicional às hipóteses do
 > cenário, não um plano.
@@ -335,6 +347,12 @@ acréscimo: reaplicado como intervenção, ele alcança a meta, e com um médico
 
 - **Meta:** um número de médicos; o **patamar anterior** (o do fenômeno 7 do Detector: a maior média de dois anos seguidos antes
   dos registros mais recentes; sem valor informado, o de cada território); ou o valor de uma **referência** na data final.
+- **A meta do patamar é um número inteiro.** O patamar é uma média e pode ter decimal: a meta é o patamar **arredondado para
+  cima** (78,25 vira 79; 1,75 vira 2), e o rótulo diz de onde ela veio — "voltar ao patamar de 79 médicos em jun/2026 (patamar de
+  78,25, média de 4 registros, arredondado para cima)"; com patamar inteiro, "(média de 4 registros)". Quando o valor que vem no
+  pedido não é o patamar do território, o rótulo diz "patamar informado" (com o valor, quando ele foi arredondado), sem a média
+  que ele não é. Antes (até 14/11/2026), a meta era o patamar com decimal, e o texto "teria 78 médicos" parecia ficar abaixo de
+  uma meta de 78,25.
 - **Estados:** `calculado`; `ja_alcancada` (o cenário já chega à meta: nenhum acréscimo); `nao_alcancavel` (com permanência zero,
   nenhum médico acrescentado está no território na data final); `nao_calculavel` (nenhum evento do calendário entre a origem e a
   data final; território sem patamar calculável; referência ausente ou sem valor).
@@ -475,8 +493,11 @@ cada uma) e `comparacao` (`metrica` e `hipotese_de_populacao`), e cada cenário 
 
 - `comparacoes` (com referências no pedido): por referência, `estado`, `descricao`, `avisos`, `pontos` (`data`, `territorio`,
   `referencia`, `diferenca`, `razao`, `indice`), `inicial`, `final`, `alcance` (`estado` e `data`) e `texto`;
-- `planejamento` (com o pedido): `estado`, `meta` (`tipo`, `valor`, `rotulo`), `sem_o_plano`, `eventos`, `datas`, `por_evento`,
-  `total`, `teorico_por_evento`, `resultado`, `intervencao` (pronta para voltar como intervenção) e `texto`;
+- `planejamento` (com o pedido): `estado`, `meta` (`tipo`, `valor`, `rotulo` e, quando ela é o patamar, `patamar` — o patamar sem
+  arredondar —, `registros` — de quantos registros ele é a média; `null` quando o valor foi informado e não é o patamar do
+  território — e `arredondado`), `sem_o_plano`, `eventos`, `datas`, `por_evento`, `total`, `teorico_por_evento`, `resultado`,
+  `intervencao` (pronta para voltar como intervenção), `trajetoria` (o caminho do cenário com o acréscimo calculado, para o
+  gráfico: `data`, `total` e `intervencao` em cada data; só no estado `calculado`) e `texto`;
 - `hipotetico` (municípios): `rotulo`, `data`, `valor`, `inteiro`, `classe`, `impacto_pct` e `na_faixa`.
 
 Erros de pedido vêm em 422, em português (seleção vazia ou acima de 100, território fora da base, competência fora da base, data
@@ -859,7 +880,9 @@ enviada, a recusa ainda não cita o Simulador: o texto da conversa não mudou no
   (inclusive o Brasil como território, as referências com o alcance e a sobreposição, a comparação por taxa, o planejamento
   inverso reaplicado ao Simulador, a hipótese do cenário, a opção `faixa` e as recusas) e, no job `dados-reais`, a base versionada
   (a escolha do jeito de projetar, as faixas e os erros acima, o Distrito Federal, Rio Rufino/SC, São Paulo como unidade, o limite
-  de 100 territórios, o Brasil, as referências de Manaus, o planejamento inverso e "Simular recuperação" em Abreulândia/TO).
+  de 100 territórios, o Brasil, as referências de Manaus, o planejamento inverso e "Simular recuperação" em Abreulândia/TO). Da
+  revisão das capturas (14/11/2026): a meta do patamar inteira, arredondada para cima, com a origem no rótulo (o patamar do
+  território, com a média de 4 registros, ou o "patamar informado"), e o caminho do cenário com o acréscimo (`trajetoria`).
 - pytest: `backend/tests/test_ferramentas_qualquer_base.py` — o Simulador com uma planilha: o jeito de projetar que ela escolhe, a
   faixa indisponível com o motivo, a rota com o arquivo, o pedido do modo avançado (o todo, o conjunto e as referências, com os
   nomes dela), a planilha só com anos (as datas em anos e o calendário de ano em ano) e as linhas do Simulador no perfil da base.
@@ -870,10 +893,14 @@ enviada, a recusa ainda não cita o Simulador: o texto da conversa não mudou no
   Simulador, a hipótese do cenário e o CSV das comparações; o modo simples (o que testar, o território em análise e o pedido com um
   território só, sem a janela geral, as referências e o calendário do modo avançado); a resposta da V3 (o jeito escolhido pela
   base, a faixa "N em cada 10", os "Entenda", os nomes e as formas da base); os três números; os textos com os nomes de outra
-  base; e a tela (o modo simples numa tela só, as quatro etapas só no modo avançado e o campo de data).
+  base; e a tela (o modo simples numa tela só, as quatro etapas só no modo avançado e o campo de data). Da revisão das capturas:
+  a meta que sai ao trocar de território, o campo com a meta inteira e a frase da origem dela, a leitura do caminho com o
+  acréscimo e o desenho da meta, do caminho e da marca do acréscimo no gráfico.
 - Navegador: `backend/tests/ui_simulador.py` (suíte `base-versionada`) — o modo simples (só continuar, acrescentar, retirar e chegar
   a uma meta; a faixa conferida e a provisória; os "Entenda"; um estado como unidade sem faixa), o modo avançado (as quatro etapas,
   o Brasil, as referências, o planejamento inverso e a escolha de 5, 8 ou 9 em cada 10), a passagem entre os dois modos (o que é
-  do avançado não vai no pedido do simples), "Abrir no Simulador" e "Simular recuperação". Também `backend/tests/ui_detector.py`
+  do avançado não vai no pedido do simples), "Abrir no Simulador" e "Simular recuperação" (a meta de 79 médicos para o patamar de
+  78,25 de Abelardo Luz/SC, com a origem; a meta trocada por um número da pessoa), a meta que sai ao trocar de território e o
+  gráfico de "Chegar a uma meta" (a linha da meta, o caminho com o acréscimo e a marca dele). Também `backend/tests/ui_detector.py`
   ("Simular recuperação" e o perfil da base) e `backend/tests/ui_planilha_ficticia.py` (o Simulador com a planilha fictícia, nos
   dois modos, sem o vocabulário da base do Brasil).

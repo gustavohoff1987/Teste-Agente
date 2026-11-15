@@ -12,7 +12,8 @@ Confere, contra as respostas de POST /api/detector:
 - a janela entre competências reais: com o fim em jun/2023, o salto de RIO RUFINO ainda é "verificar registro";
 - "Ajustar critérios": os limites em frases, com os campos dentro delas; trocar um valor torna a configuração exploratória, com
   aviso no alto e "Voltar ao padrão" sempre à vista;
-- "Como foi calculado": os três níveis e a régua da data por porte, com "sem comparações suficientes" no crítico de 1.000 para cima;
+- "Como foi calculado": os três níveis e a régua da data por porte, com a régua usada de fato em cada nível (as faixas vizinhas,
+  quando o porte não basta) e "sem comparações suficientes" no crítico de 3.000 médicos para cima;
 - um estado como unidade na mesma seleção, com a régua própria dos estados e "sem comparações suficientes" com os números;
 - as visões Mapa (os pontos pelo nível, com a legenda escrita) e Gráfico (a distância e a taxa, pelo nível);
 - com a janela até jun/2021, os sinais comparados em 2 anos (8 a 10) com nível, a série da taxa com a referência e os textos do
@@ -24,6 +25,7 @@ Confere, contra as respostas de POST /api/detector:
 
 Base Brasil versionada (suíte base-versionada, ADT_BLOCK1_REAL=1); servidor serve_ui_offline.py, sem o provedor de IA.
 """
+import math
 import os
 from pathlib import Path
 
@@ -336,8 +338,9 @@ def main():
         expect(criterios).to_have_count(0)
 
         # 7. "Como foi calculado", aberto pelo "Ver explicação completa" do "Entenda" da ferramenta: as notas, os três níveis e a
-        # régua da data por porte. A tabela mostra as comparações da própria faixa: de 1.000 médicos para cima, ela não tem as 999
-        # do crítico (de 3.000 para cima, nem com as faixas vizinhas, e o crítico não é avaliado).
+        # régua da data por porte. Cada nível mostra a régua usada de fato (revisão das capturas, 14/11/2026): de 1.000 a 2.999
+        # médicos, o crítico junta as faixas vizinhas e é avaliado; de 3.000 para cima, nem com elas há as 999 comparações, e a
+        # célula diz quantas há, já com as vizinhas. Um corte de 100% vira "nenhuma queda chega a esse nível".
         expect(detector.get_by_test_id("detector-metodo")).to_have_count(0)
         detector.get_by_test_id("detector-entenda-ferramenta-botao").click()
         expect(detector.get_by_test_id("detector-entenda-ferramenta-caixa")).to_contain_text(corpo["entenda"]["ferramenta"]["texto"])
@@ -350,14 +353,40 @@ def main():
         regua = metodo.get_by_test_id("detector-calibracao")
         assert regua.locator("tbody tr").evaluate_all("els => els.map(e => e.dataset.porte)") == [
             "1 a 3", "4 a 9", "10 a 19", "20 a 49", "50 a 99", "100 a 299", "300 a 999", "1.000 a 2.999", "3.000 a 9.999", "10.000 ou mais"]
+        expect(regua.locator("thead th").nth(1)).to_have_text("Comparações do porte")
+        expect(regua.locator("caption")).to_contain_text("Cada nível mostra a régua usada de fato")
+
+        def milhar(numero):
+            return "{:,}".format(numero).replace(",", ".")
         for celula in corpo["calibracao"]["perda"]:
-            da_faixa = regua.locator('tbody tr[data-porte="' + celula["porte"] + '"] td[data-nivel="critico"]')
-            if celula["critico"]["queda_pct"] is None:
-                expect(da_faixa).to_have_text("sem comparações suficientes ({:,} de 999)".format(celula["comparacoes"]).replace(",", "."))
-            else:
-                expect(da_faixa).to_contain_text("queda maior que ")
-        sem_critico = [celula["porte"] for celula in corpo["calibracao"]["perda"] if celula["critico"]["queda_pct"] is None]
-        assert sem_critico == ["1.000 a 2.999", "3.000 a 9.999", "10.000 ou mais"], sem_critico
+            for nivel in ("moderado", "elevado", "critico"):
+                do_nivel = celula[nivel]
+                da_faixa = regua.locator('tbody tr[data-porte="' + celula["porte"] + '"] td[data-nivel="' + nivel + '"]')
+                das_vizinhas = do_nivel["origem"] == "vizinhas"
+                if not do_nivel["avaliado"]:
+                    assert das_vizinhas and do_nivel["queda_pct"] is None, (celula["porte"], nivel, do_nivel)
+                    expect(da_faixa).to_have_text("sem comparações suficientes (" + milhar(do_nivel["comparacoes"]) + " de " +
+                                                  milhar(do_nivel["pede"]) + ", com as faixas vizinhas)")
+                    continue
+                assert do_nivel["origem"] in ("porte", "vizinhas"), (celula["porte"], nivel, do_nivel)   # em jun/2024, nunca todas as faixas
+                expect(da_faixa).to_contain_text("nenhuma queda chega a esse nível" if do_nivel["queda_pct"] >= 100 else
+                                                 "qualquer queda" if do_nivel["queda_pct"] <= 0 else "queda maior que ")
+                if das_vizinhas:
+                    expect(da_faixa).to_contain_text("(com as faixas vizinhas: " + milhar(do_nivel["comparacoes"]) + " comparações)")
+                else:
+                    assert do_nivel["comparacoes"] == celula["comparacoes"], (celula["porte"], nivel, do_nivel)
+                    expect(da_faixa).not_to_contain_text("comparações")
+        do_critico = {celula["porte"]: (celula["critico"]["avaliado"], celula["critico"]["origem"]) for celula in corpo["calibracao"]["perda"]}
+        assert [porte for porte, (avaliado, _) in do_critico.items() if not avaliado] == ["3.000 a 9.999", "10.000 ou mais"], do_critico
+        assert do_critico["1.000 a 2.999"] == (True, "vizinhas") and do_critico["300 a 999"] == (True, "porte"), do_critico
+        # De 1 a 3 médicos, o corte do crítico é de 100%: nenhuma queda chega lá. De 10.000 para cima, o elevado vem das vizinhas.
+        expect(regua.locator('tbody tr[data-porte="1 a 3"] td[data-nivel="critico"]')).to_have_text("nenhuma queda chega a esse nível")
+        assert corpo["calibracao"]["perda"][9]["elevado"]["origem"] == "vizinhas", corpo["calibracao"]["perda"][9]["elevado"]
+        do_patamar = metodo.get_by_test_id("detector-calibracao-patamar")
+        maiores = corpo["calibracao"]["patamar"][-1]
+        assert (maiores["porte"], maiores["critico"]["avaliado"], maiores["critico"]["origem"]) == ("10.000 ou mais", False, "vizinhas"), maiores
+        expect(do_patamar.locator('tbody tr[data-porte="10.000 ou mais"] td[data-nivel="critico"]')).to_have_text(
+            "sem comparações suficientes (" + milhar(maiores["critico"]["comparacoes"]) + " de 999, com as faixas vizinhas)")
         expect(metodo.get_by_test_id("detector-calibracao-estados")).to_have_count(0)   # sem estados como unidade na seleção
         detector.get_by_test_id("detector-metodo-botao").click()
         expect(metodo).to_have_count(0)
@@ -391,6 +420,12 @@ def main():
         dos_estados = detector.get_by_test_id("detector-calibracao-estados")
         expect(dos_estados).to_contain_text("régua própria, com a base dos estados")
         expect(dos_estados.locator("tbody tr").first.locator('td[data-nivel="critico"]')).to_contain_text("sem comparações suficientes")
+        # A régua usada de fato: nos estados de 10.000 médicos ou mais, o crítico tem as comparações da faixa com as vizinhas (o
+        # número que o detalhe do estado diz: "há N, e ele pede 999"), e não só as do próprio porte.
+        dos_maiores = next(celula for celula in corpo_misto["calibracao_dos_estados"]["perda"] if celula["porte"] == "10.000 ou mais")
+        assert dos_maiores["critico"]["origem"] == "vizinhas" and dos_maiores["critico"]["comparacoes"] > dos_maiores["comparacoes"], dos_maiores
+        expect(dos_estados.locator('tbody tr[data-porte="10.000 ou mais"] td[data-nivel="critico"]')).to_have_text(
+            "sem comparações suficientes ({} de 999, com as faixas vizinhas)".format(dos_maiores["critico"]["comparacoes"]))
         page.screenshot(path=str(OUTPUT / "detector-05-estado-real.png"), full_page=True)
         detector.get_by_test_id("detector-metodo-botao").click()
         parana.get_by_test_id("detector-abrir").click()  # fecha os detalhes
@@ -420,6 +455,19 @@ def main():
                 NOMES[nivel] + ": " + str(no_mapa(nivel)))
         assert no_mapa("critico") >= 1 and no_mapa("moderado") > no_mapa("elevado") > 0, [no_mapa(nivel) for nivel in NOMES]
         expect(mapa.get_by_test_id("analise-mapa-nome-grupo")).to_have_text("SC")
+        # Quem está na lista e fica fora do mapa (revisão das capturas, 14/11/2026): a legenda diz quantos são, com que nível,
+        # quais e por quê. Em Santa Catarina, a base traz a coordenada de dois municípios fora do intervalo válido.
+        fora = [item for item in municipais if item["id"] not in com_ponto]
+        assert [item["rotulo"] for item in fora] == ["PESCARIA BRAVA (SC)", "BALNEARIO RINCAO (SC)"], [item["rotulo"] for item in fora]
+        assert corpo_misto["sem_coordenada"] == [{"id": item["id"], "motivo": "fora_do_intervalo"} for item in fora], corpo_misto["sem_coordenada"]
+        fora_do_mapa = mapa.get_by_test_id("detector-mapa-fora")
+        expect(fora_do_mapa).to_have_attribute("data-quantos", "2")
+        expect(fora_do_mapa).to_contain_text("Fora do mapa: 2 municípios à vista (")
+        expect(fora_do_mapa).to_contain_text("Em jun/2024, a base traz a latitude ou a longitude fora do intervalo válido em: ")
+        for item in fora:
+            expect(fora_do_mapa).to_contain_text(item["rotulo"] + (" — " + NOMES[item["alerta"]["nivel"]].lower() if item["alerta"]["nivel"] else ""))
+        expect(fora_do_mapa).to_contain_text("Continuam na lista, cada qual com o seu nível.")
+        expect(mapa.locator('[data-testid="analise-mapa-ponto"]')).to_have_count(len(municipais) - len(fora))   # os pontos e os de fora somam a lista
         expect(mapa).to_contain_text("A base não tem as divisas")
         expect(mapa).to_contain_text("o estado como unidade não tem ponto")
         page.screenshot(path=str(OUTPUT / "detector-06-mapa-real.png"), full_page=False)
@@ -429,6 +477,8 @@ def main():
         assert com_patamar and sum(no_mapa(nivel, "patamar") for nivel in NOMES) == len(com_patamar), len(com_patamar)
         expect(mapa).to_have_attribute("data-sinal", "patamar")
         expect(mapa).to_have_attribute("data-fundo", "0")
+        # Com o filtro, a frase fala só de quem está à vista: sem ninguém de fora entre as linhas filtradas, ela não aparece.
+        expect(mapa.get_by_test_id("detector-mapa-fora")).to_have_count(1 if any(com_o_sinal(item, "patamar") for item in fora) else 0)
         for nivel in NOMES:
             expect(mapa).to_have_attribute("data-" + nivel, str(no_mapa(nivel, "patamar")))
         expect(tabela).to_have_attribute("data-linhas", str(len(com_patamar)))
@@ -512,6 +562,15 @@ def main():
         expect(detector.get_by_test_id("detector-mesma-queda")).to_contain_text("vêm da mesma queda: contam como um evento.")
         expect(detector.get_by_test_id("detector-recuperacao-apoio")).to_contain_text("meta hipotética")
         expect(detector.get_by_test_id("detector-recuperacao-apoio")).to_contain_text("não uma previsão")
+        # A meta é um número inteiro, o patamar arredondado para cima, e a frase diz de onde ela vem (revisão das capturas,
+        # 14/11/2026): o patamar de Abelardo Luz é de 78,25 médicos, e a meta, 79.
+        patamar = do_abelardo["patamar"]["patamar"]
+        meta = math.ceil(patamar - 1e-9)
+        assert (patamar, meta) == (78.25, 79), patamar
+        expect(detector.get_by_test_id("detector-recuperacao-apoio")).to_have_attribute("data-meta", str(meta))
+        expect(detector.get_by_test_id("detector-recuperacao-apoio")).to_contain_text(
+            "voltar ao patamar, 79 médicos (o patamar é de 78,25, a maior média de dois anos seguidos antes dos registros mais recentes, "
+            "arredondado para cima).")
         pedidos_do_simulador = []
         page.on("request", lambda request: pedidos_do_simulador.append(request) if request.url.endswith("/api/simulador") else None)
         detector.get_by_test_id("detector-simular-recuperacao").click()
@@ -526,11 +585,12 @@ def main():
         expect(aviso).to_contain_text("Sinais com nível lá: ")
         expect(aviso).to_contain_text("Abaixo do que já teve (")
         expect(aviso).to_contain_text("meta hipotética que você pode trocar")
-        patamar = do_abelardo["patamar"]["patamar"]
         expect(simulador.get_by_test_id("simulador-teste-meta")).to_be_checked()
-        expect(simulador.get_by_test_id("simulador-teste-meta-valor")).to_have_value(str(patamar).replace(".", ","))   # a precisão do Detector
-        expect(simulador.get_by_test_id("simulador-o-que-testar")).to_contain_text(
-            "A meta é o patamar anterior, trazido pelo Detector de Sinais: uma hipótese que você pode trocar.")
+        # O campo mostra a meta em uso (79); a frase ao lado diz o patamar com a precisão do Detector, que é o que vai ao motor.
+        expect(simulador.get_by_test_id("simulador-teste-meta-valor")).to_have_value(str(meta))
+        expect(simulador.get_by_test_id("simulador-teste-meta-origem")).to_have_text(
+            "A meta veio do Detector de Sinais: o patamar anterior, de 78,25 médicos (a maior média de dois anos seguidos), arredondado "
+            "para cima. É uma hipótese que você pode trocar.")
         page.wait_for_timeout(400)
         assert not pedidos_do_simulador, "nada é calculado antes de \"Calcular\""
         with page.expect_response(lambda r: r.url.endswith("/api/simulador") and r.request.method == "POST", timeout=180000) as evento:
@@ -542,7 +602,11 @@ def main():
         assert [item["id"] for item in cenarios] == [ABELARDO_LUZ], cenarios
         planejado = cenarios[0]["cenarios"][0]["planejamento"]
         assert planejado["estado"] == "calculado" and planejado["por_evento"] >= 1 and planejado["resultado"] >= planejado["meta"]["valor"], planejado
-        assert planejado["texto"].startswith("Meta hipotética: voltar ao patamar de ") and planejado["texto"].endswith("não um plano."), planejado["texto"]
+        assert planejado["texto"].startswith("Meta hipotética: voltar ao patamar de 79 médicos em jun/2026 (patamar de 78,25, média de 4 "
+                                             "registros, arredondado para cima). ") and planejado["texto"].endswith("não um plano."), planejado["texto"]
+        assert (planejado["meta"]["valor"], planejado["meta"]["patamar"], planejado["meta"]["registros"]) == (meta, patamar, 4), planejado["meta"]
+        # O resultado exibido não fica abaixo da meta: "teria 79 médicos" (antes, com a meta de 78,25, o texto dizia 78).
+        assert " teria " + str(max(meta, round(planejado["resultado"]))) + " médicos em jun/2026." in planejado["texto"], planejado["texto"]
         for proibida in ("recomenda", "é preciso", "deveria", "necessário prover"):
             assert proibida not in planejado["texto"].lower(), proibida
         resultado = simulador.get_by_test_id("simulador-resultado")
@@ -550,6 +614,16 @@ def main():
         expect(resultado.get_by_test_id("simulador-planejamento")).to_have_attribute("data-estado", "calculado")
         expect(resultado.get_by_test_id("simulador-planejamento")).to_have_attribute("data-por-evento", str(planejado["por_evento"]))
         expect(resultado.get_by_test_id("simulador-planejamento-texto")).to_have_text(planejado["texto"])
+        # O gráfico mostra a meta (uma linha na altura dela), o caminho do cenário com o acréscimo e a marca na data dele.
+        do_grafico = resultado.get_by_test_id("simulador-plano-no-grafico")
+        expect(do_grafico).to_have_attribute("data-meta", str(meta))
+        expect(do_grafico).to_have_attribute("data-estado", "calculado")
+        expect(do_grafico.get_by_test_id("simulador-meta-linha")).to_have_count(1)
+        expect(do_grafico.get_by_test_id("simulador-plano-curva")).to_have_count(1)
+        expect(do_grafico.get_by_test_id("simulador-plano-evento")).to_have_count(planejado["eventos"])
+        assert [ponto["data"] for ponto in planejado["trajetoria"]][-1] == "202606" and planejado["trajetoria"][-1]["total"] >= meta, planejado["trajetoria"]
+        expect(resultado.get_by_test_id("simulador-meta-legenda")).to_contain_text(
+            "meta hipotética de 79 médicos; linha contínua: o cenário com o acréscimo que alcança a meta (▼ na data do acréscimo)")
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(principal)   # a seleção principal não mudou
         page.screenshot(path=str(OUTPUT / "detector-09-simular-recuperacao-real.png"), full_page=True)
 

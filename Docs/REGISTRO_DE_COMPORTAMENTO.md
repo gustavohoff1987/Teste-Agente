@@ -35,6 +35,89 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-14 · Revisão das capturas do Detector e do Simulador: sinais 8 a 10 sem registro marcado nas pontas da janela, a régua usada de fato, quem fica fora do mapa, a meta inteira e o gráfico da meta (comando V23, antes da Pausa 2)
+- **Classificação (regra 1):** oito correções pedidas pelo responsável em 14/11/2026, na revisão das capturas da etapa 6 do
+  comando V23 (itens 1 a 3 e 5 do Detector; 6 a 8 do Simulador; o item 4 é só do relatório da Pausa 2). Decorrem do pedido
+  (escopo) e não contrariam a SPEC nem uma divergência aprovada (compatibilidade): o nível do alerta continua sendo a
+  divergência aprovada D-A, e o Simulador, a exceção aprovada à exclusão de projeção (AT-04), só nesta ferramenta. Os endereços
+  das rotas e os campos que as respostas já traziam não mudaram (há campos novos). Nada vai ao provedor de IA. A SPEC e a base
+  não foram editadas.
+- **Antes:**
+  - **(1) sinais 8 a 10:** a variação em 2 anos era comparada mesmo quando a janela começava ou terminava num registro marcado
+    como pico que volta ou quebra de fonte. Brochier (RS) aparecia como **crítico** por "−74,4% de médicos por habitante em 2
+    anos", e o registro de jun/2022 era o de um pico que voltou (7, 31, 11 e 8 médicos de jan/2022 a jun/2023);
+  - **(2) "Como foi calculado":** a tabela da régua mostrava só as comparações do próprio porte ("10.000 ou mais: sem comparações
+    suficientes (45 de 99)"), mas o motor junta as faixas vizinhas (e, no moderado, todas as faixas) quando o porte não basta —
+    o detalhe de um território dizia outro número ("há 864, e ele pede 999");
+  - **(3) mapa do Detector:** os municípios sem coordenada válida ficavam fora do desenho sem aviso: com o Brasil inteiro, o
+    mapa somava 5.564 pontos, e a lista, 5.570;
+  - **(5) textos:** a frase do sinal 10 era "−199,8 pontos no índice ante a referência em 2 anos"; o patamar aparecia
+    arredondado ao inteiro ("43% abaixo do que já teve (patamar de 2)", para um patamar de 1,75); e a tabela da régua dizia
+    "queda maior que 100,0%" quando nenhuma queda chega ao nível;
+  - **(6) Simulador, modo simples:** ao trocar o território, a meta de "Chegar a uma meta" continuava a do território de antes
+    (o Pará ficava com a meta de 30 do município anterior, e o resultado dizia "nada a acrescentar");
+  - **(7) meta vinda do Detector:** a meta era o patamar com decimal ("78,25 médicos"), e o texto do cenário com o acréscimo
+    dizia "teria 78 médicos", o que parecia ficar abaixo da meta;
+  - **(8) gráfico de "Chegar a uma meta":** mostrava só o cenário sem o acréscimo; a meta e o caminho até ela não apareciam.
+- **Agora:**
+  - **(1)** a janela de 2 anos dos sinais 8 a 10 **não começa nem termina num registro marcado** como pico que volta ou quebra
+    de fonte, sempre com o que era conhecido na data avaliada (o pico só conta depois que a volta foi observada). O número
+    continua à vista, com "descontinuidade de registro" ("Não avaliado: descontinuidade de registro. O registro de jun/2022, no
+    início da janela, faz parte de um pico que voltou: a variação em 2 anos não é comparada nem recebe nível."), e a janela sai
+    das comparações dos outros territórios. Na resposta, o `estado` desses sinais pode ser `descontinuidade_de_registro`, com
+    `marca` (`tipo`, `ponta`, `competencia`). Na base do Brasil, em jun/2024, só a janela de Brochier estava assim: ele fica
+    **sem alerta**. Sem essas janelas no passado, a régua muda um pouco para os outros: 40 críticos, 436 elevados, 978
+    moderados e 4.116 sem alerta (antes, 41, 434, 977 e 4.118); "Perda de posição" tem nível em 180 municípios (antes, 178).
+    Em jun/2021, nada muda;
+  - **(2)** a tabela mostra, em cada nível, **a régua usada de fato**: a coluna "Comparações do porte" e, em cada célula, de
+    onde vieram as comparações quando não são só as do porte e quantas são — "queda maior que 44,4% (com as faixas vizinhas:
+    2.720 comparações)", "sem comparações suficientes (864 de 999, com as faixas vizinhas)" e, só no moderado, "com todas as
+    faixas" (com o corte nos dois extremos da faixa, porque ali a mudança é comparada já dividida pelo tamanho). Em jun/2024, nos
+    municípios: de 1.000 a 2.999 médicos, o crítico é avaliado com as vizinhas (antes, a tabela dizia "sem comparações
+    suficientes"); de 10.000 para cima, o elevado também. Na resposta, cada nível da régua ganhou `avaliado`, `origem`,
+    `comparacoes` e, com todas as faixas, `queda_pct_ate`; `queda_pct`, `queda_incomum_pct`, `alta` e `critica` passam a seguir a
+    régua usada. Os níveis dos territórios não mudam com este item: a conta do motor já era essa;
+  - **(3)** a legenda do mapa diz **quem fica de fora e por quê** (`detector-mapa-fora`): "Fora do mapa: 6 municípios à vista (1
+    em moderado e 5 sem nível). Em jun/2024, a base traz a latitude ou a longitude fora do intervalo válido em: …". A resposta da
+    lista traz `sem_coordenada` (`id` e `motivo`: `ausente` ou `fora_do_intervalo`). Os 6 municípios não foram desenhados porque a
+    base traz a coordenada deles fora do intervalo (por exemplo, latitude −63741), e a base só muda por pedido do responsável;
+  - **(5)** o sinal 10 em palavras simples: "A taxa passou de 1,27 para 0,72 vezes a dos demais municípios de São Paulo em 2
+    anos" (o índice e os pontos ficam na explicação completa); o patamar abaixo de 100 aparece com as casas ("patamar de 1,75",
+    "patamar de 58,25"); e a tabela diz "nenhuma queda chega a esse nível" quando o corte é de 100% ou mais;
+  - **(6)** trocar o território do modo simples **tira a meta**: o campo fica em branco, à espera da meta do novo território, e
+    a data do acréscimo continua;
+  - **(7)** a meta que vem do patamar é um **número inteiro, arredondado para cima** (79 para 78,25; 2 para 1,75), e a tela e o
+    motor dizem de onde ela veio: no campo, 79, com "A meta veio do Detector de Sinais: o patamar anterior, de 78,25 médicos (a
+    maior média de dois anos seguidos), arredondado para cima."; no resultado, "Meta hipotética: voltar ao patamar de 79 médicos
+    em jun/2026 (patamar de 78,25, média de 4 registros, arredondado para cima)". Com isso, o menor acréscimo de Abelardo Luz
+    (SC) passa de 13 para 14 médicos, e o texto diz "teria 79 médicos". Digitar outro número troca a meta por um número da
+    pessoa (o pedido leva `tipo: valor`). Um valor de patamar que vem no pedido e não é o do território aparece como "patamar
+    informado". Em `planejamento.meta` há `patamar`, `registros` e `arredondado`;
+  - **(8)** o gráfico mostra **a meta** (uma linha pontilhada na altura dela, com "meta: N"), **o caminho do cenário com o
+    acréscimo** calculado (linha contínua) e **a marca na data de cada acréscimo**, com a legenda; quando o cenário já chega à
+    meta, só a linha dela. A resposta traz `planejamento.trajetoria`.
+- **Permanece:** os outros sinais do Detector (1 a 7, 11 e 12), a régua da queda recente e do patamar (só a tabela que a mostra
+  mudou), os níveis de jun/2021, os critérios padrão, as exportações, a lista de quatro colunas, o mapa de quem tem coordenada,
+  "Abrir no Simulador"; no Simulador, o jeito de projetar, as faixas, os três números, o modo avançado (o campo "Patamar" continua
+  aceitando o valor com decimal, e o motor o arredonda), as metas digitadas pela pessoa e a referência como meta. "Simular
+  recuperação" continua abrindo o modo simples com "Chegar a uma meta" marcado, e o pedido continua levando o patamar com a
+  precisão do Detector.
+- **Motivo:** revisão das capturas pelo responsável (14/11/2026), antes da Pausa 2 do comando V23: um alerta crítico que vinha de
+  um registro de pico, uma tabela que não dizia o que o motor fazia, um mapa com menos pontos que a lista sem explicação, textos
+  difíceis de ler e, no Simulador, uma meta herdada de outro território, um resultado que parecia abaixo da meta e um gráfico que
+  não mostrava o caminho até ela.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md` (a régua, as notas dos sinais 7 a 10, a qualidade do registro, o mapa,
+  "Como foi calculado", a rota, a calibração refeita — com a tabela de municípios com alerta por sinal e por nível — e as
+  limitações, onde uma frase sobre o elevado de 10.000 médicos para cima estava errada) e `Docs/SIMULADOR_DE_CENARIOS.md` (o modo
+  simples, o planejamento inverso e a rota); `scripts/calibrar_detector.py` (a tabela por sinal e por nível, e os limites do sinal
+  8 com a régua usada de fato); pytest `backend/tests/test_detector.py` (os sinais 8 a 10 com um registro marcado numa ponta da
+  janela, a régua da data conferida com o motor território a território, o patamar com decimal, o sinal 10, quem fica fora do
+  mapa e, no job `dados-reais`, Brochier, os níveis de jun/2024, a régua usada e os 6 municípios), `test_simulador.py` (a meta
+  inteira, a origem dela e o caminho com o acréscimo) e `test_ferramentas_qualquer_base.py` (a régua e o patamar da planilha de
+  teste); Node `frontend/tests/detector.test.mjs` e `frontend/tests/simulador.test.mjs`; navegador `backend/tests/ui_detector.py`
+  e `backend/tests/ui_simulador.py`. Valores que mudaram de propósito nos testes: os níveis e as contagens de jun/2024, o
+  acréscimo de Abelardo Luz (13 para 14), a meta de Abreulândia (1,75 para 2) e os textos acima.
+
 ### 2026-11-14 · Simulador de Cenários na Proposta V3: modo simples numa tela, o jeito de projetar escolhido pela base, a faixa de 8 em cada 10 conferida no tempo e qualquer base (comando V23, Parte C)
 - **Classificação (regra 1):** mudança de comportamento pedida pelo responsável no comando V23 (13/11/2026, seções 0, 1 e 2;
   Proposta V3, Parte C, seções C.2 a C.9, e seção A.3 no que toca ao perfil). Decorre do pedido (escopo). Na compatibilidade, o

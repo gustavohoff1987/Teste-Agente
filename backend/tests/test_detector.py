@@ -221,6 +221,98 @@ def test_retaguarda_da_queda_recente_as_faixas_vizinhas_e_so_no_moderado_todas_a
     assert todas["sem_comparacoes"] == {"niveis": ["elevado", "critico"], "nivel": "elevado", "comparacoes": 2, "pede": 99}
 
 
+def _confere_a_regua_da_data(b, cal, e):
+    """A régua da data (a tabela de "Como foi calculado") diz, para cada território avaliado em `e`, o mesmo que o motor: em cada
+    nível, se foi avaliado, de onde vieram as comparações, quantas são e o corte. Devolve quantas conferências fez, por origem."""
+    regua = detector.limiares(b, cal, e, P)
+    feitas = {"porte": 0, "vizinhas": 0, "todas": 0, "sem": 0}
+    for linha in np.flatnonzero(cal.regular[:, e] & (cal.porte[:, e] >= 0)):
+        lida = reguas.nivel_da_raridade(*(int(valor) for valor in cal.c_perda[:, linha, e]))
+        queda = -100.0 * float(cal.relativa[linha, e])
+        for nivel, do_motor in lida["niveis"].items():
+            da_tabela = regua["perda"][int(cal.porte[linha, e])][nivel]
+            assert (da_tabela["avaliado"], da_tabela["comparacoes"], da_tabela["pede"]) == (
+                do_motor["avaliado"], do_motor["comparacoes"], do_motor["pede"]), (PERIODOS[e], linha, nivel, da_tabela, do_motor)
+            if not do_motor["avaliado"]:
+                assert da_tabela["queda_pct"] is None and da_tabela["origem"] in ("vizinhas", "todas")   # a mais larga que foi tentada
+                feitas["sem"] += 1
+                continue
+            assert da_tabela["origem"] == do_motor["origem"], (PERIODOS[e], linha, nivel, da_tabela, do_motor)
+            feitas[do_motor["origem"]] += 1
+            if do_motor["origem"] == "todas":
+                # Entre todas as faixas, o corte muda com o tamanho: a tabela traz os dois extremos da faixa.
+                assert not (queda > da_tabela["queda_pct"] + 1e-7 and not do_motor["atingido"])
+                assert not (da_tabela.get("queda_pct_ate") is not None and queda < da_tabela["queda_pct_ate"] - 1e-7 and do_motor["atingido"])
+            else:
+                assert (queda > da_tabela["queda_pct"] + 1e-9) == do_motor["atingido"], (PERIODOS[e], linha, nivel, queda, da_tabela, do_motor)
+    do_patamar = {celula["porte"]: celula for celula in regua["patamar"]}
+    for linha in np.flatnonzero(np.isfinite(cal.afastamento[:, e]) & (cal.porte_do_patamar[:, e] >= 0)):
+        rotulo = detector.ROTULOS_DOS_PORTES[int(cal.porte_do_patamar[linha, e])]
+        if rotulo not in do_patamar:
+            continue      # patamar abaixo do mínimo: o sinal 7 é só descritivo
+        lida = reguas.nivel_da_raridade(*(int(valor) for valor in cal.c_patamar[:, linha, e]))
+        for nivel in ("elevado", "critico"):
+            do_motor, da_tabela = lida["niveis"][nivel], do_patamar[rotulo][nivel]
+            assert (da_tabela["avaliado"], da_tabela["comparacoes"]) == (do_motor["avaliado"], do_motor["comparacoes"]), (PERIODOS[e], linha, nivel)
+            if do_motor["avaliado"]:
+                assert da_tabela["origem"] == do_motor["origem"] in ("porte", "vizinhas")
+                assert (100.0 * float(cal.afastamento[linha, e]) > da_tabela["afastamento_pct"] + 1e-9) == do_motor["atingido"]
+                feitas[do_motor["origem"]] += 1
+            else:
+                assert da_tabela["afastamento_pct"] is None
+                feitas["sem"] += 1
+    return feitas
+
+
+def test_regua_da_data_mostra_a_regua_usada_de_fato_com_as_vizinhas_e_com_todas_as_faixas():
+    """Revisão das capturas (14/11/2026): a tabela de "Como foi calculado" mostrava só as comparações do próprio porte, e o motor
+    junta as faixas vizinhas (e, no moderado, todas as faixas). A tabela passa a dizer, em cada nível, a régua usada de fato."""
+    def niveis_de(celula, campo="queda_pct"):
+        return {nivel: (celula[nivel]["avaliado"], celula[nivel]["origem"], celula[nivel]["comparacoes"], celula[nivel]["pede"],
+                        celula[nivel][campo]) for nivel in ("moderado", "elevado", "critico") if nivel in celula}
+    # O alvo (30 médicos, de 20 a 49) é o único do seu porte: 2 comparações no porte e 302 com as faixas vizinhas.
+    series = fundo(150)
+    series["110200"] = serie((30, 5), (20, 1))
+    b, e = base(series), i("201606")
+    regua = detector.limiares(b, detector.calibrar(b, guardar=False), e, P)["perda"]
+    assert (regua[3]["porte"], regua[3]["comparacoes"], regua[3]["transicoes"]) == ("20 a 49", 2, 2)
+    assert niveis_de(regua[3]) == {"moderado": (True, "vizinhas", 302, 19, 0.0), "elevado": (True, "vizinhas", 302, 99, 0.0),
+                                   "critico": (False, "vizinhas", 302, 999, None)}
+    # As chaves que a resposta já trazia seguem a régua usada: o elevado é avaliado (com as vizinhas); o crítico, não.
+    assert (regua[3]["queda_incomum_pct"], regua[3]["queda_muito_incomum_pct"], regua[3]["alta"], regua[3]["critica"]) == (
+        0.0, None, "calibrado", "sem_calibracao")
+    # Quem tem comparações bastantes no próprio porte usa só elas; o crítico pede 999 e tenta as vizinhas.
+    assert niveis_de(regua[2]) == {"moderado": (True, "porte", 300, 19, 0.0), "elevado": (True, "porte", 300, 99, 0.0),
+                                   "critico": (False, "vizinhas", 302, 999, None)}
+    # O alvo com 2.000 médicos não tem vizinhos de porte: só o moderado junta todas as faixas; a tabela diz os dois extremos do
+    # corte na faixa (aqui, qualquer queda), e o elevado fica sem comparações, com as 2 que há, já com as vizinhas.
+    series["110200"] = serie((2000, 5), (1500, 1))
+    b = base(series)
+    cal = detector.calibrar(b, guardar=False)
+    grande = detector.limiares(b, cal, e, P)["perda"][7]
+    assert (grande["porte"], grande["comparacoes"]) == ("1.000 a 2.999", 2)
+    assert niveis_de(grande) == {"moderado": (True, "todas", 302, 19, 0.0), "elevado": (False, "vizinhas", 2, 99, None),
+                                 "critico": (False, "vizinhas", 2, 999, None)}
+    assert grande["moderado"]["queda_pct_ate"] == 0.0 and "queda_pct_ate" not in grande["elevado"]
+    assert _confere_a_regua_da_data(b, cal, e)["todas"] == 1
+    # Numa base com territórios de todos os portes e mudanças de todo tamanho, a tabela confere com o motor em todas as datas,
+    # território a território, na queda recente e no afastamento do patamar — com as três origens e os níveis sem comparações.
+    sorteio = random.Random(20261114)
+    variada = {}
+    for k, inicial in enumerate([2, 6, 15, 30, 70, 150, 500, 1500, 4000, 12000] * 5):
+        valores = [inicial]
+        while len(valores) < T:
+            valores.append(max(1, round(valores[-1] * (1 + sorteio.uniform(-0.3, 0.3)))))
+        variada[str(110100 + k)] = valores
+    b = base(variada)
+    cal = detector.calibrar(b, guardar=False)
+    feitas = {"porte": 0, "vizinhas": 0, "todas": 0, "sem": 0}
+    for data in range(1, T):
+        for origem, quantas in _confere_a_regua_da_data(b, cal, data).items():
+            feitas[origem] += quantas
+    assert all(quantas > 50 for quantas in feitas.values()), feitas
+
+
 def test_queda_no_territorio_em_zero_e_no_registro_ausente():
     b = base({"110001": serie((5, 1), (0, 2), (None, 1), (3, 1)), **fundo(3)})
     assert avaliar(b, "110001", 1)["perda"]["delta"] == -5 and avaliar(b, "110001", 1)["perda"]["pct"] == -100.0
@@ -336,6 +428,17 @@ def test_patamar_moderado_por_convencao_e_os_niveis_seguintes_pela_raridade():
     assert (raro["patamar"]["classe"], raro["patamar"]["criterio"]) == ("elevado", "comparado com a base")
     assert (raro["alerta"]["nivel"], raro["alerta"]["sinal"], raro["alerta"]["criterio"]) == ("elevado", "patamar", "comparado com a base")
     assert detector.por_que(base(series), raro, T - 1, P) == "40% abaixo do que já teve (patamar de 40)"
+    # O patamar é uma média e pode ter decimal: com patamar pequeno, a frase mostra as casas ("patamar de 1,75", e não "de 2" ao
+    # lado de "43% abaixo"; revisão das capturas, 14/11/2026). De 100 para cima, vale o inteiro mais próximo.
+    pequeno = base({**fundo(3), "110200": serie((2, 3), (1, 1))})
+    av = avaliar(pequeno, "110200", T - 1)
+    assert (av["patamar"]["patamar"], av["patamar"]["estado"]) == (1.75, "descritivo")
+    do_pequeno = texto_do(pequeno, av, T - 1, "patamar")
+    assert do_pequeno["situacao"] == "43% abaixo do que já teve (patamar de 1,75)"
+    assert do_pequeno["observado"].startswith("O patamar é de 1,75 médicos (média de jan/2014 a jun/2015). O último registro tem 1: −42,9% ante "
+                                              "o patamar.")
+    assert [detector._do_patamar(valor) for valor in (1.75, 78.25, 58.5, 20.0, 130, 1097.75)] == ["1,75", "78,25", "58,5", "20", "130", "1.098"]
+    assert detector._do_patamar(1097.75, sempre_com_decimal=True) == "1.097,75"
 
 
 # --------------------------------------------------------------------------------------------- sinal 3: declínio persistente
@@ -637,6 +740,71 @@ def test_sinais_8_a_10_pela_raridade_da_variacao_em_dois_anos():
         str(ano) + "06" for ano in range(2016, 2025)]
 
 
+def test_sinais_8_a_10_nao_comecam_nem_terminam_num_registro_de_pico_que_volta_ou_de_quebra_de_fonte():
+    """Revisão das capturas (14/11/2026): a janela de 2 anos que começa ou termina num registro marcado como pico que volta ou
+    quebra de fonte fica como "descontinuidade de registro", sem nível, e sai das comparações da régua — sempre só com o que
+    era conhecido na data avaliada."""
+    # 30 municípios de fundo com 100 médicos; o alvo tem 300 em jun/2019 e volta a 100 em jan/2020 (o pico é conhecido aí).
+    series = {"11" + str(1000 + k): serie((100, T)) for k in range(30)}
+    series["110200"] = serie((100, 11), (300, 1), (100, 1))
+    b = base_comparavel(series, populacoes=50000)
+    tres = ("disponibilidade", "posicao", "defasagem")
+    # Em jun/2021, a janela começa no registro do pico: de 300 para 100 seria uma queda de 66,7% na taxa. Não é comparada.
+    e = i("202106")
+    alvo = avaliar(b, "110200", e)
+    no_inicio = {"tipo": "pico_que_volta", "ponta": "inicio", "competencia": "201906"}
+    assert [(alvo[chave]["estado"], alvo[chave]["classe"], alvo[chave]["marca"]) for chave in tres] == [
+        ("descontinuidade_de_registro", None, no_inicio)] * 3
+    assert alvo["disponibilidade"]["variacao_pct"] == pytest.approx(-66.667, abs=1e-3)      # o número continua à vista
+    assert (alvo["alerta"]["estado"], alvo["alerta"]["nivel"], alvo["alerta"]["sem_comparacoes"]) == ("sem_alerta", None, [])
+    assert alvo["dimensoes"]["comparacao"] is None
+    taxa = texto_do(b, alvo, e, "disponibilidade")
+    assert (taxa["nivel"], taxa["estado_do_nivel"], taxa["sem_comparacoes"]) == (None, "nao_avaliado", None)
+    assert taxa["situacao"] == "−66,7% de médicos por habitante em 2 anos · descontinuidade de registro"
+    assert taxa["habitual"] == ("Não avaliado: descontinuidade de registro. O registro de jun/2019, no início da janela, faz parte de um "
+                                "pico que voltou: a variação em 2 anos não é comparada nem recebe nível.")
+    assert texto_do(b, alvo, e, "defasagem")["situacao"] == (
+        "A taxa passou de 3,00 para 1,00 vezes a dos demais municípios de Rondônia em 2 anos · descontinuidade de registro")
+    # Só o que era conhecido na data: em jun/2019, a volta ainda não tinha sido observada, e a janela que termina no pico é
+    # avaliada (um aumento, sem alerta). Em jan/2020, com a volta observada, a mesma janela fica marcada, no fim.
+    assert [avaliar(b, "110200", i("201906"))[chave]["estado"] for chave in tres] == ["sem_sinal"] * 3
+    depois = avaliar(b, "110200", i("202001"))
+    assert [(depois[chave]["estado"], depois[chave]["marca"]) for chave in tres] == [
+        ("descontinuidade_de_registro", {"tipo": "pico_que_volta", "ponta": "fim", "competencia": "201906"})] * 3
+    assert texto_do(b, depois, i("202001"), "posicao")["habitual"].startswith(
+        "Não avaliado: descontinuidade de registro. O registro de jun/2019, no fim da janela, faz parte de um pico que voltou")
+    # As janelas sem o registro do pico numa ponta continuam avaliadas.
+    assert [avaliar(b, "110200", i(c))[chave]["estado"] for c in ("202006", "202206") for chave in tres] == ["sem_sinal"] * 6
+    # A régua: as duas janelas do alvo com o pico numa ponta (as que terminam em jun/2019 e em jun/2021) saem das comparações
+    # das datas em que a volta já era conhecida. Um município de fundo, do mesmo porte, tem 31 comparações por janela anterior.
+    def comparacoes(competencia):
+        return avaliar(b, "111000", i(competencia))["disponibilidade"]["raridade"]["niveis"]["moderado"]["comparacoes"]
+    assert [comparacoes(c) for c in ("201906", "202006", "202106", "202206")] == [3 * 31, 4 * 31 - 1, 5 * 31 - 1, 6 * 31 - 2]
+    regua = comparativos.regua_relativa(b, "municipios", guardar=False)
+    linha = b.indice["110200"]
+    assert {PERIODOS[k]: int(v) for k, v in enumerate(regua.conhecido_em[linha]) if v < comparativos.SEM_DATA} == {
+        "201906": i("202001"), "202106": i("202001")}
+    assert not regua.quebrada.any()
+    assert bool(regua.usavel("disponibilidade", i("201906"))[linha, i("201906")]) is True      # ainda não era conhecido
+    assert not regua.usavel("disponibilidade", i("202206"))[linha, [i("201906"), i("202106")]].any()
+    # Sem o pico, o mesmo município de fundo teria as 6 janelas inteiras.
+    parada = base_comparavel({**series, "110200": serie((100, T))}, populacoes=50000)
+    assert avaliar(parada, "111000", i("202206"))["disponibilidade"]["raridade"]["niveis"]["moderado"]["comparacoes"] == 6 * 31
+    # Quebra de fonte: a soma municipal da UF abaixo da contagem estadual até jun/2017. As janelas que começam num registro da
+    # quebra não são avaliadas; a primeira que começa depois dela (jun/2018 a jun/2020) volta a ser.
+    em_quebra = base_comparavel({**{"11" + str(1000 + k): serie((100, T)) for k in range(30)}, "530010": serie((100, 8), (300, 1))},
+                                populacoes=50000, estados={"53": [250] * T, "11": [1] * T})
+    na_quebra = avaliar(em_quebra, "530010", i("201906"))
+    assert [(na_quebra[chave]["estado"], na_quebra[chave].get("marca")) for chave in ("disponibilidade", "posicao")] == [
+        ("descontinuidade_de_registro", {"tipo": "quebra_de_fonte", "ponta": "inicio", "competencia": "201706"})] * 2
+    assert texto_do(em_quebra, na_quebra, i("201906"), "disponibilidade")["habitual"] == (
+        "Não avaliado: descontinuidade de registro. O registro de jun/2017, no início da janela, está numa quebra de fonte: a variação "
+        "em 2 anos não é comparada nem recebe nível.")
+    assert [avaliar(em_quebra, "530010", i("202006"))[chave]["estado"] for chave in ("disponibilidade", "posicao")] == ["sem_sinal"] * 2
+    da_quebra = comparativos.regua_relativa(em_quebra, "municipios", guardar=False)
+    assert [PERIODOS[k] for k, v in enumerate(da_quebra.quebrada[em_quebra.indice["530010"]]) if v] == ["201606", "201706", "201806", "201906"]
+
+
 def test_textos_de_um_sinal_uma_frase_o_entenda_e_a_explicacao_completa():
     b = _cenario_dos_relativos()
     e = i("202106")
@@ -683,7 +851,14 @@ def test_textos_de_um_sinal_uma_frase_o_entenda_e_a_explicacao_completa():
     assert taxa["habitual"].startswith("Comparado com a base: entre 155 variações anteriores de municípios de 100 a 299 médicos, nenhuma foi "
                                        "igual ou pior (raridade de 1 em cada 156).")
     assert texto_do(b, av, e, "posicao")["situacao"] == "−46,9 pontos de percentil em 2 anos"
-    assert texto_do(b, av, e, "defasagem")["situacao"] == "−20,5 pontos no índice ante a referência em 2 anos"
+    # O sinal 10 em palavras simples: quantas vezes a taxa da referência o território tinha e tem (o índice ÷ 100); o índice e os
+    # pontos ficam na explicação completa (revisão das capturas, 14/11/2026).
+    da_referencia = texto_do(b, av, e, "defasagem")
+    assert da_referencia["situacao"] == "A taxa passou de 1,03 para 0,83 vezes a dos demais municípios de Rondônia em 2 anos"
+    assert da_referencia["observado"] == (
+        "De jun/2019 a jun/2021, a taxa do território passou de 1,03 para 0,83 vezes a dos demais municípios de Rondônia (índice de 103 "
+        "para 82,5: −20,5 pontos). Em jun/2021, a taxa do território é de 1,60 por 1.000 habitantes, e a dos demais municípios de "
+        "Rondônia (soma municipal), de 1,94: índice 82,5 (100 é a taxa da referência).")
     juntos = texto_do(b, av, e, "coexistencia")
     assert (juntos["nivel"], juntos["estado_do_nivel"], juntos["numero"]) == (None, "juntos", "12")
     assert juntos["situacao"] == ("4 sinais com nível: queda recente (elevado), menos médicos por habitante (elevado), perda de posição "
@@ -769,6 +944,17 @@ def test_contexto_geografico_e_a_distancia_ao_municipio_mais_proximo_que_atende_
     assert avaliar(b, "210003", e, p=com_70)["contexto"]["estado"] == "atende_ao_criterio"
     de_perto = avaliar(b, "210002", e, p=com_70)["contexto"]
     assert (de_perto["criterio"]["taxa_minima"], de_perto["referencia"]["id"], de_perto["universo"]) == (pytest.approx(1.4), "code:210001", 1)
+    # O mapa: a lista diz quem da seleção fica sem ponto e por quê — a base não traz a coordenada na data, ou traz a latitude ou a
+    # longitude fora do intervalo válido (revisão das capturas, 14/11/2026). Numa base sem coordenadas, não há mapa nem lista.
+    todos = {"base": {"municipios": {"todos": True}}}
+    lista = detector.compute(None, todos, base=b)
+    assert lista["sem_coordenada"] == [{"id": "code:210004", "motivo": "ausente"}]
+    assert sorted(lista["coordenadas"]) == ["code:210001", "code:210002", "code:210003", "code:210005"]
+    fora = _cenario_do_contexto(coordenadas={"210001": (0.0, -50.0), "210002": (-63741.0, -49.0), "210003": (0.0, -47.0), "210005": (0.0, -40.0)})
+    lista = detector.compute(None, todos, base=fora)
+    assert lista["sem_coordenada"] == [{"id": "code:210002", "motivo": "fora_do_intervalo"}, {"id": "code:210004", "motivo": "ausente"}]
+    assert sorted(lista["coordenadas"]) == ["code:210001", "code:210003", "code:210005"]
+    assert detector.compute(None, todos, base=base({"110001": serie((5, T)), **fundo(3)}))["sem_coordenada"] == []
     # Sem a contagem nacional, o critério não pode ser aplicado.
     sem_brasil = _cenario_do_contexto(brasil=None)
     assert avaliar(sem_brasil, "210002", e)["contexto"] == {
@@ -908,6 +1094,14 @@ def test_rota_do_detector_lista_detalhe_e_recusas(catalogo, monkeypatch):
         "4 a 9", 0, 0, None, "sem_calibracao", "sem_calibracao")
     assert (do_patamar["porte"], do_patamar["observacoes"], do_patamar["comparacoes"], do_patamar["afastamento_incomum_pct"], do_patamar["alta"]) == (
         "20 a 49", 24, 24, None, "sem_calibracao")
+    # Cada nível diz a régua usada de fato (revisão das capturas, 14/11/2026): com 9 comparações já com as faixas vizinhas, o
+    # elevado da faixa de 4 a 9 não é avaliado; o moderado junta todas as faixas (34 comparações), e ali qualquer queda é rara.
+    assert da_faixa["elevado"] == {"um_em": 100, "pede": 99, "avaliado": False, "origem": "vizinhas", "comparacoes": 9, "queda_pct": None}
+    assert da_faixa["moderado"] == {"um_em": 20, "pede": 19, "avaliado": True, "origem": "todas", "comparacoes": 34, "queda_pct": 0.0,
+                                    "queda_pct_ate": 0.0}
+    assert do_patamar["elevado"] == {"um_em": 100, "pede": 99, "avaliado": False, "origem": "vizinhas", "comparacoes": 38, "afastamento_pct": None}
+    # Os três municípios têm coordenada: ninguém fica fora do mapa.
+    assert body["sem_coordenada"] == [] and sorted(body["coordenadas"]) == ["code:130260", "code:130340", "code:130420"]
     assert body["calibracao"]["monitoramento"] == {"avaliadas": 3, "raras": 0, "incomuns": 0, "taxa_pct": 0.0, "esperado_pct": 5.0,
                                                    "aviso_da_base": False}
     assert manaus["defasagem"]["indice"] == pytest.approx(100 * 51 / 6) and manaus["defasagem"]["estado"] == "sem_comparacoes"
@@ -1060,9 +1254,16 @@ def test_real_regua_dos_estados_moderado_desde_2015_elevado_desde_2019_critico_n
 def test_real_lista_inteira_um_nivel_por_territorio(real):
     body = corpo(pedir({"base": {"municipios": {"todos": True}}}))
     assert body["resumo"]["territorios"] == 5570 and body["fonte"]["categoria"] == "MEDICINA"
-    assert body["resumo"]["niveis"] == {"critico": 41, "elevado": 434, "moderado": 977, "sem_alerta": 4118, "sem_comparacoes": 0, "sem_nivel": 0}
+    # Desde a revisão das capturas (14/11/2026), os sinais 8 a 10 não começam nem terminam num registro de pico que volta ou de
+    # quebra de fonte: Brochier (RS), crítico por uma queda de 74,4% na taxa que partia do registro de um pico, fica sem alerta;
+    # sem essas janelas no passado, a régua muda um pouco para os outros (antes: 41, 434, 977 e 4.118; posição, 178).
+    assert body["resumo"]["niveis"] == {"critico": 40, "elevado": 436, "moderado": 978, "sem_alerta": 4116, "sem_comparacoes": 0, "sem_nivel": 0}
     assert body["resumo"]["com_nivel"] == {"estrutural": 801, "ausencia": 0, "declinio": 155, "desaceleracao": 16, "instabilidade": 260,
-                                           "perda": 155, "patamar": 136, "disponibilidade": 107, "posicao": 178, "defasagem": 134}
+                                           "perda": 155, "patamar": 136, "disponibilidade": 107, "posicao": 180, "defasagem": 134}
+    brochier = next(linha for linha in body["linhas"] if linha["id"] == "code:430265")
+    assert (brochier["rotulo"], brochier["alerta"]["estado"], brochier["alerta"]["nivel"]) == ("BROCHIER (RS)", "sem_alerta", None)
+    assert [brochier[chave]["estado"] for chave in ("disponibilidade", "posicao", "defasagem")] == ["descontinuidade_de_registro"] * 3
+    assert brochier["disponibilidade"]["variacao_pct"] == pytest.approx(-74.4, abs=0.05)
     assert body["resumo"]["sinais"]["desaceleracao"] == 182 and body["resumo"]["sinais"]["ausencia"] == 0
     assert sum(1 for linha in body["linhas"] if linha["desaceleracao"]["persistente"]) == 16
     assert all(linha["alerta"]["criterio"] in ("por convenção", "comparado com a base") and linha["alerta"]["por_que"]
@@ -1071,10 +1272,31 @@ def test_real_lista_inteira_um_nivel_por_territorio(real):
     regua = body["calibracao"]["perda"]
     assert [celula["porte"] for celula in regua] == list(detector.ROTULOS_DOS_PORTES)
     assert [celula["comparacoes"] for celula in regua] == [6572, 16650, 12035, 9958, 3969, 3708, 1901, 616, 203, 45]
-    assert all(celula["moderado"]["queda_pct"] is not None for celula in regua)
-    assert [celula["critico"]["queda_pct"] is None for celula in regua] == [False] * 7 + [True] * 3
-    assert regua[9]["elevado"]["queda_pct"] is None and regua[6]["moderado"]["queda_pct"] == pytest.approx(5.9, abs=0.1)
+    assert all(celula["moderado"]["queda_pct"] is not None and celula["moderado"]["origem"] == "porte" for celula in regua)
+    # Cada nível mostra a régua usada de fato (revisão das capturas, 14/11/2026). De 1.000 a 2.999 médicos, o crítico usa as
+    # faixas vizinhas (2.720 comparações); de 3.000 para cima, nem com elas há 999 (864 e 248): "sem comparações suficientes".
+    # De 10.000 para cima, o elevado também vem das vizinhas (248); antes, a tabela dizia "45 de 99" e o motor comparava com 248.
+    assert [(celula["critico"]["avaliado"], celula["critico"]["origem"], celula["critico"]["comparacoes"]) for celula in regua] == [
+        (True, "porte", 6572), (True, "porte", 16650), (True, "porte", 12035), (True, "porte", 9958), (True, "porte", 3969),
+        (True, "porte", 3708), (True, "porte", 1901), (True, "vizinhas", 2720), (False, "vizinhas", 864), (False, "vizinhas", 248)]
+    assert [celula["critico"]["queda_pct"] is None for celula in regua] == [False] * 8 + [True] * 2
+    assert [(celula["elevado"]["origem"], celula["elevado"]["comparacoes"]) for celula in regua[7:]] == [
+        ("porte", 616), ("porte", 203), ("vizinhas", 248)]
+    assert regua[9]["elevado"]["queda_pct"] == pytest.approx(7.6, abs=0.05) and regua[6]["moderado"]["queda_pct"] == pytest.approx(5.9, abs=0.1)
+    assert regua[0]["critico"]["queda_pct"] == pytest.approx(100.0)       # de 1 a 3 médicos, nenhuma queda chega ao crítico
+    do_patamar = body["calibracao"]["patamar"]
+    assert [(celula["porte"], celula["comparacoes"], celula["elevado"]["origem"], celula["critico"]["origem"], celula["critico"]["avaliado"])
+            for celula in do_patamar[4:]] == [("1.000 a 2.999", 806, "porte", "vizinhas", True), ("3.000 a 9.999", 256, "porte", "vizinhas", True),
+                                             ("10.000 ou mais", 54, "vizinhas", "vizinhas", False)]
+    # A tabela confere com o que o motor fez em cada município, na queda recente e no afastamento do patamar.
+    feitas = _confere_a_regua_da_data(real, detector.calibrar(real), len(PERIODOS) - 1)
+    assert feitas["porte"] > 15000 and feitas["vizinhas"] > 0 and feitas["sem"] > 0, feitas
     assert body["calibracao"]["monitoramento"]["taxa_pct"] == pytest.approx(2.89, abs=0.01) and body["aviso_da_base"] is None
+    # Os 6 municípios fora do mapa: a base traz a latitude ou a longitude deles fora do intervalo válido (a lista continua com
+    # os 5.570; a legenda do mapa diz quais ficam de fora e por quê).
+    assert body["sem_coordenada"] == [{"id": "code:" + codigo, "motivo": "fora_do_intervalo"}
+                                      for codigo in ("170100", "350050", "421265", "422000", "430367", "500490")]
+    assert len(body["coordenadas"]) == 5564 and not {item["id"] for item in body["sem_coordenada"]} & set(body["coordenadas"])
     # Na primeira data com transição (jun/2014), a base ainda não tem mudanças anteriores: a queda fica "sem comparações
     # suficientes", com o fato à vista; os sinais por convenção continuam valendo.
     cedo = corpo(pedir({"base": {"municipios": {"todos": True}}, "janela": {"fim": "201406"}}))
@@ -1164,19 +1386,21 @@ def test_real_fenomenos_8_a_12_comparacao_so_com_populacao_comparavel(real):
     assert hoje["comparacao"]["trechos"] == [[2014, 2024]] and hoje["comparacao"]["motivo"] is None and hoje["comparacao"]["minimo_de_medicos"] == 20
     assert all(linha["disponibilidade"]["taxa"] is not None and linha["posicao"]["percentil"] is not None for linha in hoje["linhas"])
     # Abaixo de 20 médicos, os sinais 8 a 10 são só descritivos; acima, o nível é o da raridade da variação. `sinal` repete o nível.
-    assert contar(hoje, "disponibilidade") == {"sem_sinal": 2301, "descritivo": 3162, "classificado": 107}
-    assert contar(hoje, "disponibilidade", "classe") == {None: 5463, "moderado": 74, "elevado": 29, "critico": 4}
-    assert contar(hoje, "posicao") == {"sem_sinal": 2230, "descritivo": 3162, "classificado": 178}
-    assert contar(hoje, "posicao", "classe") == {None: 5392, "moderado": 131, "elevado": 42, "critico": 5}
-    assert contar(hoje, "defasagem") == {"sem_sinal": 2273, "descritivo": 3162, "classificado": 134,
+    # Uma janela começa num registro de pico que voltou (Brochier/RS, 31 médicos em jun/2022): "descontinuidade de registro",
+    # sem nível, e fora das comparações dos outros (revisão das capturas, 14/11/2026).
+    assert contar(hoje, "disponibilidade") == {"sem_sinal": 2300, "descritivo": 3162, "classificado": 107, "descontinuidade_de_registro": 1}
+    assert contar(hoje, "disponibilidade", "classe") == {None: 5463, "moderado": 74, "elevado": 30, "critico": 3}
+    assert contar(hoje, "posicao") == {"sem_sinal": 2227, "descritivo": 3162, "classificado": 180, "descontinuidade_de_registro": 1}
+    assert contar(hoje, "posicao", "classe") == {None: 5390, "moderado": 134, "elevado": 41, "critico": 5}
+    assert contar(hoje, "defasagem") == {"sem_sinal": 2272, "descritivo": 3162, "classificado": 134, "descontinuidade_de_registro": 1,
                                         "referencia_invalida": 1}   # Brasília é o único município da UF
     assert contar(hoje, "defasagem", "classe") == {None: 5436, "moderado": 99, "elevado": 31, "critico": 4}
     assert all(linha[chave]["sinal"] == linha[chave]["classe"] and (linha[chave]["estado"] == "classificado") == bool(linha[chave]["classe"])
                for linha in hoje["linhas"] for chave in ("disponibilidade", "posicao", "defasagem"))
-    assert [hoje["resumo"]["sinais"][chave] for chave in ("disponibilidade", "posicao", "defasagem", "combinados")] == [107, 178, 134, 328]
-    assert [hoje["resumo"]["com_nivel"][chave] for chave in ("disponibilidade", "posicao", "defasagem")] == [107, 178, 134]
+    assert [hoje["resumo"]["sinais"][chave] for chave in ("disponibilidade", "posicao", "defasagem", "combinados")] == [107, 180, 134, 329]
+    assert [hoje["resumo"]["com_nivel"][chave] for chave in ("disponibilidade", "posicao", "defasagem")] == [107, 180, 134]
     # O grupo "Comparado com outros" leva o maior nível entre os sinais 8 a 10; o contexto geográfico nunca tem nível.
-    assert contar(hoje, "dimensoes", "comparacao") == {None: 5328, "moderado": 172, "elevado": 60, "critico": 10}
+    assert contar(hoje, "dimensoes", "comparacao") == {None: 5325, "moderado": 174, "elevado": 62, "critico": 9}
     assert contar(hoje, "dimensoes", "contexto") == {None: 5570}
     assert not any(linha["alerta"]["sinal"] in ("contexto", "coexistencia") for linha in hoje["linhas"])
     # Os dois municípios de Sergipe cuja população de 2024 mudou na troca (a tabela corrigida do IBGE de 30/12/2024).
@@ -1242,7 +1466,8 @@ def test_real_fenomenos_8_a_12_comparacao_so_com_populacao_comparavel(real):
             for chave in ("disponibilidade", "posicao", "defasagem", "contexto")] == [
         ("disponibilidade", "elevado", "alerta", "comparado com a base", "−35,7% de médicos por habitante em 2 anos"),
         ("posicao", "moderado", "alerta", "comparado com a base", "−11,3 pontos de percentil em 2 anos"),
-        ("defasagem", "moderado", "alerta", "comparado com a base", "−54,7 pontos no índice ante a referência em 2 anos"),
+        ("defasagem", "moderado", "alerta", "comparado com a base",
+         "A taxa passou de 1,27 para 0,72 vezes a dos demais municípios de São Paulo em 2 anos"),
         ("contexto", None, "contexto", None, "Acima do critério (2,01 médicos por 1.000 habitantes ou mais)")]
     assert do_sinal["disponibilidade"]["habitual"] == ("Comparado com a base: entre 1.731 variações anteriores de municípios de 100 a 299 médicos, "
                                                        "12 foram iguais ou piores (raridade de 1 em cada 133).")

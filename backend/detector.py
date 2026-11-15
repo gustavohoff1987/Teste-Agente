@@ -925,28 +925,59 @@ def _limite_da_raridade(ordenados: np.ndarray, um_em: float):
     return float(ordenados[maximo])
 
 
+def _regua_da_faixa(valores: np.ndarray, faixas: np.ndarray, faixa: int, um_em: float, de_todas: np.ndarray | None = None) -> dict:
+    """A régua que vale para uma faixa de porte num nível, como em `reguas.nivel_da_raridade`: a primeira origem com comparações
+    bastantes — a faixa de porte, a faixa com as vizinhas (uma de cada lado) e, quando `de_todas` é dado (só no moderado), todas
+    as faixas, com a mudança padronizada pelo tamanho. Devolve a origem, quantas comparações ela tem e o valor de corte (a
+    mudança precisa ser pior que ele). Sem origem que baste: a mais larga que foi tentada, com quantas comparações havia."""
+    pede = max(int(math.ceil(um_em)) - 1, 1)
+    origens = [("porte", valores[faixas == faixa]), ("vizinhas", valores[(faixas >= faixa - 1) & (faixas <= faixa + 1)])]
+    if de_todas is not None:
+        origens.append(("todas", de_todas))
+    for nome, dados in origens:
+        if dados.size >= pede:
+            return {"um_em": um_em, "pede": pede, "avaliado": True, "origem": nome, "comparacoes": int(dados.size),
+                    "corte": _limite_da_raridade(np.sort(dados), um_em)}
+    return {"um_em": um_em, "pede": pede, "avaliado": False, "origem": origens[-1][0],
+            "comparacoes": int(max(dados.size for _, dados in origens)), "corte": None}
+
+
 def limiares(base: Base, cal: Calibracao, e: int, p: dict) -> dict:
     """O que a régua diz na data `e`, para a tela explicar: por faixa de porte, quantas mudanças anteriores há (com o mesmo tempo
-    entre registros) e a partir de que queda ela é rara em cada nível; e, no sinal 7, a partir de que afastamento."""
+    entre registros) e, em cada nível, a régua que o motor usa de fato para um território daquele porte — de onde vêm as
+    comparações (o porte, o porte com as faixas vizinhas ou, só no moderado, todas as faixas), quantas são e a partir de que
+    queda ela é rara; e, no sinal 7, a partir de que afastamento."""
     perda, patamar = p["perda"], p["patamar"]
     meses = int(cal.intervalo[e]) if e > 0 else None
     celulas = []
     if e > 0 and meses:
         colunas = [i for i in range(1, e) if cal.tipo[i] == cal.tipo[e]]
+        theta, padronizados = reguas.THETA_PADRAO, np.empty(0)
         if colunas:
             usavel = cal.regular[:, colunas] & ~(cal.marca_conhecida[:, colunas] <= e)
             valores, faixas = cal.relativa[:, colunas][usavel], cal.porte[:, colunas][usavel]
+            # Todas as faixas juntas (a retaguarda do moderado): a mudança dividida pelo tamanho^(θ/2), com θ só do passado.
+            tamanhos = base.quantidade[:, [i - 1 for i in colunas]][usavel]
+            deltas = base.quantidade[:, colunas][usavel] - tamanhos
+            if deltas.size:
+                theta = reguas.theta_do_passado(deltas, tamanhos, faixas)
+                padronizados = deltas / np.power(np.maximum(tamanhos, 1.0), theta / 2.0)
         else:
             valores, faixas = np.empty(0), np.empty(0, dtype=np.int8)
         for faixa, rotulo in enumerate(ROTULOS_DOS_PORTES):
-            anteriores = np.sort(valores[faixas == faixa])
-            celula = {"porte": rotulo, "comparacoes": int(anteriores.size)}
+            celula = {"porte": rotulo, "comparacoes": int((faixas == faixa).sum())}
             for nivel in NIVEIS:
-                um_em = perda[nivel + "_um_em"]
-                corte = _limite_da_raridade(anteriores, um_em)
-                celula[nivel] = {"um_em": um_em, "pede": max(int(math.ceil(um_em)) - 1, 1),
-                                 "queda_pct": None if corte is None else -100.0 * corte + 0.0}
-            # As chaves que a resposta já trazia: as transições anteriores e o corte dos dois níveis mais graves.
+                lida = _regua_da_faixa(valores, faixas, faixa, perda[nivel + "_um_em"], padronizados if nivel == "moderado" else None)
+                corte = lida.pop("corte")
+                lida["queda_pct"] = None if corte is None else -100.0 * corte + 0.0
+                if corte is not None and lida["origem"] == "todas":
+                    # Entre todas as faixas, o corte é da mudança padronizada: em percentual, ele depende do tamanho. Vão os dois
+                    # extremos da faixa (o do menor tamanho é o maior: acima dele, a queda é rara em qualquer tamanho da faixa).
+                    menor, maior = PORTES[faixa]
+                    lida["queda_pct"] = -100.0 * corte * menor ** (theta / 2.0 - 1.0) + 0.0
+                    lida["queda_pct_ate"] = None if maior is None else -100.0 * corte * maior ** (theta / 2.0 - 1.0) + 0.0
+                celula[nivel] = lida
+            # As chaves que a resposta já trazia: as transições anteriores do porte e o corte dos dois níveis mais graves.
             celula.update({"transicoes": celula["comparacoes"], "queda_incomum_pct": celula["elevado"]["queda_pct"],
                            "queda_muito_incomum_pct": celula["critico"]["queda_pct"],
                            "alta": "calibrado" if celula["elevado"]["queda_pct"] is not None else "sem_calibracao",
@@ -954,22 +985,22 @@ def limiares(base: Base, cal: Calibracao, e: int, p: dict) -> dict:
             celulas.append(celula)
     faixas_do_patamar = []
     if e > 0:
-        usavel = np.isfinite(cal.afastamento[:, :e])
+        usavel = np.isfinite(cal.afastamento[:, :e]) & (cal.porte_do_patamar[:, :e] >= 0)
         com_pico = (cal.pico_conhecido[:, :e] <= e)
         if e > 1:
             com_pico[:, 1:] |= (cal.pico_conhecido[:, :e - 1] <= e)
         usavel &= ~com_pico & ~cal.quebra[:, :e]
-        valores, faixas = cal.afastamento[:, :e][usavel], cal.porte_do_patamar[:, :e][usavel]
+        # O maior afastamento é o pior: a cauda de baixo do oposto.
+        valores, faixas = -cal.afastamento[:, :e][usavel], cal.porte_do_patamar[:, :e][usavel]
         for faixa, rotulo in enumerate(ROTULOS_DOS_PORTES):
             if PORTES[faixa][1] is not None and PORTES[faixa][1] < patamar["minimo"]:
                 continue
-            anteriores = np.sort(-valores[faixas == faixa])  # o maior afastamento é o pior: a cauda de baixo do oposto
-            celula = {"porte": rotulo, "comparacoes": int(anteriores.size)}
+            celula = {"porte": rotulo, "comparacoes": int((faixas == faixa).sum())}
             for nivel in ("critico", "elevado"):
-                um_em = patamar[nivel + "_um_em"]
-                corte = _limite_da_raridade(anteriores, um_em)
-                celula[nivel] = {"um_em": um_em, "pede": max(int(math.ceil(um_em)) - 1, 1),
-                                 "afastamento_pct": None if corte is None else -100.0 * corte + 0.0}
+                lida = _regua_da_faixa(valores, faixas, faixa, patamar[nivel + "_um_em"])
+                corte = lida.pop("corte")
+                lida["afastamento_pct"] = None if corte is None else -100.0 * corte + 0.0
+                celula[nivel] = lida
             celula.update({"observacoes": celula["comparacoes"], "afastamento_incomum_pct": celula["elevado"]["afastamento_pct"],
                            "alta": "calibrado" if celula["elevado"]["afastamento_pct"] is not None else "sem_calibracao",
                            "critica": "calibrado" if celula["critico"]["afastamento_pct"] is not None else "sem_calibracao"})
@@ -1034,6 +1065,17 @@ def _br(valor, casas: int = 1) -> str:
 
 def _pct(valor, casas: int = 1) -> str:
     return f"{valor:.{casas}f}".replace(".", ",") + "%"
+
+
+def _do_patamar(valor, sempre_com_decimal: bool = False) -> str:
+    """O patamar em palavras. Ele é uma média e pode não ser inteiro: abaixo de 100, vai com até duas casas ("1,75", "78,25",
+    "58,5"), para o percentual ao lado fazer sentido; de 100 para cima, o inteiro mais próximo (ou também com as casas, quando
+    quem chama precisa do valor sem arredondar: `sempre_com_decimal`)."""
+    valor = float(valor)
+    if valor.is_integer() or (valor >= 100 and not sempre_com_decimal):
+        return _br(round(valor))
+    inteiro, _, casas = f"{valor:.2f}".rstrip("0").rstrip(".").partition(".")
+    return _br(int(inteiro)) + ("," + casas if casas else "")
 
 
 def _com_sinal(valor) -> str:
@@ -1385,7 +1427,7 @@ def _texto_patamar(base: Base, av: dict, p: dict) -> dict:
     if estado == "nao_calculavel":
         return _item(None, "nao_avaliado", POR_CONVENCAO, "Patamar em zero", "O patamar anterior é zero.", regra, "Não calculável.",
                      significa, nao, entenda, exemplo)
-    observado = ("O patamar é de " + _br(s["patamar"]) + " " + r["profissionais"] + " (média de " + curta(s["bloco"]["de"]) + " a " +
+    observado = ("O patamar é de " + _do_patamar(s["patamar"]) + " " + r["profissionais"] + " (média de " + curta(s["bloco"]["de"]) + " a " +
                  curta(s["bloco"]["ate"]) + "). O último registro tem " + _br(s["atual"]) + ": " +
                  ("−" if s["diferenca"] < 0 else "+") + _pct(abs(s["diferenca_pct"])) + " ante o patamar.")
     if s.get("registros_abaixo"):
@@ -1396,7 +1438,7 @@ def _texto_patamar(base: Base, av: dict, p: dict) -> dict:
             _pct(s["recuperado_pct"], 0) + " da distância até o patamar."
     abaixo = s["diferenca"] < 0
     frase = (_pct(-s["diferenca_pct"], 0) + " abaixo do que já teve" if abaixo else "No patamar ou acima dele") + \
-        " (patamar de " + _br(round(s["patamar"])) + ")"
+        " (patamar de " + _do_patamar(s["patamar"]) + ")"
     if estado == "nivel_sem_classificacao":
         return _item(None, "sem_nivel", POR_CONVENCAO, frase, observado, regra, SEM_NIVEL_NO_CONJUNTO, significa, nao, entenda, exemplo)
     if estado == "descontinuidade_de_registro":
@@ -1481,6 +1523,15 @@ def _relativo(base: Base, av: dict, chave: str, p: dict, nivel_da_data: str, var
                      nao, entenda,
                      exemplo)
     frase = variacao or nivel_da_data
+    if estado == "descontinuidade_de_registro":
+        # A janela de 2 anos começa ou termina num registro marcado: o número aparece, mas não é comparado nem tem nível.
+        marca = s.get("marca") or {}
+        ponta = "início" if marca.get("ponta") == "inicio" else "fim"
+        motivo = ("faz parte de um pico que voltou" if marca.get("tipo") == "pico_que_volta" else "está numa quebra de fonte")
+        return _item(None, "nao_avaliado", COMPARADO, frase + " · descontinuidade de registro", observado, regra,
+                     "Não avaliado: descontinuidade de registro. O registro de " + curta(marca.get("competencia") or s["de"]) + ", no " + ponta +
+                     " da janela, " + motivo + ": a variação em 2 anos não é comparada nem recebe nível.", significa, nao, entenda,
+                     exemplo)
     if estado == "descritivo":
         return _item(None, "nao_avaliado", COMPARADO, frase, observado, regra,
                      "Só descritivo: com menos de " + str(comparativos.MINIMO_DE_MEDICOS) + " " + r["profissionais"] + " no início da "
@@ -1566,9 +1617,14 @@ def _texto_defasagem(base: Base, av: dict, p: dict) -> dict:
     variacao = None
     observado = na_data
     if s.get("variacao_pontos") is not None:
-        variacao = _pontos(s["variacao_pontos"]) + " no índice ante a referência em 2 anos"
-        observado = ("De " + curta(s["de"]) + " a " + curta(s["ate"]) + ", o índice passou de " + _br(round(s["indice_inicial"], 1)) +
-                     " para " + _br(round(s["indice_final"], 1)) + " (" + _pontos(s["variacao_pontos"]) + "). " + na_data)
+        # A frase do sinal, em palavras simples: quantas vezes a taxa da referência o território tinha e tem (o índice ÷ 100).
+        a_da_referencia = "a " + (dos + rotulo.split(" (")[0] if rotulo else "da referência")
+        passou = ("passou de " + _taxa(s["indice_inicial"] / 100.0) + " para " + _taxa(s["indice_final"] / 100.0) + " vezes " +
+                  a_da_referencia)
+        variacao = "A taxa " + passou + " em 2 anos"
+        observado = ("De " + curta(s["de"]) + " a " + curta(s["ate"]) + ", a taxa do território " + passou + " (índice de " +
+                     _br(round(s["indice_inicial"], 1)) + " para " + _br(round(s["indice_final"], 1)) + ": " +
+                     _pontos(s["variacao_pontos"]) + "). " + na_data)
     return _relativo(base, av, "defasagem", p, nivel, variacao, observado, "este afastamento da referência", regra, significa, nao, entenda,
                      exemplo)
 
@@ -2026,6 +2082,21 @@ def _coordenadas(base: Base, qd: comparativos.Quadro, territorios: list, linhas:
             for i in sorted(marcados) if bool(qd.com_coordenada[i])}
 
 
+def _sem_coordenada(base: Base, qd: comparativos.Quadro, territorios: list) -> list[dict]:
+    """As unidades da seleção que ficam fora do mapa, com o motivo: na competência avaliada, a base não traz a coordenada delas
+    ("ausente") ou traz a latitude ou a longitude fora do intervalo válido ("fora_do_intervalo": até 90° e 180°). A tela as
+    lista na legenda do mapa. Numa base sem coordenadas, não há mapa nem lista."""
+    if not bool(np.isfinite(base.latitude).any()):
+        return []
+    saida = []
+    for territorio in territorios:
+        if territorio.tipo != "municipio" or bool(qd.com_coordenada[territorio.linha]):
+            continue
+        lat, lon = float(base.latitude[territorio.linha, qd.e]), float(base.longitude[territorio.linha, qd.e])
+        saida.append({"id": territorio.id, "motivo": "fora_do_intervalo" if math.isfinite(lat) and math.isfinite(lon) else "ausente"})
+    return saida
+
+
 def _aviso_da_base(base: Base, regua: dict) -> str | None:
     """O aviso da base (B.1): quando, numa mesma data, as quedas raras passam do triplo do esperado."""
     m = regua["monitoramento"]
@@ -2104,7 +2175,7 @@ def compute(sources, opcoes: dict, base: Base | None = None) -> dict:
     return {**comum, "linhas": linhas, "resumo": _resumo(linhas), "calibracao": regua,
             **({"calibracao_dos_estados": limiares(base_dos_estados(base), cal_dos_estados, e, p)} if cal_dos_estados is not None else {}),
             "aviso_da_base": _aviso_da_base(base, regua),
-            "coordenadas": _coordenadas(base, qd, territorios, linhas),
+            "coordenadas": _coordenadas(base, qd, territorios, linhas), "sem_coordenada": _sem_coordenada(base, qd, territorios),
             "notas": _notas(base, personalizado, {territorio.nivel for territorio in territorios} | {territorio.tipo for territorio in territorios}),
             "limitacoes": ["RARO_E_INCOMUM_NA_BASE", "CONJUNTO_SEM_NIVEL", "COMPARACAO_SO_COM_POPULACAO_COMPARAVEL"] +
                           (["CONFIGURACAO_EXPLORATORIA"] if personalizado else [])}

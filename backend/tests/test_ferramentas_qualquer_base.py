@@ -235,13 +235,19 @@ def test_detector_na_planilha_mostra_o_que_ela_sustenta_e_os_motivos_do_que_nao_
     assert [(linha["id"], linha["alerta"]["nivel"], linha["alerta"]["sinal"], linha["alerta"]["criterio"], linha["alerta"]["por_que"])
             for linha in lista["linhas"] if linha["alerta"]["nivel"]] == [
         ("name:Distrito 02", "moderado", "perda", "comparado com a base", "Caiu de 38 para 32 (−15,8%) (+1 sinal)"),
-        ("name:Distrito 03", "moderado", "patamar", "por convenção", "18% abaixo do que já teve (patamar de 58)"),
+        ("name:Distrito 03", "moderado", "patamar", "por convenção", "18% abaixo do que já teve (patamar de 58,25)"),   # a média, com as casas
         ("name:Distrito 11", "moderado", "declinio", "por convenção", "2 quedas anuais seguidas: −11,1% desde jul/2021"),
         ("name:Distrito 13", "elevado", "declinio", "por convenção", "3 quedas anuais seguidas: −20,8% desde jul/2020"),
         ("name:Distrito 16", "moderado", "perda", "comparado com a base", "Caiu de 15 para 13 (−13,3%)")]
     regua = [(celula["porte"], celula["comparacoes"], celula["moderado"]["queda_pct"] is not None, celula["elevado"]["queda_pct"] is not None,
               celula["critico"]["queda_pct"] is not None) for celula in lista["calibracao"]["perda"] if celula["comparacoes"]]
-    assert regua == [("10 a 19", 80, True, False, False), ("20 a 49", 182, True, True, False), ("50 a 99", 98, True, False, False)]
+    # A régua usada de fato (revisão das capturas, 14/11/2026): com 80 e 98 comparações no porte, o elevado junta as faixas
+    # vizinhas (262 e 280) e é avaliado; o crítico, nem com elas (360 no máximo, para 999).
+    assert regua == [("10 a 19", 80, True, True, False), ("20 a 49", 182, True, True, False), ("50 a 99", 98, True, True, False)]
+    assert [(celula["elevado"]["origem"], celula["elevado"]["comparacoes"], celula["critico"]["origem"], celula["critico"]["comparacoes"])
+            for celula in lista["calibracao"]["perda"] if celula["comparacoes"]] == [
+        ("vizinhas", 262, "vizinhas", 262), ("porte", 182, "vizinhas", 360), ("vizinhas", 280, "vizinhas", 280)]
+    assert lista["sem_coordenada"] == []      # sem coordenadas, não há mapa nem lista de quem fica fora dele
     # O que a base não tem: os sinais por habitante e a distância ficam indisponíveis, com o motivo; nada é inventado.
     assert lista["indisponiveis"] == {chave: SEM_POPULACAO for chave in ("disponibilidade", "posicao", "defasagem", "contexto")}
     assert (lista["comparacao"]["estado"], lista["comparacao"]["motivo"], lista["comparacao"]["trechos"]) == ("indisponivel", SEM_POPULACAO, [])

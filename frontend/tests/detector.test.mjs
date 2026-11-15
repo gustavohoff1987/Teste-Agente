@@ -76,11 +76,13 @@ test('a resposta do motor vira os tipos da tela, sem calcular nada: o alerta, os
   assert.deepEqual(lida.entenda, {ferramenta: {texto: 'Compara com a própria base.', exemplo: 'De 18 para 11.'}, termos: {texto: 'Porte é o tamanho.', exemplo: ''}});
   assert.deepEqual(lida.resumo.niveis, {critico: 1, elevado: 0, moderado: 2, sem_alerta: 3, sem_comparacoes: 0, sem_nivel: 1});
   assert.deepEqual([lida.resumo.comNivel, lida.resumo.sinais.perda], [{perda: 2}, 2]);
-  // A régua da data: por porte, as comparações e o corte de cada nível; sem comparações bastantes, o corte é nulo.
-  assert.deepEqual(lida.calibracao.perda[1], {porte: '3.000 a 9.999', comparacoes: 203, niveis: {critico: {umEm: 1000, pede: 999, cortePct: null},
-    elevado: {umEm: 100, pede: 99, cortePct: 7.605070046697798}, moderado: {umEm: 20, pede: 19, cortePct: -0.229}}});
-  assert.deepEqual(lida.calibracao.patamar[0].niveis, {critico: {umEm: 1000, pede: 999, cortePct: 62.16216216216216},
-    elevado: {umEm: 100, pede: 99, cortePct: 39.53488372093024}}, 'o moderado do sinal 7 é por convenção: sem corte na régua');
+  // A régua da data: por porte, as comparações e o corte de cada nível; sem comparações bastantes, o corte é nulo. Cada nível
+  // traz de onde vêm as comparações (`origem`) e quantas são; uma resposta sem esses campos é lida como a do próprio porte.
+  const doPorte = {origem: 'porte', comparacoes: null, corteAtePct: null};
+  assert.deepEqual(lida.calibracao.perda[1], {porte: '3.000 a 9.999', comparacoes: 203, niveis: {critico: {umEm: 1000, pede: 999, cortePct: null, ...doPorte},
+    elevado: {umEm: 100, pede: 99, cortePct: 7.605070046697798, ...doPorte}, moderado: {umEm: 20, pede: 19, cortePct: -0.229, ...doPorte}}});
+  assert.deepEqual(lida.calibracao.patamar[0].niveis, {critico: {umEm: 1000, pede: 999, cortePct: 62.16216216216216, ...doPorte},
+    elevado: {umEm: 100, pede: 99, cortePct: 39.53488372093024, ...doPorte}}, 'o moderado do sinal 7 é por convenção: sem corte na régua');
   assert.deepEqual(lida.calibracao.monitoramento, {avaliadas: 5570, raras: 161, taxaPct: 2.89048473967684, esperadoPct: 5, avisoDaBase: false});
   assert.deepEqual([lida.calibracaoDosEstados, lida.avisoDaBase], [null, null]);
   const comEstados = D.normalizarDetector(resposta([], {calibracao_dos_estados: {competencia: '202406', intervalo_meses: 5,
@@ -274,13 +276,55 @@ test('"Ajustar critérios": os limites em frases, com os campos dentro delas, pa
 test('a régua da data em palavras: a partir de que mudança ela é rara, ou "sem comparações suficientes", com os números', () => {
   const lida = D.normalizarDetector(resposta([]));
   const [pequenos, grandes] = lida.calibracao.perda;
+  // Um corte de 100% ou mais não é alcançado por queda nenhuma: a tabela diz isso, em vez de "queda maior que 100,0%".
   assert.deepEqual(['moderado', 'elevado', 'critico'].map(nivel => D.textoDoCorte(pequenos, nivel)),
-    ['queda maior que 33,3%', 'queda maior que 50,0%', 'queda maior que 100,0%']);
+    ['queda maior que 33,3%', 'queda maior que 50,0%', 'nenhuma queda chega a esse nível']);
   // De 3.000 para cima, a base não tem 999 comparações de tamanho parecido: o crítico fica "sem comparações suficientes".
   assert.deepEqual(['moderado', 'elevado', 'critico'].map(nivel => D.textoDoCorte(grandes, nivel)),
     ['qualquer queda', 'queda maior que 7,6%', 'sem comparações suficientes (203 de 999)']);
   assert.deepEqual(['moderado', 'elevado', 'critico'].map(nivel => D.textoDoCorte(lida.calibracao.patamar[0], nivel, 'afastamento')),
     ['—', 'afastamento maior que 39,5%', 'afastamento maior que 62,2%']);
+  // A régua usada de fato (revisão das capturas, 14/11/2026): cada nível diz de onde vêm as comparações e quantas são, quando não
+  // são só as do porte — as faixas vizinhas ou, só no moderado, todas as faixas (o corte muda com o tamanho dentro da faixa).
+  const nivel = (um_em, valor, origem, comparacoes, extra = {}) => ({...corte(um_em, valor), avaliado: valor !== null, origem, comparacoes, ...extra});
+  const usada = D.normalizarDetector(resposta([], {calibracao: {competencia: '202406', intervalo_meses: 5, perda: [
+    {porte: '1.000 a 2.999', comparacoes: 616, critico: nivel(1000, 44.385, 'vizinhas', 2720), elevado: nivel(100, 11.333, 'porte', 616), moderado: nivel(20, 2.511, 'porte', 616)},
+    {porte: '3.000 a 9.999', comparacoes: 203, critico: nivel(1000, null, 'vizinhas', 864), elevado: nivel(100, 7.605, 'porte', 203), moderado: nivel(20, 2.208, 'porte', 203)},
+    {porte: '10.000 ou mais', comparacoes: 45, critico: nivel(1000, null, 'vizinhas', 248), elevado: nivel(100, 7.605, 'vizinhas', 248), moderado: nivel(20, 1.292, 'porte', 45)},
+    {porte: '300 a 999', comparacoes: 3, critico: nivel(1000, null, 'vizinhas', 5), elevado: nivel(100, null, 'vizinhas', 5),
+      moderado: nivel(20, 0.71, 'todas', 27, {queda_pct_ate: 0.389})},
+    {porte: '10.000 ou mais', comparacoes: 3, critico: nivel(1000, null, 'vizinhas', 15), elevado: nivel(100, null, 'vizinhas', 15),
+      moderado: nivel(20, 1.1, 'todas', 5565, {queda_pct_ate: null})},
+    {porte: '1 a 3', comparacoes: 0, critico: nivel(1000, null, 'vizinhas', 0), elevado: nivel(100, null, 'vizinhas', 0),
+      moderado: nivel(20, 200, 'todas', 360, {queda_pct_ate: 66.667})},
+    {porte: '4 a 9', comparacoes: 0, critico: nivel(1000, null, 'vizinhas', 9), elevado: nivel(100, null, 'vizinhas', 9),
+      moderado: nivel(20, 0, 'todas', 34, {queda_pct_ate: 0})},
+    {porte: '20 a 49', comparacoes: 2, critico: nivel(1000, null, 'vizinhas', 12), elevado: nivel(100, null, 'vizinhas', 12), moderado: nivel(20, null, 'todas', 12)}],
+    patamar: [{porte: '10.000 ou mais', comparacoes: 54, critico: {...corte(1000, null, 'afastamento_pct'), avaliado: false, origem: 'vizinhas', comparacoes: 310},
+      elevado: {...corte(100, 9.893, 'afastamento_pct'), avaliado: true, origem: 'vizinhas', comparacoes: 310}}],
+    monitoramento: {avaliadas: 0, raras: 0}}})).calibracao;
+  const dos = faixa => ['moderado', 'elevado', 'critico'].map(chave => D.textoDoCorte(faixa, chave));
+  assert.deepEqual(usada.perda[0].niveis.critico, {umEm: 1000, pede: 999, cortePct: 44.385, origem: 'vizinhas', comparacoes: 2720, corteAtePct: null});
+  assert.deepEqual(dos(usada.perda[0]), ['queda maior que 2,5%', 'queda maior que 11,3%', 'queda maior que 44,4% (com as faixas vizinhas: 2.720 comparações)']);
+  assert.deepEqual(dos(usada.perda[1]), ['queda maior que 2,2%', 'queda maior que 7,6%', 'sem comparações suficientes (864 de 999, com as faixas vizinhas)']);
+  assert.deepEqual(dos(usada.perda[2]), ['queda maior que 1,3%', 'queda maior que 7,6% (com as faixas vizinhas: 248 comparações)',
+    'sem comparações suficientes (248 de 999, com as faixas vizinhas)']);
+  // Com todas as faixas: os dois extremos do corte na faixa; na faixa aberta, só o do menor tamanho; e os casos sem número.
+  assert.equal(dos(usada.perda[3])[0], 'queda maior que 0,7% nos menores da faixa; queda maior que 0,4% nos maiores (com todas as faixas: 27 comparações)');
+  assert.equal(dos(usada.perda[4])[0], 'queda maior que 1,1% no menor tamanho da faixa (o limite cai nos maiores) (com todas as faixas: 5.565 comparações)');
+  assert.equal(dos(usada.perda[5])[0], 'nenhuma queda chega a esse nível nos menores da faixa; queda maior que 66,7% nos maiores (com todas as faixas: 360 comparações)');
+  assert.equal(dos(usada.perda[6])[0], 'qualquer queda (com todas as faixas: 34 comparações)');
+  assert.deepEqual(dos(usada.perda[7]), ['sem comparações suficientes (12 de 19, com todas as faixas)', 'sem comparações suficientes (12 de 99, com as faixas vizinhas)',
+    'sem comparações suficientes (12 de 999, com as faixas vizinhas)']);
+  assert.deepEqual(['elevado', 'critico'].map(chave => D.textoDoCorte(usada.patamar[0], chave, 'afastamento')),
+    ['afastamento maior que 9,9% (com as faixas vizinhas: 310 comparações)', 'sem comparações suficientes (310 de 999, com as faixas vizinhas)']);
+  assert.equal(D.textoDoCorte({porte: 'x', comparacoes: 1, niveis: {elevado: {umEm: 100, pede: 99, cortePct: 100, origem: 'porte', comparacoes: 150, corteAtePct: null}}},
+    'elevado', 'afastamento'), 'nenhum afastamento chega a esse nível');
+  // Na tela, a tabela diz que cada nível mostra a régua usada, e a coluna do porte é a das comparações do próprio porte.
+  const tela = ler('DetectorDeSinais.tsx');
+  assert.ok(tela.includes('<th scope="col">Comparações do porte</th>'));
+  assert.ok(tela.includes('Cada nível mostra a régua usada de fato: quando o porte'));
+  assert.ok(tela.includes('{niveis.map(nivel => <td key={nivel} data-nivel={nivel}>{textoDoCorte(faixa, nivel, o_que)}</td>)}'));
 });
 
 test('exportações: o CSV da lista e o método em JSON levam o alerta, a janela, as versões e a configuração', () => {
@@ -406,6 +450,31 @@ test('mapa e gráfico pelos níveis: só os valores, os níveis e as coordenadas
     grupos: [grupos[0]]});
   assert.deepEqual(lida.linhas.map(item => [D.nivelNoDesenho(item, 'todos'), D.nivelNoDesenho(item, 'patamar'), D.nivelNoDesenho(item, 'juntos')]),
     [['elevado', null, 'elevado'], ['moderado', 'moderado', 'moderado'], [null, null, null], [null, null, null], [null, null, null]]);
+  // Quem está na lista e fica fora do mapa (revisão das capturas, 14/11/2026): a legenda diz quantos são, com que nível, quais
+  // e por quê, com o motivo do motor — a coordenada fora do intervalo válido ou ausente. Aqui, todos têm ponto.
+  assert.deepEqual([lida.semCoordenada, D.foraDoMapa(lida, lida.linhas, 'todos'), D.textoDeForaDoMapa([], ROTULOS, '202106')], [{}, [], null]);
+  const semPonto = D.normalizarDetector(resposta([], {sem_coordenada: [{id: 'code:130260', motivo: 'fora_do_intervalo'},
+    {id: 'code:110001', motivo: 'ausente'}, {id: 'code:350530', motivo: 'outro'}, {motivo: 'ausente'}, 'x']}));
+  assert.deepEqual(semPonto.semCoordenada, {'code:130260': 'fora_do_intervalo', 'code:110001': 'ausente', 'code:350530': 'ausente'},
+    'só os dois motivos do motor; o que não tem id fica de fora');
+  const semDois = {...lida, coordenadas: {'code:350530': [-22.5, -48.6]}, semCoordenada: {'code:130260': 'fora_do_intervalo', 'code:110001': 'ausente'}};
+  const fora = D.foraDoMapa(semDois, semDois.linhas, 'todos');
+  assert.deepEqual(fora, [{id: 'code:130260', rotulo: 'MANAUS (AM)', nivel: 'moderado', motivo: 'fora_do_intervalo'},
+    {id: 'code:110001', rotulo: 'ALTA FLORESTA (RO)', nivel: null, motivo: 'ausente'}], 'só municípios: o estado e o conjunto não têm ponto próprio');
+  assert.equal(D.textoDeForaDoMapa(fora, ROTULOS, '202106'), 'Fora do mapa: 2 municípios à vista (1 em moderado e 1 sem nível). Em jun/2021, a base traz a ' +
+    'latitude ou a longitude fora do intervalo válido em: MANAUS (AM) — moderado. Em jun/2021, a base não traz a coordenada de: ALTA FLORESTA (RO). ' +
+    'Continuam na lista, cada qual com o seu nível.');
+  // Com o filtro "Sinal", o nível é o daquele sinal; com um só de fora, o singular; e os nomes vêm da base.
+  assert.equal(D.textoDeForaDoMapa(D.foraDoMapa(semDois, [semDois.linhas[1]], 'posicao'), ENF, '202406'), 'Fora do mapa: 1 distrito à vista (1 sem nível). Em ' +
+    'jun/2024, a base traz a latitude ou a longitude fora do intervalo válido em: MANAUS (AM). Continua na lista, com o seu nível.');
+  // Muitos de fora: os 12 primeiros nomes e quantos mais.
+  const muitos = Array.from({length: 15}, (_, k) => ({id: 'code:' + k, rotulo: 'M' + k, nivel: k < 2 ? 'critico' : null, motivo: 'fora_do_intervalo'}));
+  const texto = D.textoDeForaDoMapa(muitos, ROTULOS, '202406');
+  assert.ok(texto.startsWith('Fora do mapa: 15 municípios à vista (2 em crítico e 13 sem nível). ') && texto.includes('M0 — crítico; M1 — crítico; M2; ') &&
+    texto.includes('; M11; e mais 3. ') && !texto.includes('M12'));
+  const graficosDoMapa = ler('DetectorGraficos.tsx');
+  assert.ok(graficosDoMapa.includes('{textoDeFora && <p data-testid="detector-mapa-fora" data-quantos={fora.length} className="ferramenta-apoio">{textoDeFora}</p>}'));
+  assert.ok(graficosDoMapa.includes('const textoDeFora = textoDeForaDoMapa(fora, r, resposta.janela.fim);'));
   // As cores dos níveis: amarelo, laranja e vermelho, os passos de estado (aviso, sério e crítico); o nível vem sempre escrito.
   assert.deepEqual(D.CORES_DOS_NIVEIS, {moderado: '#fab219', elevado: '#ec835a', critico: '#d03b3b'});
   const graficos = ler('DetectorGraficos.tsx');

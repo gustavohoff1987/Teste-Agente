@@ -445,10 +445,47 @@ class ReguaRelativa:
     valor: dict        # chave → [unidade, competência]: a variação na janela que termina na competência (NaN: não se aplica)
     porte: np.ndarray  # [unidade, competência]: a faixa de porte pelo número no início da janela (−1: abaixo de 20 ou sem registro)
     c: dict            # chave → [6, unidade, competência]: k e n do porte, do porte com as vizinhas e de todas as faixas
+    quebrada: np.ndarray       # [unidade, competência]: a janela começa ou termina num registro em quebra de fonte
+    conhecido_em: np.ndarray   # [unidade, competência]: o registro em que se soube que uma ponta da janela é de um pico que
+    #                            voltou (SEM_DATA: nenhuma ponta é de pico)
+
+    def usavel(self, nome: str, ate: int) -> np.ndarray:
+        """[unidade, competência]: as janelas que entram nas comparações de uma data avaliada (`ate`) — com a medida e o porte,
+        sem quebra de fonte numa ponta e sem pico cuja volta já tinha sido observada até a data."""
+        return np.isfinite(self.valor[nome]) & (self.porte >= 0) & ~self.quebrada & ~(self.conhecido_em <= ate)
 
 
 _REGUAS: dict[tuple, ReguaRelativa] = {}
 CHAVES_RELATIVAS = ("disponibilidade", "posicao", "defasagem")
+SEM_DATA = 10 ** 6   # "nunca conhecido" (o mesmo valor das marcas do Detector)
+
+
+def _marcas(base: Base, nivel: str, guardar: bool = True) -> tuple[np.ndarray, np.ndarray] | None:
+    """As marcas de registro do Detector no nível (municípios ou estados como unidade): em [unidade, competência], o índice do
+    registro em que a volta de um pico foi observada (SEM_DATA quando o registro não faz parte de um pico que volta) e se o
+    registro está numa quebra de fonte. None quando o nível não tem calibração (uma base sem a contagem dos grupos)."""
+    import detector   # importação tardia: o Detector usa este módulo
+    cal = detector.calibrar(base, guardar=guardar) if nivel == "municipios" else detector.calibrar_estados(base)
+    return None if cal is None else (cal.pico_conhecido, cal.quebra)
+
+
+def marca_da_janela(base: Base, qd: "Quadro", territorio: Territorio) -> dict | None:
+    """A descontinuidade de registro numa ponta da janela de 2 anos de um território, com o que era conhecido na data avaliada: o
+    registro do início ou do fim faz parte de um pico que voltou, ou está numa quebra de fonte. None sem marca (e nos conjuntos,
+    que não têm régua)."""
+    if qd.ini is None or qd.fim is None or territorio.tipo not in ("municipio", "estado"):
+        return None
+    marcas = _marcas(base, "municipios" if territorio.tipo == "municipio" else "estados")
+    if marcas is None:
+        return None
+    conhecido, quebra = marcas
+    linha = territorio.linha if territorio.tipo == "municipio" else sorted(base.estados).index(territorio.uf)
+    for ponta, i in (("inicio", qd.ini), ("fim", qd.fim)):
+        if quebra[linha, i]:
+            return {"tipo": "quebra_de_fonte", "ponta": ponta, "competencia": base.periodos[i]}
+        if conhecido[linha, i] <= qd.e:
+            return {"tipo": "pico_que_volta", "ponta": ponta, "competencia": base.periodos[i]}
+    return None
 
 
 def regua_relativa(base: Base, nivel: str = "municipios", guardar: bool = True) -> ReguaRelativa:
@@ -476,11 +513,19 @@ def regua_relativa(base: Base, nivel: str = "municipios", guardar: bool = True) 
     valor = {nome: np.full((n, t), np.nan) for nome in CHAVES_RELATIVAS}
     porte = np.full((n, t), -1, dtype=np.int8)
     janelas = []
+    # As marcas de registro de cada janela: uma janela que começa ou termina num registro de pico que volta ou de quebra de fonte
+    # não é avaliada nem entra nas comparações. O pico só conta depois que a volta foi observada (`conhecido_em`).
+    marcas = _marcas(base, nivel, guardar) if n else None
+    quebrada = np.zeros((n, t), dtype=bool)
+    conhecido_em = np.full((n, t), SEM_DATA, dtype=np.int64)
     for fim in range(t):
         ini, ultimo, motivo = janela(base, fim)
         if motivo is not None or ultimo != fim or not n:
             continue
         janelas.append(fim)
+        if marcas is not None:
+            quebrada[:, fim] = marcas[1][:, ini] | marcas[1][:, fim]
+            conhecido_em[:, fim] = np.minimum(marcas[0][:, ini], marcas[0][:, fim])
         with np.errstate(invalid="ignore", divide="ignore"):
             no_inicio = contagem[:, ini]
             validos = ~np.isnan(no_inicio) & ~np.isnan(contagem[:, fim]) & (no_inicio >= MINIMO_DE_MEDICOS)
@@ -497,13 +542,14 @@ def regua_relativa(base: Base, nivel: str = "municipios", guardar: bool = True) 
     um = np.ones((n, t))
     for nome in CHAVES_RELATIVAS:
         medida = valor[nome]
-        usavel = np.isfinite(medida) & (porte >= 0)
+        usavel = np.isfinite(medida) & (porte >= 0) & ~quebrada
         for posicao_da_janela, fim in enumerate(janelas):
-            atuais = np.flatnonzero(usavel[:, fim])
+            # Na data avaliada, ficam fora as janelas com um pico cuja volta já tinha sido observada até ela.
+            atuais = np.flatnonzero(usavel[:, fim] & ~(conhecido_em[:, fim] <= fim))
             antes = janelas[:posicao_da_janela]
             if not atuais.size or not antes:
                 continue
-            passado = usavel[:, antes]
+            passado = usavel[:, antes] & ~(conhecido_em[:, antes] <= fim)
             if not passado.any():
                 continue
             # A medida já é relativa (variação percentual, pontos de percentil ou de índice): entre todas as faixas, é comparada
@@ -513,9 +559,9 @@ def regua_relativa(base: Base, nivel: str = "municipios", guardar: bool = True) 
                 medida[:, antes][passado], um[:, antes][passado], porte[:, antes][passado])
             for origem in range(6):
                 c[nome][origem, atuais, fim] = comparadas[origem]
-    for matriz in (porte, *valor.values(), *c.values()):
+    for matriz in (porte, *valor.values(), *c.values(), quebrada, conhecido_em):
         matriz.setflags(write=False)
-    saida = ReguaRelativa(unidades=unidades, valor=valor, porte=porte, c=c)
+    saida = ReguaRelativa(unidades=unidades, valor=valor, porte=porte, c=c, quebrada=quebrada, conhecido_em=conhecido_em)
     if guardar:
         with _LOCK:
             if len(_REGUAS) > 4:
@@ -568,6 +614,9 @@ def disponibilidade(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> 
     saida.update({"taxa_inicial": float(taxa[a]), "taxa_final": float(taxa[b]), "variacao_pct": float(variacao),
                   "medicos": {"inicial": float(serie[a]), "final": float(serie[b]), "variacao_pct": float(100.0 * (serie[b] / serie[a] - 1))},
                   "populacao_da_janela": {"inicial": float(pop[a]), "final": float(pop[b]), "variacao_pct": float(100.0 * (pop[b] / pop[a] - 1))}})
+    marca = marca_da_janela(base, qd, territorio)
+    if marca:
+        return {**saida, "estado": "descontinuidade_de_registro", "marca": marca}
     if serie[a] < MINIMO_DE_MEDICOS:
         return {**saida, "estado": "descritivo"}
     return {**saida, **_nivel_relativo(base, qd, territorio, "disponibilidade", p)}
@@ -619,6 +668,9 @@ def posicao(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
         inicial = territorio.serie[qd.ini]
     variacao = float(pb - pa)
     saida.update({"percentil_inicial": float(pa), "percentil_final": float(pb), "variacao_pp": variacao, "universo_da_janela": universo})
+    marca = marca_da_janela(base, qd, territorio)
+    if marca:
+        return {**saida, "estado": "descontinuidade_de_registro", "marca": marca}
     if inicial < MINIMO_DE_MEDICOS:
         return {**saida, "estado": "descritivo"}
     return {**saida, **_nivel_relativo(base, qd, territorio, "posicao", p)}
@@ -654,6 +706,9 @@ def defasagem(base: Base, qd: Quadro, territorio: Territorio, p: dict) -> dict:
                 "da janela."}
     variacao = final - inicial
     saida.update({"indice_inicial": inicial, "indice_final": final, "variacao_pontos": variacao})
+    marca = marca_da_janela(base, qd, territorio)
+    if marca:
+        return {**saida, "estado": "descontinuidade_de_registro", "marca": marca}
     if territorio.serie[qd.ini] < MINIMO_DE_MEDICOS:
         return {**saida, "estado": "descritivo"}
     return {**saida, **_nivel_relativo(base, qd, territorio, "defasagem", p)}

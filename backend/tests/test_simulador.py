@@ -2158,16 +2158,37 @@ def test_rota_planejamento_inverso_e_o_menor_inteiro_que_alcanca_a_meta(catalogo
         "nao_calculavel", 0, "Nenhum evento do calendário cai depois da origem do cenário e até a data final.")
     # "Simular recuperação" (decisão D-B): a meta hipotética de voltar ao patamar anterior. Sem valor, o patamar é o do
     # território (Parintins teve 20 médicos); com valor, o que a pessoa informou.
+    # A meta diz de onde veio (o patamar é a média de 4 registros) e é sempre um número inteiro de médicos (revisão das capturas,
+    # 14/11/2026).
     patamar = plano({"meta": {"tipo": "patamar"}, "em": "202506"})[1]["code:130340"]["planejamento"]
-    assert patamar["meta"] == {"tipo": "patamar", "valor": 20.0, "rotulo": "Meta hipotética: voltar ao patamar de 20 médicos em jun/2026"}
-    assert patamar["por_evento"] == 8 and patamar["texto"].startswith("Meta hipotética: voltar ao patamar de 20 médicos em jun/2026. ")
+    assert patamar["meta"] == {"tipo": "patamar", "valor": 20.0, "patamar": 20.0, "registros": 4, "arredondado": False,
+                               "rotulo": "Meta hipotética: voltar ao patamar de 20 médicos em jun/2026 (média de 4 registros)"}
+    assert patamar["por_evento"] == 8 and patamar["texto"].startswith(
+        "Meta hipotética: voltar ao patamar de 20 médicos em jun/2026 (média de 4 registros). ")
+    # O valor que vem no pedido e é o patamar do território (o que o Detector leva) tem o mesmo rótulo; outro valor é dito como
+    # informado, sem a média que ele não é.
+    do_detector = plano({"meta": {"tipo": "patamar", "valor": 20}, "em": "202506"})[1]["code:130340"]["planejamento"]
+    assert do_detector["meta"] == patamar["meta"]
     informado = plano({"meta": {"tipo": "patamar", "valor": 18}, "em": "202506"})[1]["code:130340"]["planejamento"]
     assert (informado["meta"]["valor"], informado["por_evento"]) == (18.0, 6)
-    # Com vários territórios, a conta é de cada um: Manaus já está acima do patamar dela; Tefé (em zero) voltaria a 3.
+    assert (informado["meta"]["registros"], informado["meta"]["rotulo"]) == (
+        None, "Meta hipotética: voltar ao patamar de 18 médicos em jun/2026 (patamar informado)")
+    # O patamar com decimal (como os 78,25 que o Detector leva): a meta é o inteiro acima dele, para o resultado do cenário não
+    # parecer abaixo da meta, e o rótulo diz o patamar sem arredondar. De 12 para 18,25 faltariam 6,25: 7 médicos, e não 6,
+    # chegam aos 19 da meta.
+    com_decimal = plano({"meta": {"tipo": "patamar", "valor": 18.25}, "em": "202506"})[1]["code:130340"]["planejamento"]
+    assert com_decimal["meta"] == {
+        "tipo": "patamar", "valor": 19.0, "patamar": 18.25, "registros": None, "arredondado": True,
+        "rotulo": "Meta hipotética: voltar ao patamar de 19 médicos em jun/2026 (patamar informado: 18,25, arredondado para cima)"}
+    assert (com_decimal["por_evento"], com_decimal["teorico_por_evento"], com_decimal["resultado"]) == (7, 7.0, 19.0)
+    assert "PARINTINS (AM) teria 19 médicos em jun/2026." in com_decimal["texto"]
+    # Com vários territórios, a conta é de cada um: Manaus já está acima do patamar dela (45,5: a meta é 46); Tefé (em zero)
+    # voltaria a 3.
     varios = plano({"meta": {"tipo": "patamar"}, "em": "202506"},
                    selecao={"base": {"municipios": {"ids": ["code:130260", "code:130420"]}}, "estados_unidade": ["15"], "horizonte": "202606"})[1]
     assert [(chave, c["planejamento"]["estado"], c["planejamento"]["meta"]["valor"], c["planejamento"]["por_evento"]) for chave, c in varios.items()] == [
-        ("code:130260", "ja_alcancada", 45.5, 0), ("code:130420", "calculado", 3.0, 3), ("uf:15", "ja_alcancada", 45.0, 0)]
+        ("code:130260", "ja_alcancada", 46.0, 0), ("code:130420", "calculado", 3.0, 3), ("uf:15", "ja_alcancada", 45.0, 0)]
+    assert varios["code:130260"]["planejamento"]["meta"]["patamar"] == 45.5
     assert "acréscimo de 3 médicos neste território, pelo planejamento inverso," in varios["code:130420"]["planejamento"]["texto"]
     # A meta numa referência: o valor dela na data final.
     da_referencia = plano({"meta": {"tipo": "referencia", "referencia": "fixa"}, "em": "202506"},
@@ -2435,14 +2456,22 @@ def test_real_brasil_referencias_e_planejamento_inverso(real):
     assert do_brasil["texto"].startswith("Em jun/2026, MANAUS (AM) teria 2,34 médicos por 1.000 habitantes, e a referência Brasil (fixa: o valor de "
                                          "jun/2024 mantido), 2,36: 0,02 abaixo da referência (índice 99; 100 é a referência).")
     assert do_brasil["texto"].endswith("Hipótese: população constante, a de jun/2024.")
-    # "Simular recuperação": Abreulândia (TO), abaixo do patamar anterior (1,75 médico), teria 1 médico no cenário; a conta
-    # condicional dá 1 médico em jun/2025, e a hipótese derivada da simulação mostra a dependência de poucos médicos.
+    # "Simular recuperação": Abreulândia (TO), abaixo do patamar anterior (1,75 médico), teria 1 médico no cenário; a meta é o
+    # patamar arredondado para cima (2 médicos, com a origem no rótulo); a conta condicional dá 1 médico em jun/2025, e a hipótese
+    # derivada da simulação mostra a dependência de poucos médicos.
     abreulandia = corpo(pedir({"base": {"municipios": {"ids": ["code:170025"]}}, "cenarios": [
         {"id": "c1", "metodo": "padrao", "planejamento": {"meta": {"tipo": "patamar"}, "em": "202506"}}]}))["territorios"][0]["cenarios"][0]
     recuperacao = abreulandia["planejamento"]
-    assert recuperacao["meta"] == {"tipo": "patamar", "valor": 1.75, "rotulo": "Meta hipotética: voltar ao patamar de 1,8 médicos em jun/2026"}
-    assert (recuperacao["por_evento"], recuperacao["eventos"]) == (1, 1) and recuperacao["teorico_por_evento"] == pytest.approx(0.5638, abs=1e-4)
+    assert recuperacao["meta"] == {
+        "tipo": "patamar", "valor": 2.0, "patamar": 1.75, "registros": 4, "arredondado": True,
+        "rotulo": "Meta hipotética: voltar ao patamar de 2 médicos em jun/2026 (patamar de 1,75, média de 4 registros, arredondado para cima)"}
+    assert (recuperacao["por_evento"], recuperacao["eventos"]) == (1, 1) and recuperacao["teorico_por_evento"] == pytest.approx(0.8138, abs=1e-4)
     assert "ABREULANDIA (TO) teria 2 médicos em jun/2026." in recuperacao["texto"]
+    # O caminho do cenário com o acréscimo, para o gráfico: o total e o acréscimo acumulado em cada data; a última é a da meta.
+    assert [(ponto["data"], ponto["intervencao"]) for ponto in recuperacao["trajetoria"]] == [
+        ("202501", 0.0), ("202506", 1.0), ("202601", 1.0), ("202606", 1.0)]
+    assert recuperacao["trajetoria"][-1]["total"] == pytest.approx(recuperacao["resultado"]) == pytest.approx(2.1862, abs=1e-4)
+    assert recuperacao["trajetoria"][-1]["total"] >= recuperacao["meta"]["valor"]
     assert abreulandia["hipotetico"] == {"rotulo": "hipótese do cenário", "data": "202606", "valor": pytest.approx(1.1862, abs=1e-4),
                                          "inteiro": 1, "classe": "critico", "impacto_pct": 100.0, "na_faixa": {"inferior": "critico", "superior": "elevado"}}
     # Com 1 médico (de 1 a 3), a faixa de 8 em 10 de 2 anos está conferida com o que veio depois; e o texto usa o singular.

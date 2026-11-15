@@ -277,6 +277,29 @@ export function configDoDetector(alvo: { local: SelecaoLocal; rotulo: string; si
       // O patamar vai com a precisão do Detector (a média de 4 registros: múltiplos de 0,25), para a conta usar o mesmo valor.
       planejamento: { ...novoPlano(anosDepois(ultimoRegistro, 1)), meta: "patamar", valor: String(patamar).replace(".", ",") } }] };
 }
+/** O que o campo da meta mostra no modo simples. A meta que veio do Detector é o patamar, uma média que pode ter decimal (78,25): o
+ * campo mostra a meta em uso, o inteiro arredondado para cima (79), como o motor a calcula. O plano guarda o patamar sem arredondar,
+ * para a tela e o motor dizerem de onde a meta veio. */
+export function metaNoCampo(plano: PlanoDaTela): string {
+  const valor = numero(plano.valor);
+  return plano.meta === "patamar" && valor !== null && valor > 0 ? String(Math.ceil(valor - 1e-9)) : plano.valor;
+}
+/** A frase sobre a meta que veio do Detector, no modo simples: "A meta veio do Detector de Sinais: o patamar anterior, de 78,25
+ * médicos (a maior média de dois anos seguidos), arredondado para cima." Sem valor, o motor usa o patamar do território. */
+export function textoDaMetaDoPatamar(plano: PlanoDaTela, r: NomesDaBase = NOMES_DO_BRASIL): string {
+  const valor = numero(plano.valor);
+  if (valor === null || valor <= 0) return "A meta é o patamar anterior do território (a maior média de dois anos seguidos), arredondado para cima: uma hipótese que você pode trocar. ";
+  const inteira = Math.ceil(valor - 1e-9);
+  return "A meta veio do Detector de Sinais: o patamar anterior, de " + ateDuasCasas.format(valor) + " " + (valor === 1 ? r.profissional : r.profissionais) +
+    " (a maior média de dois anos seguidos)" + (inteira - valor > 1e-9 ? ", arredondado para cima" : "") + ". É uma hipótese que você pode trocar. ";
+}
+/** Ao trocar o território do modo simples, a meta sai: ela era do território de antes (o patamar dele, ou um número pensado para
+ * ele). O campo fica em branco, à espera da meta do novo território; o resto do que a tela simples mostra continua. */
+export function aoTrocarDeTerritorio(config: ConfigDoSimulador, territorio: string): Partial<ConfigDoSimulador> {
+  if (territorio === config.territorio || !config.cenarios[0]?.planejamento) return { territorio };
+  return { territorio, cenarios: config.cenarios.map((cenario, indice) => indice === 0 && cenario.planejamento
+    ? { ...cenario, planejamento: { ...cenario.planejamento, meta: "valor" as const, valor: "", referencia: "" } } : cenario) };
+}
 /** A seleção local com que o Detector abre o Simulador: só o território dele (um município, um estado como unidade ou um conjunto,
  * com a composição e a versão que ele tem na seleção principal); null quando o conjunto não está mais na seleção principal. */
 export function selecaoDoDetector(alvo: { id: string; tipo: string }, principal: SelecaoDasFerramentas | null): SelecaoLocal | null {
@@ -421,9 +444,13 @@ export type PontoDaComparacao = { data: string; territorio: number; referencia: 
 export type ComparacaoDoCenario = { id: string; rotulo: string; tipo: string; metrica: string; estado: string; motivo: string | null; avisos: string[];
   descricao: string | null; pontos: PontoDaComparacao[]; final: PontoDaComparacao | null;
   alcance: { estado: string; data: string | null } | null; texto: string | null };
-export type PlanejamentoDoCenario = { estado: string; motivo: string | null; meta: { tipo: string; valor: number; rotulo: string } | null;
+/** A meta do planejamento: o valor em uso (um inteiro, quando ela é o patamar: o patamar arredondado para cima) e, no patamar, de
+ * onde ela veio — o patamar sem arredondar e de quantos registros ele é a média. `trajetoria`: o caminho do cenário com o
+ * acréscimo calculado (o total e o acréscimo acumulado em cada data), para o gráfico. */
+export type PlanejamentoDoCenario = { estado: string; motivo: string | null;
+  meta: { tipo: string; valor: number; rotulo: string; patamar: number | null; registros: number | null } | null;
   semOPlano: number | null; eventos: number; datas: string[]; porEvento: number | null; total: number | null; teoricoPorEvento: number | null;
-  resultado: number | null; texto: string | null;
+  resultado: number | null; texto: string | null; trajetoria: { data: string; total: number; intervencao: number }[];
   intervencao: { tipo: string; quantidade: number; em: string; ate: string | null; aCadaMeses: number | null; permanencia: number } | null };
 export type HipoteseDerivada = { rotulo: string; data: string; valor: number; inteiro: number; classe: string | null; impactoPct: number | null;
   naFaixa: { inferior: string | null; superior: string | null } | null };
@@ -479,9 +506,12 @@ function planejamentoDe(bruto: unknown): PlanejamentoDoCenario | null {
   if (!bruto || typeof bruto !== "object") return null;
   const p = objeto(bruto), meta = objeto(p.meta), i = objeto(p.intervencao);
   return { estado: texto(p.estado) ?? "", motivo: texto(p.motivo),
-    meta: num(meta.valor) !== null ? { tipo: texto(meta.tipo) ?? "", valor: num(meta.valor)!, rotulo: texto(meta.rotulo) ?? "" } : null,
+    meta: num(meta.valor) !== null ? { tipo: texto(meta.tipo) ?? "", valor: num(meta.valor)!, rotulo: texto(meta.rotulo) ?? "",
+      patamar: num(meta.patamar), registros: num(meta.registros) } : null,
     semOPlano: num(p.sem_o_plano), eventos: num(p.eventos) ?? 0, datas: textos(p.datas), porEvento: num(p.por_evento), total: num(p.total),
     teoricoPorEvento: num(p.teorico_por_evento), resultado: num(p.resultado), texto: texto(p.texto),
+    trajetoria: lista(p.trajetoria).map(item => { const t = objeto(item); return { data: texto(t.data) ?? "", total: num(t.total), intervencao: num(t.intervencao) ?? 0 }; })
+      .filter((ponto): ponto is { data: string; total: number; intervencao: number } => !!ponto.data && ponto.total !== null),
     intervencao: num(i.quantidade) !== null && texto(i.em) ? { tipo: texto(i.tipo) ?? "acrescimo", quantidade: num(i.quantidade)!, em: texto(i.em)!,
       ate: texto(i.ate), aCadaMeses: num(i.a_cada_meses), permanencia: num(i.permanencia_pct_ao_ano) ?? 100 } : null };
 }
@@ -573,6 +603,7 @@ export function normalizarSimulador(bruto: unknown): RespostaDoSimulador {
 const inteiro = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const umaCasa = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const duasCasas = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const ateDuasCasas = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });   // o patamar: "78,25", "58,5", "20"
 /** Um número de médicos de cenário: o inteiro quando é inteiro; senão, uma casa (a precisão integral fica nas exportações). */
 export const formatarMedicos = (valor: number): string => Number.isInteger(valor) ? inteiro.format(valor) : umaCasa.format(valor);
 export const formatarTaxa = (valor: number): string => (valor > 0 ? "+" : valor < 0 ? "−" : "") + duasCasas.format(Math.abs(valor)) + "%";

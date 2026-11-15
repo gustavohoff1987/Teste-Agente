@@ -81,9 +81,14 @@ export type ComparacaoDoDetector = { de: string | null; ate: string | null; esta
 /** As séries de um território para os gráficos dos sinais 8 e 10: a taxa, a taxa da referência e o índice, por competência. */
 export type ComparativoDoTerritorio = { competencias: string[]; taxa: (number | null)[]; indice: (number | null)[]; trechos: [number, number][];
   referencia: { rotulo: string; motivo: string | null; taxa: (number | null)[] } };
-/** A régua de uma data, por faixa de porte: quantas comparações anteriores há e, em cada nível, o "1 em cada N", quantas ele pede
- * e a partir de que mudança ela é rara (null: sem comparações suficientes). */
-export type CorteDaRegua = { umEm: number; pede: number; cortePct: number | null };
+/** A régua de uma data, por faixa de porte: quantas comparações anteriores o porte tem e, em cada nível, o "1 em cada N", quantas
+ * ele pede e a partir de que mudança ela é rara (null: sem comparações suficientes). Cada nível diz a régua que o motor usa de
+ * fato: de onde vêm as comparações (`origem`: o porte, o porte com as faixas vizinhas ou todas as faixas) e quantas são. Com todas
+ * as faixas, o corte depende do tamanho: `cortePct` vale no menor tamanho da faixa e `corteAtePct`, no maior. */
+export type OrigemDaRegua = "porte" | "vizinhas" | "todas";
+export type MotivoSemPonto = "ausente" | "fora_do_intervalo";
+export type CorteDaRegua = { umEm: number; pede: number; cortePct: number | null; origem: OrigemDaRegua; comparacoes: number | null;
+  corteAtePct: number | null };
 export type FaixaDaRegua = { porte: string; comparacoes: number; niveis: Partial<Record<NivelDoAlerta, CorteDaRegua>> };
 export type ReguaDaData = { competencia: string; intervaloMeses: number | null; perda: FaixaDaRegua[]; patamar: FaixaDaRegua[];
   monitoramento: { avaliadas: number; raras: number; taxaPct: number | null; esperadoPct: number | null; avisoDaBase: boolean } };
@@ -112,6 +117,9 @@ export type RespostaDoDetector = {
   comparacao: ComparacaoDoDetector;
   /** As coordenadas autorizadas do motor (id → [latitude, longitude]) para o mapa: os municípios da seleção e os de referência. */
   coordenadas: Record<string, [number, number]>;
+  /** As unidades da seleção que ficam fora do mapa (id → motivo do motor): na data avaliada, a base não traz a coordenada delas
+   * ("ausente") ou traz a latitude ou a longitude fora do intervalo válido ("fora_do_intervalo"). */
+  semCoordenada: Record<string, MotivoSemPonto>;
   /** Os sinais que esta base não sustenta (sinal → motivo): sem população, sem coordenadas, sem grupo de cima ou sem série anual. */
   indisponiveis: Record<string, string>;
   notas: string[]; limitacoes: string[];
@@ -228,7 +236,9 @@ function reguaDe(bruto: unknown): ReguaDaData {
     const niveis: FaixaDaRegua["niveis"] = {};
     for (const chave of NIVEIS) if (c[chave]) {
       const n = objeto(c[chave]);
-      niveis[chave] = { umEm: num(n.um_em) ?? 0, pede: num(n.pede) ?? 0, cortePct: num(n[campo]) };
+      const origem = texto(n.origem);
+      niveis[chave] = { umEm: num(n.um_em) ?? 0, pede: num(n.pede) ?? 0, cortePct: num(n[campo]),
+        origem: origem === "vizinhas" || origem === "todas" ? origem : "porte", comparacoes: num(n.comparacoes), corteAtePct: num(n[campo + "_ate"]) };
     }
     return { porte: texto(c.porte) ?? "", comparacoes: num(c.comparacoes) ?? 0, niveis };
   });
@@ -269,6 +279,8 @@ export function normalizarDetector(bruto: unknown): RespostaDoDetector {
     calibracao: reguaDe(o.calibracao), calibracaoDosEstados: o.calibracao_dos_estados ? reguaDe(o.calibracao_dos_estados) : null,
     avisoDaBase: texto(o.aviso_da_base),
     comparacao: comparacaoDe(o.comparacao), coordenadas: coordenadasDe(o.coordenadas),
+    semCoordenada: Object.fromEntries(lista(o.sem_coordenada).map(item => { const s = objeto(item);
+      return [texto(s.id) ?? "", s.motivo === "fora_do_intervalo" ? "fora_do_intervalo" : "ausente"] as [string, MotivoSemPonto]; }).filter(par => par[0])),
     indisponiveis: Object.fromEntries(Object.entries(objeto(o.indisponiveis)).filter((par): par is [string, string] => typeof par[1] === "string")),
     notas: textos(o.notas), limitacoes: textos(o.limitacoes) };
 }
@@ -447,6 +459,32 @@ export function camadasDoMapa(resposta: RespostaDoDetector, linhas: LinhaDoDetec
       .map(linha => ({ id: linha.id, nome: linha.rotulo, membros: linha.idsDosMembros.filter(comPonto) })),
     grupos: [...grupos.entries()].map(([uf, membros]) => ({ id: "grupo:" + uf, nome: uf, membros })) };
 }
+/** As unidades à vista que ficam fora do mapa, com o nível que teriam no desenho e o motivo do motor. */
+export type ForaDoMapa = { id: string; rotulo: string; nivel: NivelDoAlerta | null; motivo: MotivoSemPonto };
+export function foraDoMapa(resposta: RespostaDoDetector, linhas: LinhaDoDetector[], sinal: string): ForaDoMapa[] {
+  return linhas.filter(linha => linha.tipo === "municipio" && !(linha.id in resposta.coordenadas))
+    .map(linha => ({ id: linha.id, rotulo: linha.rotulo, nivel: nivelNoDesenho(linha, sinal), motivo: resposta.semCoordenada[linha.id] ?? "ausente" }));
+}
+const MAXIMO_DE_NOMES_FORA_DO_MAPA = 12;
+/** A frase da legenda do mapa sobre quem fica de fora: quantos são, com que nível, quais e por quê ("Fora do mapa: 6 municípios
+ * à vista (1 em moderado e 5 sem nível). Em jun/2024, a base traz a latitude ou a longitude fora do intervalo válido em: …").
+ * Sem ninguém de fora, null. */
+export function textoDeForaDoMapa(fora: ForaDoMapa[], r: RotulosDaBase, competencia: string): string | null {
+  if (!fora.length) return null;
+  const quantos = (n: number, nome: string) => n ? [inteiro.format(n) + " " + nome] : [];
+  const contagens = [...[...NIVEIS].reverse().flatMap(nivel => quantos(fora.filter(item => item.nivel === nivel).length, "em " + NOMES_DOS_NIVEIS[nivel].toLowerCase())),
+    ...quantos(fora.filter(item => item.nivel === null).length, "sem nível")];
+  const nomes = (motivo: MotivoSemPonto): string => {
+    const itens = fora.filter(item => item.motivo === motivo);
+    const visiveis = itens.slice(0, MAXIMO_DE_NOMES_FORA_DO_MAPA).map(item => item.rotulo + (item.nivel ? " — " + NOMES_DOS_NIVEIS[item.nivel].toLowerCase() : ""));
+    return visiveis.join("; ") + (itens.length > visiveis.length ? "; e mais " + inteiro.format(itens.length - visiveis.length) : "");
+  };
+  const quando = "Em " + competenciaCurta(competencia) + ", a base ";
+  return "Fora do mapa: " + inteiro.format(fora.length) + " " + (fora.length === 1 ? r.unidade : r.unidades) + " à vista (" + listar(contagens) + "). " +
+    (fora.some(item => item.motivo === "fora_do_intervalo") ? quando + "traz a latitude ou a longitude fora do intervalo válido em: " + nomes("fora_do_intervalo") + ". " : "") +
+    (fora.some(item => item.motivo === "ausente") ? quando + "não traz a coordenada de: " + nomes("ausente") + ". " : "") +
+    (fora.length === 1 ? "Continua na lista, com o seu nível." : "Continuam na lista, cada qual com o seu nível.");
+}
 /** A série da taxa de um território e a da referência dele, para a Série temporal do Agente (sinais 8 e 10). */
 export function seriesDoComparativo(detalhe: DetalheDoDetector): { item: PainelItem; referencias: { id: string; rotulo: string;
   observacoes: { competencia: string; valor: number | null }[] }[] } | null {
@@ -511,6 +549,9 @@ export function alvoDoSimulador(linha: LinhaDoDetector, resposta: Pick<RespostaD
  * patamar, não há o que recuperar). */
 export const patamarARecuperar = (linha: LinhaDoDetector): number | null =>
   linha.patamar.patamar !== null && linha.patamar.diferencaPct !== null && linha.patamar.diferencaPct < 0 ? linha.patamar.patamar : null;
+/** A meta de "Simular recuperação": o patamar (uma média, que pode ter decimal: 78,25) arredondado para cima, um número inteiro
+ * (79), como o Simulador a calcula. */
+export const metaDaRecuperacao = (patamar: number): number => Math.ceil(patamar - 1e-9);
 export type FiltrosDoDetector = { nivel: string; sinal: string; busca: string };
 export const SEM_FILTROS: FiltrosDoDetector = { nivel: "todos", sinal: "todos", busca: "" };
 const semAcento = (valor: string) => valor.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -589,13 +630,24 @@ export function parametrosPersonalizados(padrao: ParametrosDoDetector, emEdicao:
 }
 
 // ------------------------------------------------------------------------------------------------ a régua da data
-/** O que a régua diz de um nível numa faixa de porte: "queda maior que 17,1%", "qualquer queda" ou "sem comparações suficientes
- * (203 de 999)". `o_que`: "queda" (sinal 6) ou "afastamento" (sinal 7). */
+const DA_ORIGEM: Record<OrigemDaRegua, string> = { porte: "", vizinhas: "com as faixas vizinhas", todas: "com todas as faixas" };
+/** O que a régua diz de um nível numa faixa de porte, com a régua que o motor usa de fato: "queda maior que 17,1%", "qualquer
+ * queda", "nenhuma queda chega a esse nível" (o corte é de 100% ou mais) ou "sem comparações suficientes (864 de 999, com as
+ * faixas vizinhas)". Quando as comparações não são só as do porte, a célula diz de onde vieram e quantas são. `o_que`: "queda"
+ * (sinal 6) ou "afastamento" (sinal 7). */
 export function textoDoCorte(faixa: FaixaDaRegua, nivel: NivelDoAlerta, o_que = "queda"): string {
   const corte = faixa.niveis[nivel];
   if (!corte) return "—";
-  if (corte.cortePct === null) return "sem comparações suficientes (" + inteiro.format(faixa.comparacoes) + " de " + inteiro.format(corte.pede) + ")";
-  return corte.cortePct <= 0 ? "qualquer " + o_que : o_que + " maior que " + formatarPct(corte.cortePct);
+  const quantas = inteiro.format(corte.comparacoes ?? faixa.comparacoes), origem = DA_ORIGEM[corte.origem];
+  if (corte.cortePct === null) return "sem comparações suficientes (" + quantas + " de " + inteiro.format(corte.pede) + (origem ? ", " + origem : "") + ")";
+  const limite = (pct: number): string => pct >= 100 ? (o_que === "queda" ? "nenhuma queda chega" : "nenhum afastamento chega") + " a esse nível"
+    : pct <= 0 ? "qualquer " + o_que : o_que + " maior que " + formatarPct(pct);
+  // Com todas as faixas, a mudança é comparada já dividida pelo tamanho: o corte em percentual muda dentro da faixa.
+  const menores = limite(corte.cortePct), maiores = corte.corteAtePct === null ? null : limite(corte.corteAtePct);
+  const frase = corte.origem !== "todas" || maiores === menores ? menores
+    : maiores === null ? menores + " no menor tamanho da faixa (o limite cai nos maiores)"
+    : menores + " nos menores da faixa; " + maiores + " nos maiores";
+  return frase + (origem ? " (" + origem + ": " + quantas + " comparações)" : "");
 }
 
 // ------------------------------------------------------------------------------------------------ exportações

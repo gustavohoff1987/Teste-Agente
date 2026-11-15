@@ -6,7 +6,7 @@ import { ErroDoMotor, pedirAoMotor, type FonteDoMotor, type RotulosTerritoriais 
 import {
   ESTADOS_DO_ALERTA, NIVEIS, NOMES_DOS_NIVEIS, SEM_FILTROS, alvoDoSimulador, artigoDaUnidade, competenciaCurta, criteriosEmFrases, csvDoDetector, estadoDoAlerta,
   filtrarLinhas, filtrosDeSinal, formatarInteiro, formatarPct, formatarTaxa, metodoDoDetector, nomeDoEstado, nomeDoSinal, normalizarDetalhe,
-  normalizarDetector, ordenarLinhas, parametrosPersonalizados, patamarARecuperar, profissionais, rotuloDoCampo, textoDaContagem, textoDaMesmaQueda,
+  metaDaRecuperacao, normalizarDetector, ordenarLinhas, parametrosPersonalizados, patamarARecuperar, profissionais, rotuloDoCampo, textoDaContagem, textoDaMesmaQueda,
   textoDaUltima, textoDoAlerta, textoDoCorte, textoDoPorQue, textoDoRegistro, textoDosTrechos, tipoDoTerritorio,
   type AlvoDoSimulador, type DetalheDoDetector, type EstadoDoAlerta, type FaixaDaRegua, type FenomenoDoDetalhe, type FiltrosDoDetector,
   type LinhaDoDetector, type NivelDoAlerta, type OpcoesDaBase, type OpcoesDoDetector, type OrdemDoDetector, type ParametrosDoDetector, type ReguaDaData,
@@ -177,12 +177,15 @@ function DetalheDoTerritorio({ detalhe, linha, resposta, patamar, rotulosDoPaine
         title="Leva este território ao Simulador de Cenários, com a data avaliada, a janela escolhida e os sinais com nível" onClick={onAbrirNoSimulador}>
         Abrir no Simulador</button>}
       {onSimularRecuperacao && patamar !== null && <button type="button" data-testid="detector-simular-recuperacao" className="analise-botao-secundario"
-        title={"Abre o Simulador com a meta hipotética de voltar ao patamar de " + formatarTaxa(patamar).replace(/,00$/, "") + " " + r.profissionais +
+        title={"Abre o Simulador com a meta hipotética de voltar ao patamar: " + profissionais(metaDaRecuperacao(patamar), r) +
           "; a meta pode ser trocada"} onClick={onSimularRecuperacao}>Simular recuperação</button>}
     </div>
-    {onSimularRecuperacao && patamar !== null && <p data-testid="detector-recuperacao-apoio" className="ferramenta-apoio">“Simular recuperação” abre o
-      Simulador de Cenários com uma meta hipotética: voltar ao patamar de {profissionais(Math.round(patamar), r)} (a maior média de dois anos seguidos antes
-      dos registros mais recentes). A meta é uma hipótese que você pode trocar; o resultado é um cenário, não uma previsão.</p>}
+    {/* A meta é um número inteiro: o patamar (uma média, que pode ter decimal) arredondado para cima; a frase diz de onde ela vem. */}
+    {onSimularRecuperacao && patamar !== null && <p data-testid="detector-recuperacao-apoio" data-meta={metaDaRecuperacao(patamar)} className="ferramenta-apoio">
+      “Simular recuperação” abre o Simulador de Cenários com uma meta hipotética: voltar ao patamar, {profissionais(metaDaRecuperacao(patamar), r)}{" "}
+      ({metaDaRecuperacao(patamar) - patamar > 1e-9 ? "o patamar é de " + formatarTaxa(patamar).replace(/0$/, "") + ", a" : "a"} maior média de dois anos seguidos
+      antes dos registros mais recentes{metaDaRecuperacao(patamar) - patamar > 1e-9 ? ", arredondado para cima" : ""}). A meta é uma hipótese que você pode trocar; o
+      resultado é um cenário, não uma previsão.</p>}
     {verHistorico && <div className="ferramenta-rolagem"><table data-testid="detector-historico" className="analise-tabela ferramenta-tabela">
       <caption className="ferramenta-apoio">Histórico de sinais na janela (sinais 1 a 7): cada data avaliada só com o que era conhecido nela.</caption>
       <thead><tr><th scope="col">Registro</th><th scope="col">Número</th><th scope="col">Alerta</th><th scope="col">{nomeDoSinal("estrutural", r)}</th>
@@ -213,8 +216,10 @@ function TabelaDaRegua({ regua, faixas, titulo, o_que, testid, r }: { regua: Reg
   if (!faixas.length) return null;
   return <div className="ferramenta-rolagem"><table data-testid={testid} className="analise-tabela ferramenta-tabela">
     <caption className="ferramenta-apoio">{titulo} Régua de {competenciaCurta(regua.competencia)}{regua.intervaloMeses ? ", com as mudanças anteriores de " +
-      regua.intervaloMeses + " meses entre registros" : ""}: só o que veio antes da data.</caption>
-    <thead><tr><th scope="col">Porte ({r.profissionais})</th><th scope="col">Comparações anteriores</th>
+      regua.intervaloMeses + " meses entre registros" : ""}: só o que veio antes da data. Cada nível mostra a régua usada de fato: quando o porte
+      não tem comparações bastantes, ela junta as faixas vizinhas (uma de cada lado) e, só no moderado, todas as faixas — a célula diz de onde
+      vieram as comparações e quantas são.</caption>
+    <thead><tr><th scope="col">Porte ({r.profissionais})</th><th scope="col">Comparações do porte</th>
       {niveis.map(nivel => <th key={nivel} scope="col">{NOMES_DOS_NIVEIS[nivel]} (1 em cada {formatarInteiro(faixas[0].niveis[nivel]?.umEm ?? 0)})</th>)}</tr></thead>
     <tbody>{faixas.map(faixa => <tr key={faixa.porte} data-porte={faixa.porte}>
       <th scope="row">{faixa.porte}</th><td>{formatarInteiro(faixa.comparacoes)}</td>

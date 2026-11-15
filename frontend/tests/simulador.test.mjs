@@ -495,6 +495,7 @@ const BRUTO_5 = {versao: 'SIMULADOR-CENARIOS/V3/1', fonte: {base: 'Brasil', cate
         planejamento: {meta: {tipo: 'valor', valor: 21, rotulo: 'Meta hipotética: 21 médicos em jun/2026'}, base_na_data_final: 12, outras_intervencoes: 0, sem_o_plano: 12,
           eventos: 2, datas: ['202501', '202601'], permanencia_pct_ao_ano: 100, estado: 'calculado', falta: 9, por_evento: 5, total: 10, teorico_por_evento: 4.5, resultado: 22,
           intervencao: {tipo: 'acrescimo', quantidade: 5, em: '202501', ate: '202601', a_cada_meses: 12, permanencia_pct_ao_ano: 97.5},
+          trajetoria: [{data: '202501', total: 17, intervencao: 5}, {data: 'x'}, {total: 20}, {data: '202606', total: 22, intervencao: 10}],
           texto: 'Meta hipotética: 21 médicos em jun/2026. …'},
         hipotetico: {rotulo: 'hipótese do cenário', data: '202606', valor: 12, inteiro: 12, classe: null, impacto_pct: 8.333333333333334}},
       {id: 'm0', nome: 'Persistência (referência)', estado: 'calculado', metodo: {pedido: 'M0', usado: 'M0'}, parametros: {n0: 12, origem: '202406'}, avisos: [], trajetoria: [],
@@ -515,9 +516,20 @@ test('as comparações, o planejamento inverso e a hipótese derivada da simula�
     final: {data: '202606', ...ponto}, alcance: {estado: 'nao_alcanca', data: null}, texto: 'Em jun/2026, …'}, 'o ponto sem valor fica de fora; nenhuma data de alcance é inventada');
   assert.deepEqual(c1.comparacoes[1], {id: 'r2', rotulo: 'Meta', tipo: 'valor', metrica: 'quantidade', estado: 'nao_calculavel',
     motivo: 'A referência não tem valor nas datas do cenário.', avisos: [], descricao: null, pontos: [], final: null, alcance: null, texto: null});
-  assert.deepEqual(c1.planejamento, {estado: 'calculado', motivo: null, meta: {tipo: 'valor', valor: 21, rotulo: 'Meta hipotética: 21 médicos em jun/2026'}, semOPlano: 12,
+  // O caminho do cenário com o acréscimo (para o gráfico) vem do motor: o ponto sem data ou sem total fica de fora. A meta que
+  // não é o patamar não traz a origem.
+  assert.deepEqual(c1.planejamento, {estado: 'calculado', motivo: null,
+    meta: {tipo: 'valor', valor: 21, rotulo: 'Meta hipotética: 21 médicos em jun/2026', patamar: null, registros: null}, semOPlano: 12,
     eventos: 2, datas: ['202501', '202601'], porEvento: 5, total: 10, teoricoPorEvento: 4.5, resultado: 22, texto: 'Meta hipotética: 21 médicos em jun/2026. …',
+    trajetoria: [{data: '202501', total: 17, intervencao: 5}, {data: '202606', total: 22, intervencao: 10}],
     intervencao: {tipo: 'acrescimo', quantidade: 5, em: '202501', ate: '202601', aCadaMeses: 12, permanencia: 97.5}});
+  assert.deepEqual(m0.planejamento.trajetoria, [], 'sem resultado, não há caminho a desenhar');
+  // A meta que é o patamar diz de onde veio: o patamar sem arredondar e de quantos registros ele é a média.
+  const doPatamar = S.normalizarSimulador({...BRUTO_5, territorios: [{...BRUTO_5.territorios[0], cenarios: [{...BRUTO_5.territorios[0].cenarios[0],
+    planejamento: {...BRUTO_5.territorios[0].cenarios[0].planejamento, meta: {tipo: 'patamar', valor: 79, patamar: 78.25, registros: 4, arredondado: true,
+      rotulo: 'Meta hipotética: voltar ao patamar de 79 médicos em jun/2026 (patamar de 78,25, média de 4 registros, arredondado para cima)'}}}]}]});
+  assert.deepEqual(doPatamar.territorios[0].cenarios[0].planejamento.meta, {tipo: 'patamar', valor: 79, patamar: 78.25, registros: 4,
+    rotulo: 'Meta hipotética: voltar ao patamar de 79 médicos em jun/2026 (patamar de 78,25, média de 4 registros, arredondado para cima)'});
   assert.deepEqual([m0.comparacoes, m0.planejamento.estado, m0.planejamento.porEvento, m0.planejamento.intervencao, m0.planejamento.texto, m0.hipotetico],
     [[], 'nao_alcancavel', null, null, null, null], 'sem resultado, nenhum número de médicos aparece');
   assert.deepEqual(c1.hipotetico, {rotulo: 'hipótese do cenário', data: '202606', valor: 12, inteiro: 12, classe: null, impactoPct: 8.333333333333334, naFaixa: null});
@@ -866,7 +878,7 @@ test('a tela: o modo simples numa tela só, e as quatro etapas só no modo avan�
   assert.match(tela, /<section data-testid="simulador" data-estado=\{[^}]*\}\s+data-etapa=\{etapa\} data-modo=\{config\.modo\}/);
   // Numa tela só: o território, até quando (com os atalhos), o que testar, "Calcular" e o resultado, com os dois "Entenda".
   for (const id of ['simulador-territorio', 'simulador-sem-territorio', 'simulador-aviso-local', 'simulador-metodo-do-avancado', 'simulador-o-que-testar',
-    'simulador-teste-quantidade', 'simulador-teste-meta-valor',
+    'simulador-teste-quantidade', 'simulador-teste-meta-valor', 'simulador-teste-meta-origem',
     'simulador-calcular', 'simulador-pendencia', 'simulador-erro', 'simulador-resultado', 'simulador-desatualizado', 'simulador-texto', 'simulador-tres-numeros',
     'simulador-faixa-estado', 'simulador-faixa-texto', 'simulador-planejamento', 'simulador-planejamento-texto', 'simulador-planejamento-motivo', 'simulador-hipotetico',
     'simulador-avisos', 'simulador-motivo', 'simulador-validacao-botao', 'simulador-validacao', 'simulador-escolhas', 'simulador-versoes', 'simulador-avancado'])
@@ -898,7 +910,8 @@ test('a tela: o modo simples numa tela só, e as quatro etapas só no modo avan�
   // O território é um dos da seleção local, e o que testar vem do modelo (TESTES e comOTeste): nada é calculado na tela.
   assert.ok(tela.includes('const doSimples = territoriosDaSelecaoLocal(config.local, { unidade: nomeDe, grupo: estadoComoUnidade, todo: r.todo });'));
   assert.ok(tela.includes('const territorioDoSimples = doSimples.some(item => item.id === config.territorio) ? config.territorio! : primeiroDaSelecao(config.local) ?? "";'));
-  assert.match(simples, /<select data-testid="simulador-territorio" className="analise-campo" value=\{territorioDoSimples\} disabled=\{!doSimples\.length\}\s+onChange=\{event => mudar\(\{ territorio: event\.target\.value \}\)\}>/);
+  // Trocar o território tira a meta, que era do território de antes (revisão das capturas, 14/11/2026).
+  assert.match(simples, /<select data-testid="simulador-territorio" className="analise-campo" value=\{territorioDoSimples\} disabled=\{!doSimples\.length\}\s+onChange=\{event => mudar\(aoTrocarDeTerritorio\(config, event\.target\.value\)\)\}>/);
   assert.match(simples, /\{TESTES\.map\(item => <label key=\{item\.chave\}[^>]*><input type="radio" name="simulador-teste"\s+data-testid=\{"simulador-teste-" \+ item\.chave\} checked=\{teste === item\.chave\}\s+onChange=\{\(\) => trocarCenario\(0, comOTeste\(cenarioDoSimples, item\.chave, anosDepois\(ultimoRegistro, 1\)\)\)\}\/>\{item\.rotulo\}<\/label>\)\}/);
   assert.ok(tela.includes('const teste = testeDoCenario(cenarioDoSimples);'));
   assert.match(simples, /<button type="button" data-testid="simulador-calcular" className="analise-botao-primario" disabled=\{!!pendencia \|\| carregando\} onClick=\{calcular\}>\s+\{carregando \? "Calculando…" : "Calcular"\}<\/button>/);
@@ -920,10 +933,12 @@ test('a tela: o modo simples numa tela só, e as quatro etapas só no modo avan�
   assert.ok(simples.includes('{Object.entries(resposta.retroprojecao.escolhas).map(([nivel, escolha]) => <li key={nivel} data-nivel={nivel} data-metodo={escolha.metodo}>{escolha.texto}'));
   // "Simular recuperação" (Detector de Sinais): no modo simples, a meta está em "O que testar", e a tela diz de onde ela veio.
   assert.ok(tela.includes('a volta ao patamar anterior (" + (config.modo === "simples" ? "em “O que testar”" : "etapa 3") + ")."'));
-  assert.match(simples, /<input data-testid="simulador-teste-meta-valor" inputMode="decimal"[^>]*aria-label="Meta hipotética"\s+value=\{cenarioDoSimples\.planejamento\.valor\}/);
+  // O campo mostra a meta em uso (o patamar arredondado para cima); digitar outra troca a meta por um número da pessoa.
+  assert.match(simples, /<input data-testid="simulador-teste-meta-valor" inputMode="decimal"[^>]*aria-label="Meta hipotética"\s+value=\{metaNoCampo\(cenarioDoSimples\.planejamento\)\}/);
+  assert.ok(simples.includes('onChange={event => mudarPlano(0, { valor: event.target.value, meta: "valor" })}/>'));
   // O identificador de cada opção de "O que testar" ("simulador-teste-" + a chave) é só dela: o campo do valor da meta tem outro nome.
   for (const {chave} of S.TESTES) assert.ok(!tela.includes('data-testid="simulador-teste-' + chave + '"'), 'simulador-teste-' + chave + ' é só o da opção');
-  assert.match(simples, /\{cenarioDoSimples\.planejamento\.meta === "patamar" \? "A meta é o patamar anterior, trazido pelo Detector de Sinais: uma hipótese que você pode trocar\. "\s+: "A meta é uma hipótese sua\. "\}O Agente calcula quantos faltariam, com o menor número inteiro\./);
+  assert.match(simples, /<span data-testid="simulador-teste-meta-origem">\{cenarioDoSimples\.planejamento\.meta === "patamar" \? textoDaMetaDoPatamar\(cenarioDoSimples\.planejamento, r\)\s+: "A meta é uma hipótese sua\. "\}<\/span>O Agente calcula quantos faltariam, com o menor número inteiro\./);
   // Os nomes vêm da base (os da resposta do motor; antes dela, os que o pedido diz da planilha ou, sem planilha, os do Brasil), e
   // a faixa do gráfico e das legendas é a pedida.
   assert.ok(tela.includes('const nomesDaBase: NomesDaBase = resposta?.fonte.rotulos ?? nomesDaPlanilha(props.daBase) ?? NOMES_DO_BRASIL;'));
@@ -1134,4 +1149,47 @@ test('modo simples: o pedido leva só o que a tela simples mostra — sem o cale
   const tela = ler('SimuladorDeCenarios.tsx');
   assert.ok(tela.includes('setAvisoLocal(comMaiuscula(formas.oTodo) + " já está na seleção do Simulador.");'));
   assert.ok(tela.includes('<option value="dinamica">Dinâmica: segue o jeito escolhido pela base</option>'));
+});
+
+test('revisão das capturas: a meta sai ao trocar de território, a meta do patamar é inteira e diz de onde veio, e o gráfico mostra o caminho com o acréscimo', () => {
+  const recuperacao = S.configDoDetector({local: {municipios: ['code:420010', 'code:420005'], estados: ['15'], conjuntos: []}, rotulo: 'ABELARDO LUZ (SC)',
+    sinais: ['Abaixo do que já teve (moderado)'], fim: '202406'}, '202406', null, 78.25);
+  const plano = recuperacao.cenarios[0].planejamento;
+  // O plano guarda o patamar com a precisão do Detector, e é ele que vai ao motor (que arredonda para cima e diz a origem).
+  assert.deepEqual([plano.meta, plano.valor, S.pedidoDoSimulador(recuperacao).cenarios[0].planejamento.meta], ['patamar', '78,25', {tipo: 'patamar', valor: 78.25}]);
+  // O campo mostra a meta em uso: o inteiro acima do patamar. O que não é o patamar aparece como foi digitado.
+  assert.deepEqual([plano, {...plano, valor: '20'}, {...plano, valor: '1,75'}, {...plano, valor: ''}, {...plano, valor: 'x'}, {...plano, meta: 'valor', valor: '78,25'}]
+    .map(S.metaNoCampo), ['79', '20', '2', '', 'x', '78,25']);
+  assert.equal(S.textoDaMetaDoPatamar(plano), 'A meta veio do Detector de Sinais: o patamar anterior, de 78,25 médicos (a maior média de dois anos seguidos), ' +
+    'arredondado para cima. É uma hipótese que você pode trocar. ');
+  assert.equal(S.textoDaMetaDoPatamar({...plano, valor: '20'}), 'A meta veio do Detector de Sinais: o patamar anterior, de 20 médicos (a maior média de dois anos ' +
+    'seguidos). É uma hipótese que você pode trocar. ');
+  assert.equal(S.textoDaMetaDoPatamar({...plano, valor: '1'}, {...S.NOMES_DO_BRASIL, profissional: 'enfermeiro', profissionais: 'enfermeiros'}),
+    'A meta veio do Detector de Sinais: o patamar anterior, de 1 enfermeiro (a maior média de dois anos seguidos). É uma hipótese que você pode trocar. ');
+  assert.equal(S.textoDaMetaDoPatamar({...plano, valor: ''}), 'A meta é o patamar anterior do território (a maior média de dois anos seguidos), arredondado para cima: ' +
+    'uma hipótese que você pode trocar. ');
+  // Trocar o território tira a meta, que era do território de antes (o Pará não fica com a meta de Abelardo Luz): o campo fica
+  // em branco, à espera de outra, e a data do acréscimo continua. Escolher o mesmo território não muda nada.
+  const comTerritorio = {...recuperacao, territorio: 'code:420010'};
+  const trocado = S.aoTrocarDeTerritorio(comTerritorio, 'uf:15');
+  assert.deepEqual([trocado.territorio, trocado.cenarios[0].planejamento], ['uf:15', {...plano, meta: 'valor', valor: '', referencia: ''}]);
+  assert.equal(S.pendenciaDoPedido({...comTerritorio, ...trocado}), 'Informe a meta: um número acima de zero.');
+  assert.deepEqual(S.aoTrocarDeTerritorio(comTerritorio, 'code:420010'), {territorio: 'code:420010'});
+  const digitada = {...comTerritorio, cenarios: [{...recuperacao.cenarios[0], planejamento: {...plano, meta: 'valor', valor: '30'}}]};
+  assert.equal(S.aoTrocarDeTerritorio(digitada, 'uf:15').cenarios[0].planejamento.valor, '', 'a meta digitada para um território também sai');
+  // Sem meta (acrescentar, retirar ou só continuar), a troca de território só troca o território.
+  const semMeta = {...comTerritorio, cenarios: [S.comOTeste(recuperacao.cenarios[0], 'acrescentar', '202506')]};
+  assert.deepEqual(S.aoTrocarDeTerritorio(semMeta, 'uf:15'), {territorio: 'uf:15'});
+  // Na tela: o gráfico desenha a meta (uma linha na altura dela), o caminho do cenário com o acréscimo e a marca em cada data
+  // em que o acréscimo entra; a legenda diz o que é cada um.
+  const tela = ler('SimuladorDeCenarios.tsx');
+  const grafico = tela.slice(tela.indexOf('function GraficoDoCenario('), tela.indexOf('export default function SimuladorDeCenarios('));
+  for (const id of ['simulador-plano-no-grafico', 'simulador-meta-linha', 'simulador-plano-curva', 'simulador-plano-evento', 'simulador-meta-legenda'])
+    assert.equal(grafico.split('data-testid="' + id + '"').length - 1, 1, id);
+  assert.ok(grafico.includes('const planos = calculados.filter(cenario => cenario.planejamento?.meta && (cenario.planejamento.estado === "calculado" || ' +
+    'cenario.planejamento.estado === "ja_alcancada"))'));
+  assert.ok(grafico.includes('...planos.flatMap(item => [item.meta, ...item.plano.trajetoria.map(ponto => ponto.total)])'), 'a meta e o caminho entram na escala');
+  assert.ok(grafico.includes('{plano.trajetoria.length > 0 && <path data-testid="simulador-plano-curva" d={caminho([origem, ...plano.trajetoria.map(ponto =>'));
+  assert.ok(grafico.includes('"; linha contínua: o cenário com o acréscimo que alcança a meta (▼ na data do acréscimo)"'));
+  assert.ok(grafico.includes('plano.estado === "ja_alcancada" ? "; o cenário já chega a ela, sem acréscimo" : ""'));
 });

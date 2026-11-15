@@ -475,7 +475,35 @@ def main():
         expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_text(cenario["texto"])
         tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Para chegar à meta"], ["22", "25", "precisaria acrescentar 16"])
         expect(grafico.get_by_test_id("simulador-evento")).to_have_count(0)
+        # O gráfico mostra a meta (uma linha na altura dela), o caminho do cenário com o acréscimo e a marca na data do acréscimo
+        # (revisão das capturas, 14/11/2026: antes, o desenho não mostrava o caminho até a meta).
+        do_plano = grafico.get_by_test_id("simulador-plano-no-grafico")
+        expect(do_plano).to_have_attribute("data-meta", "40")
+        expect(do_plano).to_have_attribute("data-estado", "calculado")
+        expect(do_plano.get_by_test_id("simulador-meta-linha")).to_have_count(1)
+        expect(do_plano.get_by_test_id("simulador-plano-curva")).to_have_count(1)
+        expect(do_plano.get_by_test_id("simulador-plano-evento")).to_have_count(1)
+        caminho = planejado["trajetoria"]
+        assert caminho[-1]["data"] == "202606" and abs(caminho[-1]["total"] - planejado["resultado"]) < 1e-9 and caminho[-1]["total"] >= 40, caminho
+        assert [ponto["intervencao"] for ponto in caminho if ponto["data"] >= "202501"] == [16.0] * len([p for p in caminho if p["data"] >= "202501"]), caminho
+        expect(grafico.get_by_test_id("simulador-meta-legenda")).to_have_text(
+            "meta hipotética de 40 médicos; linha contínua: o cenário com o acréscimo que alcança a meta (▼ na data do acréscimo)")
         page.screenshot(path=str(OUTPUT / "simulador-00b-simples-meta-real.png"), full_page=True)
+
+        # 3g-2. Trocar o território tira a meta: ela era do território de antes (revisão das capturas, 14/11/2026: o Pará ficava
+        # com a meta do município anterior, e o resultado dizia "nada a acrescentar"). O campo fica em branco, à espera de outra;
+        # a data do acréscimo continua, nada é pedido, e voltar ao território de antes não traz a meta de volta.
+        antes_da_troca = len(pedidos)
+        territorio.select_option("uf:" + PR)
+        expect(valor_da_meta).to_have_value("")
+        expect(simples).to_have_attribute("data-teste", "meta")
+        expect(em).to_have_value("2025-01")
+        expect(simulador.get_by_test_id("simulador-calcular")).to_be_disabled()
+        expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Informe a meta: um número acima de zero.")
+        territorio.select_option(EIRUNEPE)
+        expect(valor_da_meta).to_have_value("")
+        page.wait_for_timeout(300)
+        assert len(pedidos) == antes_da_troca, "trocar o território não pede nada ao motor"
 
         # 3h. Um estado como unidade (o Paraná): o jeito escolhido pela base para o nível é a taxa composta (M1), e a faixa é
         # indisponível, com o motivo do motor: a base não tem casos bastantes de estados.
@@ -1105,9 +1133,14 @@ def main():
         expect(teste("meta")).to_be_checked()
         expect(territorio.locator("option")).to_have_text(["ABELARDO LUZ (SC)"])
         expect(territorio).to_have_value(ABELARDO_LUZ)
-        expect(valor_da_meta).to_have_value("78,25")   # a precisão do Detector
+        # O campo mostra a meta em uso: 79, o patamar (78,25, uma média) arredondado para cima, para o resultado não parecer
+        # abaixo da meta; a frase ao lado diz de onde ela veio (revisão das capturas, 14/11/2026). O pedido leva o patamar com a
+        # precisão do Detector.
+        expect(valor_da_meta).to_have_value("79")
         expect(simulador.get_by_test_id("simulador-teste-em")).to_have_value("2025-06")
-        expect(o_que_testar).to_contain_text("A meta é o patamar anterior, trazido pelo Detector de Sinais: uma hipótese que você pode trocar.")
+        expect(simulador.get_by_test_id("simulador-teste-meta-origem")).to_have_text(
+            "A meta veio do Detector de Sinais: o patamar anterior, de 78,25 médicos (a maior média de dois anos seguidos), arredondado "
+            "para cima. É uma hipótese que você pode trocar.")
         expect(simulador.get_by_test_id("simulador-calcular")).to_be_enabled()
         page.wait_for_timeout(400)
         assert len(pedidos) == antes_da_recuperacao, "nada é calculado antes de \"Calcular\""
@@ -1118,10 +1151,13 @@ def main():
         assert [item["id"] for item in corpo["territorios"]] == [ABELARDO_LUZ], corpo["territorios"]
         cenario = corpo["territorios"][0]["cenarios"][0]
         planejado = cenario["planejamento"]
-        assert (planejado["estado"], planejado["eventos"], planejado["por_evento"]) == ("calculado", 1, 13), planejado
-        assert planejado["meta"]["valor"] == 78.25 and planejado["resultado"] >= planejado["meta"]["valor"], planejado
-        assert planejado["texto"].startswith("Meta hipotética: voltar ao patamar de 78,2 médicos em jun/2026.") and planejado["texto"].endswith(
-            "não um plano."), planejado["texto"]
+        # Com a meta de 79 (e não de 78,25), o menor acréscimo inteiro é de 14 médicos (antes, 13): o território teria 79.
+        assert (planejado["estado"], planejado["eventos"], planejado["por_evento"]) == ("calculado", 1, 14), planejado
+        assert (planejado["meta"]["valor"], planejado["meta"]["patamar"], planejado["meta"]["registros"]) == (79, 78.25, 4), planejado["meta"]
+        assert planejado["resultado"] >= planejado["meta"]["valor"], planejado
+        assert planejado["texto"].startswith("Meta hipotética: voltar ao patamar de 79 médicos em jun/2026 (patamar de 78,25, média de 4 "
+                                             "registros, arredondado para cima). ") and planejado["texto"].endswith("não um plano."), planejado["texto"]
+        assert "ABELARDO LUZ (SC) teria 79 médicos em jun/2026." in planejado["texto"], planejado["texto"]
         for proibida in ("recomenda", "é preciso", "deveria", "necessário prover"):
             assert proibida not in planejado["texto"].lower(), proibida
         expect(simulador).to_have_attribute("data-estado", "pronto")
@@ -1129,22 +1165,39 @@ def main():
         expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_text(cenario["texto"])
         bloco = resultado_simples.get_by_test_id("simulador-planejamento")
         expect(bloco).to_have_attribute("data-estado", "calculado")
-        expect(bloco).to_have_attribute("data-por-evento", "13")
+        expect(bloco).to_have_attribute("data-por-evento", "14")
         expect(bloco.get_by_test_id("simulador-planejamento-texto")).to_have_text(planejado["texto"])
-        tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Para chegar à meta"], ["54", "65", "precisaria acrescentar 13"])
+        tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Para chegar à meta"], ["54", "65", "precisaria acrescentar 14"])
+        # No gráfico: a meta de 79, o caminho com o acréscimo de 14 em jun/2025 e a marca nessa data.
+        do_plano = grafico.get_by_test_id("simulador-plano-no-grafico")
+        expect(do_plano).to_have_attribute("data-meta", "79")
+        expect(do_plano.get_by_test_id("simulador-meta-linha")).to_have_count(1)
+        expect(do_plano.get_by_test_id("simulador-plano-curva")).to_have_count(1)
+        expect(do_plano.get_by_test_id("simulador-plano-evento")).to_have_count(1)
+        assert [(ponto["data"], ponto["intervencao"]) for ponto in planejado["trajetoria"]] == [
+            ("202501", 0.0), ("202506", 14.0), ("202601", 14.0), ("202606", 14.0)], planejado["trajetoria"]
+        expect(grafico.get_by_test_id("simulador-meta-legenda")).to_have_text(
+            "meta hipotética de 79 médicos; linha contínua: o cenário com o acréscimo que alcança a meta (▼ na data do acréscimo)")
         page.screenshot(path=str(OUTPUT / "simulador-06-recuperacao-real.png"), full_page=True)
-        # A meta é editável: com 60 médicos (menos do que o cenário já dá), o motor diz que ela é alcançada sem acréscimo.
+        # A meta é editável: digitar outra troca o patamar por um número da pessoa. Com 60 médicos (menos do que o cenário já
+        # dá), o motor diz que ela é alcançada sem acréscimo; o gráfico mostra só a linha da meta.
         valor_da_meta.fill("60")
         expect(simulador).to_have_attribute("data-estado", "desatualizado")
+        expect(simulador.get_by_test_id("simulador-teste-meta-origem")).to_have_text("A meta é uma hipótese sua.")
         corpo, enviado = calcular()
-        assert enviado["cenarios"][0]["planejamento"] == {"meta": {"tipo": "patamar", "valor": 60}, "em": "202506"}, enviado
+        assert enviado["cenarios"][0]["planejamento"] == {"meta": {"tipo": "valor", "valor": 60}, "em": "202506"}, enviado
         planejado = corpo["territorios"][0]["cenarios"][0]["planejamento"]
         assert planejado["estado"] == "ja_alcancada" and planejado["texto"] == (
-            "Meta hipotética: voltar ao patamar de 60 médicos em jun/2026. No cenário, o território já teria 65,3 médicos em jun/2026: a "
-            "meta é alcançada sem acréscimo."), planejado
+            "Meta hipotética: 60 médicos em jun/2026. No cenário, o território já teria 65,3 médicos em jun/2026: a meta é alcançada sem "
+            "acréscimo."), planejado
         expect(bloco).to_have_attribute("data-estado", "ja_alcancada")
         expect(bloco.get_by_test_id("simulador-planejamento-texto")).to_have_text(planejado["texto"])
         tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Para chegar à meta"], ["54", "65", "nada a acrescentar"])
+        expect(do_plano).to_have_attribute("data-estado", "ja_alcancada")
+        expect(do_plano).to_have_attribute("data-meta", "60")
+        expect(do_plano.get_by_test_id("simulador-meta-linha")).to_have_count(1)
+        expect(do_plano.get_by_test_id("simulador-plano-curva")).to_have_count(0)
+        expect(grafico.get_by_test_id("simulador-meta-legenda")).to_have_text("meta hipotética de 60 médicos; o cenário já chega a ela, sem acréscimo")
         expect(resumo).to_have_text(com_abelardo)
 
         assert not chamadas_llm, "o Simulador calcula sem o provedor de IA"

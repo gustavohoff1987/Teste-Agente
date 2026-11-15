@@ -1489,6 +1489,7 @@ def _planejar(base: Base, cal: detector.Calibracao, retro: Retroprojecao, territ
     mes_da_origem = int(base.meses[origem])
     data_final = detector.curta(_data(horizonte))
     meta = plano["meta"]
+    da_meta = {}   # de onde a meta veio, quando ela é o patamar: o patamar sem arredondar e de quantos registros é a média
     if meta["tipo"] == "referencia":
         curva = curvas.get(meta["referencia"])
         if curva is None:
@@ -1498,21 +1499,34 @@ def _planejar(base: Base, cal: detector.Calibracao, retro: Retroprojecao, territ
         alvo = float(curva["funcao"](horizonte))
         rotulo = "Meta hipotética: alcançar a referência " + curva["rotulo"] + " (" + _br(round(alvo, 1)) + " " + series_brasil.rotulos(base)["profissionais"] + " em " + data_final + ")"
     elif meta["tipo"] == "patamar":
-        alvo = meta["valor"]
-        if alvo is None:
-            alvo = detector._patamar(base, cal if territorio.tipo == "municipio" else None, cal.blocos, territorio.linha,
-                                     territorio.serie, origem, detector.PADRAO["patamar"]).get("patamar")
+        do_territorio = detector._patamar(base, cal if territorio.tipo == "municipio" else None, cal.blocos, territorio.linha,
+                                          territorio.serie, origem, detector.PADRAO["patamar"]).get("patamar")
+        alvo = meta["valor"] if meta["valor"] is not None else do_territorio
         if alvo is None:
             return {"estado": "nao_calculavel", "motivo": "Não há patamar anterior calculável para este território (faltam dois anos "
                     "completos de registros antes dos mais recentes)."}
-        alvo = float(alvo)
-        rotulo = "Meta hipotética: voltar ao patamar de " + _br(round(alvo, 1)) + " " + series_brasil.rotulos(base)["profissionais"] + " em " + data_final
+        # O patamar é uma média e pode ter decimal (78,25); a meta é um número inteiro de profissionais, o patamar arredondado para
+        # cima (79), para o resultado do cenário não parecer abaixo dela. O rótulo diz de onde ela veio: o patamar do território
+        # (a média dos registros de dois anos completos) ou um valor informado no pedido que não é o patamar dele.
+        patamar = float(alvo)
+        alvo = float(math.ceil(patamar - 1e-9))
+        arredondado = alvo - patamar > 1e-9
+        e_o_do_territorio = do_territorio is not None and abs(patamar - float(do_territorio)) < 1e-6
+        registros = detector._registros_de_dois_anos(base) if e_o_do_territorio else None
+        da_meta = {"patamar": patamar, "registros": registros, "arredondado": arredondado}
+        sem_arredondar = detector._do_patamar(patamar, sempre_com_decimal=True)
+        if e_o_do_territorio:
+            de_onde = ("patamar de " + sem_arredondar + ", " if arredondado else "") + "média de " + str(registros) + " registros"
+        else:
+            de_onde = "patamar informado" + (": " + sem_arredondar if arredondado else "")
+        rotulo = ("Meta hipotética: voltar ao patamar de " + _br(alvo) + " " + series_brasil.rotulos(base)["profissionais"] + " em " + data_final +
+                  " (" + de_onde + (", arredondado para cima" if arredondado else "") + ")")
     else:
         alvo = float(meta["valor"])
         rotulo = "Meta hipotética: " + _br(round(alvo, 1)) + " " + series_brasil.rotulos(base)["profissionais"] + " em " + data_final
     calendario = plano["calendario"]
     eventos = [data for data in calendario["datas"] if mes_da_origem < data <= horizonte]
-    comum = {"meta": {"tipo": meta["tipo"], "valor": alvo, "rotulo": rotulo}, "base_na_data_final": resultado["final"]["base"],
+    comum = {"meta": {"tipo": meta["tipo"], "valor": alvo, "rotulo": rotulo, **da_meta}, "base_na_data_final": resultado["final"]["base"],
              "outras_intervencoes": resultado["final"]["intervencao"], "sem_o_plano": resultado["final"]["total"],
              "eventos": len(eventos), "datas": [_data(data) for data in eventos], "permanencia_pct_ao_ano": calendario["permanencia"]}
     if not eventos:
@@ -1553,6 +1567,9 @@ def _planejar(base: Base, cal: detector.Calibracao, retro: Retroprojecao, territ
              " É uma conta condicional às hipóteses do cenário, não um plano.")
     return {**comum, "estado": "calculado", "falta": falta, "por_evento": por_evento, "total": por_evento * len(eventos),
             "teorico_por_evento": teorico, "resultado": aplicado["final"]["total"] if aplicado["estado"] == "calculado" else None,
+            # O caminho do cenário com o acréscimo calculado, para o gráfico: o total e o acréscimo acumulado em cada data.
+            "trajetoria": [{"data": ponto["data"], "total": ponto["total"], "intervencao": ponto["intervencao"]}
+                           for ponto in aplicado["trajetoria"]] if aplicado["estado"] == "calculado" else [],
             "intervencao": {"tipo": "acrescimo", "quantidade": por_evento, "em": _data(eventos[0]),
                             **({"ate": _data(eventos[-1]), "a_cada_meses": calendario["a_cada_meses"]} if len(eventos) > 1 else {}),
                             "permanencia_pct_ao_ano": permanencia},
