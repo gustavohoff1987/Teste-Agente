@@ -8,7 +8,8 @@ import { ROTULOS_BRASIL, paletaDoGrafico } from "./painelModel";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import {
   CORES_DOS_NIVEIS, NIVEIS, NOMES_DOS_NIVEIS, artigoDaUnidade, camadasDoMapa, competenciaCurta, criterioDoContexto, dominiosDoContexto, formatarInteiro,
-  foraDoMapa, formatarTaxa, itensDoContexto, maisProximo, nivelNoDesenho, nomeDoSinal, seriesDoComparativo, textoDeForaDoMapa, textoDosTrechos,
+  foraDoMapa, formatarTaxa, itensDoContexto, maisProximo, nivelNoDesenho, nomeDoSinal, seriesDoComparativo, textoDasCoordenadasOficiais,
+  textoDeForaDoMapa, textoDosTrechos,
   type DetalheDoDetector, type LinhaDoDetector, type NivelDoAlerta, type RespostaDoDetector,
 } from "./detectorModel";
 
@@ -56,6 +57,7 @@ export function MapaDosNiveis({ resposta, linhas, sinal, onAbrir }: DoDetector &
   const contagens = { critico: camadas.porNivel.critico.length, elevado: camadas.porNivel.elevado.length, moderado: camadas.porNivel.moderado.length };
   const fora = useMemo(() => foraDoMapa(resposta, linhas, sinal), [resposta, linhas, sinal]);
   const textoDeFora = textoDeForaDoMapa(fora, r, resposta.janela.fim);
+  const textoDasOficiais = useMemo(() => textoDasCoordenadasOficiais(resposta, linhas, r), [resposta, linhas, r]);
   const doQue = sinal === "todos" || sinal === "juntos" || sinal === "registro" ? "do alerta do território" : "de “" + nomeDoSinal(sinal, r) + "”";
   const doBrasil = resposta.fonte.origem === "brasil", comGrupo = resposta.fonte.tem.grupo, oGrupo = r.oGrupo ?? "o " + r.grupo;
   // As divisas (etapa 7 do comando V23): só a base do Brasil tem a malha (a municipal do IBGE, um arquivo versionado da interface),
@@ -101,6 +103,8 @@ export function MapaDosNiveis({ resposta, linhas, sinal, onAbrir }: DoDetector &
     <LegendaDosNiveis contagens={contagens} semNivel={camadas.fundo.length}/>
     {/* Quem está na lista e não tem ponto: quantos, com que nível, quais e por quê (o motor diz o motivo). */}
     {textoDeFora && <p data-testid="detector-mapa-fora" data-quantos={fora.length} className="ferramenta-apoio">{textoDeFora}</p>}
+    {/* Quem está no mapa com a coordenada da camada oficial do IBGE (a base traz a dele fora do intervalo válido). */}
+    {textoDasOficiais && <p data-testid="detector-mapa-coordenadas-oficiais" className="ferramenta-apoio">{textoDasOficiais}</p>}
     <figcaption className="ferramenta-apoio">Onde ficam os territórios à vista, pelo nível {doQue}. Os pontos usam as coordenadas da data avaliada;{" "}
       {comGrupo ? oGrupo + " como unidade não tem ponto, e o conjunto" : "o conjunto"} aparece pelo contorno, sem nível.{" "}
       <span data-testid="detector-mapa-divisas">{estadoDasDivisas === "carregadas"

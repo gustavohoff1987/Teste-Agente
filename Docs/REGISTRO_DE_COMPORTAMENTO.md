@@ -35,6 +35,100 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-15 · Revisão final do comando V23: as ferramentas com as coordenadas da camada oficial, o motivo na frase de todo sinal sem avaliação, a posição da distância em palavras simples, a cautela simples do cenário e as siglas dos estados sem sobreposição
+- **Classificação (regra 1):** itens 1 e 3 a 7 do comando do responsável de 15/11/2026 ("Revisão final da etapa 7"). Decorrem do
+  pedido (escopo) e não contrariam a SPEC nem uma divergência aprovada (compatibilidade): a camada geográfica complementar é a
+  forma governada de ler as coordenadas da base do Brasil (SPEC, Adendo REF-20261022: "com a camada geográfica complementar no
+  mesmo referencial"; README, "Política dos dados do Brasil", itens 5 a 10), e o item 1 só estende essa leitura ao Detector e ao
+  Simulador, por decisão expressa do responsável — a opção (a) da consulta feita no relatório final, no lugar de corrigir o CSV.
+  **A base não foi alterada**: `Dados_Municipios_Brasil.csv`, o manifesto e a camada são os mesmos. Os níveis, a régua, os
+  critérios padrão e os códigos dos avisos não mudaram. Os endereços das rotas e os campos que as respostas já traziam não
+  mudaram (há campos novos). Nada vai ao provedor de IA. A SPEC não foi editada.
+- **Antes:**
+  - **(1) coordenadas:** o Detector e o Simulador liam as coordenadas direto da fonte municipal. Em seis municípios (Ananás/TO,
+    Águas de Lindóia/SP, Pescaria Brava/SC, Balneário Rincão/SC, Campestre da Serra/RS e Jaraguari/MS), a fonte traz a latitude ou
+    a longitude sem a vírgula decimal, fora do intervalo válido: eles ficavam sem ponto no mapa do Detector (5.564 pontos), com a
+    frase "Fora do mapa: …", sem distância no sinal 11, e não podiam ser o município mais próximo de ninguém. As análises já
+    usavam, para eles, a sede municipal da camada oficial do IBGE;
+  - **(3) frases sem o motivo:** vários sinais sem avaliação diziam só o estado — "Não calculável", "Sem referência", "Não se
+    aplica", "Oscilação não calculável", "Sem registro para comparar", "Patamar em zero", "Sem a série anual para avaliar", "Sem
+    coordenada válida", "… · comparação não habilitada" — ou só o número, sem dizer por que ele não era avaliado (os sinais 8 a
+    10 só descritivos); e o sinal que a base não sustenta trazia "Indisponível nesta base" em `situacao`. O motivo ficava na
+    explicação completa;
+  - **(5) sinal 11:** "… o município mais próximo com pelo menos 100% da taxa do Brasil (2,36 médicos por 1.000 habitantes). Mais
+    longe que 40% dos municípios abaixo desse critério";
+  - **(6) cautela de quem mantém o último valor:** "Cautela: a data final fica a mais da metade do tempo de referência (2 anos à
+    frente; a referência são 3 anos, porque manter o último valor não usa a história).";
+  - **(4) siglas no mapa:** no mapa do Brasil inteiro, a sigla de Goiás e a do Distrito Federal ficavam uma sobre a outra, e as
+    siglas que cobririam outra pela largura estimada (Rio Grande do Norte, Pernambuco e Alagoas) não apareciam;
+  - **(7) exemplo no envio:** o campo "Quem são os trabalhadores contados?" trazia o exemplo "Por exemplo: médicos".
+- **Agora:**
+  - **(1)** as duas ferramentas leem as coordenadas **como as análises** (`series_brasil._montar`, com `geo_complement.overlay`):
+    nos seis municípios, vale a sede municipal da camada oficial (`dados/brasil/complemento_coordenadas.json`), nas 22 datas, só
+    onde o ponto original é inválido e só na versão da fonte a que a camada se refere. No Detector:
+    - o mapa tem **os 5.570 pontos**, ninguém fica de fora, e a legenda diz quais pontos à vista vieram da camada
+      (`detector-mapa-coordenadas-oficiais`);
+    - o **sinal 11** desses municípios usa a coordenada da camada. Em jun/2024: Ananás fica a 30,9 km de Luzinópolis (TO), e
+      Balneário Rincão, a 15,3 km de Içara (SC); os outros quatro estão acima do critério e passam a ser o município mais
+      próximo de três vizinhos (Monte Sião/MG, Imaruí/SC e Bandeirantes/MS). A explicação completa diz quando o ponto do
+      território ou da referência veio da camada;
+    - com isso, mudam os números do contexto: em jun/2024, 3.568 municípios com distância (antes, 3.566) e percentil 90 de 112,1
+      km (antes, 112,2); em jun/2021, 3.900 (antes, 3.895). A posição da distância dos demais municípios pode mudar na casa
+      decimal (Manaus, em jun/2021: 99,013; antes, 99,012). Nenhum nível de alerta muda: o sinal 11 é só contexto;
+    - a resposta traz o campo novo `complemento_geografico` (o estado, a identidade e a proveniência da camada, e
+      `territorios_complementados`), na lista e no detalhe; `null` numa planilha, que nunca recebe a camada. Com outra versão da
+      fonte municipal, a camada não é aplicada (`estado: incompativel`), e vale o comportamento de antes.
+    O Simulador não usa coordenadas nos cálculos de hoje; ele lê a mesma base das ferramentas, já com a camada;
+  - **(3)** sempre que um sinal não é avaliado, não é calculável ou está indisponível, **a frase diz o motivo**, em todas as
+    bases (`detector._na_frase`): "Sem a série anual para avaliar: faltam registros de junho para comparar"; "Oscilação não
+    calculável: média abaixo de 6 médicos na janela"; "Sem registro para comparar: falta o registro desta data"; "… com
+    descontinuidade de registro (pico que volta)"; "Não calculável: o patamar anterior é zero"; "Sem registro em jan/2016";
+    "Não calculável: sem população válida na data (o denominador não é estimado)"; "Índice 314,3 ante a referência em jun/2021 ·
+    variação não calculável: sem taxa válida do território ou da referência no início ou no fim da janela"; "Sem referência: a
+    UF deste município não tem outros municípios"; "−0,2% de médicos por habitante em 2 anos · só descritivo: menos de 20
+    médicos no início da janela"; "… · comparação não habilitada: " com o motivo da população; "Não se aplica ao estado como
+    unidade: ele não tem um ponto único"; "Sem coordenada válida em jun/2024: a distância não pode ser medida"; "Não calculável:
+    sem a taxa do Brasil na data"; e "Indisponível nesta base: a base não tem população nem grupo de cima" (em `situacao`; a
+    tela continua com o rótulo e os motivos por extenso ao lado);
+  - **(5)** a frase do sinal 11 diz "… o município mais próximo **com taxa igual ou maior que a do Brasil** (2,36 médicos por
+    1.000 habitantes). **De cada 100 municípios abaixo desse critério, 40 ficam mais perto de um município assim**". Com outro
+    critério, continua "com pelo menos 70% da taxa do Brasil". Nas pontas, "menos de 1 fica" e "mais de 99 ficam"; o exemplo do
+    "Entenda" acompanha;
+  - **(6)** quando o cenário mantém o último valor: "**Cautela: quanto mais longe a data final, mais incerto o cenário (aqui, 2
+    anos à frente).**"; mais longe, "Extrapolação: a data final fica longe do último registro, e o cenário é muito incerto (aqui,
+    4 anos à frente)." e "Extrapolação extrema: … incerto demais para ser lido como um número (aqui, 7 anos à frente).". Os
+    níveis e os códigos (`HORIZONTE_CAUTELA` e os demais) são os mesmos, e os outros métodos continuam com o texto de antes;
+  - **(4)** os nomes dos grupos de cima (as siglas dos estados) **não se sobrepõem**: o grupo com mais pontos fica no centro
+    dele, e o nome que cobriria outro se afasta para o lugar livre mais perto (`mapaModel.afastarNomesDosGrupos`,
+    `data-deslocado`). No mapa do Brasil inteiro, as 27 siglas aparecem; a do Distrito Federal fica ao lado da de Goiás;
+  - **(7)** o exemplo do campo dos trabalhadores passa a "Por exemplo: enfermeiros". A varredura com a planilha de teste (47
+    paradas no Detector e no Simulador) não achou outro "junho" nem "médicos": onde a base do Brasil diz "Taxas de junho a
+    junho", "Dos médicos acrescentados" e "Com 22 médicos no último registro", a planilha diz "Taxas de julho a julho", "Dos
+    enfermeiros acrescentados" e "Com 22 enfermeiros no último registro".
+- **Permanece:** o arquivo da base e a versão dela; os níveis, a régua, a calibração (o estudo refeito só muda a tabela do sinal
+  11) e os critérios padrão; os textos dos sinais avaliados; a frase "Fora do mapa: …" para quem uma base traz sem coordenada
+  válida (uma planilha, ou a base do Brasil sem a camada); as coordenadas dos oito municípios que mudam entre datas, cada data com
+  a sua; os avisos de horizonte dos outros métodos; o mapa da área de análise.
+- **Motivo:** decisões do responsável na revisão final da etapa 7 do comando V23 (15/11/2026): o mapa com os 5.570 pontos sem
+  mexer na base, frases que digam por que um sinal não foi avaliado, e textos mais simples.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md` (as notas dos sinais, o mapa, a rota, a calibração do sinal 11, as
+  limitações e os testes), `Docs/SIMULADOR_DE_CENARIOS.md` (os avisos de horizonte), `Docs/PERFIL_DA_BASE_DETECTOR_SIMULADOR.md`
+  (seção 7) e `README.md`. Testes novos: pytest `test_real_coordenadas_das_ferramentas_pela_camada_oficial` (job `dados-reais`:
+  os seis municípios nas 22 datas, a fonte intacta, os 5.570 pontos, a distância de Ananás e de Balneário Rincão refeita por fora
+  e os três vizinhos) e, em `test_geo_complement.py`, `test_detector_and_simulator_read_coordinates_through_the_layer` (a base das
+  ferramentas com a camada ausente, válida e de outra versão da fonte, num repositório sintético); Node, em `mapa.test.mjs` (os nomes dos grupos afastados), `detector.test.mjs` (a nota das coordenadas
+  oficiais) e `paginaUnica.test.mjs` (o exemplo do envio); navegador, o roteiro novo `backend/tests/ui_planilha_de_teste.py`
+  (suíte `bloco1`: a varredura dos nomes), o passo novo de `ui_detector_mapa.py` (o Brasil inteiro: 5.570 pontos, a nota das
+  seis coordenadas e as 27 siglas sem sobreposição) e, em `ui_planilha_ficticia.py`, o mapa com a comuna sem coordenada fora
+  dele — a conferência de "Fora do mapa" que `ui_detector.py` fazia com a base do Brasil passou para lá. **Valores que mudaram de
+  propósito:** em `test_detector.py`, as frases do sinal 11 (Rio Rufino, Manaus e o cenário sintético), os 5.570 pontos e a
+  lista vazia de `sem_coordenada` (antes, 5.564 e os seis), 3.568 e 3.900 municípios com distância (antes, 3.566 e 3.895), a
+  contagem dos estados do contexto (saíram os 2 "sem_coordenada") e a posição de Manaus (99,0128; antes, 99,012); em
+  `test_simulador.py` e `test_ferramentas_qualquer_base.py`, o texto da cautela de quem mantém o último valor, "Não se aplica à
+  zona como unidade: ela não tem um ponto único" e "Indisponível nesta base: …" com o motivo; em `ui_detector.py`, o mapa de
+  Santa Catarina com 295 pontos e a nota das coordenadas oficiais (antes, 293 pontos e "Fora do mapa: 2 municípios"); em
+  `ui_detector_mapa.py`, 295 pontos em Santa Catarina (antes, 293). Nenhuma conferência foi afrouxada.
+
 ### 2026-11-15 · Etapa 7 do comando V23, rodada 3: o mapa do Detector de Sinais com as divisas da malha municipal do IBGE, desenhado na largura da tela
 - **Classificação (regra 1):** item 8 do comando do responsável de 15/11/2026 ("Mapa com divisas, na base do Brasil") e a parte
   do item 14 que faltava (o mapa do Detector no celular). Decorre do pedido (escopo) e não contraria a SPEC nem uma divergência

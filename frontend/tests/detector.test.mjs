@@ -475,6 +475,25 @@ test('mapa e gráfico pelos níveis: só os valores, os níveis e as coordenadas
   const graficosDoMapa = ler('DetectorGraficos.tsx');
   assert.ok(graficosDoMapa.includes('{textoDeFora && <p data-testid="detector-mapa-fora" data-quantos={fora.length} className="ferramenta-apoio">{textoDeFora}</p>}'));
   assert.ok(graficosDoMapa.includes('const textoDeFora = textoDeForaDoMapa(fora, r, resposta.janela.fim);'));
+  // As coordenadas pela camada oficial (revisão final do V23, 15/11/2026; base do Brasil): os territórios cujo ponto é a sede
+  // municipal da camada do IBGE vêm em `complemento_geografico.territorios_complementados`, e a legenda do mapa diz quais estão à
+  // vista com o ponto dela. Sem o campo (uma planilha, ou uma resposta antiga), ninguém.
+  assert.deepEqual(lida.coordenadasComplementadas, []);
+  assert.deepEqual(D.normalizarDetector(resposta([], {complemento_geografico: {estado: 'valido',
+    territorios_complementados: ['code:170100', 'code:500490', 7, null]}})).coordenadasComplementadas, ['code:170100', 'code:500490']);
+  assert.deepEqual(D.normalizarDetector(resposta([], {complemento_geografico: null})).coordenadasComplementadas, []);
+  const oficiais = {coordenadasComplementadas: ['code:1', 'code:2', 'code:9'], coordenadas: {'code:1': [0, 0], 'code:2': [0, 0], 'code:3': [0, 0]}};
+  const noMapa = [{id: 'code:1', tipo: 'municipio', rotulo: 'ANANAS (TO)'}, {id: 'code:2', tipo: 'municipio', rotulo: 'JARAGUARI (MS)'},
+    {id: 'code:3', tipo: 'municipio', rotulo: 'OUTRO (XX)'}, {id: 'code:9', tipo: 'municipio', rotulo: 'SEM PONTO (XX)'},
+    {id: 'uf:17', tipo: 'estado', rotulo: 'Tocantins'}];
+  assert.equal(D.textoDasCoordenadasOficiais(oficiais, noMapa, ROTULOS), 'Em 2 municípios à vista, o ponto é o da sede municipal, da camada oficial de ' +
+    'coordenadas do IBGE, porque a base traz a coordenada deles fora do intervalo válido: ANANAS (TO); JARAGUARI (MS).');
+  assert.equal(D.textoDasCoordenadasOficiais(oficiais, [noMapa[1]], ROTULOS), 'Em 1 município à vista, o ponto é o da sede municipal, da camada oficial de ' +
+    'coordenadas do IBGE, porque a base traz a coordenada dele fora do intervalo válido: JARAGUARI (MS).');
+  assert.equal(D.textoDasCoordenadasOficiais(oficiais, noMapa.slice(2), ROTULOS), null, 'sem ninguém à vista com o ponto da camada, nada é dito');
+  assert.equal(D.textoDasCoordenadasOficiais({...oficiais, coordenadasComplementadas: []}, noMapa, ROTULOS), null);
+  assert.ok(graficosDoMapa.includes('{textoDasOficiais && <p data-testid="detector-mapa-coordenadas-oficiais" className="ferramenta-apoio">{textoDasOficiais}</p>}'));
+  assert.ok(graficosDoMapa.includes('const textoDasOficiais = useMemo(() => textoDasCoordenadasOficiais(resposta, linhas, r), [resposta, linhas, r]);'));
   // As cores dos níveis: amarelo, laranja e vermelho, os passos de estado (aviso, sério e crítico); o nível vem sempre escrito.
   assert.deepEqual(D.CORES_DOS_NIVEIS, {moderado: '#fab219', elevado: '#ec835a', critico: '#d03b3b'});
   const graficos = ler('DetectorGraficos.tsx');

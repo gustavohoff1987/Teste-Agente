@@ -216,7 +216,8 @@ def test_grupo_de_cima_da_planilha_entra_como_unidade_pela_soma_das_unidades_del
     assert do_sinal["defasagem"]["situacao"] == "A taxa passou de 0,86 para 0,87 vezes a das demais zonas em 2 anos"
     assert "e a das demais zonas (soma), de 3,42" in do_sinal["defasagem"]["observado"]
     assert (do_sinal["contexto"]["situacao"], do_sinal["contexto"]["observado"]) == (
-        "Não se aplica à zona como unidade", "A zona como unidade não tem um ponto único: a distância é medida de cada área.")
+        "Não se aplica à zona como unidade: ela não tem um ponto único",   # a frase diz o motivo (revisão final do V23)
+        "A zona como unidade não tem um ponto único: a distância é medida de cada área.")
     # Nenhum texto dos sinais traz o vocabulário da base do Brasil (os valores "estado" e "estados" dos campos `tipo` e `nivel`
     # são do contrato, não textos).
     for item in detalhe["fenomenos"]:
@@ -362,6 +363,7 @@ def test_detector_na_planilha_mostra_o_que_ela_sustenta_e_os_motivos_do_que_nao_
                                             "defasagem": ("populacao", "grupo"), "contexto": ("populacao", "coordenadas")}
     assert (lista["comparacao"]["estado"], lista["comparacao"]["motivo"], lista["comparacao"]["trechos"]) == ("indisponivel", SEM_POPULACAO, [])
     assert lista["coordenadas"] == {} and "calibracao_dos_estados" not in lista
+    assert lista["complemento_geografico"] is None      # uma planilha nunca recebe a camada oficial de coordenadas da base do Brasil
     assert lista["entenda"]["ferramenta"]["exemplo"] == ("Uma queda de 18 para 11 enfermeiros é rara quando, entre as mudanças anteriores de "
                                                        "distritos de 10 a 19 enfermeiros, só 1 em cada 100 foi igual ou pior: alerta elevado.")
     assert lista["notas"][0] == "O registro mais recente da base é jul/2023: os sinais descrevem a situação até essa data, não a de hoje."
@@ -375,10 +377,15 @@ def test_detector_na_planilha_mostra_o_que_ela_sustenta_e_os_motivos_do_que_nao_
         ("11", None, "indisponivel"), ("12", None, "juntos")]
     do_sinal = {item["chave"]: item for item in detalhe["fenomenos"]}
     # Os sinais 8 e 9 pedem só a população; o 10, também o grupo de cima; o 11, também as coordenadas.
-    for chave, motivo in (("disponibilidade", SEM_POPULACAO), ("posicao", SEM_POPULACAO), ("defasagem", SEM_POPULACAO + " " + SEM_GRUPO),
-                          ("contexto", SEM_POPULACAO + " " + SEM_COORDENADAS)):
+    # Muda de propósito na revisão final do V23 (15/11/2026): a frase do sinal também diz o motivo (antes, só "Indisponível nesta
+    # base"; os motivos por extenso continuam em `observado`).
+    for chave, motivo, na_frase in (("disponibilidade", SEM_POPULACAO, "a base não tem população"),
+                                    ("posicao", SEM_POPULACAO, "a base não tem população"),
+                                    ("defasagem", SEM_POPULACAO + " " + SEM_GRUPO, "a base não tem população nem grupo de cima"),
+                                    ("contexto", SEM_POPULACAO + " " + SEM_COORDENADAS,
+                                     "a base não tem população nem coordenadas com o referencial informado")):
         assert (do_sinal[chave]["situacao"], do_sinal[chave]["observado"], do_sinal[chave]["sem_comparacoes"]) == (
-            "Indisponível nesta base", motivo, None), chave
+            "Indisponível nesta base: " + na_frase, motivo, None), chave
         assert do_sinal[chave]["habitual"] == "Não avaliado: a" + motivo[1:], chave
     assert do_sinal["posicao"]["habitual"] == "Não avaliado: a base não tem população: sem ela, não há taxa por habitante."
     assert do_sinal["defasagem"]["habitual"] == ("Não avaliado: a base não tem população: sem ela, não há taxa por habitante. A base não tem "
@@ -610,9 +617,8 @@ def test_rota_do_simulador_aceita_a_planilha_e_a_base_escolhe_o_jeito_de_projeta
     assert cenario["avisos"] == [
         {"codigo": "PADRAO_E_O_ULTIMO_VALOR", "texto": "Nesta base, nenhum jeito de projetar errou menos que manter o último valor, quando "
                                                        "conferido com o passado: o cenário mantém o último valor."},
-        # Manter o último valor não usa a história: o aviso compara com os 3 anos de referência e diz isso.
-        {"codigo": "HORIZONTE_CAUTELA", "texto": "Cautela: a data final fica a mais da metade do tempo de referência (2 anos à frente; a "
-                                                 "referência são 3 anos, porque manter o último valor não usa a história)."}]
+        # Manter o último valor não usa a história: a cautela é uma frase simples, sem "referência" (revisão final do V23).
+        {"codigo": "HORIZONTE_CAUTELA", "texto": "Cautela: quanto mais longe a data final, mais incerto o cenário (aqui, 2 anos à frente)."}]
     assert [(ponto["data"], ponto["total"]) for ponto in cenario["trajetoria"]] == [("202401", 22.0), ("202407", 22.0), ("202501", 22.0),
                                                                                    ("202507", 22.0)]
     assert cenario["final"] == {"data": "202507", "base": 19.0, "intervencao": 3.0, "total": 22.0, "faixa": None}

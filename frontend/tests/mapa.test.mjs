@@ -326,3 +326,41 @@ test('cores do mapa em constantes (o modo escuro troca só o objeto): superfíci
   for (const [chave, valor] of Object.entries(M.MAPA_CORES))
     assert.match(valor, /^(#[0-9a-f]{6}|rgba\(\d+, \d+, \d+, 0?\.\d+\))$/, chave);
 });
+
+test('nomes dos grupos de cima: cada um no centro dos pontos do grupo, sem se sobrepor — o que cobriria outro se afasta', () => {
+  // Revisão final do comando V23 (15/11/2026): no mapa do Brasil inteiro, "GO" e "DF" ficavam um sobre o outro. O grupo com mais
+  // pontos fica no centro dele; o outro vai para o lugar livre mais perto. A largura do nome conta o negrito e o halo.
+  assert.deepEqual([M.larguraDoNomeDoGrupo('GO'), M.larguraDoNomeDoGrupo('ABC', 10)].map(n => Math.round(n * 10) / 10), [25.2, 30]);
+  const centros = [{id: 'grupo:53', nome: 'DF', x: 418, y: 244, peso: 1}, {id: 'grupo:52', nome: 'GO', x: 400, y: 240, peso: 246},
+    {id: 'grupo:31', nome: 'MG', x: 470, y: 290, peso: 853}];
+  assert.deepEqual(M.afastarNomesDosGrupos(centros, 760, 440), [
+    {id: 'grupo:31', nome: 'MG', x: 470, y: 290, peso: 853, deslocado: false}, {id: 'grupo:52', nome: 'GO', x: 400, y: 240, peso: 246, deslocado: false},
+    {id: 'grupo:53', nome: 'DF', x: 426, y: 244, peso: 1, deslocado: true}], 'Goiás fica no centro dele; o Distrito Federal vai 8 px para a direita');
+  // Três nomes no mesmo lugar: o de mais pontos fica; os outros vão para o lugar livre mais perto (acima e abaixo).
+  assert.deepEqual(M.afastarNomesDosGrupos([{id: 'a', nome: 'AA', x: 100, y: 100, peso: 3}, {id: 'b', nome: 'BB', x: 100, y: 100, peso: 2},
+    {id: 'c', nome: 'CC', x: 100, y: 100, peso: 1}], 760, 440).map(nome => [nome.id, nome.x, nome.y, nome.deslocado]),
+    [['a', 100, 100, false], ['b', 100, 84, true], ['c', 100, 116, true]]);
+  // Um nome já posto no mapa (obstáculo) em cima do centro afasta o nome do grupo; um centro fora do desenho fica sem nome; o da
+  // borda entra para dentro do desenho.
+  assert.deepEqual(M.afastarNomesDosGrupos([{id: 'a', nome: 'AA', x: 100, y: 100}, {id: 'fora', nome: 'ZZ', x: -300, y: 100},
+    {id: 'borda', nome: 'BB', x: 6, y: 9}], 760, 440, [{x0: 80, y0: 85, x1: 120, y1: 105}]).map(nome => [nome.id, nome.x, nome.y]),
+    [['a', 100, 80], ['borda', 18, 17]]);
+  // Sem lugar livre a até 48 px, o nome não aparece (como antes: nenhum nome fica por cima de outro).
+  assert.deepEqual(M.afastarNomesDosGrupos([{id: 'a', nome: 'AA', x: 100, y: 100}], 760, 440, [{x0: 0, y0: 0, x1: 300, y1: 300}]), []);
+  // 27 nomes amontoados (as siglas dos estados num mapa pequeno): todos entram, e nenhum par se cruza.
+  const muitos = Array.from({length: 27}, (_, k) => ({id: 'g' + k, nome: 'U' + (k % 10), x: 300 + (k % 6) * 9, y: 200 + Math.floor(k / 6) * 7, peso: 27 - k}));
+  const postos = M.afastarNomesDosGrupos(muitos, 760, 440);
+  const caixa = nome => { const meia = M.larguraDoNomeDoGrupo(nome.nome) / 2; return [nome.x - meia, nome.y - 12, nome.x + meia, nome.y + 4]; };
+  let cruzam = 0;
+  for (let i = 0; i < postos.length; i++) for (let j = i + 1; j < postos.length; j++) {
+    const a = caixa(postos[i]), b = caixa(postos[j]);
+    if (a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]) cruzam += 1;
+  }
+  assert.deepEqual([postos.length, cruzam, postos.filter(nome => nome.deslocado).length], [27, 0, 26]);
+  // Na tela: o mapa dos conjuntos põe os nomes dos grupos por essa função, depois dos outros nomes, e diz quem foi deslocado.
+  const mapa = readFileSync(new URL('../src/MapaDosConjuntos.tsx', import.meta.url), 'utf8');
+  assert.ok(mapa.includes('const nomesDosGrupos = afastarNomesDosGrupos(desenho.centros.map(centro => ({ ...centro, y: centro.y + 4 })), largura, altura,'));
+  assert.ok(mapa.includes('caixas.map(([x0, y0, x1, y1]) => ({ x0, y0, x1, y1 })), LETRA);'));
+  assert.ok(mapa.includes('data-deslocado={centro.deslocado ? "true" : "false"} x={centro.x} y={centro.y}'));
+  assert.ok(!mapa.includes('desenho.centros.filter(centro => cabe('), 'o nome que cobriria outro já não some: ele se afasta');
+});

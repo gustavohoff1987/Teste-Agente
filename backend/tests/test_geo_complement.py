@@ -462,3 +462,75 @@ def test_decimal_separator_premise_requires_evidence_and_only_reaches_the_govern
     # Versão externa fixada ou integridade não verificada: nenhuma das duas premissas.
     for catalog in ({**governed, "versao_governada": "v0"}, {**governed, "integridade": "divergente"}, {}):
         assert not {"crs", "number_format"} & set(premises(catalog=catalog))
+
+
+def test_detector_and_simulator_read_coordinates_through_the_layer(tmp_path, monkeypatch):
+    """Revisão final do comando V23 (15/11/2026, decisão do responsável): o Detector de Sinais e o Simulador de Cenários leem as
+    coordenadas como as análises — a base das duas ferramentas (`series_brasil`) aplica a camada só onde o ponto original é
+    inválido, e só quando ela é válida e se refere à versão da fonte municipal em uso. Sem a camada, ou com a de outra versão,
+    ficam as coordenadas da fonte, e os seis municípios continuam sem ponto. O arquivo da base não muda."""
+    import detector
+    import series_brasil
+
+    root = tmp_path / "repositorio"
+    root.mkdir()
+    book = Workbook()
+    book.active.append(["pais", "periodo_ano", "periodo_mes", "categoria_profissional", "contagem"])
+    book.active.append(["Brasil", 2024, 6, "MEDICINA", 100])
+    book.save(root / FILES["national"])
+    # A fonte sintética deste arquivo, sem a unidade de UF desconhecida (as ferramentas pedem o prefixo de uma UF).
+    lines = [line for line in municipal_text().splitlines() if ";999999;" not in line]
+    (root / FILES["municipal"]).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_state_source(root, {("TO", "202406"): 9})
+    (root / GOVERNED_MANIFEST).parent.mkdir(parents=True, exist_ok=True)
+    (root / GOVERNED_MANIFEST).write_text(json.dumps(manifest_from_repository(root)), encoding="utf-8")
+    monkeypatch.setattr(brazil_data, "REPO_ROOT", root)
+    monkeypatch.delenv("ADT_BRASIL_DATA_DIR", raising=False)
+    monkeypatch.delenv("ADT_BRASIL_DATA_VERSION", raising=False)
+    original = hashlib.sha256((root / FILES["municipal"]).read_bytes()).hexdigest()
+
+    def base():
+        main._BRAZIL_FRAMES.clear()
+        return series_brasil.base_de(main._brazil_sources(""))
+
+    def valid_points(b):
+        ok = np.isfinite(b.latitude) & np.isfinite(b.longitude) & (np.abs(b.latitude) <= 90) & (np.abs(b.longitude) <= 180)
+        return {code: int(ok[b.indice[code]].sum()) for code in AUTHORIZED}
+
+    try:
+        # Sem a camada: os seis municípios não têm ponto válido em nenhuma data, e a base diz que a camada está ausente.
+        absent = base()
+        assert (absent.complemento["estado"], absent.complementados) == ("ausente", ())
+        assert valid_points(absent) == dict.fromkeys(AUTHORIZED, 0) and len(absent.periodos) == 22
+        # Com a camada válida: os seis ficam com o ponto dela nas 22 datas; os demais, com o da fonte. A base é montada de novo
+        # (a guardada vale por versão da fonte e por camada), e a segunda leitura devolve a mesma.
+        write_layer(root, layer_document(root))
+        applied = base()
+        assert applied is not absent and series_brasil.base_de(main._brazil_sources("")) is applied
+        assert (applied.complemento["estado"], applied.complemento["linhas_complementadas"]) == ("valido", 6 * 22)
+        assert applied.complementados == tuple(sorted(AUTHORIZED)) == tuple(applied.complemento["municipios_complementados"])
+        for code, (lat, lon) in FIXED.items():
+            assert (applied.latitude[applied.indice[code]] == lat).all() and (applied.longitude[applied.indice[code]] == lon).all(), code
+        others = [row for code, row in applied.indice.items() if code not in AUTHORIZED]
+        assert np.array_equal(applied.latitude[others], absent.latitude[others]) and np.array_equal(applied.longitude[others], absent.longitude[others])
+        # O Detector: todos os territórios com ponto, ninguém fora do mapa, e a resposta diz quais pontos vieram da camada.
+        answer = detector.compute(None, {"base": {"municipios": {"todos": True}}}, base=applied)
+        assert len(answer["coordenadas"]) == len(applied.codigos) == 10 and answer["sem_coordenada"] == []
+        assert answer["complemento_geografico"]["estado"] == "valido"
+        assert answer["complemento_geografico"]["territorios_complementados"] == ["code:" + code for code in sorted(AUTHORIZED)]
+        assert all(answer["coordenadas"]["code:" + code] == [lat, lon] for code, (lat, lon) in FIXED.items())
+        # Com a camada de outra versão da fonte municipal: não é aplicada, e os seis voltam a ficar sem ponto.
+        write_layer(root, layer_document(root, aplica_se_a={"arquivo": FILES["municipal"], "sha256": "f" * 64}))
+        other = base()
+        assert (other.complemento["estado"], other.complemento["motivo"], other.complementados) == (
+            "incompativel", "a camada se refere a outra versão da fonte municipal", ())
+        assert valid_points(other) == dict.fromkeys(AUTHORIZED, 0)
+        fora = detector.compute(None, {"base": {"municipios": {"todos": True}}}, base=other)
+        assert [item["id"] for item in fora["sem_coordenada"]] == ["code:" + code for code in sorted(AUTHORIZED)]
+        assert {item["motivo"] for item in fora["sem_coordenada"]} == {"fora_do_intervalo"}
+        assert (fora["complemento_geografico"]["estado"], fora["complemento_geografico"]["territorios_complementados"]) == ("incompativel", [])
+        # A fonte não foi tocada.
+        assert hashlib.sha256((root / FILES["municipal"]).read_bytes()).hexdigest() == original
+    finally:
+        main._BRAZIL_FRAMES.clear()
+        series_brasil._BASES.clear()

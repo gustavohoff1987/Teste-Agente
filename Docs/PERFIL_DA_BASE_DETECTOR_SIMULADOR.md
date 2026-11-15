@@ -93,8 +93,10 @@ Sexo 2000-2025"; ver [a validação da base](DADOS_BRASIL_VALIDACAO.md)).
 
 ## 7. Coordenadas
 
-- **Inválidas:** 132 linhas, de 6 municípios (170100, 350050, 421265, 422000, 430367 e 500490), ficam sem ponto, com o motivo,
-  como hoje no mapa e na Análise Espacial.
+- **Inválidas na fonte:** 132 linhas, de 6 municípios (170100, 350050, 421265, 422000, 430367 e 500490). **Desde a revisão final
+  do comando V23 (15/11/2026, decisão do responsável)**, o Detector e o Simulador leem as coordenadas como as análises: nesses
+  seis, vale a sede municipal da camada oficial do IBGE (`dados/brasil/complemento_coordenadas.json`), nas 22 datas; o arquivo
+  da base não muda. Antes, eles ficavam sem ponto nas ferramentas, com o motivo.
 - **Que mudam ao longo do tempo:** 8 municípios (110147, 160021, 172085, 221035, 221038, 312520, 350620 e 432035): o contexto
   geográfico (indicador 11) usa a coordenada da competência avaliada, como o motor já faz.
 

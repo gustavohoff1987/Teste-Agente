@@ -1215,6 +1215,14 @@ def _estado_do_nivel(s: dict) -> str:
     return "sem_alerta"
 
 
+def _na_frase(motivo: str) -> str:
+    """Um motivo dentro da frase de um sinal: sem a maiúscula do início, sem o ponto final e só até os primeiros dois-pontos (o
+    motivo inteiro fica na explicação completa). Revisão final do V23 (15/11/2026): sempre que um sinal não é avaliado, não é
+    calculável ou está indisponível, a frase da linha diz o motivo, em todas as bases."""
+    curto = (motivo or "").strip().split(": ")[0].rstrip(".")
+    return curto[:1].lower() + curto[1:]
+
+
 def _texto_estrutural(base: Base, av: dict, e: int, p: dict) -> dict:
     s, limites, r = av["estrutural"], p["estrutural"], _rotulos(base)
     regra = ("Por convenção, pelo número de " + r["profissionais"] + " no último registro: " + str(limites["critico"]) + " ou nenhum, "
@@ -1276,8 +1284,8 @@ def _texto_declinio(base: Base, av: dict, p: dict) -> dict:
     if s["estado"] in ("janela_insuficiente", "ausencia_de_dado"):
         motivo = "Faltam " + anuais + " para comparar." if s["estado"] == "janela_insuficiente" else \
             "Não há registro em " + curta(s["ate"]) + " (ausência de dado não é zero)."
-        return _item(None, "sem_dado", POR_CONVENCAO, "Sem a série anual para avaliar", motivo, regra, "Não avaliável.", significa, nao,
-                     entenda, exemplo)
+        return _item(None, "sem_dado", POR_CONVENCAO, "Sem a série anual para avaliar: " + _na_frase(motivo), motivo, regra,
+                     "Não avaliável.", significa, nao, entenda, exemplo)
     if not s["reducoes"]:
         return _item(None, _estado_do_nivel(s), POR_CONVENCAO, "Sem queda no último ano",
                      "Até " + curta(s["ate"]) + ", o número não caiu no último ano da série anual (" + de_a + ").", regra,
@@ -1342,7 +1350,9 @@ def _texto_instabilidade(base: Base, av: dict, p: dict) -> dict:
     janela = "De " + curta(s["de"]) + " a " + curta(s["ate"]) + ", a média foi de " + _br(s["media"]) + " " + r["profissionais"] + \
         ", com " + str(s["inversoes"]) + (" inversão" if s["inversoes"] == 1 else " inversões") + " de direção."
     if estado == "nao_calculavel":
-        return _item(None, "nao_avaliado", COMPARADO, "Oscilação não calculável", janela, regra,
+        motivo = ("média abaixo de " + _br(MEDIA_MINIMA_DA_INSTABILIDADE) + " " + r["profissionais"] + " na janela"
+                  if s["media"] < MEDIA_MINIMA_DA_INSTABILIDADE else "sem a oscilação típica do porte para comparar")
+        return _item(None, "nao_avaliado", COMPARADO, "Oscilação não calculável: " + motivo, janela, regra,
                      "Não calculável: com média abaixo de " + _br(MEDIA_MINIMA_DA_INSTABILIDADE) + " ou sem a oscilação típica do porte, "
                      "o índice não é estável.", significa, nao, entenda, exemplo)
     if estado == "descontinuidade_de_registro":
@@ -1376,7 +1386,8 @@ def _texto_perda(base: Base, av: dict, p: dict) -> dict:
     nao = "Não diz o motivo da queda nem se ela vai continuar; uma queda rara também pode ser falha do registro. " + NAO_SIGNIFICA_GERAL
     estado = s["estado"]
     if estado in ("ausencia_de_dado", "janela_insuficiente"):
-        return _item(None, "sem_dado", COMPARADO, "Sem registro para comparar",
+        falta_o = "falta o registro desta data" if estado == "ausencia_de_dado" else "falta um registro anterior"
+        return _item(None, "sem_dado", COMPARADO, "Sem registro para comparar: " + falta_o,
                      "Falta o registro desta data ou o anterior (ausência de dado não é zero).", regra, "Não avaliável.", significa, nao,
                      entenda, exemplo)
     passou = "De " + curta(s["de"]) + " a " + curta(s["ate"]) + " (" + str(s["meses"]) + " meses), passou de " + _br(s["anterior"]) + \
@@ -1389,9 +1400,9 @@ def _texto_perda(base: Base, av: dict, p: dict) -> dict:
     queda = "Caiu de " + _br(s["anterior"]) + " para " + _br(s["atual"]) + ((" (−" + _pct(-s["pct"]) + ")") if s.get("pct") is not None else "")
     if estado == "descontinuidade_de_registro":
         qual = "quebra de fonte" if s.get("descontinuidade") == "quebra_de_fonte" else "pico que volta"
-        return _item(None, "nao_avaliado", COMPARADO, ("Mudança" if s["delta"] >= 0 else queda) + " com descontinuidade de registro", passou,
-                     regra, "Não é alerta: a mudança coincide com uma descontinuidade de registro (" + qual + ").", significa, nao, entenda,
-                     exemplo)
+        return _item(None, "nao_avaliado", COMPARADO, ("Mudança" if s["delta"] >= 0 else queda) + " com descontinuidade de registro (" +
+                     qual + ")", passou, regra, "Não é alerta: a mudança coincide com uma descontinuidade de registro (" + qual + ").",
+                     significa, nao, entenda, exemplo)
     if estado == "nivel_sem_classificacao":
         return _item(None, "sem_nivel", COMPARADO, queda, passou, regra, SEM_NIVEL_NO_CONJUNTO, significa, nao, entenda, exemplo)
     minimos = s.get("minimos") or {}
@@ -1424,12 +1435,13 @@ def _texto_patamar(base: Base, av: dict, p: dict) -> dict:
     nao = "O patamar não é uma meta nem o número certo para o território. " + NAO_SIGNIFICA_GERAL
     estado = s["estado"]
     if estado in ("ausencia_de_dado", "janela_insuficiente"):
-        return _item(None, "sem_dado", POR_CONVENCAO, "Sem dois anos completos para o patamar",
+        return _item(None, "sem_dado", POR_CONVENCAO, "Sem registro nesta data para comparar com o patamar" if estado == "ausencia_de_dado"
+                     else "Sem dois anos completos para o patamar",
                      "Faltam registros para calcular o patamar ou o registro desta data.", regra, "Não avaliável.", significa, nao, entenda,
                      exemplo)
     if estado == "nao_calculavel":
-        return _item(None, "nao_avaliado", POR_CONVENCAO, "Patamar em zero", "O patamar anterior é zero.", regra, "Não calculável.",
-                     significa, nao, entenda, exemplo)
+        return _item(None, "nao_avaliado", POR_CONVENCAO, "Não calculável: o patamar anterior é zero", "O patamar anterior é zero.", regra,
+                     "Não calculável.", significa, nao, entenda, exemplo)
     observado = ("O patamar é de " + _do_patamar(s["patamar"]) + " " + r["profissionais"] + " (média de " + curta(s["bloco"]["de"]) + " a " +
                  curta(s["bloco"]["ate"]) + "). O último registro tem " + _br(s["atual"]) + ": " +
                  ("−" if s["diferenca"] < 0 else "+") + _pct(abs(s["diferenca_pct"])) + " ante o patamar.")
@@ -1475,8 +1487,10 @@ def _populacao_nao_comparavel(base: Base, s: dict) -> str:
     periodos = base.periodos
     motivo = comparativos.motivo_da_janela(base, periodos.index(s["de"]) if s.get("de") in periodos else None,
                                            periodos.index(s["ate"]) if s.get("ate") in periodos else None)
-    return (motivo or "a população da base não é comparável de um ano para o outro nesta janela") + \
-        "; população comparável nesta base: " + comparativos.texto_dos_trechos(base)
+    return (motivo or SEM_POPULACAO_COMPARAVEL) + "; população comparável nesta base: " + comparativos.texto_dos_trechos(base)
+
+
+SEM_POPULACAO_COMPARAVEL = "a população da base não é comparável de um ano para o outro nesta janela"
 
 
 def _taxa(valor) -> str:
@@ -1511,15 +1525,24 @@ def _relativo(base: Base, av: dict, chave: str, p: dict, nivel_da_data: str, var
     s, r = av[chave], _rotulos(base)
     estado = s["estado"]
     if estado == "ausencia_de_dado":
-        return _item(None, "sem_dado", COMPARADO, "Sem registro na data", "Não há registro do território em " + curta(s["competencia"]) +
-                     " (ausência de dado não é zero).", regra, "Não avaliável.", significa, nao, entenda, exemplo)
+        return _item(None, "sem_dado", COMPARADO, "Sem registro em " + curta(s["competencia"]), "Não há registro do território em " +
+                     curta(s["competencia"]) + " (ausência de dado não é zero).", regra, "Não avaliável.", significa, nao, entenda, exemplo)
     if estado in ("nao_calculavel", "referencia_invalida", "nao_aplicavel"):
-        return _item(None, "nao_avaliado", COMPARADO, {"nao_calculavel": "Não calculável", "referencia_invalida": "Sem referência",
-                                                     "nao_aplicavel": "Não se aplica"}[estado] if variacao is None else nivel_da_data,
+        # A frase diz o motivo (revisão final do V23). Com o valor da data à vista, ele vem antes: só a variação ficou sem cálculo.
+        titulo = {"nao_calculavel": "Não calculável", "referencia_invalida": "Sem referência", "nao_aplicavel": "Não se aplica"}[estado]
+        com_valor = not nivel_da_data.startswith("Sem ")
+        frase = (nivel_da_data + " · " + ("variação não calculável" if estado == "nao_calculavel" else titulo.lower())) if com_valor \
+            else titulo
+        motivo = _na_frase(s.get("motivo") or "")
+        return _item(None, "nao_avaliado", COMPARADO, frase + (": " + motivo if motivo else ""),
                      (observado + " " if observado else "") + (s.get("motivo") or ""), regra, "Não avaliado.", significa, nao, entenda,
                      exemplo)
     if estado == "comparacao_nao_habilitada":
-        return _item(None, "nao_avaliado", COMPARADO, nivel_da_data + " · comparação não habilitada", observado, regra,
+        periodos = base.periodos
+        da_janela = comparativos.motivo_da_janela(base, periodos.index(s["de"]) if s.get("de") in periodos else None,
+                                                  periodos.index(s["ate"]) if s.get("ate") in periodos else None)
+        return _item(None, "nao_avaliado", COMPARADO, nivel_da_data + " · comparação não habilitada: " +
+                     _na_frase(da_janela or SEM_POPULACAO_COMPARAVEL), observado, regra,
                      "Comparação não habilitada: de " + curta(s["de"]) + " a " + curta(s["ate"]) + ", " +
                      _populacao_nao_comparavel(base, s) + ".", significa, nao, entenda, exemplo)
     if estado == "janela_insuficiente":
@@ -1538,7 +1561,8 @@ def _relativo(base: Base, av: dict, chave: str, p: dict, nivel_da_data: str, var
                      " da janela, " + motivo + ": a variação em 2 anos não é comparada nem recebe nível.", significa, nao, entenda,
                      exemplo)
     if estado == "descritivo":
-        return _item(None, "nao_avaliado", COMPARADO, frase, observado, regra,
+        return _item(None, "nao_avaliado", COMPARADO, frase + " · só descritivo: menos de " + str(comparativos.MINIMO_DE_MEDICOS) + " " +
+                     r["profissionais"] + " no início da janela", observado, regra,
                      "Só descritivo: com menos de " + str(comparativos.MINIMO_DE_MEDICOS) + " " + r["profissionais"] + " no início da "
                      "janela, poucas unidades mudam muito a taxa.", significa, nao, entenda, exemplo)
     if estado == "nivel_sem_classificacao":
@@ -1645,38 +1669,63 @@ def _texto_contexto(base: Base, av: dict, p: dict) -> dict:
              "distância com a dos " + _br(s["universo"]) + " territórios abaixo do critério. Só contexto: nunca vira alerta.")
     entenda = ("Diz a que distância, em linha reta, fica o território mais próximo com mais " + r["profissionais"] + " por habitante "
                "que o critério. É só contexto: não vira alerta.")
-    exemplo = "A 120 km do mais próximo: mais longe que 90 em cada 100 territórios abaixo do critério."
+    exemplo = "A 120 km do mais próximo: de cada 100 territórios abaixo do critério, 90 ficam mais perto de um território assim."
     significa = "Diz a que distância, em linha reta, fica o território mais próximo acima do critério."
     nao = ("Não é distância por estrada, tempo de viagem nem acesso. Não indica falta de atendimento nem como a rede de saúde se "
            "organiza, e não tem nível.")
     if s["estado"] == "nao_aplicavel":
-        return _item(None, "contexto", None, "Não se aplica " + ("ao " if r["o_grupo"].startswith("o ") else "à ") + r["grupo"] + " como unidade",
-                     s["motivo"], regra, "Não se aplica.",
+        masculino = r["o_grupo"].startswith("o ")
+        return _item(None, "contexto", None, "Não se aplica " + ("ao " if masculino else "à ") + r["grupo"] + " como unidade: " +
+                     ("ele" if masculino else "ela") + " não tem um ponto único", s["motivo"], regra, "Não se aplica.",
                      significa, nao, entenda, exemplo)
     if s["estado"] == "atende_ao_criterio":
         return _item(None, "contexto", None, "Acima do critério (" + (limiar.split(" em ")[0] if limiar else "o critério") + " ou mais)",
                      "A taxa do território (ou de um dos componentes do conjunto) é igual ou maior que " + limiar + ": não há distância a "
                      "medir.", regra, "Só contexto.", significa, nao, entenda, exemplo)
     if s["estado"] != "contexto":
-        return _item(None, "contexto", None, "Sem coordenada válida" if s["estado"] == "sem_coordenada" else "Não calculável",
+        return _item(None, "contexto", None, "Sem coordenada válida em " + curta(c["competencia"]) + ": a distância não pode ser medida"
+                     if s["estado"] == "sem_coordenada" else "Não calculável: " + _na_frase(s.get("motivo") or "sem distância a medir"),
                      s.get("motivo") or "", regra, "Não calculável.", significa, nao, entenda, exemplo)
     ref = s["referencia"]
     observado = ("O componente mais próximo do critério é " + s["membro"] + ": fica a " if s.get("membro") else "O território fica a ") + \
         _br(round(s["distancia_km"], 1)) + " km, em linha reta, de " + ref["rotulo"] + " (" + _taxa(ref["taxa"]) + " por 1.000 habitantes), o " \
         "mais próximo com taxa igual ou maior que " + limiar + "."
+    if s.get("complementadas"):
+        observado += " Coordenada da sede municipal, da camada oficial do IBGE, porque a base traz a original fora do intervalo " \
+            "válido: " + "; ".join(s["complementadas"]) + "."
     habitual = "Só contexto, sem nível."
     if s["percentil_da_distancia"] is not None:
         habitual = "A distância é maior que a de " + _pct(s["percentil_da_distancia"], 0) + " dos territórios abaixo do critério. Só " \
             "contexto, sem nível."
     # A frase diz o que é o território de referência (tabela B.2): o mais próximo com taxa de pelo menos X% da taxa da base toda,
-    # com o X em uso, e em que posição essa distância fica (revisão das capturas de 15/11/2026).
+    # com o X em uso, e em que posição essa distância fica (revisão das capturas de 15/11/2026). Desde a revisão final do V23: com
+    # o padrão de 100%, "com taxa igual ou maior que a do Brasil"; e a posição em palavras simples ("De cada 100 municípios abaixo
+    # desse critério, 40 ficam mais perto de um município assim"), no lugar de "Mais longe que 40% dos municípios…".
+    masculino = r["o_unidade"].startswith("o ")
+    pct = float(p["contexto"]["taxa_do_brasil_pct"])
+    criterio = ("taxa igual ou maior que a " + r["do_todo"]) if pct == 100 else ("pelo menos " + _pct(pct, 0) + " da taxa " + r["do_todo"])
     frase = ("A " + _br(round(s["distancia_km"], 1)) + " km, em linha reta, de " + ref["rotulo"] + ": " + r["o_unidade"] + " mais " +
-             ("próximo" if r["o_unidade"].startswith("o ") else "próxima") + " com pelo menos " +
-             _pct(p["contexto"]["taxa_do_brasil_pct"], 0) + " da taxa " + r["do_todo"] + " (" + _taxa(c["taxa_minima"]) + " " +
+             ("próximo" if masculino else "próxima") + " com " + criterio + " (" + _taxa(c["taxa_minima"]) + " " +
              r["profissionais"] + " por 1.000 habitantes)")
     if s["percentil_da_distancia"] is not None:
-        frase += ". Mais longe que " + _pct(s["percentil_da_distancia"], 0) + " d" + r["os_unidades"] + " abaixo desse critério"
+        frase += ". De cada 100 " + r["unidades"] + " abaixo desse critério, " + _mais_perto(s["percentil_da_distancia"], masculino) + \
+            " mais perto de " + ("um " if masculino else "uma ") + r["unidade"] + " assim"
     return _item(None, "contexto", None, frase, observado, regra, habitual, significa, nao, entenda, exemplo)
+
+
+def _mais_perto(percentil: float, masculino: bool) -> str:
+    """Quantos, de cada 100 territórios abaixo do critério, ficam mais perto de um território que atende a ele: o percentil da
+    distância em palavras ("40 ficam", "1 fica"). Nas pontas, o arredondamento não vira "nenhum" nem "todos" sem ser."""
+    n = int(round(percentil))
+    if percentil <= 0:
+        return ("nenhum" if masculino else "nenhuma") + " fica"
+    if percentil >= 100:
+        return ("todos" if masculino else "todas") + " ficam"
+    if n <= 0:
+        return "menos de 1 fica"
+    if n >= 100:
+        return "mais de 99 ficam"
+    return str(n) + (" fica" if n == 1 else " ficam")
 
 
 NOMES_CURTOS_DOS_SINAIS = {"estrutural": "poucos {profissionais}", "ausencia": "nenhum {profissional} registrado",
@@ -1736,13 +1785,14 @@ def fenomenos(base: Base, av: dict, e: int, p: dict) -> list[dict]:
     itens = [{"chave": chave, "numero": numero, "nome": nomes[chave], "grupo": grupo, "dimensao": dimensao, **textos[chave](),
               "sem_comparacoes": _sem_comparacoes_do_sinal(av.get(chave)), "limitacoes": limitacoes, "qualidade": qualidade}
              for chave, numero, grupo, dimensao in FENOMENOS if chave in av or chave == "coexistencia" and "coexistencia" in av]
-    faltas = falta_na_base(base)
+    faltas, motivos = falta_na_base(base), motivos_da_falta(base)
     for item in itens:
         # Os campos que a resposta já trazia: o estado do sinal no motor e a classe (o nível).
         item["estado"], item["classe"] = (av.get(item["chave"]) or {}).get("estado"), item["nivel"]
         if item["chave"] in faltas and not item["nivel"]:
             # O que a base não tem (seção A.3): o sinal fica indisponível, com o motivo, em vez de "não calculável".
-            item.update({"estado_do_nivel": "indisponivel", "situacao": "Indisponível nesta base", "observado": faltas[item["chave"]],
+            item.update({"estado_do_nivel": "indisponivel", "situacao": "Indisponível nesta base: " + _motivos_em_frase(motivos[item["chave"]]),
+                         "observado": faltas[item["chave"]],
                          "habitual": "Não avaliado: " + faltas[item["chave"]][:1].lower() + faltas[item["chave"]][1:],
                          "sem_comparacoes": None})
     return itens
@@ -1762,6 +1812,13 @@ MOTIVOS_DA_FALTA = {
     "coordenadas": ("a base não tem coordenadas com o referencial informado",
                     "A base não tem coordenadas com o referencial informado: a distância não pode ser medida."),
 }
+
+
+def _motivos_em_frase(motivos: tuple) -> str:
+    """"a base não tem população nem grupo de cima": tudo o que falta para um sinal, numa frase só (as frases curtas)."""
+    curtas = [MOTIVOS_DA_FALTA[motivo][0] for motivo in motivos]
+    resto = [frase.removeprefix("a base não tem ") for frase in curtas[1:]]
+    return curtas[0] + ("" if not resto else (", " + ", ".join(resto[:-1]) if len(resto) > 1 else "") + " nem " + resto[-1])
 
 
 def motivos_da_falta(base: Base) -> dict[str, tuple[str, ...]]:
@@ -2113,6 +2170,18 @@ def _coordenadas(base: Base, qd: comparativos.Quadro, territorios: list, linhas:
             for i in sorted(marcados) if bool(qd.com_coordenada[i])}
 
 
+def _complemento_geografico(base: Base, coordenadas: dict) -> dict | None:
+    """A camada oficial de coordenadas da base do Brasil nesta resposta (revisão final do V23, 15/11/2026): o estado, a identidade
+    e a proveniência dela, como nas análises espaciais, e os territórios desta resposta cujo ponto veio dela (a sede municipal do
+    IBGE, onde a base traz a coordenada fora do intervalo válido). None numa planilha, que nunca recebe o complemento."""
+    if not base.complemento:
+        return None
+    campos = ("estado", "identificador", "versao", "sha256", "motivo", "proveniencia")
+    return {**{campo: base.complemento[campo] for campo in campos if base.complemento.get(campo) is not None},
+            "territorios_complementados": [base.prefixo_do_id + codigo for codigo in base.complementados
+                                           if base.prefixo_do_id + codigo in coordenadas]}
+
+
 def _sem_coordenada(base: Base, qd: comparativos.Quadro, territorios: list) -> list[dict]:
     """As unidades da seleção que ficam fora do mapa, com o motivo: na competência avaliada, a base não traz a coordenada delas
     ("ausente") ou traz a latitude ou a longitude fora do intervalo válido ("fora_do_intervalo": até 90° e 180°). A tela as
@@ -2195,18 +2264,22 @@ def compute(sources, opcoes: dict, base: Base | None = None) -> dict:
             raise ValueError("Território fora da seleção do Detector: " + str(detalhe) + ".")
         comeco = _inicio_do_territorio(cal, alvo, inicio, e)
         av = avaliar(base, cal, alvo, comeco, e, p, inicio, cal_dos_estados=cal_dos_estados)
+        do_alvo = _coordenadas(base, qd, [alvo], [_linha(base, av, e, p)])
         return {**comum, "territorio": av, "janela_do_territorio": {"inicio": base.periodos[comeco], "depois_da_quebra": comeco != inicio},
                 "serie": _serie(base, cal, alvo, e), "historico": _historico(base, cal, alvo, comeco, e, p, cal_dos_estados),
-                "comparativo": _comparativo(base, alvo, e), "coordenadas": _coordenadas(base, qd, [alvo], [_linha(base, av, e, p)]),
+                "comparativo": _comparativo(base, alvo, e), "coordenadas": do_alvo,
+                "complemento_geografico": _complemento_geografico(base, do_alvo),
                 "fenomenos": fenomenos(base, av, e, p), "linha": _linha(base, av, e, p),
                 "notas": _notas(base, personalizado, {alvo.nivel, alvo.tipo})}
     linhas = [_linha(base, avaliar(base, cal, territorio, _inicio_do_territorio(cal, territorio, inicio, e), e, p, inicio,
                                    cal_dos_estados=cal_dos_estados), e, p) for territorio in territorios]
     regua = limiares(base, cal, e, p)
+    da_selecao = _coordenadas(base, qd, territorios, linhas)
     return {**comum, "linhas": linhas, "resumo": _resumo(linhas), "calibracao": regua,
             **({"calibracao_dos_estados": limiares(base_dos_estados(base), cal_dos_estados, e, p)} if cal_dos_estados is not None else {}),
             "aviso_da_base": _aviso_da_base(base, regua),
-            "coordenadas": _coordenadas(base, qd, territorios, linhas), "sem_coordenada": _sem_coordenada(base, qd, territorios),
+            "coordenadas": da_selecao, "sem_coordenada": _sem_coordenada(base, qd, territorios),
+            "complemento_geografico": _complemento_geografico(base, da_selecao),
             "notas": _notas(base, personalizado, {territorio.nivel for territorio in territorios} | {territorio.tipo for territorio in territorios}),
             "limitacoes": ["RARO_E_INCOMUM_NA_BASE", "CONJUNTO_SEM_NIVEL", "COMPARACAO_SO_COM_POPULACAO_COMPARAVEL"] +
                           (["CONFIGURACAO_EXPLORATORIA"] if personalizado else [])}

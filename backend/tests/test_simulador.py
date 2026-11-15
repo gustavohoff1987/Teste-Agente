@@ -746,14 +746,16 @@ def test_avisos_de_horizonte_frente_a_janela_do_metodo():
     for data, (nivel, codigo) in esperado.items():
         resultado = simular(b, alvo, {"metodo": "M0"}, data)
         assert resultado["horizonte"]["aviso"] == nivel and avisos(resultado) == ([codigo] if codigo else []), data
-    # O aviso diz os dois tempos, em palavras simples. Manter o último valor não usa a história: a comparação é com os 3 anos de
-    # referência, e o texto diz isso (antes, dizia "3 anos de história usados no cálculo", o que não era verdade neste método).
+    # Manter o último valor não usa a história. Muda de propósito na revisão final do V23 (15/11/2026): a frase é simples e não
+    # fala em referência nem em história (antes, "… a mais da metade do tempo de referência (2 anos à frente; a referência são 3
+    # anos, porque manter o último valor não usa a história)", o que confundia). Os níveis e os códigos são os mesmos.
     assert simular(b, alvo, {"metodo": "M0"}, "202806")["avisos"][0]["texto"] == (
-        "Extrapolação além da janela: a data final fica mais longe do que o tempo de referência (4 anos à frente; a referência são 3 anos, "
-        "porque manter o último valor não usa a história).")
+        "Extrapolação: a data final fica longe do último registro, e o cenário é muito incerto (aqui, 4 anos à frente).")
     assert simular(b, alvo, {"metodo": "M0"}, "202606")["avisos"][0]["texto"] == (
-        "Cautela: a data final fica a mais da metade do tempo de referência (2 anos à frente; a referência são 3 anos, porque manter o "
-        "último valor não usa a história).")
+        "Cautela: quanto mais longe a data final, mais incerto o cenário (aqui, 2 anos à frente).")
+    assert simular(b, alvo, {"metodo": "M0"}, "203106")["avisos"][0]["texto"] == (
+        "Extrapolação extrema: a data final fica muito longe do último registro, e o cenário é incerto demais para ser lido como um "
+        "número (aqui, 7 anos à frente).")
     assert simular(b, alvo, {"metodo": "M1"}, janela={"inicio": "202306", "fim": "202406"})["avisos"][0]["texto"] == (
         "Extrapolação além da janela: a data final fica mais longe do que o tempo de história usado no cálculo (2 anos à frente, com "
         "1 ano de história usados no cálculo).")

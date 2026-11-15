@@ -11,6 +11,9 @@ Confere, contra a resposta de POST /api/detector, com os municípios de Santa Ca
 - de volta a "todos os territórios à vista", as divisas dos municípios saem;
 - com a busca deixando um estado só à vista, as divisas dos municípios aparecem sem aproximar, e a escolha some (o estado escolhido
   antes deixa de valer quando sai da vista);
+- com o Brasil inteiro (revisão final do comando V23, 15/11/2026): os 5.570 municípios têm ponto — os seis em que a base traz a
+  coordenada fora do intervalo válido, com a sede municipal da camada oficial do IBGE, ditos na legenda —, e as siglas dos 27
+  estados aparecem sem se sobrepor (a de Goiás e a do Distrito Federal ficavam uma sobre a outra);
 - nenhuma chamada ao provedor de IA e nenhum erro na página.
 
 Base Brasil versionada (suíte base-versionada, ADT_BLOCK1_REAL=1); servidor serve_ui_offline.py, sem o provedor de IA.
@@ -75,8 +78,10 @@ def main():
         com_ponto = set(corpo["coordenadas"])
         pontos = {prefixo: sum(1 for item in do_estado(prefixo) if item["id"] in com_ponto) for prefixo in (SC, RR)}
         com_nivel = {prefixo: sum(1 for item in do_estado(prefixo) if item["alerta"]["nivel"]) for prefixo in (SC, RR)}
-        # Santa Catarina tem dois municípios sem coordenada válida (sem ponto, mas com a divisa); Roraima, nenhum.
-        assert (len(do_estado(SC)), len(do_estado(RR)), pontos) == (295, 15, {SC: 293, RR: 15}), pontos
+        # Muda de propósito na revisão final do V23: os dois municípios de Santa Catarina em que a base traz a coordenada fora do
+        # intervalo válido ficam com a sede municipal da camada oficial do IBGE — 295 pontos (antes, 293).
+        assert (len(do_estado(SC)), len(do_estado(RR)), pontos) == (295, 15, {SC: 295, RR: 15}), pontos
+        assert corpo["sem_coordenada"] == [] and corpo["complemento_geografico"]["territorios_complementados"] == ["code:421265", "code:422000"]
         assert com_nivel[SC] > com_nivel[RR] >= 1, com_nivel
         todas_com_nivel = str(com_nivel[SC] + com_nivel[RR])
         page.wait_for_timeout(500)
@@ -145,12 +150,50 @@ def main():
         detector.get_by_test_id("detector-vista-mapa").click()
         expect(detector.get_by_test_id("detector-mapa")).to_have_attribute("data-divisas", "carregadas", timeout=60000)
         assert len(da_malha) == 1, da_malha
+
+        # 6. O Brasil inteiro (revisão final do V23, 15/11/2026). Os 5.570 municípios têm ponto: os seis em que a base traz a
+        # coordenada fora do intervalo válido ficam com a sede municipal da camada oficial do IBGE, e a legenda diz quais são. As
+        # siglas dos 27 estados aparecem sem se sobrepor: a que cobriria outra se afasta (antes, a de Goiás e a do Distrito Federal
+        # ficavam uma sobre a outra, e as que cobririam outra, pela largura estimada, não apareciam).
+        area.get_by_test_id("analise-aba-territorios").click()
+        expect(area).to_have_attribute("data-ferramenta", "")
+        with page.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST", timeout=180000):
+            territorios.get_by_test_id("analise-raiz-caixa").check()
+        with page.expect_response(lambda r: r.url.endswith("/api/detector") and r.request.method == "POST", timeout=240000) as do_brasil:
+            area.get_by_test_id("analise-ferramenta-detector").click()
+        assert do_brasil.value.status == 200
+        expect(detector).to_have_attribute("data-estado", "pronto", timeout=240000)
+        expect(detector.get_by_test_id("detector-tabela")).to_have_attribute("data-linhas", "5570")
+        detector.get_by_test_id("detector-vista-mapa").click()
+        mapa = detector.get_by_test_id("detector-mapa")
+        expect(mapa).to_have_attribute("data-divisas", "carregadas", timeout=60000)
+        expect(mapa.locator('[data-testid="analise-mapa-ponto"]')).to_have_count(5570, timeout=120000)
+        expect(mapa.get_by_test_id("detector-mapa-fora")).to_have_count(0)
+        oficiais = mapa.get_by_test_id("detector-mapa-coordenadas-oficiais")
+        expect(oficiais).to_contain_text("Em 6 municípios à vista, o ponto é o da sede municipal, da camada oficial de coordenadas do IBGE, "
+                                         "porque a base traz a coordenada deles fora do intervalo válido: ")
+        for rotulo in ("ANANAS (TO)", "AGUAS DE LINDOIA (SP)", "PESCARIA BRAVA (SC)", "BALNEARIO RINCAO (SC)", "CAMPESTRE DA SERRA (RS)",
+                       "JARAGUARI (MS)"):
+            expect(oficiais).to_contain_text(rotulo)
+        siglas = mapa.locator('[data-testid="analise-mapa-nome-grupo"]').evaluate_all(
+            "nomes => nomes.map(nome => { const caixa = nome.getBBox(); "
+            "return [nome.textContent, caixa.x, caixa.y, caixa.x + caixa.width, caixa.y + caixa.height, nome.dataset.deslocado]; })")
+        assert sorted(sigla[0] for sigla in siglas) == sorted(
+            "AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split()), [sigla[0] for sigla in siglas]
+        cruzam = [(a[0], b[0]) for posicao, a in enumerate(siglas) for b in siglas[posicao + 1:]
+                  if a[1] < b[3] and a[3] > b[1] and a[2] < b[4] and a[4] > b[2]]
+        assert not cruzam, cruzam
+        deslocada = {sigla[0]: sigla[5] for sigla in siglas}
+        assert (deslocada["GO"], deslocada["DF"]) == ("false", "true"), deslocada   # Goiás no centro dos pontos dele; o DF, ao lado
+        page.screenshot(path=str(OUTPUT / "detector-mapa-03-brasil-real.png"), full_page=False)
+        assert len(da_malha) == 1, da_malha      # a malha continua a mesma: nenhum pedido novo
         assert not chamadas_llm, "o Detector calcula sem o provedor de IA"
         assert not falhas, falhas
         browser.close()
     print("DETECTOR MAPA PASS: Santa Catarina e Roraima à vista, com as divisas dos estados e as áreas pelo nível; \"Aproximar o mapa em\" "
           "enquadra o estado com as divisas dos municípios, sem cortar as áreas com nível; um estado só à vista mostra as divisas dos "
-          "municípios sem aproximar; a malha é pedida uma vez, quando o mapa abre.")
+          "municípios sem aproximar; a malha é pedida uma vez, quando o mapa abre; o Brasil inteiro com os 5.570 pontos (seis com a "
+          "coordenada da camada oficial) e as siglas dos 27 estados sem sobreposição.")
 
 
 if __name__ == "__main__":

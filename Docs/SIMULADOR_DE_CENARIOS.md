@@ -476,9 +476,13 @@ simuladas.
 
 Informativos, pela razão entre o tempo até a data final (H) e a janela do método (W; no M0, no M0d e no M0g, 3 anos): até W/2, normal;
 até W, cautela; até 2W, extrapolação além da janela; acima, extrapolação extrema. O aviso diz os dois tempos. Quando o cenário
-**mantém o último valor** (M0), que não usa a história, o texto não diz que os 3 anos foram "usados no cálculo": "Cautela: a data
-final fica a mais da metade do tempo de referência (2 anos à frente; a referência são 3 anos, porque manter o último valor não
-usa a história)." Nos outros métodos, continua "… do tempo de história usado no cálculo (2 anos à frente, com 3 anos de história
+**mantém o último valor** (M0), que não usa a história, a frase é simples e não fala em referência nem em história (desde a
+revisão final do comando V23, 15/11/2026; os níveis e os códigos são os mesmos): "Cautela: quanto mais longe a data final, mais
+incerto o cenário (aqui, 2 anos à frente)."; mais longe, "Extrapolação: a data final fica longe do último registro, e o cenário
+é muito incerto (aqui, 4 anos à frente)." e "Extrapolação extrema: a data final fica muito longe do último registro, e o
+cenário é incerto demais para ser lido como um número (aqui, 7 anos à frente)." Antes, o texto dizia "… a mais da metade do tempo
+de referência (2 anos à frente; a referência são 3 anos, porque manter o último valor não usa a história)", o que confundia —
+e uma base pode nem ter 3 anos. Nos outros métodos, continua "… do tempo de história usado no cálculo (2 anos à frente, com 3 anos de história
 usados no cálculo)."
 
 ### Estados de um cenário

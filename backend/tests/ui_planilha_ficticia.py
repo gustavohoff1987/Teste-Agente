@@ -461,6 +461,23 @@ def main():
         expect(detector.get_by_test_id("detector-vista-mapa")).to_be_enabled()
         expect(detector.get_by_test_id("detector-vista-grafico")).to_be_enabled()
         expect(detector.get_by_test_id("detector-vistas-motivo")).to_have_count(0)
+        # O mapa do Detector com a planilha (revisão final do V23, 15/11/2026): a comuna sem coordenada fica fora dele, e a legenda
+        # diz qual e por quê. É a conferência que o roteiro do Detector fazia com a base do Brasil, onde, com a camada oficial de
+        # coordenadas, ninguém fica mais de fora. Uma planilha não tem a malha das divisas nem recebe a camada oficial.
+        assert [item["motivo"] for item in lista["sem_coordenada"]] == ["ausente"] and lista["complemento_geografico"] is None, lista["sem_coordenada"]
+        aperta(detector.get_by_test_id("detector-vista-mapa"))
+        mapa_do_detector = detector.get_by_test_id("detector-mapa")
+        expect(mapa_do_detector).to_have_attribute("data-divisas", "sem")
+        expect(mapa_do_detector.locator('[data-testid="analise-mapa-ponto"]')).to_have_count(15)
+        expect(mapa_do_detector.get_by_test_id("detector-mapa-fora")).to_have_attribute("data-quantos", "1")
+        expect(mapa_do_detector.get_by_test_id("detector-mapa-fora")).to_have_text(
+            "Fora do mapa: 1 comuna à vista (1 sem nível). Em jun/2024, a base não traz a coordenada de: Fenduna. Continua na lista, com o "
+            "seu nível.")
+        expect(mapa_do_detector.get_by_test_id("detector-mapa-coordenadas-oficiais")).to_have_count(0)
+        expect(mapa_do_detector).to_contain_text("A base não tem as divisas: o nome situa os pontos de cada condado.")
+        guarda("detector-mapa")
+        aperta(detector.get_by_test_id("detector-vista-lista"))
+        expect(detector.get_by_test_id("detector-mapa")).to_have_count(0)
         # O perfil da base, antes da ferramenta: o que o Agente leu e o resumo, iguais aos do motor.
         perfil = area.get_by_test_id("perfil-da-base")
         expect(perfil).to_have_attribute("data-estado", "pronto", timeout=180000)

@@ -279,7 +279,8 @@ def taxa_do_brasil(base: Base, i: int) -> float | None:
 
 def quadro(base: Base, e: int, p: dict, guardar: bool = True) -> Quadro:
     pct = float(p["contexto"]["taxa_do_brasil_pct"])
-    chave = (base.versao, e, pct)
+    # As distâncias dependem das coordenadas: a camada oficial que as complementa entra na chave, ao lado da versão da base.
+    chave = (base.versao, e, pct, (base.complemento or {}).get("estado"), (base.complemento or {}).get("sha256"))
     with _LOCK:
         guardado = _QUADROS.get(chave) if guardar else None
     if guardado is not None:
@@ -740,7 +741,9 @@ def contexto(base: Base, qd: Quadro, territorio: Territorio) -> dict:
                 "critério."}
     perto = min(com_distancia, key=lambda linha: (qd.distancia_km[linha], linha))   # num conjunto, o membro mais próximo
     alvo = int(qd.referencia[perto])
-    return {**saida, "estado": "contexto", "distancia_km": float(qd.distancia_km[perto]),
+    # Os pontos desta distância que vieram da camada oficial de coordenadas (base do Brasil): o do território e o da referência.
+    complementadas = [base.nomes[i] for i in dict.fromkeys((perto, alvo)) if base.codigos[i] in base.complementados]
+    return {**saida, "estado": "contexto", "distancia_km": float(qd.distancia_km[perto]), "complementadas": complementadas,
             "percentil_da_distancia": _num(qd.percentil_da_distancia[perto]) if territorio.tipo == "municipio" else None,
             "referencia": {"id": base.prefixo_do_id + base.codigos[alvo], "rotulo": base.nomes[alvo], "taxa": _num(qd.taxa[alvo, qd.e])},
             **({"membro": base.nomes[perto]} if territorio.tipo == "conjunto" else {})}

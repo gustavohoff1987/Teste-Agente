@@ -117,8 +117,29 @@ Notas:
   ponto único; num conjunto, vale o componente mais próximo. **A frase diz o que é o território de referência** — o mais próximo
   com taxa de pelo menos X% da taxa da base toda, com o X em uso e o valor do critério — **e em que posição a distância fica**
   entre os territórios abaixo do critério (desde 15/11/2026). Rio Rufino (SC), em jun/2024: "A 21,3 km, em linha reta, de BOCAINA
-  DO SUL (SC): o município mais próximo com pelo menos 100% da taxa do Brasil (2,36 médicos por 1.000 habitantes). Mais longe que
-  40% dos municípios abaixo desse critério". Num conjunto, a frase não traz a posição.
+  DO SUL (SC): o município mais próximo com taxa igual ou maior que a do Brasil (2,36 médicos por 1.000 habitantes). De cada 100
+  municípios abaixo desse critério, 40 ficam mais perto de um município assim". Desde a revisão final do comando V23
+  (15/11/2026): com o padrão de 100%, a frase diz "com taxa igual ou maior que a do Brasil" (com outro critério, "com pelo menos
+  70% da taxa do Brasil"); e a posição vem em palavras simples — antes, "Mais longe que 40% dos municípios abaixo desse
+  critério". Num conjunto, a frase não traz a posição.
+- **O motivo na frase (desde a revisão final do comando V23, 15/11/2026).** Sempre que um sinal não é avaliado, não é calculável
+  ou está indisponível, a frase da linha diz o motivo, em todas as bases, como já fazia o sinal 7 (`detector._na_frase`; o motivo
+  inteiro continua na explicação completa):
+  - sinal 3: "Sem a série anual para avaliar: faltam registros de junho para comparar";
+  - sinal 5: "Oscilação não calculável: média abaixo de 6 médicos na janela" (ou "sem a oscilação típica do porte para
+    comparar");
+  - sinal 6: "Sem registro para comparar: falta o registro desta data" (ou "falta um registro anterior"); com descontinuidade, a
+    frase diz qual ("… com descontinuidade de registro (pico que volta)");
+  - sinal 7: "Não calculável: o patamar anterior é zero" e "Sem registro nesta data para comparar com o patamar";
+  - sinais 8 a 10: "Sem registro em jan/2016"; "Não calculável: sem população válida na data (o denominador não é estimado)";
+    com o valor da data à vista, ele vem antes ("Índice 314,3 ante a referência em jun/2021 · variação não calculável: sem taxa
+    válida do território ou da referência no início ou no fim da janela"); "Sem referência: a UF deste município não tem outros
+    municípios" (Brasília); "… · só descritivo: menos de 20 médicos no início da janela"; "… · comparação não habilitada: " com o
+    motivo da população;
+  - sinal 11: "Não se aplica ao estado como unidade: ele não tem um ponto único"; "Sem coordenada válida em jun/2024: a
+    distância não pode ser medida"; "Não calculável: sem a taxa do Brasil na data";
+  - sinal que a base não sustenta: "Indisponível nesta base: a base não tem população nem grupo de cima" (em `situacao`; a tela
+    continua mostrando o rótulo "Indisponível nesta base" e, ao lado, os motivos por extenso).
 - **Sinal 12:** lista os sinais com nível e diz quantos vêm da mesma queda. Sem soma de pontos e sem índice geral.
 
 **População comparável (sinais 8, 9 e 10).** A variação em 2 anos só é calculada quando a janela de comparação (na série anual)
@@ -179,11 +200,20 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
       pontos).
 
     O mapa é desenhado na largura que tem na tela (`data-largura`): no celular, o texto mantém 12 px, e o mapa fica mais alto.
+    **As coordenadas são as das análises** (desde a revisão final do comando V23, 15/11/2026): na base do Brasil, os seis
+    municípios em que a fonte traz a latitude ou a longitude fora do intervalo válido ficam com a **sede municipal da camada
+    oficial do IBGE** (`dados/brasil/complemento_coordenadas.json`), e o mapa tem os 5.570 pontos. A legenda diz quais pontos à
+    vista vieram da camada (`detector-mapa-coordenadas-oficiais`): "Em 2 municípios à vista, o ponto é o da sede municipal, da
+    camada oficial de coordenadas do IBGE, porque a base traz a coordenada deles fora do intervalo válido: BALNEARIO RINCAO (SC);
+    PESCARIA BRAVA (SC)."
     **Quem está na lista e não tem ponto** aparece numa frase abaixo da legenda (`detector-mapa-fora`):
     quantos são, com que nível, quais e por quê — a base não traz a coordenada deles na data, ou traz a latitude ou a longitude
-    fora do intervalo válido ("Fora do mapa: 2 municípios à vista (2 sem nível). Em jun/2024, a base traz a latitude ou a
-    longitude fora do intervalo válido em: … Continuam na lista, cada qual com o seu nível."). Assim, os pontos do mapa e os de
-    fora somam a lista. Com as divisas, a área desses municípios aparece (com a cor do nível, quando há), mesmo sem o ponto.
+    fora do intervalo válido ("Fora do mapa: 1 comuna à vista (1 sem nível). Em jun/2024, a base não traz a coordenada de:
+    Fenduna. Continua na lista, com o seu nível."). Assim, os pontos do mapa e os de fora somam a lista. Na base do Brasil,
+    ninguém fica de fora; numa planilha, fica quem ela trouxer sem coordenada válida.
+    **Os nomes dos grupos** (as siglas dos estados) ficam no centro dos pontos de cada grupo, **sem se sobrepor**: o que cobriria
+    outro se afasta para o lugar livre mais perto (`data-deslocado`; desde a revisão final do V23 — antes, a sigla de Goiás e a do
+    Distrito Federal ficavam uma sobre a outra no mapa do Brasil inteiro, e as que cobririam outra não apareciam).
   - **Gráfico** (`detector-bolhas`): o gráfico de bolhas do Agente, com uma bolha por território à vista que tem distância a
     mostrar. Na horizontal, a distância do sinal 11; na vertical, a taxa por 1.000 habitantes; o tamanho, a população; a cor, o
     nível. Tocar numa bolha ou num ponto abre os detalhes do território.
@@ -323,7 +353,10 @@ porte, as `comparacoes` do próprio porte e, em cada nível, a régua usada de f
 `queda_pct` e `queda_pct_ate` trazem os dois extremos da faixa; e o `monitoramento`, com `aviso_da_base`),
 `calibracao_dos_estados` (quando a seleção tem estados como unidade), `aviso_da_base`, `comparacao` (a janela dos sinais 8 a 10,
 o estado dela, os trechos de população comparável e o critério da distância), `coordenadas`, `sem_coordenada` (as unidades da
-seleção que ficam fora do mapa: `id` e `motivo`, `ausente` ou `fora_do_intervalo`), `notas` e `limitacoes`. Desde o comando V23, `fonte` traz também `origem` (`brasil` ou `planilha`), `ancora` (o mês da série anual; `00` com
+seleção que ficam fora do mapa: `id` e `motivo`, `ausente` ou `fora_do_intervalo`), `complemento_geografico` (desde a revisão
+final do V23: na base do Brasil, o estado, a identidade e a proveniência da camada oficial de coordenadas, como nas análises
+espaciais, e `territorios_complementados`, os territórios desta resposta cujo ponto veio dela; `null` numa planilha; também no
+detalhe), `notas` e `limitacoes`. Desde o comando V23, `fonte` traz também `origem` (`brasil` ou `planilha`), `ancora` (o mês da série anual; `00` com
 um registro por ano), `tem` (`populacao`, `coordenadas`, `grupo` e `serie_anual`) e `formas` (os nomes com artigo e preposição:
 "o município", "a comuna", "do Brasil"); e a lista traz `indisponiveis` (sinal → motivo; vazio na base do Brasil; desde
 15/11/2026, com todos os motivos do sinal, um depois do outro). Com população ausente, `comparacao.estado` é `indisponivel`, com
@@ -479,8 +512,11 @@ Cada nível mostra a régua usada de fato: o porte ou, quando ele não tem compa
 Com todos os portes juntos, os cortes ficam perto dos que a Proposta V3 estimou com a população anterior (23%, 38% e 60%).
 
 **Sinal 11, o contexto em cada registro anual** (critério: a taxa do Brasil na data): em jun/2024, a taxa é de 2,36 por 1.000;
-2.002 municípios ficam acima do critério e 3.566 têm distância a mostrar (mediana de 27,1 km; percentil 90, 112,2 km; maior,
-838,6 km). Em jun/2014, eram 1,60 por 1.000, 1.565 municípios acima e mediana de 32,5 km. A distância é em linha reta: não é
+2.002 municípios ficam acima do critério e 3.568 têm distância a mostrar (mediana de 27,1 km; percentil 90, 112,1 km; maior,
+838,6 km). Em jun/2014, eram 1,60 por 1.000, 1.565 municípios acima e mediana de 32,5 km. Com as coordenadas da camada oficial
+(revisão final do V23), os seis municípios entram nesta conta: em jun/2024, quatro deles ficam acima do critério (e passam a ser
+o município mais próximo de três vizinhos) e dois têm distância (Ananás/TO, a 30,9 km de Luzinópolis; Balneário Rincão/SC, a
+15,3 km de Içara) — antes, 3.566 municípios com distância e percentil 90 de 112,2 km. A distância é em linha reta: não é
 distância por estrada, tempo de viagem nem acesso.
 
 **O que continua sendo convenção:** os limites dos sinais 1 a 4, o tamanho mínimo do sinal 6, os 15% e os 30% do sinal 7, o
@@ -518,10 +554,15 @@ o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudan�
 - De 3.000 médicos para cima, os municípios não têm comparações suficientes para o crítico, nem com as faixas vizinhas (em
   jun/2024: 864 e 248 comparações na queda recente; 652 e 182 nos sinais 8 a 10). De 10.000 para cima, o elevado é avaliado com
   as faixas vizinhas (o próprio porte tem 45 comparações na queda recente e 31 nos sinais 8 a 10).
-- **Seis municípios ficam fora do mapa:** a base traz a latitude ou a longitude deles fora do intervalo válido, em todas as
-  datas (Ananás/TO, Águas de Lindóia/SP, Pescaria Brava/SC, Balneário Rincão/SC, Campestre da Serra/RS e Jaraguari/MS). Eles
-  continuam na lista, com o nível deles, e a legenda do mapa diz quais são e por quê. Sem coordenada, a distância deles (sinal
-  11) não é medida, e eles não entram como o município mais próximo de ninguém. A base só muda por pedido do responsável.
+- **Seis municípios usam a coordenada da camada oficial:** a base traz a latitude ou a longitude deles fora do intervalo válido,
+  em todas as datas (Ananás/TO, Águas de Lindóia/SP, Pescaria Brava/SC, Balneário Rincão/SC, Campestre da Serra/RS e
+  Jaraguari/MS). Desde a revisão final do comando V23 (15/11/2026, decisão do responsável), o Detector e o Simulador leem as
+  coordenadas como as análises: nesses seis, vale a sede municipal da camada oficial do IBGE
+  (`dados/brasil/complemento_coordenadas.json`), uma coordenada fixa nas 22 datas, por premissa do responsável. O arquivo da base
+  não foi alterado. Eles têm ponto no mapa, a distância deles (sinal 11) é medida dessa coordenada, e eles podem ser o município
+  mais próximo de um vizinho; a legenda do mapa e a explicação completa do sinal 11 dizem quando o ponto veio da camada. Com
+  outra versão da fonte municipal, a camada não é aplicada (`complemento_geografico.estado: incompativel`), e esses municípios
+  ficam fora do mapa, com o motivo. Uma planilha nunca recebe a camada.
 - A variação em 2 anos (sinais 8 a 10) só existe em trechos com população comparável, lidos da própria base. A população é uma
   estimativa, e a taxa de um estado usa a contagem estadual sobre a soma das populações municipais.
 - A distância (sinal 11) é em linha reta entre coordenadas: não mede acesso, deslocamento nem a organização da rede.
@@ -548,7 +589,10 @@ o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudan�
   patamar com decimal, o sinal 10 em palavras simples e quem fica fora do mapa, com o motivo; da revisão de 15/11/2026, a frase
   do sinal 7 não avaliado com o motivo, a do sinal 11 com o território de referência e a posição da distância, e
   `registros_anuais` ao lado de `junhos`), a rota com um catálogo sintético
-  e, no job `dados-reais`, a base versionada (Brochier/RS sem alerta, a régua usada de fato, os 6 municípios fora do mapa, as
+  e, no job `dados-reais`, a base versionada (Brochier/RS sem alerta, a régua usada de fato, as coordenadas pela camada oficial —
+  os 5.570 pontos, as 22 datas dos seis municípios, a distância de Ananás e de Balneário Rincão refeita por fora e os vizinhos que
+  passam a ter um deles como o mais próximo —, o motivo na frase dos sinais não avaliados (e, em
+  `backend/tests/test_geo_complement.py`, a base das ferramentas com a camada ausente, válida e de outra versão da fonte), as
   taxas da régua por nível e por porte, a régua dos estados, a lista inteira com um nível por território, Rio Rufino/SC, o
   Distrito Federal antes de 2018, uma queda grande que persiste, a desaceleração igual à da Análise de Tendência e os sinais 8
   a 12 com a população comparável);
@@ -562,7 +606,8 @@ o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudan�
   Brasil.
 - Node: `frontend/tests/detector.test.mjs` — a leitura da resposta, a lista de quatro colunas, o resumo dos níveis, os filtros,
   a ordem, os critérios em frases (todos os parâmetros do motor, uma vez cada), a régua em palavras (com a origem das
-  comparações e "nenhuma queda chega a esse nível"), as exportações, o mapa e o gráfico pelos níveis, quem fica fora do mapa, o
+  comparações e "nenhuma queda chega a esse nível"), as exportações, o mapa e o gráfico pelos níveis, quem fica fora do mapa,
+  quem está nele com a coordenada da camada oficial, o
   que o Detector leva ao Simulador, o "Entenda" (mouse, toque e teclado), qualquer base (o que a base
   tem, os sinais indisponíveis, as datas só com ano, a concordância e o perfil da base) e a série do território na largura da
   tela, com as datas da série da taxa como nos outros gráficos;
@@ -582,5 +627,10 @@ o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudan�
   `backend/tests/ui_detector_mapa.py` (mesma suíte) — o mapa com municípios de dois estados à vista (Santa Catarina e Roraima):
   as divisas dos estados sem as dos municípios; "Aproximar o mapa em", que enquadra o estado com as divisas dos municípios dele
   sem cortar as áreas com nível; um estado só à vista pela busca; e a malha pedida uma vez só, quando o mapa abre.
-  `backend/tests/ui_planilha_ficticia.py` (suíte `bloco1`) — o Detector com uma planilha enviada: o perfil aberto
+  Desde a revisão final do V23, o mesmo roteiro confere o Brasil inteiro: os 5.570 pontos, a nota das seis coordenadas da camada
+  oficial e as siglas dos 27 estados sem sobreposição (`frontend/tests/mapa.test.mjs` confere a função que as afasta).
+  `backend/tests/ui_planilha_de_teste.py` (suíte `bloco1`, desde a revisão final do V23) — os nomes da base, com a planilha de
+  teste: 47 paradas no Detector e no Simulador (o modo simples, as quatro etapas do avançado e os "Entenda") sem "junho",
+  "médicos" nem as outras palavras da base do Brasil, e com "julho" e "enfermeiros" nos mesmos lugares.
+  `backend/tests/ui_planilha_ficticia.py` (suíte `bloco1`) — o mapa com a comuna sem coordenada fora dele, e o Detector com uma planilha enviada: o perfil aberto
   antes da ferramenta, a lista e o detalhe com os nomes da planilha e o Simulador desligado, com o motivo.

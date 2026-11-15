@@ -31,6 +31,7 @@ import brazil_data
 import comparativos
 import detector
 import main
+import nearest_reference
 import reguas
 import series_brasil
 import trend
@@ -926,15 +927,26 @@ def test_contexto_geografico_e_a_distancia_ao_municipio_mais_proximo_que_atende_
     assert (longe["referencia"]["id"], longe["percentil_da_distancia"]) == ("code:210001", 75.0)   # a 3 graus do primeiro e a 7 do último
     assert longe["distancia_km"] == pytest.approx(333.9585, abs=1e-3)
     assert (contexto["210004"]["estado"], contexto["210004"]["motivo"]) == ("sem_coordenada", "Sem coordenada válida na data.")
+    # Sem a distância, a frase diz o motivo (revisão final do V23, 15/11/2026).
+    assert texto_do(b, avaliar(b, "210004", e), e, "contexto")["situacao"] == "Sem coordenada válida em jun/2024: a distância não pode ser medida"
+    assert perto["complementadas"] == []          # numa base sem a camada oficial de coordenadas, nenhum ponto vem dela
     # Só contexto: nunca vira alerta, e não é juízo sobre o atendimento.
     av = avaliar(b, "210003", e)
     assert av["dimensoes"]["contexto"] is None and "contexto" not in av["sinais"] and "classe" not in av["contexto"]
     texto = texto_do(b, av, e, "contexto")
-    # A frase diz o que é o território de referência (tabela B.2): o mais próximo com taxa de pelo menos X% da taxa da base toda,
-    # com o X em uso, e em que posição essa distância fica (revisão das capturas de 15/11/2026).
+    # A frase diz o que é o território de referência (tabela B.2) e em que posição essa distância fica (revisão das capturas de
+    # 15/11/2026). Muda de propósito na revisão final do V23: com o padrão de 100%, "com taxa igual ou maior que a do Brasil" (antes,
+    # "com pelo menos 100% da taxa do Brasil"); e a posição em palavras simples (antes, "Mais longe que 75% dos municípios abaixo
+    # desse critério").
     assert texto["numero"] == "11" and texto["situacao"] == (
-        "A 334 km, em linha reta, de M210001: o município mais próximo com pelo menos 100% da taxa do Brasil (2,00 médicos por 1.000 "
-        "habitantes). Mais longe que 75% dos municípios abaixo desse critério")
+        "A 334 km, em linha reta, de M210001: o município mais próximo com taxa igual ou maior que a do Brasil (2,00 médicos por 1.000 "
+        "habitantes). De cada 100 municípios abaixo desse critério, 75 ficam mais perto de um município assim")
+    assert texto["entenda"]["exemplo"] == ("A 120 km do mais próximo: de cada 100 territórios abaixo do critério, 90 ficam mais perto de um "
+                                          "território assim.")
+    # Nas pontas, o arredondamento não vira "nenhum" nem "todos" sem ser; com 1, o verbo concorda.
+    assert [detector._mais_perto(valor, True) for valor in (0.0, 0.3, 0.6, 40.2, 99.4, 99.7, 100.0)] == [
+        "nenhum fica", "menos de 1 fica", "1 fica", "40 ficam", "99 ficam", "mais de 99 ficam", "todos ficam"]
+    assert (detector._mais_perto(0.0, False), detector._mais_perto(100.0, False)) == ("nenhuma fica", "todas ficam")
     assert texto["observado"] == ("O território fica a 334 km, em linha reta, de M210001 (3,00 por 1.000 habitantes), o mais próximo com taxa "
                                   "igual ou maior que 2,00 médicos por 1.000 habitantes em jun/2024 (100% da taxa do Brasil, de 2,00).")
     assert texto["habitual"] == "A distância é maior que a de 75% dos territórios abaixo do critério. Só contexto, sem nível."
@@ -946,6 +958,8 @@ def test_contexto_geografico_e_a_distancia_ao_municipio_mais_proximo_que_atende_
         {"id": "c1", "rotulo": "Baixos", "membros": ["code:210002", "code:210003"]},
         {"id": "c2", "rotulo": "Com quem atende", "membros": ["code:210001", "code:210002"]}]})
     assert detector.avaliar(b, cal, estado, 0, e, P)["contexto"]["estado"] == "nao_aplicavel"
+    assert texto_do(b, detector.avaliar(b, cal, estado, 0, e, P), e, "contexto")["situacao"] == (
+        "Não se aplica ao estado como unidade: ele não tem um ponto único")
     dos_baixos = detector.avaliar(b, cal, baixos, 0, e, P)["contexto"]
     assert (dos_baixos["estado"], dos_baixos["membro"], dos_baixos["percentil_da_distancia"]) == ("contexto", "M210002", None)
     assert dos_baixos["distancia_km"] == pytest.approx(111.3195, abs=1e-3)
@@ -958,10 +972,10 @@ def test_contexto_geografico_e_a_distancia_ao_municipio_mais_proximo_que_atende_
     assert (de_perto["criterio"]["taxa_minima"], de_perto["referencia"]["id"], de_perto["universo"]) == (pytest.approx(1.4), "code:210001", 1)
     assert texto_do(b, avaliar(b, "210002", e, p=com_70), e, "contexto", p=com_70)["situacao"] == (
         "A 111,3 km, em linha reta, de M210001: o município mais próximo com pelo menos 70% da taxa do Brasil (1,40 médicos por 1.000 "
-        "habitantes). Mais longe que 50% dos municípios abaixo desse critério")
+        "habitantes). De cada 100 municípios abaixo desse critério, 50 ficam mais perto de um município assim")
     # Num conjunto, a distância é a do componente mais próximo, sem posição entre os territórios.
     assert texto_do(b, detector.avaliar(b, cal, baixos, 0, e, P), e, "contexto")["situacao"] == (
-        "A 111,3 km, em linha reta, de M210001: o município mais próximo com pelo menos 100% da taxa do Brasil (2,00 médicos por 1.000 "
+        "A 111,3 km, em linha reta, de M210001: o município mais próximo com taxa igual ou maior que a do Brasil (2,00 médicos por 1.000 "
         "habitantes)")
     # O mapa: a lista diz quem da seleção fica sem ponto e por quê — a base não traz a coordenada na data, ou traz a latitude ou a
     # longitude fora do intervalo válido (revisão das capturas, 14/11/2026). Numa base sem coordenadas, não há mapa nem lista.
@@ -974,6 +988,11 @@ def test_contexto_geografico_e_a_distancia_ao_municipio_mais_proximo_que_atende_
     assert lista["sem_coordenada"] == [{"id": "code:210002", "motivo": "fora_do_intervalo"}, {"id": "code:210004", "motivo": "ausente"}]
     assert sorted(lista["coordenadas"]) == ["code:210001", "code:210003", "code:210005"]
     assert detector.compute(None, todos, base=base({"110001": serie((5, T)), **fundo(3)}))["sem_coordenada"] == []
+    # A camada oficial de coordenadas é só da base do Brasil lida dos arquivos: numa base montada sem ela, a resposta diz None.
+    assert lista["complemento_geografico"] is None and b.complemento is None and b.complementados == ()
+    # Sem a contagem nacional, a frase diz por que a distância não sai.
+    assert texto_do(_cenario_do_contexto(brasil=None), avaliar(_cenario_do_contexto(brasil=None), "210002", e), e, "contexto")["situacao"] == (
+        "Não calculável: sem a taxa do Brasil na data")
     # Sem a contagem nacional, o critério não pode ser aplicado.
     sem_brasil = _cenario_do_contexto(brasil=None)
     assert avaliar(sem_brasil, "210002", e)["contexto"] == {
@@ -1121,6 +1140,11 @@ def test_rota_do_detector_lista_detalhe_e_recusas(catalogo, monkeypatch):
     assert do_patamar["elevado"] == {"um_em": 100, "pede": 99, "avaliado": False, "origem": "vizinhas", "comparacoes": 38, "afastamento_pct": None}
     # Os três municípios têm coordenada: ninguém fica fora do mapa.
     assert body["sem_coordenada"] == [] and sorted(body["coordenadas"]) == ["code:130260", "code:130340", "code:130420"]
+    # A camada oficial de coordenadas é um arquivo versionado da base governada. No catálogo deste teste ela não existe: nada é
+    # complementado, e a resposta diz isso (revisão final do V23, 15/11/2026).
+    assert body["complemento_geografico"] == {
+        "estado": "ausente", "motivo": "camada versionada inexistente: coordenadas oficiais ainda não incorporadas",
+        "territorios_complementados": []}
     assert body["calibracao"]["monitoramento"] == {"avaliadas": 3, "raras": 0, "incomuns": 0, "taxa_pct": 0.0, "esperado_pct": 5.0,
                                                    "aviso_da_base": False}
     assert manaus["defasagem"]["indice"] == pytest.approx(100 * 51 / 6) and manaus["defasagem"]["estado"] == "sem_comparacoes"
@@ -1311,11 +1335,12 @@ def test_real_lista_inteira_um_nivel_por_territorio(real):
     feitas = _confere_a_regua_da_data(real, detector.calibrar(real), len(PERIODOS) - 1)
     assert feitas["porte"] > 15000 and feitas["vizinhas"] > 0 and feitas["sem"] > 0, feitas
     assert body["calibracao"]["monitoramento"]["taxa_pct"] == pytest.approx(2.89, abs=0.01) and body["aviso_da_base"] is None
-    # Os 6 municípios fora do mapa: a base traz a latitude ou a longitude deles fora do intervalo válido (a lista continua com
-    # os 5.570; a legenda do mapa diz quais ficam de fora e por quê).
-    assert body["sem_coordenada"] == [{"id": "code:" + codigo, "motivo": "fora_do_intervalo"}
-                                      for codigo in ("170100", "350050", "421265", "422000", "430367", "500490")]
-    assert len(body["coordenadas"]) == 5564 and not {item["id"] for item in body["sem_coordenada"]} & set(body["coordenadas"])
+    # Muda de propósito na revisão final do V23 (15/11/2026, opção (a) do item 4 da Pausa 2): os 6 municípios em que a base traz a
+    # latitude ou a longitude fora do intervalo válido ficam com a sede municipal da camada oficial do IBGE, como nas análises. O
+    # mapa tem os 5.570 pontos, e ninguém fica de fora (antes: 5.564 coordenadas e esses 6 em `sem_coordenada`).
+    assert body["sem_coordenada"] == [] and len(body["coordenadas"]) == 5570
+    assert body["complemento_geografico"]["territorios_complementados"] == [
+        "code:" + codigo for codigo in ("170100", "350050", "421265", "422000", "430367", "500490")]
     # Na primeira data com transição (jun/2014), a base ainda não tem mudanças anteriores: a queda fica "sem comparações
     # suficientes", com o fato à vista; os sinais por convenção continuam valendo.
     cedo = corpo(pedir({"base": {"municipios": {"todos": True}}, "janela": {"fim": "201406"}}))
@@ -1343,8 +1368,80 @@ def test_real_rio_rufino_pico_que_volta(real):
     assert (frases["patamar"]["estado_do_nivel"], frases["patamar"]["situacao"]) == (
         "nao_avaliado", "No patamar ou acima dele (patamar de 3,25, abaixo do mínimo de 20)")
     assert frases["contexto"]["situacao"] == (
-        "A 21,3 km, em linha reta, de BOCAINA DO SUL (SC): o município mais próximo com pelo menos 100% da taxa do Brasil (2,36 médicos "
-        "por 1.000 habitantes). Mais longe que 40% dos municípios abaixo desse critério")
+        "A 21,3 km, em linha reta, de BOCAINA DO SUL (SC): o município mais próximo com taxa igual ou maior que a do Brasil (2,36 "
+        "médicos por 1.000 habitantes). De cada 100 municípios abaixo desse critério, 40 ficam mais perto de um município assim")
+    # Os sinais 8 a 10 de Rio Rufino são só descritivos (menos de 20 médicos no início da janela): a frase diz isso.
+    assert (frases["disponibilidade"]["estado_do_nivel"], frases["disponibilidade"]["situacao"]) == (
+        "nao_avaliado", "−0,2% de médicos por habitante em 2 anos · só descritivo: menos de 20 médicos no início da janela")
+    assert frases["instabilidade"]["situacao"] == "Descontinuidade de registro na janela"
+
+
+def test_real_coordenadas_das_ferramentas_pela_camada_oficial(real):
+    """Revisão final do V23 (15/11/2026, opção (a) do item 4 da Pausa 2): o Detector e o Simulador leem as coordenadas como as
+    análises. Nos seis municípios em que a fonte traz o ponto fora do intervalo válido, vale a sede municipal da camada oficial do
+    IBGE (`dados/brasil/complemento_coordenadas.json`), nas 22 datas; o arquivo da base não muda. O mapa fica com os 5.570 pontos,
+    e o sinal 11 desses municípios usa as coordenadas da camada."""
+    camada = json.loads((Path(__file__).resolve().parents[2] / "dados" / "brasil" / "complemento_coordenadas.json").read_text(encoding="utf-8"))
+    da_camada = {item["codigo_base"]: (item["latitude"], item["longitude"]) for item in camada["municipios"]}
+    os_seis = ["170100", "350050", "421265", "422000", "430367", "500490"]
+    assert sorted(da_camada) == os_seis and list(real.complementados) == os_seis
+    assert (real.complemento["estado"], real.complemento["municipios_complementados"], real.complemento["linhas_complementadas"]) == (
+        "valido", os_seis, 6 * len(PERIODOS))
+    for codigo, (lat, lon) in da_camada.items():
+        linha = real.indice[codigo]
+        assert (real.latitude[linha] == lat).all() and (real.longitude[linha] == lon).all(), codigo
+    # Todos os municípios têm ponto válido em todas as datas com registro.
+    valido = np.isfinite(real.latitude) & np.isfinite(real.longitude) & (np.abs(real.latitude) <= 90) & (np.abs(real.longitude) <= 180)
+    assert bool((valido | np.isnan(real.quantidade)).all())
+    # A fonte continua com o que tinha: em Ananás, a latitude sem a vírgula decimal (o arquivo da base não foi alterado).
+    fonte = main._brazil_sources("").frame("municipal")
+    campos = series_brasil.FIELDS["municipal"]
+    de_ananas = fonte[fonte[campos["territory_id"]].astype(str).str.strip() == "170100"]
+    assert len(de_ananas) == len(PERIODOS) and (series_brasil._decimais(de_ananas[campos["latitude"]]) < -90).all()
+    # O mapa: os 5.570 pontos, com os dos seis municípios nas coordenadas da camada, e a resposta diz quais vieram dela.
+    body = corpo(pedir({"base": {"municipios": {"todos": True}}}))
+    assert len(body["coordenadas"]) == 5570 and body["sem_coordenada"] == []
+    geo = body["complemento_geografico"]
+    assert (geo["estado"], geo["identificador"], geo["versao"]) == ("valido", "complemento-coordenadas-ibge-localidades-2022", "1")
+    assert geo["territorios_complementados"] == ["code:" + codigo for codigo in os_seis]
+    assert geo["proveniencia"]["referencial"] == "SIRGAS2000" and geo["proveniencia"]["ponto"].startswith("sede municipal")
+    for codigo, (lat, lon) in da_camada.items():
+        assert body["coordenadas"]["code:" + codigo] == [lat, lon], codigo
+    # O sinal 11 dos seis: quatro atendem ao critério (e passam a ser referência dos vizinhos); os outros dois têm a distância
+    # medida das coordenadas da camada (refeita aqui, por fora, até a referência que o motor indicou).
+    linhas = {linha["id"]: linha for linha in body["linhas"]}
+    contexto = {codigo: linhas["code:" + codigo]["contexto"] for codigo in os_seis}
+    assert {codigo: c["estado"] for codigo, c in contexto.items()} == {
+        "170100": "contexto", "350050": "atende_ao_criterio", "421265": "atende_ao_criterio", "422000": "contexto",
+        "430367": "atende_ao_criterio", "500490": "atende_ao_criterio"}
+    assert (contexto["170100"]["referencia"], contexto["422000"]["referencia"]) == ("LUZINOPOLIS (TO)", "ICARA (SC)")
+    for codigo, km in (("170100", 30.893), ("422000", 15.333)):
+        referencia = real.indice[contexto[codigo]["referencia_id"][5:]]
+        metros, _, _ = nearest_reference.nearest_exact(np.array([da_camada[codigo][0]]), np.array([da_camada[codigo][1]]),
+                                                       np.array([real.latitude[referencia, -1]]), np.array([real.longitude[referencia, -1]]),
+                                                       crs=comparativos.CRS)
+        assert contexto[codigo]["distancia_km"] == pytest.approx(float(metros[0]) / 1000.0, abs=1e-6)
+        assert contexto[codigo]["distancia_km"] == pytest.approx(km, abs=1e-3)
+    assert (contexto["170100"]["percentil"], contexto["422000"]["percentil"]) == (pytest.approx(55.059, abs=1e-3), pytest.approx(25.266, abs=1e-3))
+    dos_seis = {"code:" + codigo for codigo in os_seis}
+    assert {linha["rotulo"]: linha["contexto"]["referencia"] for linha in body["linhas"] if linha["contexto"].get("referencia_id") in dos_seis} == {
+        "MONTE SIAO (MG)": "AGUAS DE LINDOIA (SP)", "IMARUI (SC)": "PESCARIA BRAVA (SC)", "BANDEIRANTES (MS)": "JARAGUARI (MS)"}
+    # O detalhe de Ananás: a frase do sinal 11, e a explicação completa diz que o ponto é o da camada oficial.
+    do_detalhe = corpo(pedir({"base": {"municipios": {"ids": ["code:170100"]}}, "detalhe": "code:170100"}))
+    frase = next(item for item in do_detalhe["fenomenos"] if item["chave"] == "contexto")
+    assert frase["situacao"] == (
+        "A 30,9 km, em linha reta, de LUZINOPOLIS (TO): o município mais próximo com taxa igual ou maior que a do Brasil (2,36 médicos por "
+        "1.000 habitantes). De cada 100 municípios abaixo desse critério, 55 ficam mais perto de um município assim")
+    assert frase["observado"].endswith("Coordenada da sede municipal, da camada oficial do IBGE, porque a base traz a original fora do "
+                                       "intervalo válido: ANANAS (TO).")
+    assert do_detalhe["complemento_geografico"]["territorios_complementados"] == ["code:170100"]
+    # Quem não está entre os seis não leva a nota (Rio Rufino), e Brasília diz por que o sinal 10 fica sem referência.
+    de_rio_rufino = corpo(pedir({"base": {"municipios": {"ids": ["code:421505"]}}, "detalhe": "code:421505"}))
+    assert "camada oficial" not in next(item for item in de_rio_rufino["fenomenos"] if item["chave"] == "contexto")["observado"]
+    assert de_rio_rufino["complemento_geografico"]["territorios_complementados"] == []
+    de_brasilia = corpo(pedir({"base": {"municipios": {"ids": ["code:530010"]}}, "detalhe": "code:530010"}))
+    assert next(item for item in de_brasilia["fenomenos"] if item["chave"] == "defasagem")["situacao"] == (
+        "Sem referência: a UF deste município não tem outros municípios")
 
 
 def test_real_malha_das_divisas_tem_a_divisa_de_cada_municipio_da_base(real):
@@ -1458,14 +1555,17 @@ def test_real_fenomenos_8_a_12_comparacao_so_com_populacao_comparavel(real):
     # O contexto geográfico vale em qualquer data: o critério é a taxa do Brasil (2,36 por 1.000 em jun/2024).
     contexto = hoje["comparacao"]["contexto"]
     assert contexto["taxa_minima"] == contexto["taxa_do_brasil"] == pytest.approx(2.36375, abs=1e-5) and contexto["pct_da_taxa_do_brasil"] == 100.0
-    assert (contexto["atendem"], contexto["universo"]) == (2002, 3566)
-    assert contar(hoje, "contexto") == {"contexto": 3566, "atende_ao_criterio": 2002, "sem_coordenada": 2}
-    assert len(hoje["coordenadas"]) == 5564 and all(len(par) == 2 for par in hoje["coordenadas"].values())
+    # Muda de propósito na revisão final do V23 (as coordenadas pela camada oficial): os dois municípios abaixo do critério que não
+    # tinham ponto (Ananás e Balneário Rincão) passam a ter distância — 3.568 com distância (antes, 3.566 e 2 sem coordenada) —, e
+    # o mapa, os 5.570 pontos (antes, 5.564).
+    assert (contexto["atendem"], contexto["universo"]) == (2002, 3568)
+    assert contar(hoje, "contexto") == {"contexto": 3568, "atende_ao_criterio": 2002}
+    assert len(hoje["coordenadas"]) == 5570 and all(len(par) == 2 for par in hoje["coordenadas"].values())
     # Em jun/2021, a janela é a de jun/2019 a jun/2021, com a população nova (a taxa do Brasil na data é de 2,01 por 1.000).
     antes = corpo(pedir({"base": {"municipios": {"todos": True}}, "janela": {"fim": "202106"}}))
     assert (antes["comparacao"]["estado"], antes["comparacao"]["de"], antes["comparacao"]["ate"]) == ("comparavel", "201906", "202106")
     assert antes["comparacao"]["contexto"]["taxa_do_brasil"] == pytest.approx(2.01377, abs=1e-5)
-    assert (antes["comparacao"]["contexto"]["atendem"], antes["comparacao"]["contexto"]["universo"]) == (1670, 3895)
+    assert (antes["comparacao"]["contexto"]["atendem"], antes["comparacao"]["contexto"]["universo"]) == (1670, 3900)   # antes, 3.895
     assert [antes["resumo"]["sinais"][chave] for chave in ("disponibilidade", "posicao", "defasagem", "combinados")] == [46, 107, 78, 535]
     assert contar(antes, "disponibilidade") == {"sem_sinal": 1967, "descritivo": 3554, "classificado": 46, "nao_calculavel": 3}
     assert contar(antes, "disponibilidade", "classe") == {None: 5524, "moderado": 33, "elevado": 11, "critico": 2}
@@ -1498,13 +1598,14 @@ def test_real_fenomenos_8_a_12_comparacao_so_com_populacao_comparavel(real):
     # (com a população nova, é Porto Velho; com a anterior, era Jacareacanga, a 424 km). O contexto não gera alerta.
     manaus = linhas["code:130260"]["contexto"]
     assert (manaus["estado"], manaus["referencia"], manaus["referencia_id"]) == ("contexto", "PORTO VELHO (RO)", "code:110020")
-    assert manaus["distancia_km"] == pytest.approx(752.233, abs=1e-3) and manaus["percentil"] == pytest.approx(99.012, abs=1e-3)
+    # A posição muda na terceira casa (99,013; antes, 99,012): cinco municípios a mais têm distância em jun/2021.
+    assert manaus["distancia_km"] == pytest.approx(752.233, abs=1e-3) and manaus["percentil"] == pytest.approx(99.0128, abs=1e-4)
     assert (linhas["code:130260"]["alerta"]["estado"], linhas["code:130260"]["alerta"]["nivel"]) == ("sem_alerta", None)
     assert "code:110020" in antes["coordenadas"] and "code:130260" in antes["coordenadas"]
     de_manaus = corpo(pedir({"base": {"municipios": {"ids": ["code:130260"]}}, "detalhe": "code:130260", "janela": {"fim": "202106"}}))
     assert next(item for item in de_manaus["fenomenos"] if item["chave"] == "contexto")["situacao"] == (
-        "A 752,2 km, em linha reta, de PORTO VELHO (RO): o município mais próximo com pelo menos 100% da taxa do Brasil (2,01 médicos por "
-        "1.000 habitantes). Mais longe que 99% dos municípios abaixo desse critério")
+        "A 752,2 km, em linha reta, de PORTO VELHO (RO): o município mais próximo com taxa igual ou maior que a do Brasil (2,01 médicos "
+        "por 1.000 habitantes). De cada 100 municípios abaixo desse critério, 99 ficam mais perto de um município assim")
     assert (de_manaus["territorio"]["declinio"]["junhos"], de_manaus["territorio"]["declinio"]["registros_anuais"]) == (8, 8)
     # Os detalhes de um território trazem os 11 itens (os 12 sinais; 1 e 2 juntos) e as séries dos gráficos dos sinais 8 e 10.
     detalhe = corpo(pedir({"base": {"municipios": {"ids": ["code:350530"]}}, "detalhe": "code:350530", "janela": {"fim": "202106"}}))

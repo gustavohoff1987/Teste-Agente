@@ -455,23 +455,25 @@ def main():
                 NOMES[nivel] + ": " + str(no_mapa(nivel)))
         assert no_mapa("critico") >= 1 and no_mapa("moderado") > no_mapa("elevado") > 0, [no_mapa(nivel) for nivel in NOMES]
         expect(mapa.get_by_test_id("analise-mapa-nome-grupo")).to_have_text("SC")
-        # Quem está na lista e fica fora do mapa (revisão das capturas, 14/11/2026): a legenda diz quantos são, com que nível,
-        # quais e por quê. Em Santa Catarina, a base traz a coordenada de dois municípios fora do intervalo válido.
+        # Muda de propósito na revisão final do V23 (15/11/2026, opção (a) do item 4 da Pausa 2): em Santa Catarina, a base traz a
+        # coordenada de dois municípios (Pescaria Brava e Balneário Rincão) fora do intervalo válido. Eles ficavam fora do mapa, com
+        # a frase "Fora do mapa: 2 municípios à vista (…)"; agora ficam com a sede municipal da camada oficial do IBGE, como nas
+        # análises: ninguém fica de fora, e a legenda diz quais pontos vieram da camada. Quem fica fora do mapa por não ter
+        # coordenada continua conferido em `ui_planilha_ficticia.py` (a comuna sem coordenada) e nos testes do modelo.
         fora = [item for item in municipais if item["id"] not in com_ponto]
-        assert [item["rotulo"] for item in fora] == ["PESCARIA BRAVA (SC)", "BALNEARIO RINCAO (SC)"], [item["rotulo"] for item in fora]
-        assert corpo_misto["sem_coordenada"] == [{"id": item["id"], "motivo": "fora_do_intervalo"} for item in fora], corpo_misto["sem_coordenada"]
-        fora_do_mapa = mapa.get_by_test_id("detector-mapa-fora")
-        expect(fora_do_mapa).to_have_attribute("data-quantos", "2")
-        expect(fora_do_mapa).to_contain_text("Fora do mapa: 2 municípios à vista (")
-        expect(fora_do_mapa).to_contain_text("Em jun/2024, a base traz a latitude ou a longitude fora do intervalo válido em: ")
-        for item in fora:
-            expect(fora_do_mapa).to_contain_text(item["rotulo"] + (" — " + NOMES[item["alerta"]["nivel"]].lower() if item["alerta"]["nivel"] else ""))
-        expect(fora_do_mapa).to_contain_text("Continuam na lista, cada qual com o seu nível.")
-        expect(mapa.locator('[data-testid="analise-mapa-ponto"]')).to_have_count(len(municipais) - len(fora))   # os pontos e os de fora somam a lista
+        assert fora == [] and corpo_misto["sem_coordenada"] == [], [item["rotulo"] for item in fora]
+        assert corpo_misto["complemento_geografico"]["territorios_complementados"] == ["code:421265", "code:422000"], corpo_misto["complemento_geografico"]
+        expect(mapa.get_by_test_id("detector-mapa-fora")).to_have_count(0)
+        oficiais = mapa.get_by_test_id("detector-mapa-coordenadas-oficiais")
+        expect(oficiais).to_contain_text("Em 2 municípios à vista, o ponto é o da sede municipal, da camada oficial de coordenadas do IBGE, "
+                                         "porque a base traz a coordenada deles fora do intervalo válido: ")
+        for rotulo in ("PESCARIA BRAVA (SC)", "BALNEARIO RINCAO (SC)"):
+            expect(oficiais).to_contain_text(rotulo)
+        expect(mapa.locator('[data-testid="analise-mapa-ponto"]')).to_have_count(len(municipais))   # um ponto por município da lista
         # As divisas (etapa 7 do comando V23; muda de propósito: antes, "A base não tem as divisas"): na base do Brasil, o mapa tem
         # a malha municipal do IBGE, pedida só quando ele abre. As divisas dos estados ficam sempre à vista; com os municípios de um
         # estado só à vista (Santa Catarina), as dos municípios também aparecem; a área de cada município com nível leva a cor
-        # dele — também a dos dois municípios sem coordenada válida, que não têm ponto.
+        # dele.
         expect(mapa).to_have_attribute("data-divisas", "carregadas", timeout=60000)
         divisas = mapa.get_by_test_id("analise-mapa-divisas")
         expect(divisas).to_have_attribute("data-bordas", "true")

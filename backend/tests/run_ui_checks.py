@@ -49,7 +49,10 @@ SUITES = {
                      "de 100%, em várias resoluções",
         "catalogo": "bloco1", "servidor": "offline",
         "roteiros": [("ui_pagina_unica.py", {}), ("ui_area_de_analise.py", {}), ("ui_modo_escuro.py", {}),
-                     ("ui_planilha_ficticia.py", {}), ("ui_caixa_conversa.py", {})],
+                     ("ui_planilha_ficticia.py", {}),
+                     # Os nomes da base nas ferramentas, com a planilha de teste (revisão final do comando V23): nenhum "junho" nem
+                     # "médicos" no Detector e no Simulador (modo simples, as etapas do avançado e os "Entenda").
+                     ("ui_planilha_de_teste.py", {}), ("ui_caixa_conversa.py", {})],
     },
     "gemini-simulado": {
         "descricao": "Conversa agindo no gráfico com um transporte Gemini simulado: ambiguidade em botões e nada da base ao provedor",

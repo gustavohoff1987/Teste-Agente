@@ -128,9 +128,7 @@ NUMEROS_DOS_SINAIS = {"declinio": 3, "desaceleracao": 4, "patamar": 7, "disponib
 
 def _motivo_em_frase(motivos: tuple) -> str:
     """"a base não tem população nem grupo de cima.": os motivos de um sinal numa frase só (as frases curtas do Detector)."""
-    curtas = [detector.MOTIVOS_DA_FALTA[motivo][0] for motivo in motivos]
-    resto = [frase.removeprefix("a base não tem ") for frase in curtas[1:]]
-    return curtas[0] + ("" if not resto else (", " + ", ".join(resto[:-1]) if len(resto) > 1 else "") + " nem " + resto[-1]) + "."
+    return detector._motivos_em_frase(motivos) + "."
 
 
 def _sinais_indisponiveis(base: Base) -> list[dict]:

@@ -854,15 +854,24 @@ def _base_do_cenario(base: Base, cal: detector.Calibracao, retro: Retroprojecao 
 
 def _aviso_do_horizonte(anos: float, janela: float, sem_historia: bool = False) -> dict:
     """Os avisos H/W (seção 7.3): informativos, sem garantia estatística. `sem_historia`: o cenário mantém o último valor (M0), que
-    não usa a história; a comparação continua sendo com os 3 anos de referência, mas o texto não diz que eles foram "usados no
-    cálculo" (numa base com registros espaçados, a janela à vista nem tem 3 anos)."""
+    não usa a história. Os níveis continuam os mesmos (medidos com os 3 anos de referência), mas a frase é simples e não fala em
+    referência nem em história (revisão final do V23, 15/11/2026: "a referência são 3 anos, porque manter o último valor não usa a
+    história" confundia, e uma base pode nem ter 3 anos): "Cautela: quanto mais longe a data final, mais incerto o cenário (aqui,
+    2 anos à frente)."."""
     razao = anos / janela if janela > 0 else math.inf
     if sem_historia:
-        tempo = "tempo de referência"
-        tempos = " (" + _tempo(anos) + " à frente; a referência são " + _tempo(janela) + ", porque manter o último valor não usa a história)."
-    else:
-        tempo = "tempo de história usado no cálculo"
-        tempos = " (" + _tempo(anos) + " à frente, com " + _tempo(janela) + " de história usados no cálculo)."
+        aqui = " (aqui, " + _tempo(anos) + " à frente)."
+        if razao <= 0.5:
+            return {"nivel": "normal", "texto": "Quanto mais longe a data final, mais incerto o cenário" + aqui}
+        if razao <= 1:
+            return {"nivel": "cautela", "texto": "Cautela: quanto mais longe a data final, mais incerto o cenário" + aqui}
+        if razao <= 2:
+            return {"nivel": "extrapolacao", "texto": "Extrapolação: a data final fica longe do último registro, e o cenário é muito "
+                    "incerto" + aqui}
+        return {"nivel": "extrapolacao_extrema", "texto": "Extrapolação extrema: a data final fica muito longe do último registro, e o "
+                "cenário é incerto demais para ser lido como um número" + aqui}
+    tempo = "tempo de história usado no cálculo"
+    tempos = " (" + _tempo(anos) + " à frente, com " + _tempo(janela) + " de história usados no cálculo)."
     if razao <= 0.5:
         return {"nivel": "normal", "texto": "A data final fica a até metade do " + tempo + tempos}
     if razao <= 1:

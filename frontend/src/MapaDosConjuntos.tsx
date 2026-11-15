@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { caminhoDaMalha, type Caixa, type Ponto } from "./malhaModel";
-import { coresDoMapa } from "./mapaModel";
+import { afastarNomesDosGrupos, coresDoMapa } from "./mapaModel";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 
 // O mini mapa dos conjuntos (07/11/2026, item 7 do comando de 07/11/2026): no alto de "Por critérios" e de "Agrupar territórios" e
@@ -140,8 +140,8 @@ export default function MapaDosConjuntos(p: Props) {
     const centros = (p.grupos ?? []).map(grupo => {
       const pontos = grupo.membros.filter(id => posicao.has(id)).map(id => posicao.get(id)!);
       return pontos.length ? { id: grupo.id, nome: grupo.nome, x: pontos.reduce((soma, ponto) => soma + ponto[0], 0) / pontos.length,
-        y: pontos.reduce((soma, ponto) => soma + ponto[1], 0) / pontos.length } : null;
-    }).filter((centro): centro is { id: string; nome: string; x: number; y: number } => !!centro);
+        y: pontos.reduce((soma, ponto) => soma + ponto[1], 0) / pontos.length, peso: pontos.length } : null;
+    }).filter((centro): centro is { id: string; nome: string; x: number; y: number; peso: number } => !!centro);
     // As divisas, com a mesma projeção dos pontos: as áreas com cor, uma a uma; as sem cor, num caminho só (só quando as divisas dos
     // municípios aparecem); e as linhas das divisas dos estados.
     const doMapa = ([lon, lat]: Ponto): [number, number] => [deslocX + (lon - minLon) * fator * escala, deslocY + (maxLat - lat) * escala];
@@ -204,8 +204,10 @@ export default function MapaDosConjuntos(p: Props) {
     const [x, y] = desenho.posicao.get(id)!;
     return cabe(x + 5, y + 4, nomeAvulso(id), "start");
   });
-  // Os nomes dos grupos de cima, por último: só os que cabem sem cobrir outro nome.
-  const nomesDosGrupos = desenho.centros.filter(centro => cabe(centro.x, centro.y + 4, centro.nome, "middle"));
+  // Os nomes dos grupos de cima, por último, sem cobrir outro nome: o que cobriria se afasta para o lugar livre mais perto (revisão
+  // final do V23: "GO" e "DF" ficavam um sobre o outro no mapa do Brasil inteiro); sem lugar por perto, não aparece.
+  const nomesDosGrupos = afastarNomesDosGrupos(desenho.centros.map(centro => ({ ...centro, y: centro.y + 4 })), largura, altura,
+    caixas.map(([x0, y0, x1, y1]) => ({ x0, y0, x1, y1 })), LETRA);
   return <figure data-testid="analise-mapa-conjuntos" data-esmaecido={p.esmaecido ? "true" : "false"}
     className={"analise-mapa-conjuntos" + (p.esmaecido ? " analise-mapa-conjuntos-esmaecido" : "")}>
     <svg viewBox={"0 0 " + largura + " " + altura} width={largura} height={altura} role="img" aria-label={p.rotulo}
@@ -247,7 +249,8 @@ export default function MapaDosConjuntos(p: Props) {
         return <text key={"n" + id} x={x + 5} y={y + 4} fontSize={LETRA} fill={cores.tinta} stroke={cores.superficie} strokeWidth={3}
           strokeLinejoin="round" paintOrder="stroke" pointerEvents="none">{nomeAvulso(id)}</text>;
       })}
-      {nomesDosGrupos.map(centro => <text key={"g" + centro.id} data-testid="analise-mapa-nome-grupo" data-id={centro.id} x={centro.x} y={centro.y + 4}
+      {nomesDosGrupos.map(centro => <text key={"g" + centro.id} data-testid="analise-mapa-nome-grupo" data-id={centro.id}
+        data-deslocado={centro.deslocado ? "true" : "false"} x={centro.x} y={centro.y}
         textAnchor="middle" fontSize={LETRA} fontWeight={700} fill={cores.tinta} stroke={cores.superficie} strokeWidth={3} strokeLinejoin="round"
         paintOrder="stroke" pointerEvents="none">{centro.nome}</text>)}
       {desenho.barra && <g data-testid="analise-mapa-escala">

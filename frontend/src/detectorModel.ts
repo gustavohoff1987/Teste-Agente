@@ -120,6 +120,9 @@ export type RespostaDoDetector = {
   /** As unidades da seleção que ficam fora do mapa (id → motivo do motor): na data avaliada, a base não traz a coordenada delas
    * ("ausente") ou traz a latitude ou a longitude fora do intervalo válido ("fora_do_intervalo"). */
   semCoordenada: Record<string, MotivoSemPonto>;
+  /** Base do Brasil (revisão final do V23, 15/11/2026): os territórios desta resposta cujo ponto é a sede municipal da camada
+   * oficial de coordenadas do IBGE, porque a base traz a coordenada deles fora do intervalo válido. O arquivo da base não muda. */
+  coordenadasComplementadas: string[];
   /** Os sinais que esta base não sustenta (sinal → motivo): sem população, sem coordenadas, sem grupo de cima ou sem série anual. */
   indisponiveis: Record<string, string>;
   notas: string[]; limitacoes: string[];
@@ -281,6 +284,7 @@ export function normalizarDetector(bruto: unknown): RespostaDoDetector {
     comparacao: comparacaoDe(o.comparacao), coordenadas: coordenadasDe(o.coordenadas),
     semCoordenada: Object.fromEntries(lista(o.sem_coordenada).map(item => { const s = objeto(item);
       return [texto(s.id) ?? "", s.motivo === "fora_do_intervalo" ? "fora_do_intervalo" : "ausente"] as [string, MotivoSemPonto]; }).filter(par => par[0])),
+    coordenadasComplementadas: textos(objeto(o.complemento_geografico).territorios_complementados),
     indisponiveis: Object.fromEntries(Object.entries(objeto(o.indisponiveis)).filter((par): par is [string, string] => typeof par[1] === "string")),
     notas: textos(o.notas), limitacoes: textos(o.limitacoes) };
 }
@@ -484,6 +488,19 @@ export function textoDeForaDoMapa(fora: ForaDoMapa[], r: RotulosDaBase, competen
     (fora.some(item => item.motivo === "fora_do_intervalo") ? quando + "traz a latitude ou a longitude fora do intervalo válido em: " + nomes("fora_do_intervalo") + ". " : "") +
     (fora.some(item => item.motivo === "ausente") ? quando + "não traz a coordenada de: " + nomes("ausente") + ". " : "") +
     (fora.length === 1 ? "Continua na lista, com o seu nível." : "Continuam na lista, cada qual com o seu nível.");
+}
+/** A frase da legenda do mapa sobre quem está nele com a coordenada da camada oficial ("Em 2 municípios à vista, o ponto é o da
+ * sede municipal, da camada oficial de coordenadas do IBGE, porque a base traz a coordenada deles fora do intervalo válido:
+ * BALNEARIO RINCAO (SC); PESCARIA BRAVA (SC)."). Sem ninguém assim à vista, null. */
+export function textoDasCoordenadasOficiais(resposta: RespostaDoDetector, linhas: LinhaDoDetector[], r: RotulosDaBase): string | null {
+  const oficiais = new Set(resposta.coordenadasComplementadas);
+  const aVista = linhas.filter(linha => linha.tipo === "municipio" && oficiais.has(linha.id) && linha.id in resposta.coordenadas);
+  if (!aVista.length) return null;
+  const visiveis = aVista.slice(0, MAXIMO_DE_NOMES_FORA_DO_MAPA).map(linha => linha.rotulo);
+  const um = aVista.length === 1;
+  return "Em " + inteiro.format(aVista.length) + " " + (um ? r.unidade : r.unidades) + " à vista, o ponto é o da sede municipal, da camada oficial " +
+    "de coordenadas do IBGE, porque a base traz a coordenada " + (um ? "dele" : "deles") + " fora do intervalo válido: " + visiveis.join("; ") +
+    (aVista.length > visiveis.length ? "; e mais " + inteiro.format(aVista.length - visiveis.length) : "") + ".";
 }
 /** A série da taxa de um território e a da referência dele, para a Série temporal do Agente (sinais 8 e 10). */
 export function seriesDoComparativo(detalhe: DetalheDoDetector): { item: PainelItem; referencias: { id: string; rotulo: string;

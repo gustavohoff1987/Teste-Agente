@@ -527,6 +527,44 @@ export function posicionarNomes(pedidos: PedidoDeNome[], largura: number, altura
   return saida;
 }
 
+// ================================================================================================ nomes dos grupos
+/** O nome de um grupo de cima no mapa: o centro do texto (x), a linha de base (y) e quantos pontos o grupo tem (o peso). */
+export type NomeDeGrupo = { id: string; nome: string; x: number; y: number; peso?: number };
+/** A largura de um nome em negrito no mapa, com o halo em volta: mais larga que a de um nome comum. */
+export const larguraDoNomeDoGrupo = (nome: string, letra = 12): number => nome.length * letra * 0.8 + 6;
+const AFASTAMENTO_MAXIMO = 48, PASSO_DO_AFASTAMENTO = 4;
+
+/** Os nomes dos grupos de cima (as siglas dos estados, na base do Brasil), cada um no centro dos pontos do grupo, **sem se
+ * sobrepor** (revisão final do comando V23, 15/11/2026: no mapa do Brasil inteiro, "GO" e "DF" ficavam um sobre o outro). Os
+ * grupos com mais pontos são postos primeiro, no centro deles; um nome que cobriria outro (ou um dos obstáculos: os nomes já
+ * postos no mapa) se afasta para o lugar livre mais perto (no empate, para os lados); sem lugar a até 48 px, ou com o centro
+ * fora do desenho, o nome não aparece. Só o nome se move, nunca os pontos. */
+export function afastarNomesDosGrupos(centros: NomeDeGrupo[], largura: number, altura: number, obstaculos: Caixa[] = [], letra = 12):
+  (NomeDeGrupo & { deslocado: boolean })[] {
+  const postas: Caixa[] = [...obstaculos];
+  const caixaDe = (x: number, y: number, nome: string): Caixa => {
+    const meia = larguraDoNomeDoGrupo(nome, letra) / 2;
+    return { x0: x - meia, y0: y - letra, x1: x + meia, y1: y + 4 };
+  };
+  const livre = (caixa: Caixa) => caixa.x0 >= 2 && caixa.x1 <= largura - 2 && caixa.y0 >= 2 && caixa.y1 <= altura - 2 &&
+    !postas.some(outra => cruza(caixa, outra));
+  // Os deslocamentos, do mais perto ao mais longe; no empate, para os lados antes de para cima ou para baixo, e a direita primeiro.
+  const passos: [number, number][] = [];
+  for (let dx = -AFASTAMENTO_MAXIMO; dx <= AFASTAMENTO_MAXIMO; dx += PASSO_DO_AFASTAMENTO)
+    for (let dy = -AFASTAMENTO_MAXIMO; dy <= AFASTAMENTO_MAXIMO; dy += PASSO_DO_AFASTAMENTO) passos.push([dx, dy]);
+  passos.sort((a, b) => (a[0] * a[0] + a[1] * a[1]) - (b[0] * b[0] + b[1] * b[1]) || Math.abs(a[1]) - Math.abs(b[1]) || b[0] - a[0] || a[1] - b[1]);
+  const ordem = centros.map((centro, posicao) => ({ centro, posicao }))
+    .sort((a, b) => (b.centro.peso ?? 0) - (a.centro.peso ?? 0) || a.posicao - b.posicao);
+  const saida: (NomeDeGrupo & { deslocado: boolean })[] = [];
+  for (const { centro } of ordem) {
+    const passo = passos.find(([dx, dy]) => livre(caixaDe(centro.x + dx, centro.y + dy, centro.nome)));
+    if (!passo) continue;
+    postas.push(caixaDe(centro.x + passo[0], centro.y + passo[1], centro.nome));
+    saida.push({ ...centro, x: centro.x + passo[0], y: centro.y + passo[1], deslocado: passo[0] !== 0 || passo[1] !== 0 });
+  }
+  return saida;
+}
+
 // ================================================================================================ ligações
 /** Ligações ilustrativas (não são trajeto) dos selecionados até a referência mais próxima, como o motor indicou: no máximo
  * 30 origens; sem coordenada de um dos lados, ou ligando o ponto a ele mesmo, a linha não aparece. */

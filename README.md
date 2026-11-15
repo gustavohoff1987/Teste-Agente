@@ -344,7 +344,9 @@ Situação vigente desde 02/11/2026:
    da base Brasil municipal, na versão da fonte a que se refere (`Dados_Municipios_Brasil.csv`, SHA-256
    `4a81a28b7c1d…`; até 13/11/2026, `d244906e6d09…`; até 25/10/2026, `89c027c90a2d…`; sempre com os mesmos
    seis pontos), apenas onde o ponto original
-   é inválido; os arquivos originais e as bases importadas não são alterados.
+   é inválido; os arquivos originais e as bases importadas não são alterados. Desde 15/11/2026 (decisão do responsável na
+   revisão final do comando V23), o Detector de Sinais e o Simulador de Cenários leem as coordenadas da mesma forma (antes,
+   liam a fonte sem a camada, e os seis municípios ficavam sem ponto nas duas ferramentas).
 6. **Municípios e competências.** Ananás/TO (170100), Pescaria Brava/SC (421265), Balneário
    Rincão/SC (422000), Jaraguari/MS (500490), Campestre da Serra/RS (430367) e Águas de
    Lindóia/SP (350050), nas 22 competências de janeiro e junho de 2014 a 2024 (132 registros).
@@ -931,7 +933,9 @@ comparações suficientes", com os números. Com uma planilha, nenhum texto usa 
 colunas (Território · Alerta · Por quê · Último registro), com o resumo dos níveis no alto, clicável, os filtros numa linha
 (Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico. Na base do Brasil, o Mapa tem as divisas da malha municipal do
 IBGE (um arquivo versionado da interface, pedido só quando o mapa abre): as dos estados sempre, e as dos municípios ao aproximar
-o mapa num estado (desde 15/11/2026). Cada território tem **um nível só** — **moderado, elevado ou
+o mapa num estado (desde 15/11/2026). As duas ferramentas leem as coordenadas como as análises (desde 15/11/2026): nos seis
+municípios em que a fonte traz o ponto fora do intervalo válido, vale a sede municipal da camada oficial do IBGE, e o mapa tem
+os 5.570 pontos. Sempre que um sinal não é avaliado, não é calculável ou está indisponível, a frase dele diz o motivo. Cada território tem **um nível só** — **moderado, elevado ou
 crítico**, o maior entre os seus 12 sinais, sem soma nem índice —, sempre escrito e com o tipo de critério: "comparado com a
 base" (raro entre as mudanças anteriores de territórios do mesmo porte: 1 em cada 20, 100 ou 1.000) ou "por convenção". Quando a
 base não tem comparações bastantes, a tela diz **"sem comparações suficientes"**, com os números; um conjunto não tem nível; os

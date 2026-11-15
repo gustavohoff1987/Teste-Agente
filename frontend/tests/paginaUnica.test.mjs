@@ -258,3 +258,11 @@ test('confirmação de execução (05/11/2026): o desfecho de um pedido que não
     mensagens: ['A área de análise recomeçou.'], titulo: '', resultado: null, execucao: null, semTerritorios: false});
   assert.deepEqual(P.desfechoSemArea(4, 'substituido', '').mensagens, []);
 });
+
+test('painel Colunas: o exemplo do campo dos trabalhadores não traz uma palavra da base do Brasil', () => {
+  // Revisão final do comando V23 (15/11/2026): com uma planilha enviada, nenhum texto traz "médicos" que não venha dela. O exemplo
+  // do campo "Quem são os trabalhadores contados?" dizia "Por exemplo: médicos".
+  const colunas = readFileSync(new URL('../src/ColunasDaPlanilha.tsx', import.meta.url), 'utf8');
+  assert.ok(colunas.includes('placeholder="Por exemplo: enfermeiros" value={escolhas.objeto}'));
+  assert.ok(!/placeholder="[^"]*m[ée]dic/i.test(colunas));
+});

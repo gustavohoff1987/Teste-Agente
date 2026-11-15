@@ -177,6 +177,10 @@ class Base:
     grupos_por_soma: bool = False
     descricao: dict | None = None                               # {"base", "categoria"}: como a fonte se apresenta
     avisos: tuple = ()                                          # o que a leitura da base teve a dizer (perfil da base)
+    # A camada oficial de coordenadas da base do Brasil (revisão final do V23, 15/11/2026): o que `geo_complement.overlay` diz dela
+    # (o estado, a identidade e a proveniência; None numa planilha) e os códigos dos municípios cujo ponto veio dela.
+    complemento: dict | None = None
+    complementados: tuple = ()
 
     @property
     def do_brasil(self) -> bool:
@@ -209,7 +213,7 @@ class Base:
         return np.isnan(self.quantidade[list(linhas)]).sum(axis=0) if len(linhas) else np.zeros(len(self.periodos), dtype=int)
 
 
-_BASES: dict[str, Base] = {}
+_BASES: dict[tuple, Base] = {}
 _LOCK = threading.Lock()
 
 
@@ -237,7 +241,16 @@ def _montar(sources) -> Base:
         return saida
     quantidade = matriz(_inteiros(quadro[campos["count"]], "contagem"))
     populacao = matriz(_inteiros(quadro[campos["population"]], "população"))
-    latitude, longitude = matriz(_decimais(quadro[campos["latitude"]])), matriz(_decimais(quadro[campos["longitude"]]))
+    # As coordenadas, como as análises as leem (decisão do responsável de 15/11/2026, opção (a) do item 4 da Pausa 2): nos seis
+    # municípios em que a fonte traz o ponto fora do intervalo válido, vale a sede municipal da camada oficial do IBGE
+    # (`dados/brasil/complemento_coordenadas.json`), só onde o ponto original é inválido e só na versão da fonte a que a camada se
+    # refere. O arquivo da base não muda. Sem a camada (ausente, inválida ou de outra versão), ficam as coordenadas da fonte.
+    import geo_complement  # importação tardia: o módulo lê a raiz do repositório por brazil_data
+    quadro.attrs.update(municipal.attrs)
+    latitude_linha, longitude_linha, aplicadas, complemento = geo_complement.overlay(
+        quadro, campos, _decimais(quadro[campos["latitude"]]), _decimais(quadro[campos["longitude"]]))
+    complementados = tuple(sorted(set(codigos_linha.to_numpy()[aplicadas]))) if aplicadas is not None and aplicadas.any() else ()
+    latitude, longitude = matriz(np.asarray(latitude_linha, dtype=float)), matriz(np.asarray(longitude_linha, dtype=float))
     # O nome do registro mais recente de cada município, com a UF do prefixo do código IBGE (como no painel).
     ordem = np.argsort(coluna, kind="stable")
     nome_de = dict(zip(codigos_linha.to_numpy()[ordem], quadro[campos["territory"]].astype(str).str.strip().to_numpy()[ordem]))
@@ -278,22 +291,33 @@ def _montar(sources) -> Base:
                 latitude=latitude, longitude=longitude, estados=estados, brasil=brasil,
                 indice={codigo: posicao for posicao, codigo in enumerate(codigos)},
                 do_estado={prefixo: tuple(linhas) for prefixo, linhas in do_estado.items()},
-                ancora=mes_ancora(periodos))   # lido da própria base: junho, na base do Brasil
+                ancora=mes_ancora(periodos),   # lido da própria base: junho, na base do Brasil
+                complemento=complemento, complementados=complementados)
 
 
 def base_de(sources) -> Base:
     """As séries da versão da base em uso (montadas uma vez por versão)."""
     if sources is None:
         raise ValueError(SEM_BASE)
+    # A base guardada vale para a versão da fonte e para a camada de coordenadas lida agora: outra camada (ou a falta dela) monta
+    # a base de novo, com as coordenadas dela.
+    chave = (sources.version, _camada_de_coordenadas())
     with _LOCK:
-        guardada = _BASES.get(sources.version)
+        guardada = _BASES.get(chave)
     if guardada is not None:
         return guardada
     montada = _montar(sources)
     with _LOCK:
         _BASES.clear()  # uma versão por vez
-        _BASES[sources.version] = montada
+        _BASES[chave] = montada
     return montada
+
+
+def _camada_de_coordenadas() -> str:
+    """A identidade da camada oficial de coordenadas, como está agora: o SHA-256 do arquivo válido, ou o estado dela."""
+    import geo_complement
+    atual = geo_complement.state()
+    return atual.get("sha256") if atual["estado"] == "valido" else atual["estado"]
 
 
 # --------------------------------------------------------------------------------------------- seleção compartilhada
