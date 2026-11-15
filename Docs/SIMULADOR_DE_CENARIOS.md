@@ -36,6 +36,18 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
   lado do Detector de Sinais. A ferramenta abre no lugar do painel da aba e do desenho da análise (`area-de-analise` leva
   `data-ferramenta="simulador"`), depois do perfil da base (fechado, até a pessoa pedir). A seleção local e os cenários ficam
   guardados enquanto a fonte de dados for a mesma: sair da ferramenta e voltar não os perde.
+- **Título e "(Entenda)"** (`simulador-entenda-ferramenta`; desde 15/11/2026, etapa 7 do comando V23): ao lado do título, como
+  no Detector de Sinais, o "(Entenda)" geral traz três frases simples e um exemplo, com o nome que a base dá à contagem —
+  "Mostra para onde o território iria se continuasse como vinha, e o efeito das mudanças que você quer testar. O “como vinha” e
+  a margem de erro vêm da própria base: o Agente refaz no passado a projeção que teria feito e confere com o que aconteceu
+  depois. Todo resultado é um cenário hipotético, nunca uma previsão." (o exemplo usa números ilustrativos e diz isso). Depois
+  de um cálculo, "Ver explicação completa" abre "Como os métodos se saíram no passado".
+- **"Voltar ao padrão"** (`simulador-voltar-ao-padrao`; desde 15/11/2026): **um botão só**, sempre à vista nos dois modos, ao
+  lado dos botões de modo. Devolve de uma vez todas as premissas ao padrão — o jeito de projetar e a janela que a base escolheu
+  (também a janela trazida do Detector de Sinais), a faixa de 8 em cada 10, a permanência total e a comparação pela diferença — e
+  fica desligado enquanto elas são as do padrão. O território, o que testar (as quantidades, as datas e a meta), a data final e
+  as referências não são premissas: ficam como estão. Os atalhos de volta de antes ("Janela padrão (3 anos)", na etapa 2, e
+  "Voltar ao jeito escolhido pela base", no aviso do modo simples) saíram.
 - **A data, sempre à vista** (`simulador-data`): "O registro mais recente da base é jun/2024 (há … anos e … meses): é histórico.
   Tudo o que vem depois dele é simulado, nunca observado". A distância até hoje usa a data do aparelho.
 - **Nada é calculado sem comando:** o motor só é chamado por "Calcular" (no modo avançado, "Calcular os cenários" ou "Calcular com
@@ -78,8 +90,8 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
     número da pessoa ("A meta é uma hipótese sua.").
 
   Trocar de opção volta ao jeito de projetar escolhido pela base; a quantidade, a meta e a data digitadas ficam. Quando o
-  cenário traz um jeito de projetar escolhido no modo avançado, o modo simples avisa (`simulador-metodo-do-avancado`) e oferece
-  "Voltar ao jeito escolhido pela base". Antes do primeiro cálculo com uma planilha, as frases já usam o nome da contagem dela:
+  cenário traz um jeito de projetar escolhido no modo avançado, o modo simples avisa (`simulador-metodo-do-avancado`) e diz que
+  "Voltar ao padrão", no alto, desfaz essa escolha. Antes do primeiro cálculo com uma planilha, as frases já usam o nome da contagem dela:
   o nome dos trabalhadores informado no envio ("Acrescentar … enfermeiros"), quando ele serve aos textos, ou "profissionais",
   "vínculos" ou "postos" (`simuladorModel.nomeDosTrabalhadores`, a mesma regra do motor).
 - **Até quando** (`simulador-horizonte`): qualquer mês depois do último registro; os atalhos de 1, 2 e 4 anos
@@ -118,6 +130,27 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
 As quatro etapas aparecem só no modo avançado: até 5 cenários, cada um com nome, método, janela própria e intervenções. Valem
 também com uma planilha enviada, com os nomes dela (seção "Qualquer base"); os exemplos abaixo usam os nomes da base do Brasil.
 
+**As premissas ficam em frases, com os campos dentro delas** (Proposta V3, seção C.5; completa desde 15/11/2026, etapa 7 do
+comando V23), como os critérios do Detector:
+
+- a janela (`simulador-frase-da-janela`): "Janela histórica: o crescimento é medido em [3 anos (desde jun/2021)] antes de
+  [jun/2024], a origem do cenário.";
+- o jeito de projetar de cada cenário (`simulador-frase-do-jeito`): "Jeito de projetar: [Continuar como vinha (o jeito
+  escolhido pela base)], com [a janela geral]." — com a taxa da pessoa, "…, de [x]% ao ano (uma hipótese sua)"; com uma janela
+  própria, "…, com [uma janela própria, desde jun/2019] até [jun/2024].";
+- a faixa (`simulador-faixa-em-10`): "Mostrar a faixa onde o valor real ficou em [8] de cada 10 retroprojeções de territórios
+  do mesmo porte.";
+- a permanência de cada intervenção (`simulador-frase-da-permanencia`) e do planejamento inverso
+  (`simulador-frase-da-permanencia-do-plano`): "Dos médicos acrescentados, a cada ano permanecem [100]%." (numa retirada, "Do
+  efeito da retirada, a cada ano permanecem [100]%.");
+- a comparação com as referências (`simulador-frase-da-comparacao`): "Comparar cada cenário com as referências por [diferença
+  (em médicos) / razão (quantas vezes o valor da referência) / taxa por 1.000 habitantes]" e, na taxa, ", com a população [igual
+  à do último registro (jun/2024) / crescendo] [x]% ao ano depois dele (uma hipótese sua).".
+
+Os campos mantêm os identificadores de antes (`simulador-janela-inicio`, `simulador-janela-fim`, `simulador-metodo`,
+`simulador-taxa-manual`, `simulador-cenario-janela-inicio`, `simulador-cenario-janela-fim`, `simulador-intervencao-permanencia`,
+`simulador-plano-permanencia` e `simulador-metrica`); os novos são `simulador-populacao` e `simulador-populacao-pct`.
+
 1. **Territórios em análise** (`simulador-territorios`): a **seleção local** do Simulador.
    - Ela nasce como **cópia da seleção principal**: os municípios um a um, os estados como unidade e os conjuntos, com o nome, a
      composição e a versão. "Ver a composição dos conjuntos" lista os componentes de cada conjunto.
@@ -137,17 +170,24 @@ também com uma planilha enviada, com os nomes dela (seção "Qualquer base"); o
    - **Referências de comparação (opcional)** (`simulador-referencias`): até 5. Uma referência é um município, um estado como
      unidade, o Brasil, um conjunto da seleção local ou **um valor da pessoa**; pode ficar fora da seleção do Simulador e não
      muda a seleção principal. Cada uma é **fixa** (o último valor registrado se mantém) ou **dinâmica** (segue o jeito de
-     projetar que a base escolheu para o nível dela, sem intervenções). A métrica da comparação é escolhida à vista (`simulador-metrica`): a **quantidade de
-     médicos** ou a **taxa por 1.000 habitantes, com a população constante** (a do último registro, como hipótese declarada).
+     projetar que a base escolheu para o nível dela, sem intervenções). O jeito de comparar é escolhido à vista, na frase da
+     comparação (`simulador-metrica`): pela **diferença** em médicos (o padrão), pela **razão** (quantas vezes o valor da
+     referência) ou pela **taxa por 1.000 habitantes**. Na taxa, a população é **igual à do último registro** (o padrão, como
+     hipótese declarada) ou **cresce x% ao ano depois dele** (`simulador-populacao` e `simulador-populacao-pct`), uma hipótese
+     da pessoa: de −20% a +20% ao ano, a mesma taxa no território e na referência; sem o número, a tela diz o que falta e não
+     pede nada ao motor.
    - Quando o Simulador é aberto pelo **Detector de Sinais** ("Abrir no Simulador" ou "Simular recuperação"), a seleção local
      fica só com aquele território e não acompanha a principal; o aviso `simulador-do-detector` diz de onde ela veio, a data
      avaliada e os sinais com nível lá ("Sinais com nível lá: Queda recente (elevado)"), e pode ser dispensado.
 2. **Base histórica e método** (`simulador-base`):
-   - a **janela histórica**, com início e fim livres entre as competências reais (o fim é a origem do cenário). Os atalhos (janela
-     padrão de 3 anos, últimos 5 anos, série completa) são só atalhos. Com a origem antes do último registro, o trecho até ele é
-     **retroprojeção**, ao lado do observado;
-   - o **método da base do cenário** (lista abaixo), com uma frase simples sobre cada um. "Continuar como vinha (o jeito
-     escolhido pela base)" é o padrão; os demais ficam à escolha da pessoa. Cada cenário pode ter a sua janela;
+   - a **janela histórica**, em frase, com início e fim livres entre as competências reais (o fim é a origem do cenário): a
+     lista do início mostra quanto tempo antes da origem cada registro fica ("3 anos (desde jun/2021)", "10 anos e 5 meses (desde
+     jan/2014)"). Os atalhos (últimos 5 anos e série completa) são só atalhos. A janela igual à que a base escolheu vale como o
+     padrão (`data-padrao="true"` na frase), e a volta a ela é pelo "Voltar ao padrão". Com a origem antes do último registro, o
+     trecho até ele é **retroprojeção**, ao lado do observado;
+   - o **jeito de projetar** de cada cenário (o método da base do cenário, lista abaixo), em frase, com uma explicação simples
+     de cada um. "Continuar como vinha (o jeito escolhido pela base)" é o padrão; os demais ficam à escolha da pessoa. Cada
+     cenário pode ter a sua janela;
    - as **estatísticas históricas** do território (depois do primeiro cálculo): registros usáveis, lacunas, taxas de junho a junho,
      taxa composta, média aritmética, mediana e dispersão. A média aritmética é **só descrição do passado**.
 3. **Intervenções e horizonte** (`simulador-intervencoes-etapa`):
@@ -156,7 +196,7 @@ também com uma planilha enviada, com os nomes dela (seção "Qualquer base"); o
      retroprojeções de territórios do mesmo porte", com as opções 5, 8 (o padrão) e 9. A frase lembra que a faixa só existe para o
      jeito de projetar e a janela que a própria base escolheu, até o maior prazo com casos suficientes;
    - as **intervenções hipotéticas** de cada cenário: acréscimo ou retirada de X médicos, numa data ou num calendário (a cada
-     tantos meses, de uma data a outra), com a **permanência** em % ao ano (100, todos ficam, é a hipótese padrão);
+     tantos meses, de uma data a outra), com a **permanência** em frase, em % ao ano (100, todos ficam, é a hipótese padrão);
    - o aviso de que cada intervenção vale para **cada território** do cenário, não para o total (`simulador-por-territorio`):
      com 49 territórios, um acréscimo de 5 médicos soma 5 a cada um deles, inclusive aos estados como unidade e aos conjuntos;
    - o **planejamento inverso** de cada cenário (`simulador-plano`, por "Calcular o acréscimo que alcança uma meta"): a **meta
@@ -333,6 +373,10 @@ vale a taxa composta da série dele, que é a própria base toda. Ele entra pela
   escolhida.
 - Em cada data do cenário (a origem e as datas da trajetória), a comparação traz a **diferença** (referência − território), a
   **razão** (território ÷ referência) e o **índice** (100 × a razão). Nenhuma variação é chamada de "convergência".
+- **A forma da comparação** (`comparacao.forma`; desde 15/11/2026): a frase de cada comparação destaca a **diferença** (o
+  padrão: "28 abaixo da referência") ou a **razão** ("0,44 vezes o valor da referência"), sempre com o índice entre parênteses.
+  Os três números de cada data são os mesmos nas duas formas. Diante de uma referência em zero, a razão não existe, e a frase
+  diz isso ("a razão não pode ser calculada, porque a referência é zero").
 - **Alcance:** `ja_acima` (na origem, o território já está no nível da referência ou acima), `alcanca` (com a primeira data
   avaliada em que isso ocorre) ou `nao_alcanca` ("Não alcança no horizonte simulado"). Nenhuma data é inventada ou extrapolada.
 - **Sobreposição e unidades:** a comparação avisa quando a referência é o próprio território, quando um contém o outro (o Brasil
@@ -346,6 +390,15 @@ vale a taxa composta da série dele, que é a própria base toda. Ele entra pela
 - **Por taxa:** médicos por 1.000 habitantes, com a **população do último registro em todas as datas simuladas** (hipótese
   declarada na tela, no texto e nas exportações; a base não traz população futura). O estado e o Brasil usam a soma das
   populações municipais; sem população válida, a comparação é "não calculável".
+- **População crescendo x% ao ano** (`comparacao.populacao_pct_ao_ano`; desde 15/11/2026, Proposta V3, seção C.5): em vez da
+  população constante, a pessoa pode informar uma taxa de crescimento, de −20% a +20% ao ano (um número negativo é uma população
+  que diminui). É **uma hipótese da pessoa**: o sistema não estima nem sugere a taxa. A população de cada data é a do último
+  registro × (1 + x/100) elevado aos anos passados desde ele; **nas datas até o último registro, vale a população dele**. A
+  mesma taxa vale para o território e para a referência (a razão e o índice entre dois territórios não mudam; as taxas e a
+  diferença, sim); um valor informado como referência já é uma taxa e não muda. A frase termina com "Hipótese sua: população
+  crescendo 2% ao ano depois de jun/2024, a mesma taxa no território e na referência." (ou "…; o valor informado não muda."), e
+  a resposta, a nota das referências e a tela dizem a mesma hipótese. A hipótese só vale na comparação por taxa: com a métrica
+  de quantidade, o pedido é recusado.
 - Comparar quantitativos de territórios de portes diferentes não é comparar a suficiência do atendimento.
 
 ### Planejamento inverso
@@ -492,7 +545,7 @@ registrado na sessão, e nada vai ao provedor de IA. Conta nas vagas das operaç
 | `intervencoes` | até 12 por cenário: `{"tipo": "acrescimo" ou "retirada", "quantidade", "em", "ate"?, "a_cada_meses"?, "permanencia_pct_ao_ano"?, "territorios"?}` |
 | `planejamento` | por cenário: `{"meta": {"tipo": "valor" ou "patamar" ou "referencia", "valor"?, "referencia"?}, "em", "ate"?, "a_cada_meses"?, "permanencia_pct_ao_ano"?}` |
 | `referencias` | até 5: `{"id", "territorio": "code:…" ou "uf:…" ou "br" ou o id de um conjunto da seleção, "tipo": "fixa" ou "dinamica", "metodo"?, "taxa_manual_pct"?}` ou `{"id", "tipo": "valor", "valor", "rotulo"?}` |
-| `comparacao` | `{"metrica": "quantidade" ou "taxa"}`; sem ela, a quantidade |
+| `comparacao` | `{"metrica": "quantidade" ou "taxa", "forma": "diferenca" ou "razao", "populacao_pct_ao_ano": x}`; sem ela, a quantidade, pela diferença. `forma` e `populacao_pct_ao_ano` são de 15/11/2026 e opcionais; `populacao_pct_ao_ano` (de −20 a 20; zero é a população constante) só vale com a métrica `taxa` |
 
 A resposta traz `versao` (`SIMULADOR-CENARIOS/V3/1`), `fonte` (como a do Detector: a base, a categoria, a origem — `brasil` ou
 `planilha` —, o mês âncora, os nomes e o que a base tem), `competencias`, `ultimo_registro`, `janela`, `horizonte`, `faixa`
@@ -514,9 +567,10 @@ A resposta traz `versao` (`SIMULADOR-CENARIOS/V3/1`), `fonte` (como a do Detecto
   (`jeito` e `faixa`, cada um com `texto` e `exemplo`).
 
 Desde a etapa 5 do comando V22, a resposta traz também `referencias` (o rótulo, o tipo, a unidade, o estado e a descrição de
-cada uma) e `comparacao` (`metrica` e `hipotese_de_populacao`), e cada cenário pode trazer:
+cada uma) e `comparacao` (`metrica` e `hipotese_de_populacao`; desde 15/11/2026, também `forma` e `populacao_pct_ao_ano` —
+`null` com a população constante), e cada cenário pode trazer:
 
-- `comparacoes` (com referências no pedido): por referência, `estado`, `descricao`, `avisos`, `pontos` (`data`, `territorio`,
+- `comparacoes` (com referências no pedido): por referência, `estado`, `forma`, `descricao`, `avisos`, `pontos` (`data`, `territorio`,
   `referencia`, `diferenca`, `razao`, `indice`), `inicial`, `final`, `alcance` (`estado` e `data`) e `texto`;
 - `planejamento` (com o pedido): `estado`, `meta` (`tipo`, `valor`, `rotulo` e, quando ela é o patamar, `patamar` — o patamar sem
   arredondar —, `registros` — de quantos registros ele é a média; `null` quando o valor foi informado e não é o patamar do
@@ -850,7 +904,8 @@ O que o estudo sustenta e o que não sustenta:
   com a versão do método, a base em uso (o nome e a categoria: "Brasil" e "MEDICINA" ou, com uma planilha, "planilha enviada" e a
   categoria dela), a versão da base, o último registro e a data da exportação. Desde o comando V23, o arquivo leva também o
   território em análise do modo simples (`territorio`), a faixa pedida, quando não é a de 8 em cada 10 (`faixa`), e a janela com
-  que o Detector abriu o Simulador (`janela_do_detector`), e a importação os repõe. **Importar** lê esse arquivo e repõe a
+  que o Detector abriu o Simulador (`janela_do_detector`), e a importação os repõe. Desde 15/11/2026, leva também a comparação
+  pela razão (`forma`) e a hipótese de população crescendo (`populacao` e `populacao_pct`), quando não são o padrão. **Importar** lê esse arquivo e repõe a
   configuração, sem calcular; se a base for outra versão, a tela avisa. A referência a um conjunto que não veio no arquivo fica
   de fora. O aviso de origem do Detector não é exportado.
 - **Resultados (CSV, separador `;`, com BOM):** uma linha por território, cenário e data, com o observado, a base, a intervenção,
@@ -860,7 +915,8 @@ O que o estudo sustenta e o que não sustenta:
 - No CSV dos resultados, as colunas da faixa levam o percentual pedido: "Faixa de 80%" (8 em cada 10, o padrão), "Faixa de 50%"
   ou "Faixa de 90%".
 - **Comparações (CSV, quando há referências):** uma linha por território, cenário, referência e data, com o valor do território,
-  o da referência, a diferença, a razão e o índice, o alcance no horizonte simulado, os avisos e a hipótese de população.
+  o da referência, a diferença, a razão e o índice, o alcance no horizonte simulado, os avisos e a hipótese de população (a do
+  último registro ou, quando a pessoa a informou, a taxa de crescimento por ano).
 
 ## Limitações
 
@@ -879,7 +935,9 @@ O que o estudo sustenta e o que não sustenta:
   último valor; M2, M3 e a taxa da pessoa ficam à escolha, sem faixa.
 - A referência dinâmica usa o jeito escolhido para o nível dela, com a janela geral do pedido; na tela, ela não tem método,
   janela nem intervenções próprios (a rota aceita outro método).
-- A comparação por taxa vale só com a hipótese de população constante: a base não traz população futura.
+- A comparação por taxa vale com uma hipótese de população, sempre declarada: a do último registro em todas as datas ou, por
+  escolha da pessoa, crescendo x% ao ano depois dele. A base não traz população futura, e o sistema não estima nem sugere a taxa
+  de crescimento: é a mesma para o território e a referência, e não distingue territórios que crescem em ritmos diferentes.
 - O planejamento inverso responde a uma conta, não a uma pergunta de política: ele não sabe se os médicos existem, se ficam, nem
   quanto custa.
 - Uma intervenção vale para cada território do cenário; o número do planejamento inverso é próprio de cada território, e por
@@ -889,9 +947,9 @@ O que o estudo sustenta e o que não sustenta:
 - A escolha de 5, 8 ou 9 em cada 10 fica no modo avançado; o modo simples usa 8.
 
 **Assistente de conversa.** Ele continua recusando previsões e projeções livres (AT-04) e não monta cenários. Desde 11/11/2026,
-na base do Brasil, a recusa indica o caminho: "Para montar cenários hipotéticos, que não são previsão, há o Simulador de
-Cenários, na linha Ferramentas da área de análise: nele, você escolhe o método, as hipóteses e a data final." Com uma planilha
-enviada, a recusa ainda não cita o Simulador: o texto da conversa não mudou no comando V23.
+a recusa indica o caminho: "Para montar cenários hipotéticos, que não são previsão, há o Simulador de Cenários, na linha
+Ferramentas da área de análise: nele, você escolhe o método, as hipóteses e a data final." Desde 15/11/2026 (etapa 7 do comando
+V23), a indicação aparece também com uma planilha enviada: o Simulador vale para qualquer base.
 
 ## Testes
 
@@ -914,7 +972,11 @@ enviada, a recusa ainda não cita o Simulador: o texto da conversa não mudou no
   faixa indisponível com o motivo, a rota com o arquivo, o pedido do modo avançado (o todo, o conjunto e as referências, com os
   nomes dela), a planilha só com anos (as datas em anos e o calendário de ano em ano), as linhas do Simulador no perfil da base
   e o nome dos trabalhadores informado no envio em todos os textos.
-- pytest: `backend/tests/test_dialogo.py` — a recusa de projeção indica o Simulador só na base do Brasil.
+- pytest: `backend/tests/test_dialogo.py` — a recusa de projeção indica o Simulador, com a base do Brasil ou com uma planilha.
+- pytest: `backend/tests/test_simulador.py` (etapa 7) — a comparação pela razão (a frase, os mesmos números e a referência em
+  zero), a comparação por taxa com a população crescendo ou diminuindo (as taxas de cada data, a origem com a população do
+  registro, o valor informado que não muda, a resposta, a nota e a frase com a hipótese) e as recusas (a forma desconhecida, a
+  taxa fora de −20 a 20 e o crescimento sem a métrica de taxa).
 - Node: `frontend/tests/simulador.test.mjs` — as datas (também as de uma base só com anos), a seleção local, o que falta para
   calcular, o pedido ao motor, a leitura da resposta, os textos da tabela e da faixa, a importação e a exportação do cenário e o
   CSV; o Brasil na seleção local, as referências e a métrica, o planejamento inverso, a configuração com que o Detector abre o
@@ -925,13 +987,19 @@ enviada, a recusa ainda não cita o Simulador: o texto da conversa não mudou no
   a meta que sai ao trocar de território, o campo com a meta inteira e a frase da origem dela, a leitura do caminho com o
   acréscimo e o desenho da meta, do caminho e da marca do acréscimo no gráfico. Da revisão de 15/11/2026: o resultado que sai ao
   trocar de território, o nome dos trabalhadores (a mesma regra do motor), o singular com 1, a faixa inteira de um lado da linha,
-  o aviso único da seleção e o gráfico na largura da tela.
+  o aviso único da seleção e o gráfico na largura da tela. Da etapa 7: o jeito de comparar e a hipótese de população no pedido
+  e na leitura da resposta, o que falta para calcular, as premissas no padrão e o "Voltar ao padrão", a janela igual à da base
+  como o padrão, o tempo da janela em palavras, o cenário exportado e importado com as premissas novas, o "(Entenda)" geral e
+  as premissas em frases na tela.
 - Navegador: `backend/tests/ui_simulador.py` (suíte `base-versionada`) — o modo simples (só continuar, acrescentar, retirar e chegar
   a uma meta; a faixa conferida e a provisória; os "Entenda"; um estado como unidade sem faixa), o modo avançado (as quatro etapas,
   o Brasil, as referências, o planejamento inverso e a escolha de 5, 8 ou 9 em cada 10), a passagem entre os dois modos (o que é
   do avançado não vai no pedido do simples), "Abrir no Simulador" e "Simular recuperação" (a meta de 79 médicos para o patamar de
   78,25 de Abelardo Luz/SC, com a origem; a meta trocada por um número da pessoa), a meta e o resultado que saem ao trocar de
   território, o gráfico de "Chegar a uma meta" (a linha da meta, o caminho com o acréscimo e a marca dele), "Acrescentar 1
-  médico" e o gráfico desenhado na largura da tela, no computador e numa tela de celular (texto de 12 px). Também `backend/tests/ui_detector.py`
+  médico" e o gráfico desenhado na largura da tela, no computador e numa tela de celular (texto de 12 px); da etapa 7, o
+  "(Entenda)" geral no título, o "Voltar ao padrão" único (desligado no padrão; desfaz a janela, a permanência, a comparação e o
+  jeito de projetar escolhido no modo avançado), as premissas em frases, a comparação pela razão e pela taxa com a população
+  crescendo 1,5% ao ano. Também `backend/tests/ui_detector.py`
   ("Simular recuperação" e o perfil da base) e `backend/tests/ui_planilha_ficticia.py` (o Simulador com a planilha fictícia, nos
   dois modos, sem o vocabulário da base do Brasil).

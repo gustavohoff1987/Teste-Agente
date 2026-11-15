@@ -53,9 +53,15 @@ export const MAX_REFERENCIAS = 5;
 export type ConfigDoSimulador = { local: SelecaoLocal; janela: { inicio: string; fim: string } | null; horizonte: string; modo: "simples" | "avancado";
   cenarios: CenarioDaTela[];
   referencias?: ReferenciaDaTela[];
-  /** A métrica da comparação com as referências: a quantidade de médicos (padrão) ou a taxa por 1.000 habitantes, com a hipótese de
-   * população constante (a do último registro). */
+  /** A métrica da comparação com as referências: a quantidade de médicos (padrão) ou a taxa por 1.000 habitantes, com uma hipótese
+   * de população (ver `populacao`). */
   metrica?: "quantidade" | "taxa";
+  /** Na comparação por quantidade, o que a frase destaca: a diferença (padrão) ou a razão (Proposta V3, seção C.5). */
+  forma?: "razao";
+  /** Na comparação por taxa, a hipótese de população: igual à do último registro (padrão) ou crescendo x% ao ano depois dele, uma
+   * hipótese da pessoa (`populacaoPct`, como foi digitado; pode ser negativo). */
+  populacao?: "crescendo";
+  populacaoPct?: string;
   /** De onde veio a configuração, quando o Simulador foi aberto pelo Detector de Sinais: o território, a data e os sinais dele. */
   doDetector?: { rotulo: string; fim: string; sinais: string[]; recuperacao: boolean; exploratorio?: boolean };
   /** A seleção local ainda é a cópia da seleção principal, sem alteração feita no Simulador: enquanto for assim, ela acompanha a
@@ -238,7 +244,67 @@ export function pendenciaDoPedido(config: ConfigDoSimulador): string | null {
     const valor = numero(ref.valor);
     if (ref.tipo === "valor" && (valor === null || valor < 0)) return "Informe o valor da referência “" + ref.rotulo + "”.";
   }
+  // A hipótese de população só vai no pedido com referências, por taxa, no modo avançado.
+  if (!simples && (config.referencias ?? []).length && config.metrica === "taxa" && config.populacao === "crescendo") {
+    const crescimento = numero(config.populacaoPct ?? "");
+    if (crescimento === null || Math.abs(crescimento) > MAX_CRESCIMENTO_DA_POPULACAO)
+      return "Informe o crescimento da população: um número entre −" + MAX_CRESCIMENTO_DA_POPULACAO + " e " + MAX_CRESCIMENTO_DA_POPULACAO + " (% ao ano).";
+  }
   return null;
+}
+/** O limite do crescimento da população (% ao ano, para cima ou para baixo), o mesmo do motor. */
+export const MAX_CRESCIMENTO_DA_POPULACAO = 20;
+/** "Comparar … por": a diferença, a razão ou a taxa por 1.000 habitantes (Proposta V3, seção C.5). */
+export type ModoDaComparacao = "diferenca" | "razao" | "taxa";
+export const modoDaComparacao = (config: Pick<ConfigDoSimulador, "metrica" | "forma">): ModoDaComparacao =>
+  config.metrica === "taxa" ? "taxa" : config.forma === "razao" ? "razao" : "diferenca";
+/** A configuração com outro jeito de comparar: a taxa troca a métrica; a diferença e a razão são formas da comparação por quantidade. */
+export const comAComparacao = (modo: ModoDaComparacao): Partial<ConfigDoSimulador> =>
+  modo === "taxa" ? { metrica: "taxa", forma: undefined } : { metrica: undefined, forma: modo === "razao" ? "razao" : undefined };
+/** O que o pedido leva da comparação: nada no padrão (a diferença, por quantidade); a forma, pela razão; por taxa, a métrica e,
+ * com a população crescendo, a taxa de crescimento (zero é a população constante). */
+export function comparacaoDoPedido(config: ConfigDoSimulador): Record<string, unknown> | null {
+  if (config.metrica === "taxa") {
+    const crescimento = config.populacao === "crescendo" ? numero(config.populacaoPct ?? "") : null;
+    return { metrica: "taxa", ...(crescimento ? { populacao_pct_ao_ano: crescimento } : {}) };
+  }
+  return config.forma === "razao" ? { forma: "razao" } : null;
+}
+/** As premissas do Simulador estão todas no padrão (Proposta V3, seções A.4 e C.5)? O jeito de projetar e a janela que a base
+ * escolheu, a faixa de 8 em cada 10, a permanência total e a comparação pela diferença. O território, o que testar (as quantidades,
+ * as datas e a meta), a data final e as referências não são premissas: são o cenário. */
+export function premissasNoPadrao(config: ConfigDoSimulador): boolean {
+  const total = (texto: string): boolean => { const valor = numero(texto); return valor === null || valor >= 100; };
+  return !config.janela && !config.janelaDoDetector && (config.faixa ?? 8) === 8 && config.metrica !== "taxa" && config.forma !== "razao" &&
+    config.cenarios.every(cenario => cenario.metodo === "padrao" && !cenario.janela && cenario.intervencoes.every(item => total(item.permanencia)) &&
+      (!cenario.planejamento || total(cenario.planejamento.permanencia)));
+}
+/** "Voltar ao padrão": todas as premissas de volta ao padrão, de uma vez; o cenário (o que testar, as datas e as referências) fica. */
+export function comAsPremissasPadrao(config: ConfigDoSimulador): Partial<ConfigDoSimulador> {
+  return { janela: null, janelaDoDetector: undefined, faixa: undefined, metrica: undefined, forma: undefined, populacao: undefined, populacaoPct: undefined,
+    cenarios: config.cenarios.map(cenario => ({ ...cenario, metodo: "padrao" as MetodoDoCenario, taxaManual: "", janela: null,
+      intervencoes: cenario.intervencoes.map(item => ({ ...item, permanencia: "100" })),
+      ...(cenario.planejamento ? { planejamento: { ...cenario.planejamento, permanencia: "100" } } : {}) })) };
+}
+/** A janela escolhida na tela; a que é igual à janela padrão da base vale como "sem janela escolhida" (o padrão), para a faixa e
+ * o "Voltar ao padrão" a reconhecerem. */
+export function janelaOuPadrao(janela: { inicio: string; fim: string }, competencias: string[]): { inicio: string; fim: string } | null {
+  const padrao = janelaPadrao(competencias);
+  return padrao && padrao.inicio === janela.inicio && padrao.fim === janela.fim ? null : janela;
+}
+/** O tempo entre duas datas da base, em palavras: "3 anos", "1 ano", "2 anos e 5 meses", "7 meses". */
+export function tempoEntre(inicio: string, fim: string): string {
+  const meses = Math.max(0, mesDe(fim) - mesDe(inicio)), anos = Math.floor(meses / 12), resto = meses % 12;
+  return [anos ? anos + (anos === 1 ? " ano" : " anos") : "", resto || !anos ? resto + (resto === 1 ? " mês" : " meses") : ""].filter(Boolean).join(" e ");
+}
+/** O "(Entenda)" geral do Simulador, no título (Proposta V3, seções A.4 e C.7): três frases simples e um exemplo, com o nome que
+ * a base dá à contagem. Os números do exemplo são ilustrativos. */
+export function entendaDoSimulador(r: NomesDaBase = NOMES_DO_BRASIL): { texto: string; exemplo: string } {
+  return { texto: "Mostra para onde o território iria se continuasse como vinha, e o efeito das mudanças que você quer testar. O “como vinha” e a " +
+    "margem de erro vêm da própria base: o Agente refaz no passado a projeção que teria feito e confere com o que aconteceu depois. Todo " +
+    "resultado é um cenário hipotético, nunca uma previsão.",
+    exemplo: "Com 22 " + r.profissionais + " no último registro, “continuar como vinha” pode levar a 25 dois anos depois; com 5 acrescentados, a 30. " +
+      "Os números deste exemplo são ilustrativos." };
 }
 /** O cenário como o modo simples o mostra e pede: o que testar com uma data — a meta com um acréscimo numa data, ou um acréscimo ou
  * uma retirada numa data, com permanência total. O calendário, a permanência e as outras intervenções escolhidos no modo
@@ -360,7 +426,7 @@ export function pedidoDoSimulador(config: ConfigDoSimulador, daBase?: { rotulos?
   return { ...(daBase ?? {}), ...selecaoLocalParaOPedido(local), ...(janela ? { janela } : {}), horizonte: config.horizonte,
     ...(config.faixa && config.faixa !== 8 ? { faixa: config.faixa } : {}),
     cenarios: temReferencia ? cenarios : [...cenarios, { id: ID_DA_REFERENCIA, nome: "Persistência (referência)", metodo: "M0" }],
-    ...(referencias.length ? { referencias, ...(config.metrica === "taxa" ? { comparacao: { metrica: "taxa" } } : {}) } : {}) };
+    ...(referencias.length ? { referencias, ...(comparacaoDoPedido(config) ? { comparacao: comparacaoDoPedido(config) } : {}) } : {}) };
 }
 function formasDe(bruto: unknown): FormasDaBase {
   const f = objeto(bruto), b = FORMAS_DO_BRASIL;
@@ -478,7 +544,9 @@ export type CenarioCalculado = { id: string; nome: string; estado: string; motiv
   /** Etapa 5: o cenário diante de cada referência, o planejamento inverso e a hipótese derivada da simulação. */
   comparacoes: ComparacaoDoCenario[]; planejamento: PlanejamentoDoCenario | null; hipotetico: HipoteseDerivada | null };
 export type PontoDaComparacao = { data: string; territorio: number; referencia: number; diferenca: number; razao: number | null; indice: number | null };
-export type ComparacaoDoCenario = { id: string; rotulo: string; tipo: string; metrica: string; estado: string; motivo: string | null; avisos: string[];
+export type ComparacaoDoCenario = { id: string; rotulo: string; tipo: string; metrica: string;
+  /** O que a frase destaca: a diferença ou a razão (a resposta de antes de 15/11/2026 não traz a forma: é a diferença). */
+  forma: string; estado: string; motivo: string | null; avisos: string[];
   descricao: string | null; pontos: PontoDaComparacao[]; final: PontoDaComparacao | null;
   alcance: { estado: string; data: string | null } | null; texto: string | null };
 /** A meta do planejamento: o valor em uso (um inteiro, quando ela é o patamar: o patamar arredondado para cima) e, no patamar, de
@@ -515,7 +583,10 @@ export type RespostaDoSimulador = { versao: string; fonte: { base: string; categ
     /** A escolha por nível: "municipios" (as unidades da base) e, quando há, "estados" (os grupos de cima como unidade). */
     escolhas: Record<string, EscolhaDaBase> };
   notas: string[]; limitacoes: string[];
-  referencias: ReferenciaDaResposta[]; comparacao: { metrica: string; hipoteseDePopulacao: string | null } };
+  referencias: ReferenciaDaResposta[];
+  /** A comparação deste cálculo: a métrica, a forma (diferença ou razão) e, por taxa, a hipótese de população — o texto dela e,
+   * quando a população cresce, a taxa por ano (null na população constante). */
+  comparacao: { metrica: string; forma: string; populacaoPctAoAno: number | null; hipoteseDePopulacao: string | null } };
 
 const objeto = (valor: unknown): Record<string, unknown> => valor && typeof valor === "object" && !Array.isArray(valor) ? valor as Record<string, unknown> : {};
 const lista = (valor: unknown): unknown[] => Array.isArray(valor) ? valor : [];
@@ -535,7 +606,7 @@ function pontoDaComparacao(bruto: unknown): PontoDaComparacao | null {
 function comparacaoDe(bruto: unknown): ComparacaoDoCenario {
   const c = objeto(bruto), a = objeto(c.alcance);
   return { id: texto(c.id) ?? "", rotulo: texto(c.rotulo) ?? "", tipo: texto(c.tipo) ?? "", metrica: texto(c.metrica) ?? "quantidade",
-    estado: texto(c.estado) ?? "", motivo: texto(c.motivo), avisos: textos(c.avisos), descricao: texto(c.descricao),
+    forma: texto(c.forma) ?? "diferenca", estado: texto(c.estado) ?? "", motivo: texto(c.motivo), avisos: textos(c.avisos), descricao: texto(c.descricao),
     pontos: lista(c.pontos).map(pontoDaComparacao).filter((ponto): ponto is PontoDaComparacao => !!ponto), final: pontoDaComparacao(c.final),
     alcance: texto(a.estado) ? { estado: texto(a.estado)!, data: texto(a.data) } : null, texto: texto(c.texto) };
 }
@@ -633,7 +704,10 @@ export function normalizarSimulador(bruto: unknown): RespostaDoSimulador {
       return { id: texto(r.id) ?? "", rotulo: texto(r.rotulo) ?? "", tipo: texto(r.tipo) ?? "", territorio: texto(r.territorio), unidade: texto(r.unidade),
         estado: texto(r.estado) ?? "", descricao: texto(r.descricao), motivo: texto(r.motivo) };
     }),
-    comparacao: { metrica: texto(comparacao.metrica) ?? "quantidade", hipoteseDePopulacao: texto(comparacao.hipotese_de_populacao) } };
+    comparacao: { metrica: texto(comparacao.metrica) ?? "quantidade", forma: texto(comparacao.forma) ?? "diferenca",
+      populacaoPctAoAno: typeof comparacao.populacao_pct_ao_ano === "number" && Number.isFinite(comparacao.populacao_pct_ao_ano)
+        ? comparacao.populacao_pct_ao_ano : null,
+      hipoteseDePopulacao: texto(comparacao.hipotese_de_populacao) } };
 }
 
 // ------------------------------------------------------------------------------------------------ apresentação
@@ -760,7 +834,10 @@ export function exportarCenario(config: ConfigDoSimulador, c: { versaoDoMetodo: 
     ...(config.territorio ? { territorio: config.territorio } : {}), ...(config.faixa && config.faixa !== 8 ? { faixa: config.faixa } : {}),
     // A janela com que o Detector de Sinais abriu o Simulador (a que vale no modo simples) vai junto; o aviso de origem, não.
     ...(config.janelaDoDetector ? { janela_do_detector: config.janelaDoDetector } : {}),
-    ...(config.referencias?.length ? { referencias: config.referencias } : {}), ...(config.metrica === "taxa" ? { metrica: "taxa" } : {}) }, null, 2);
+    ...(config.referencias?.length ? { referencias: config.referencias } : {}), ...(config.metrica === "taxa" ? { metrica: "taxa" } : {}),
+    // A forma da comparação e a hipótese de população (Proposta V3, seção C.5), só quando não são o padrão.
+    ...(config.forma === "razao" ? { forma: "razao" } : {}),
+    ...(config.populacao === "crescendo" ? { populacao: "crescendo", populacao_pct: config.populacaoPct ?? "" } : {}) }, null, 2);
 }
 const METODOS_VALIDOS = new Set(METODOS_DA_TELA.map(item => item.chave).concat(["M0d"]));
 /** Lê um cenário exportado. Devolve a configuração ou o motivo de não poder usá-lo; nada é calculado aqui. */
@@ -803,7 +880,9 @@ export function importarCenario(conteudo: string): { config: ConfigDoSimulador |
       ...(texto(o.territorio) ? { territorio: texto(o.territorio)! } : {}), ...(o.faixa === 5 || o.faixa === 9 ? { faixa: o.faixa } : {}),
       ...(texto(objeto(o.janela_do_detector).inicio) && texto(objeto(o.janela_do_detector).fim)
         ? { janelaDoDetector: { inicio: texto(objeto(o.janela_do_detector).inicio)!, fim: texto(objeto(o.janela_do_detector).fim)! } } : {}),
-      ...(validas.length ? { referencias: validas } : {}), ...(o.metrica === "taxa" ? { metrica: "taxa" as const } : {}) } };
+      ...(validas.length ? { referencias: validas } : {}), ...(o.metrica === "taxa" ? { metrica: "taxa" as const } : {}),
+      ...(o.forma === "razao" ? { forma: "razao" as const } : {}),
+      ...(o.populacao === "crescendo" ? { populacao: "crescendo" as const, populacaoPct: texto(o.populacao_pct) ?? "" } : {}) } };
 }
 function planoImportado(p: Record<string, unknown>): PlanoDaTela {
   return { meta: p.meta === "patamar" ? "patamar" : p.meta === "referencia" ? "referencia" : "valor", valor: texto(p.valor) ?? "",

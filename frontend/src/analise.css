@@ -1002,6 +1002,11 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
   line-height: 1.5; text-align: center; }
 .ferramenta-campo-da-frase:focus { outline: 2px solid var(--cor-foco); outline-offset: 1px; }
 .ferramenta-campo-da-frase[type="month"] { max-width: 11em; }
+/* Uma lista de opções dentro de uma frase (o jeito de projetar, a janela, a comparação): larga o bastante para o texto da opção,
+   sem passar da largura da frase; o texto fica à esquerda, como nas outras listas. */
+select.ferramenta-campo-da-frase { max-width: min(100%, 30em); text-align: left; }
+/* Uma frase dentro de um bloco em grade (as intervenções): ocupa a largura inteira do bloco. */
+.ferramenta-frase-inteira { grid-column: 1 / -1; }
 .ferramenta-campo-trocado { border-color: rgb(var(--tom-amber-900)); background: rgb(var(--tom-amber-50)); color: rgb(var(--tom-amber-900)); }
 /* "Entenda" (Proposta V3, seção A.4), igual no Detector e no Simulador: o botão e a caixa, desenhada por cima da página. */
 .entenda { display: inline-flex; vertical-align: middle; }

@@ -399,23 +399,23 @@ def test_governanca_recusa_com_alternativa_e_sem_mudar_o_grafico(tela, sem_prove
         assert not turno.aplicado, mensagem
         assert documento in [form["id_doc"] for form in turno.corpo["explicacao"]["documentacao"]], mensagem
     assert tela.diga("Diz que Tefé tem carência de médicos.").texto.startswith("Não afirmo “carência”")
-    # A previsão livre continua recusada (AT-04); na base do Brasil, a recusa indica o Simulador de Cenários (comando V22, etapa 5).
+    # A previsão livre continua recusada (AT-04), e a recusa indica o Simulador de Cenários (comando V22, etapa 5).
     projecao = tela.diga("Faz uma projeção da densidade para 2030.")
     assert not projecao.aplicado and projecao.texto.startswith("Isso fica fora do que faço:")
     assert projecao.texto.endswith(dialogo.INDICA_O_SIMULADOR) and "Simulador" not in tela.diga("Usa média móvel em vez desse método.").texto
 
 
-def test_recusa_de_projecao_indica_o_simulador_so_na_base_do_brasil():
-    """A conversa não faz previsões nem monta cenários: recusa a projeção e, na base do Brasil, diz onde fica a ferramenta
-    determinística (o Simulador de Cenários, com cenários hipotéticos, que não são previsão). Com uma planilha enviada, o
-    Simulador não está disponível, e a recusa não o cita."""
+def test_recusa_de_projecao_indica_o_simulador_em_qualquer_base():
+    """A conversa não faz previsões nem monta cenários: recusa a projeção e diz onde fica a ferramenta determinística (o Simulador
+    de Cenários, com cenários hipotéticos, que não são previsão). Desde a etapa 7 do comando V23 (15/11/2026), também com uma
+    planilha enviada: o Simulador vale para qualquer base (antes, a recusa só o citava na base do Brasil)."""
     ato = {"ato": "governanca", "tipo": "projecao"}
 
     def recusa(fonte, tipo="projecao"):
         return dialogo.executar({**ato, "tipo": tipo}, dialogo.Ambiente("Faz uma projeção da densidade para 2030.", {}, {}, fonte=fonte))["reply"]
     brasil, planilha = recusa({"tipo": "brasil"}), recusa({"tipo": "arquivo", "nome": "distritos.csv"})
-    assert planilha.startswith("Isso fica fora do que faço:") and planilha.endswith(dialogo.SUGESTOES["projecao"]) and "Simulador" not in planilha
-    assert brasil == planilha + " " + dialogo.INDICA_O_SIMULADOR
+    assert brasil.startswith("Isso fica fora do que faço:") and brasil.endswith(dialogo.SUGESTOES["projecao"] + " " + dialogo.INDICA_O_SIMULADOR)
+    assert planilha == brasil   # o mesmo texto com uma planilha: nada da base entra na recusa
     assert dialogo.INDICA_O_SIMULADOR == ("Para montar cenários hipotéticos, que não são previsão, há o Simulador de Cenários, na linha "
                                           "Ferramentas da área de análise: nele, você escolhe o método, as hipóteses e a data final.")
     assert numeros(brasil) == ["4"]   # só os 4 períodos da Tendência: nenhuma taxa, data ou valor sugerido pela conversa

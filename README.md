@@ -958,20 +958,23 @@ resultado traz o gráfico, a frase fixa, três números e os "Entenda" do jeito 
 aconteceu depois e fica com o jeito que errou menos que manter o último valor (na base do Brasil, o crescimento recente do
 estado, nos municípios, e a taxa composta, nos estados; sem história bastante, mantém o último valor). A **faixa de 8 em cada
 10** (ou de 5, ou de 9) vem da mesma retroprojeção e é conferida no tempo: "conferida", "provisória" ou "indisponível", com o
-motivo. Em **"Avançado"** ficam as quatro etapas de antes: os territórios, a janela histórica e o método da base do cenário (a
+motivo. No título, um **"(Entenda)"** geral explica a ferramenta, e um **"Voltar ao padrão"** só, sempre à vista, devolve as
+premissas ao padrão (desde 15/11/2026). Em **"Avançado"** ficam as quatro etapas de antes, com **as premissas em frases, com os
+campos dentro delas**: os territórios, a janela histórica e o método da base do cenário (a
 persistência, a persistência com o crescimento recente do estado ou da base toda, a taxa composta, a tendência linear robusta, a
 tendência log-linear ou uma taxa informada pela pessoa), as intervenções (acréscimos e retiradas de médicos, com a permanência
 como hipótese) e a data final, em qualquer mês. Os resultados separam o observado, a base do cenário, a intervenção e, quando
 sustentada, a faixa. Cada cenário traz o texto fixo "Cenário hipotético, não é previsão: …"; nada é previsão, observação atual
 nem recomendação de provimento. A média aritmética das taxas aparece só como descrição do passado. O Brasil pode entrar como
 território, só no Simulador, pela contagem nacional. Cada cenário pode ser comparado com **referências**
-(um município, um estado, o Brasil, um conjunto ou um valor da pessoa; fixas ou dinâmicas; por quantidade ou por taxa com a
-população constante), com a diferença, o índice e o alcance ("não alcança no horizonte simulado", sem data inventada), e pode
+(um município, um estado, o Brasil, um conjunto ou um valor da pessoa; fixas ou dinâmicas; pela diferença, pela razão ou pela
+taxa por 1.000 habitantes — com a população igual à do último registro ou, como hipótese da pessoa, crescendo x% ao ano), com
+a diferença, o índice e o alcance ("não alcança no horizonte simulado", sem data inventada), e pode
 ter um **planejamento inverso**: o menor número inteiro de médicos por evento que alcança uma meta hipotética (um número, o
 patamar anterior ou uma referência), como conta condicional, nunca como plano. O Detector de Sinais abre o Simulador com o
 território e o contexto ("Abrir no Simulador" e "Simular recuperação"). O Simulador é a exceção aprovada à exclusão de projeção
-da SPEC, só nesta ferramenta: o assistente de conversa continua recusando previsões livres e, na base do Brasil, indica o
-Simulador. Os cálculos são do motor (`POST /api/simulador`), sem o provedor de IA. Métodos, rota, estudo de retroprojeção
+da SPEC, só nesta ferramenta: o assistente de conversa continua recusando previsões livres e indica o Simulador (desde
+15/11/2026, também com uma planilha enviada). Os cálculos são do motor (`POST /api/simulador`), sem o provedor de IA. Métodos, rota, estudo de retroprojeção
 e limitações: [Docs/SIMULADOR_DE_CENARIOS.md](Docs/SIMULADOR_DE_CENARIOS.md).
 
 ## Escopo e limitações do protótipo

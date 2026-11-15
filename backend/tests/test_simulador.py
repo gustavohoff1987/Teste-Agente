@@ -2009,7 +2009,8 @@ def test_rota_referencias_fixas_dinamicas_e_valor_com_alcance_e_sobreposicao(cat
         {"id": "fixa", "territorio": "code:150140"}, {"id": "din", "territorio": "code:130260", "tipo": "dinamica", "metodo": "M0d"},
         {"id": "val", "tipo": "valor", "valor": 20, "rotulo": "Meta local"}, {"id": "uf", "territorio": "uf:13"},
         {"id": "br", "territorio": "br", "tipo": "dinamica"}]}))
-    assert body["comparacao"] == {"metrica": "quantidade", "hipotese_de_populacao": None}
+    # Sem `forma` e sem a hipótese de população no pedido, vale o de antes: a diferença (os campos são novos, de 15/11/2026).
+    assert body["comparacao"] == {"metrica": "quantidade", "forma": "diferenca", "populacao_pct_ao_ano": None, "hipotese_de_populacao": None}
     assert [(ref["id"], ref["rotulo"], ref["tipo"], ref["territorio"], ref["estado"], ref["descricao"]) for ref in body["referencias"]] == [
         ("fixa", "BELEM (PA)", "fixa", "code:150140", "calculada", "fixa: o valor de jun/2024 mantido"),
         ("din", "MANAUS (AM)", "dinamica", "code:130260", "calculada",
@@ -2081,6 +2082,27 @@ def test_rota_referencias_fixas_dinamicas_e_valor_com_alcance_e_sobreposicao(cat
     proprio = _comparacao(conjunto, "g1", "g")
     assert proprio["avisos"] == ["A referência é o próprio território."] and ": o mesmo valor (índice 100; 100 é a referência)." in proprio["texto"]
     # Sem referências no pedido, os cenários não têm comparações.
+    # A comparação pela razão (Proposta V3, seção C.5): a frase diz quantas vezes o valor da referência o território teria; os
+    # números de cada data (a diferença, a razão e o índice) são os mesmos das duas formas.
+    pela_razao = corpo(pedir({**selecao, "horizonte": "202606", "cenarios": [com_reforco], "comparacao": {"forma": "razao"}, "referencias": [
+        {"id": "fixa", "territorio": "code:150140"}, {"id": "val", "tipo": "valor", "valor": 20, "rotulo": "Meta local"},
+        {"id": "zero", "tipo": "valor", "valor": 0, "rotulo": "Zero"}]}))
+    assert pela_razao["comparacao"] == {"metrica": "quantidade", "forma": "razao", "populacao_pct_ao_ano": None, "hipotese_de_populacao": None}
+    assert (_comparacao(pela_razao, "code:130340", "val")["forma"], alcanca["forma"]) == ("razao", "diferenca")
+    assert _comparacao(pela_razao, "code:130340", "val")["texto"] == (
+        "Em jun/2026, PARINTINS (AM) teria 22 médicos, e a referência Meta local (valor informado por você, mantido), 20: 1,10 vezes o valor "
+        "da referência (índice 110; 100 é a referência). No cenário, alcança a referência em jan/2026, a primeira data avaliada em que isso "
+        "ocorre.")
+    assert _comparacao(pela_razao, "code:130340", "fixa")["texto"].endswith(
+        "50: 0,44 vezes o valor da referência (índice 44; 100 é a referência). Não alcança no horizonte simulado (até jun/2026).")
+    for territorio, referencia in (("code:130340", "val"), ("code:130340", "fixa"), ("code:130260", "fixa"), ("uf:15", "fixa")):
+        assert _comparacao(pela_razao, territorio, referencia)["pontos"] == _comparacao(body, territorio, referencia)["pontos"]
+    # Diante de uma referência em zero, a razão não existe, e a frase diz isso (nenhum número é inventado).
+    do_zero = _comparacao(pela_razao, "code:130340", "zero")
+    assert (do_zero["final"]["razao"], do_zero["final"]["indice"], do_zero["final"]["diferenca"]) == (None, None, -22.0)
+    assert do_zero["texto"] == ("Em jun/2026, PARINTINS (AM) teria 22 médicos, e a referência Zero (valor informado por você, mantido), 0: a "
+                                "razão não pode ser calculada, porque a referência é zero. Na origem, o território já está no nível da "
+                                "referência ou acima dele.")
     sem = corpo(pedir({**selecao, "horizonte": "202606"}))
     assert sem["referencias"] == [] and "comparacoes" not in sem["territorios"][0]["cenarios"][0]
     assert not any(nota.startswith("Referências:") for nota in sem["notas"])
@@ -2092,7 +2114,8 @@ def test_rota_comparacao_por_taxa_declara_a_populacao_constante(catalogo):
                         "cenarios": [{"id": "c1", "metodo": "M0"}], "comparacao": {"metrica": "taxa"},
                         "referencias": [{"id": "fixa", "territorio": "code:150140"}, {"id": "val", "tipo": "valor", "valor": 20},
                                         {"id": "br", "territorio": "br"}]}))
-    assert body["comparacao"] == {"metrica": "taxa", "hipotese_de_populacao": "constante: a população de jun/2024 em todas as datas simuladas"}
+    assert body["comparacao"] == {"metrica": "taxa", "forma": "diferenca", "populacao_pct_ao_ano": None,
+                                  "hipotese_de_populacao": "constante: a população de jun/2024 em todas as datas simuladas"}
     manaus = _comparacao(body, "code:130260", "fixa")
     assert (manaus["metrica"], manaus["final"]["territorio"], manaus["final"]["referencia"]) == ("taxa", 25.5, 12.5)
     assert manaus["texto"] == ("Em jun/2026, MANAUS (AM) teria 25,50 médicos por 1.000 habitantes, e a referência BELEM (PA) (fixa: o valor de "
@@ -2103,7 +2126,52 @@ def test_rota_comparacao_por_taxa_declara_a_populacao_constante(catalogo):
                                                                  "razao": pytest.approx(0.6), "indice": pytest.approx(60.0)}
     assert _comparacao(body, "uf:15", "fixa")["final"]["territorio"] == pytest.approx(45 / 4000 * 1000)
     assert _comparacao(body, "code:130260", "br")["final"]["referencia"] == pytest.approx(1110 / 8000 * 1000)
-    assert any("por taxa, vale a hipótese de população constante" in nota for nota in body["notas"])
+    assert any("por taxa, vale a hipótese de população constante." in nota for nota in body["notas"])
+
+
+def test_rota_comparacao_por_taxa_com_a_populacao_crescendo_e_uma_hipotese_da_pessoa(catalogo):
+    """Proposta V3, seção C.5: na comparação por taxa, a população pode ser a do último registro (o padrão) ou crescer x% ao ano
+    depois dele, uma hipótese da pessoa — a mesma taxa no território e na referência. A base não traz população futura: nada é
+    estimado pelo sistema, e a frase, a resposta e a nota dizem a hipótese."""
+    pedido = {"base": {"municipios": {"ids": ["code:130260", "code:130340"]}}, "horizonte": "202606", "cenarios": [{"id": "c1", "metodo": "M0"}],
+              "referencias": [{"id": "fixa", "territorio": "code:150140"}, {"id": "val", "tipo": "valor", "valor": 20}]}
+    constante = corpo(pedir({**pedido, "comparacao": {"metrica": "taxa"}}))
+    body = corpo(pedir({**pedido, "comparacao": {"metrica": "taxa", "populacao_pct_ao_ano": 2}}))
+    assert body["comparacao"] == {
+        "metrica": "taxa", "forma": "diferenca", "populacao_pct_ao_ano": 2.0,
+        "hipotese_de_populacao": "crescendo 2% ao ano depois de jun/2024 (hipótese sua), a mesma taxa em todos os territórios; até essa "
+                                 "data, a população de jun/2024"}
+    # Manaus (51 médicos, 2.000 habitantes) e Belém (50 e 4.000), 2 anos depois do último registro: as duas populações crescem
+    # 2% ao ano (× 1,02²), e as taxas caem na mesma proporção; a razão e o índice não mudam.
+    manaus, antes = _comparacao(body, "code:130260", "fixa"), _comparacao(constante, "code:130260", "fixa")
+    assert (antes["final"]["territorio"], antes["final"]["referencia"]) == (25.5, 12.5)
+    assert manaus["final"] == {"data": "202606", "territorio": pytest.approx(25.5 / 1.02 ** 2), "referencia": pytest.approx(12.5 / 1.02 ** 2),
+                               "diferenca": pytest.approx(-13 / 1.02 ** 2), "razao": pytest.approx(2.04), "indice": pytest.approx(204.0)}
+    # No último registro (a origem), vale a população dele; entre as datas, o crescimento é proporcional ao tempo (7 meses).
+    assert [ponto["data"] for ponto in manaus["pontos"]] == ["202406", "202501", "202506", "202601", "202606"]
+    assert manaus["inicial"] == antes["inicial"] and manaus["pontos"][1]["territorio"] == pytest.approx(25.5 / 1.02 ** (7 / 12))
+    assert manaus["texto"] == ("Em jun/2026, MANAUS (AM) teria 24,51 médicos por 1.000 habitantes, e a referência BELEM (PA) (fixa: o valor de "
+                               "jun/2024 mantido), 12,01: 12,50 acima da referência (índice 204; 100 é a referência). Na origem, o território "
+                               "já está no nível da referência ou acima dele. Hipótese sua: população crescendo 2% ao ano depois de jun/2024, "
+                               "a mesma taxa no território e na referência.")
+    # O valor informado já é uma taxa e não muda: só a taxa do território cai.
+    parintins = _comparacao(body, "code:130340", "val")
+    assert parintins["final"] == {"data": "202606", "territorio": pytest.approx(12 / 1.02 ** 2), "referencia": 20.0,
+                                  "diferenca": pytest.approx(20 - 12 / 1.02 ** 2), "razao": pytest.approx(0.6 / 1.02 ** 2),
+                                  "indice": pytest.approx(60 / 1.02 ** 2)}
+    assert parintins["texto"].endswith("20: 8,47 abaixo da referência (índice 57,7; 100 é a referência). Não alcança no horizonte simulado (até "
+                                       "jun/2026). Hipótese sua: população crescendo 2% ao ano depois de jun/2024; o valor informado não muda.")
+    assert any(nota.endswith("por taxa, vale a hipótese de população crescendo 2% ao ano depois de jun/2024, a mesma taxa no território e na "
+                             "referência (a base não traz população futura: a taxa de crescimento é uma hipótese sua).") for nota in body["notas"])
+    # A população diminuindo, com a comparação pela razão: as duas escolhas valem juntas.
+    caindo = corpo(pedir({**pedido, "comparacao": {"metrica": "taxa", "forma": "razao", "populacao_pct_ao_ano": -1.5}}))
+    assert caindo["comparacao"]["hipotese_de_populacao"].startswith("diminuindo 1,5% ao ano depois de jun/2024 (hipótese sua)")
+    assert _comparacao(caindo, "code:130260", "fixa")["final"]["territorio"] == pytest.approx(25.5 / 0.985 ** 2)
+    assert _comparacao(caindo, "code:130260", "fixa")["texto"].endswith(
+        "12,88: 2,04 vezes o valor da referência (índice 204; 100 é a referência). Na origem, o território já está no nível da referência ou "
+        "acima dele. Hipótese sua: população diminuindo 1,5% ao ano depois de jun/2024, a mesma taxa no território e na referência.")
+    # Zero é a população constante: a resposta e os textos são os de antes.
+    assert corpo(pedir({**pedido, "comparacao": {"metrica": "taxa", "populacao_pct_ao_ano": 0}})) == constante
 
 
 def test_rota_planejamento_inverso_e_o_menor_inteiro_que_alcanca_a_meta(catalogo):
@@ -2244,6 +2312,12 @@ def test_rota_recusas_das_referencias_da_metrica_e_do_planejamento(catalogo):
     recusa(pedir({**so, "referencias": [{"territorio": "br", "tipo": "dinamica", "metodo": "manual"}]}), "O sistema não sugere uma taxa.")
     recusa(pedir({**so, "referencias": [{"territorio": "code:999999"}]}), "Território fora da base Brasil")
     recusa(pedir({**so, "comparacao": {"metrica": "indice"}}), "Comparação inválida: a métrica é quantidade ou taxa.")
+    recusa(pedir({**so, "comparacao": {"forma": "soma"}}), "Comparação inválida: a forma é diferenca ou razao.")
+    for crescimento in (25, -20.5, "2", True, None):
+        recusa(pedir({**so, "comparacao": {"metrica": "taxa", "populacao_pct_ao_ano": crescimento}}),
+               "Comparação inválida: o crescimento da população é um número entre −20% e +20% ao ano.")
+    recusa(pedir({**so, "comparacao": {"populacao_pct_ao_ano": 2}}),
+           "Comparação inválida: o crescimento da população vale só na comparação por taxa (a métrica taxa).")
     recusa(pedir({**so, "cenarios": [{"metodo": "M0", "planejamento": {"em": "202506"}}]}), "envie a meta e o calendário dos acréscimos")
     recusa(pedir({**so, "cenarios": [{"metodo": "M0", "planejamento": {"meta": {"tipo": "x"}, "em": "202506"}}]}),
            "a meta é um valor, o patamar anterior ou uma referência")

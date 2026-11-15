@@ -160,6 +160,18 @@ def main():
         expect(simulador).to_have_attribute("data-estado", "configurando")
         expect(simulador).to_have_attribute("data-modo", "simples")
         expect(simples).to_be_visible()
+        # O "(Entenda)" geral fica no título, como no Detector de Sinais, e abre pelo clique (etapa 7 do comando V23): três frases
+        # simples e um exemplo. Um "Voltar ao padrão" só, sempre à vista, fica desligado enquanto as premissas são as do padrão.
+        entenda("ferramenta", "Simulador de Cenários", {
+            "texto": "Mostra para onde o território iria se continuasse como vinha, e o efeito das mudanças que você quer testar. O “como vinha” "
+                     "e a margem de erro vêm da própria base: o Agente refaz no passado a projeção que teria feito e confere com o que "
+                     "aconteceu depois. Todo resultado é um cenário hipotético, nunca uma previsão.",
+            "exemplo": "Com 22 médicos no último registro, “continuar como vinha” pode levar a 25 dois anos depois; com 5 acrescentados, a 30. "
+                       "Os números deste exemplo são ilustrativos."})
+        fechar_o_entenda("ferramenta")
+        voltar_ao_padrao = simulador.get_by_test_id("simulador-voltar-ao-padrao")
+        expect(voltar_ao_padrao).to_have_text("Voltar ao padrão")
+        expect(voltar_ao_padrao).to_be_disabled()
         expect(simulador.get_by_test_id("simulador-modo-simples")).to_have_attribute("aria-pressed", "true")
         expect(simulador.get_by_test_id("simulador-modo-avancado")).to_have_text("Avançado")
         expect(simulador.get_by_test_id("simulador-data")).to_contain_text("O registro mais recente da base é jun/2024")
@@ -634,11 +646,35 @@ def main():
         expect(simulador.get_by_test_id("simulador-metodo").locator("option").first).to_have_text("Continuar como vinha (o jeito escolhido pela base)")
         expect(simulador.get_by_test_id("simulador-base")).to_contain_text("5 e 7 meses entre um e outro")
         expect(simulador.get_by_test_id("simulador-estatisticas-depois")).to_contain_text("aparecem aqui depois de calcular")
-        # Os atalhos da janela são só atalhos: a série completa e a volta à janela padrão.
+        # As premissas em frases, com os campos dentro delas (Proposta V3, seção C.5; etapa 7 do comando V23): a janela diz quanto
+        # tempo antes da origem o crescimento é medido, e cada cenário, o jeito de projetar e a janela dele.
+        da_janela = simulador.get_by_test_id("simulador-frase-da-janela")
+        expect(da_janela).to_contain_text("Janela histórica: o crescimento é medido em")
+        expect(da_janela).to_contain_text(", a origem do cenário.")
+        expect(da_janela).to_have_attribute("data-padrao", "true")
+        expect(simulador.get_by_test_id("simulador-janela-inicio").locator("option:checked")).to_have_text("3 anos (desde jun/2021)")
+        expect(simulador.get_by_test_id("simulador-janela-fim").locator("option:checked")).to_have_text("jun/2024")
+        expect(simulador.get_by_test_id("simulador-frase-do-jeito")).to_contain_text("Jeito de projetar:")
+        expect(simulador.get_by_test_id("simulador-cenario-janela-inicio").locator("option").first).to_have_text("a janela geral")
+        # Os atalhos da janela são só atalhos. A volta à janela padrão é pelo "Voltar ao padrão" único (antes, havia um atalho
+        # "Janela padrão (3 anos)" aqui): ele liga quando uma premissa sai do padrão e desliga depois de usado.
+        expect(simulador.get_by_test_id("simulador-janela-padrao")).to_have_count(0)
+        expect(voltar_ao_padrao).to_be_disabled()
         simulador.get_by_test_id("simulador-janela-completa").click()
         expect(simulador.get_by_test_id("simulador-janela-inicio")).to_have_value("201401")
-        simulador.get_by_test_id("simulador-janela-padrao").click()
+        expect(simulador.get_by_test_id("simulador-janela-inicio").locator("option:checked")).to_have_text("10 anos e 5 meses (desde jan/2014)")
+        expect(da_janela).to_have_attribute("data-padrao", "false")
+        expect(voltar_ao_padrao).to_be_enabled()
+        voltar_ao_padrao.click()
         expect(simulador.get_by_test_id("simulador-janela-inicio")).to_have_value("202106")
+        expect(da_janela).to_have_attribute("data-padrao", "true")
+        expect(voltar_ao_padrao).to_be_disabled()
+        # Escolher na lista a janela igual à da base também é o padrão: "Voltar ao padrão" continua desligado.
+        simulador.get_by_test_id("simulador-janela-inicio").select_option("201906")
+        expect(voltar_ao_padrao).to_be_enabled()
+        simulador.get_by_test_id("simulador-janela-inicio").select_option("202106")
+        expect(da_janela).to_have_attribute("data-padrao", "true")
+        expect(voltar_ao_padrao).to_be_disabled()
 
         # 7. As intervenções e a data final: os atalhos são só atalhos; qualquer mês depois do último registro vale. A faixa pedida
         # é a de 8 em cada 10, e pode ser a de 5 ou a de 9.
@@ -657,6 +693,13 @@ def main():
         simulador.get_by_test_id("simulador-intervencao-nova").click()
         expect(simulador.get_by_test_id("simulador-intervencao-em")).to_have_value("2025-06")
         expect(simulador.get_by_test_id("simulador-intervencao-permanencia")).to_have_value("100")
+        # A permanência em frase, com o campo dentro dela; trocá-la liga o "Voltar ao padrão", que a devolve aos 100%.
+        expect(simulador.get_by_test_id("simulador-frase-da-permanencia")).to_contain_text("Dos médicos acrescentados, a cada ano permanecem")
+        simulador.get_by_test_id("simulador-intervencao-permanencia").fill("90")
+        expect(voltar_ao_padrao).to_be_enabled()
+        voltar_ao_padrao.click()
+        expect(simulador.get_by_test_id("simulador-intervencao-permanencia")).to_have_value("100")
+        expect(voltar_ao_padrao).to_be_disabled()
         simulador.get_by_test_id("simulador-intervencao-quantidade").fill("")
         expect(simulador.get_by_test_id("simulador-calcular")).to_be_disabled()
         expect(simulador.get_by_test_id("simulador-pendencia")).to_have_text("Informe quantos entram ou saem em cada intervenção.")
@@ -926,7 +969,12 @@ def main():
         expect(simulador.get_by_test_id("simulador-calcular-direto")).to_be_disabled()   # falta o valor da referência
         simulador.get_by_test_id("simulador-referencia-valor").fill("6.500")
         expect(referencias).to_have_attribute("data-total", "3")
-        expect(simulador.get_by_test_id("simulador-metrica")).to_have_value("quantidade")
+        # A comparação em frase (Proposta V3, seção C.5): pela diferença (o padrão), pela razão ou pela taxa por 1.000 habitantes.
+        expect(simulador.get_by_test_id("simulador-frase-da-comparacao")).to_contain_text("Comparar cada cenário com as referências por")
+        expect(simulador.get_by_test_id("simulador-metrica")).to_have_value("diferenca")
+        expect(simulador.get_by_test_id("simulador-metrica").locator("option")).to_have_text(
+            ["diferença (em médicos)", "razão (quantas vezes o valor da referência)", "taxa por 1.000 habitantes"])
+        expect(simulador.get_by_test_id("simulador-populacao")).to_have_count(0)
         expect(simulador.get_by_test_id("simulador-metrica-apoio")).to_contain_text("não é comparar a suficiência do atendimento")
         expect(resumo).to_have_text(principal)
         simulador.get_by_test_id("simulador-etapa-3").click()
@@ -938,7 +986,8 @@ def main():
             "referencias": [{"id": "r1", "tipo": "dinamica", "territorio": FLORIANOPOLIS}, {"id": "r2", "tipo": "fixa", "territorio": "br"},
                             {"id": "r3", "tipo": "valor", "valor": 6500, "rotulo": "Valor informado por você"}]}, enviado
         assert [item["id"] for item in corpo["territorios"]] == [MANAUS, "br"], corpo["territorios"]
-        assert corpo["comparacao"] == {"metrica": "quantidade", "hipotese_de_populacao": None}, corpo["comparacao"]
+        assert corpo["comparacao"] == {"metrica": "quantidade", "forma": "diferenca", "populacao_pct_ao_ano": None,
+                                       "hipotese_de_populacao": None}, corpo["comparacao"]
         de_manaus = do_territorio(corpo, MANAUS)["cenarios"][0]
         comparacoes = {item["id"]: item for item in de_manaus["comparacoes"]}
         # Sem cruzamento no horizonte: "não alcança no horizonte simulado", sem data inventada.
@@ -987,12 +1036,73 @@ def main():
         assert csv.startswith("Identificador;Território;Cenário;Referência;Tipo da referência;O que é a referência;Métrica;Data;"), csv[:300]
         assert "não alcança no horizonte simulado" in csv and "já está no nível da referência ou acima na origem" in csv, csv[:900]
 
+        # 17a. A comparação pela razão e pela taxa, com a população crescendo (Proposta V3, seção C.5; etapa 7 do comando V23). Pela
+        # razão, a frase de cada comparação diz quantas vezes o valor da referência o território teria; os números são os mesmos.
+        com_referencias = enviado
+        simulador.get_by_test_id("simulador-foco").select_option(MANAUS)
+        simulador.get_by_test_id("simulador-etapa-1").click()
+        simulador.get_by_test_id("simulador-metrica").select_option("razao")
+        expect(voltar_ao_padrao).to_be_enabled()
+        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular-direto").click())
+        assert enviado == {**com_referencias, "comparacao": {"forma": "razao"}}, enviado
+        assert (corpo["comparacao"]["metrica"], corpo["comparacao"]["forma"]) == ("quantidade", "razao"), corpo["comparacao"]
+        pela_razao = {item["id"]: item for item in do_territorio(corpo, MANAUS)["cenarios"][0]["comparacoes"]}
+        assert all(item["forma"] == "razao" and " vezes o valor da referência" in item["texto"] for item in pela_razao.values()), pela_razao
+        assert all(pela_razao[chave]["pontos"] == comparacoes[chave]["pontos"] for chave in ("r1", "r2", "r3")), "os números não mudam com a forma"
+        for chave in ("r1", "r2", "r3"):
+            expect(da_comparacao(chave)).to_contain_text(pela_razao[chave]["texto"])
+        # Pela taxa: a população é a do último registro ou cresce x% ao ano depois dele, uma hipótese da pessoa. Sem a taxa de
+        # crescimento, nada é pedido; com ela, o pedido a leva, e a resposta, a tela e cada frase dizem a hipótese.
+        simulador.get_by_test_id("simulador-etapa-1").click()
+        simulador.get_by_test_id("simulador-metrica").select_option("taxa")
+        populacao = simulador.get_by_test_id("simulador-populacao")
+        expect(populacao).to_have_value("constante")
+        expect(populacao.locator("option")).to_have_text(["igual à do último registro (jun/2024)", "crescendo"])
+        expect(simulador.get_by_test_id("simulador-populacao-pct")).to_have_count(0)
+        populacao.select_option("crescendo")
+        expect(simulador.get_by_test_id("simulador-populacao-pct")).to_have_value("")
+        expect(simulador.get_by_test_id("simulador-calcular-direto")).to_be_disabled()
+        simulador.get_by_test_id("simulador-populacao-pct").fill("25")
+        expect(simulador.get_by_test_id("simulador-calcular-direto")).to_be_disabled()
+        simulador.get_by_test_id("simulador-populacao-pct").fill("1,5")
+        expect(simulador.get_by_test_id("simulador-metrica-apoio")).to_contain_text("Hipótese sua: a população cresce essa taxa ao ano depois do último registro (jun/2024)")
+        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular-direto").click())
+        assert enviado == {**com_referencias, "comparacao": {"metrica": "taxa", "populacao_pct_ao_ano": 1.5}}, enviado
+        assert corpo["comparacao"] == {
+            "metrica": "taxa", "forma": "diferenca", "populacao_pct_ao_ano": 1.5,
+            "hipotese_de_populacao": "crescendo 1,5% ao ano depois de jun/2024 (hipótese sua), a mesma taxa em todos os territórios; até essa "
+                                     "data, a população de jun/2024"}, corpo["comparacao"]
+        por_taxa = {item["id"]: item for item in do_territorio(corpo, MANAUS)["cenarios"][0]["comparacoes"]}
+        assert all(item["estado"] == "calculada" and item["metrica"] == "taxa" for item in por_taxa.values()), por_taxa
+        assert por_taxa["r1"]["texto"].endswith("Hipótese sua: população crescendo 1,5% ao ano depois de jun/2024, a mesma taxa no território e na "
+                                                "referência."), por_taxa["r1"]["texto"]
+        assert por_taxa["r3"]["texto"].endswith("Hipótese sua: população crescendo 1,5% ao ano depois de jun/2024; o valor informado não muda."), (
+            por_taxa["r3"]["texto"])
+        # A população cresce só depois do último registro: na origem, a taxa é a do registro; 4 anos depois, a de Manaus é a do
+        # cenário dividida por 1,015⁴.
+        do_cenario = do_territorio(corpo, MANAUS)["cenarios"][0]
+        populacao_de_manaus = 1000 * do_cenario["parametros"]["n0"] / por_taxa["r1"]["inicial"]["territorio"]
+        assert abs(por_taxa["r1"]["final"]["territorio"] - 1000 * do_cenario["final"]["total"] / (populacao_de_manaus * 1.015 ** 4)) < 1e-6, por_taxa["r1"]["final"]
+        for chave in ("r1", "r2", "r3"):
+            expect(da_comparacao(chave)).to_contain_text(por_taxa[chave]["texto"])
+        expect(simulador.get_by_test_id("simulador-referencias-do-calculo")).to_contain_text(
+            "comparadas por taxa por 1.000 habitantes (hipótese: população crescendo 1,5% ao ano depois de jun/2024 (hipótese sua)")
+        page.screenshot(path=str(OUTPUT / "simulador-04b-comparacao-por-taxa-real.png"), full_page=True)
+        # "Voltar ao padrão" desfaz a comparação por taxa e a hipótese de população de uma vez: o pedido volta a ser o de antes.
+        voltar_ao_padrao.click()
+        expect(voltar_ao_padrao).to_be_disabled()
+        simulador.get_by_test_id("simulador-etapa-1").click()
+        expect(simulador.get_by_test_id("simulador-metrica")).to_have_value("diferenca")
+        expect(simulador.get_by_test_id("simulador-populacao")).to_have_count(0)
+        expect(referencias).to_have_attribute("data-total", "3")   # as referências não são premissas: ficam
+        corpo, enviado = do_simulador(lambda: simulador.get_by_test_id("simulador-calcular-direto").click())
+        assert enviado == com_referencias, enviado
+
         # 17b. O que só o modo avançado escolhe fica no modo avançado (ajuste de 14/11/2026). Com uma janela geral (os últimos 5 anos)
         # e as três referências, o pedido do modo avançado leva as duas coisas. No modo simples, o pedido leva só o território em
         # análise, a data final e o cenário: a janela e as referências ficam guardadas, e a resposta vem com a janela padrão e sem
         # comparações. De volta ao modo avançado, elas são pedidas de novo. O jeito de projetar escolhido no modo avançado também
-        # não passa despercebido: o modo simples avisa e oferece a volta ao que a base escolheu.
-        com_referencias = enviado
+        # não passa despercebido: o modo simples avisa, e o "Voltar ao padrão" único desfaz a escolha (etapa 7 do comando V23).
         simulador.get_by_test_id("simulador-etapa-2").click()
         simulador.get_by_test_id("simulador-janela-5-anos").click()
         expect(simulador.get_by_test_id("simulador-janela-inicio")).to_have_value("201906")
@@ -1007,19 +1117,12 @@ def main():
         expect(resultado.get_by_test_id("simulador-texto")).to_have_text(do_territorio(corpo, MANAUS)["cenarios"][0]["texto"])
         expect(resultado.get_by_test_id("simulador-texto")).to_contain_text("janela de jun/2019 a jun/2024")
         expect(resultado.get_by_test_id("simulador-comparacao")).to_have_count(3)
-        # Um jeito de projetar escolhido à mão no modo avançado (a taxa composta), sem calcular.
-        simulador.get_by_test_id("simulador-etapa-2").click()
-        simulador.get_by_test_id("simulador-metodo").select_option("M1")
-        expect(simulador).to_have_attribute("data-estado", "desatualizado")
         simulador.get_by_test_id("simulador-modo-simples").click()
         expect(simulador).to_have_attribute("data-modo", "simples")
         expect(territorio.locator("option")).to_have_text(["MANAUS (AM)", "Brasil"])
         expect(territorio).to_have_value(MANAUS)
         expect(simples).to_have_attribute("data-teste", "continuar")
         do_avancado = simulador.get_by_test_id("simulador-metodo-do-avancado")
-        expect(do_avancado).to_contain_text(
-            "Este cenário usa um jeito de projetar escolhido no modo avançado (taxa composta da janela), e não o que a base escolheu.")
-        do_avancado.get_by_role("button", name="Voltar ao jeito escolhido pela base", exact=True).click()
         expect(do_avancado).to_have_count(0)
         corpo, enviado = calcular()
         assert enviado == {"base": so_o_municipio(MANAUS), "horizonte": "202806", "cenarios": [C1, PERSISTENCIA]}, enviado
@@ -1047,10 +1150,28 @@ def main():
         assert enviado == com_a_janela, enviado
         assert [item["id"] for item in corpo["referencias"]] == ["r1", "r2", "r3"] and corpo["janela"]["padrao"] is False, corpo["janela"]
         expect(resultado.get_by_test_id("simulador-comparacao")).to_have_count(3)
-        # A janela padrão de volta, para os blocos seguintes.
+        # Um jeito de projetar escolhido à mão no modo avançado (a taxa composta), sem calcular: o modo simples avisa, e o "Voltar ao
+        # padrão" único, no alto, desfaz essa escolha e a janela de 5 anos de uma vez — a janela padrão de volta, para os blocos
+        # seguintes.
         simulador.get_by_test_id("simulador-etapa-2").click()
-        simulador.get_by_test_id("simulador-janela-padrao").click()
-        expect(simulador.get_by_test_id("simulador-janela-padrao")).to_be_disabled()
+        simulador.get_by_test_id("simulador-metodo").select_option("M1")
+        expect(simulador).to_have_attribute("data-estado", "desatualizado")
+        simulador.get_by_test_id("simulador-modo-simples").click()
+        expect(simulador).to_have_attribute("data-modo", "simples")
+        expect(do_avancado).to_contain_text(
+            "Este cenário usa um jeito de projetar escolhido no modo avançado (taxa composta da janela), e não o que a base escolheu.")
+        expect(do_avancado).to_contain_text("“Voltar ao padrão”, no alto, desfaz essa escolha.")
+        expect(do_avancado.get_by_role("button")).to_have_count(0)
+        expect(voltar_ao_padrao).to_be_enabled()
+        voltar_ao_padrao.click()
+        expect(do_avancado).to_have_count(0)
+        expect(voltar_ao_padrao).to_be_disabled()
+        simulador.get_by_test_id("simulador-modo-avancado").click()
+        expect(simulador).to_have_attribute("data-modo", "avancado")
+        simulador.get_by_test_id("simulador-etapa-2").click()
+        expect(simulador.get_by_test_id("simulador-metodo")).to_have_value("padrao")
+        expect(simulador.get_by_test_id("simulador-janela-inicio")).to_have_value("202106")
+        expect(simulador.get_by_test_id("simulador-frase-da-janela")).to_have_attribute("data-padrao", "true")
         expect(simulador).to_have_attribute("data-estado", "desatualizado")
 
         # 18. O planejamento inverso: a meta hipotética de alcançar a referência (FLORIANOPOLIS), com um acréscimo por ano. O motor

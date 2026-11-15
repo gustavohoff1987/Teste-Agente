@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type RefObject } from "react";
-import { ChevronRight, Download, LoaderCircle, Plus, Trash2, Upload, X } from "lucide-react";
+import { ChevronRight, Download, LoaderCircle, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import Entenda from "./Entenda";
 import { tamanhoDoGrafico, useLargura } from "./PainelChart";
 import { ErroDoMotor, pedirAoMotor, type FonteDoMotor } from "./painelApi";
@@ -13,6 +13,8 @@ import {
   textoDaFaixa, textoDaHipotese, textoDoFinal, tirarTerritorio, totalDaSelecaoLocal, aoTrocarDeTerritorio, metaNoCampo, textoDaMetaDoPatamar, nomeNoNumero,
   NOMES_DO_BRASIL, TESTES, comOTeste, nomeCurtoDoMetodo, nomesDaPlanilha, primeiroDaSelecao, territoriosDaSelecaoLocal, testeDoCenario, tresNumeros,
   FORMAS_DO_BRASIL, comMaiuscula, ehAnual, formasDaPlanilha, janelaDeAnos, type FormasDaBase,
+  MAX_CRESCIMENTO_DA_POPULACAO, comAComparacao, comAsPremissasPadrao, entendaDoSimulador, janelaOuPadrao, modoDaComparacao, premissasNoPadrao, tempoEntre,
+  type ModoDaComparacao,
   type CenarioCalculado, type CenarioDaTela, type ConfigDoSimulador, type IntervencaoDaTela, type MetodoDoCenario, type NomesDaBase, type PlanejamentoDoCenario, type PlanoDaTela,
   type ReferenciaDaTela, type RespostaDoSimulador, type SelecaoDasFerramentas, type SelecaoLocal, type TerritorioSimulado,
 } from "./simuladorModel";
@@ -312,8 +314,15 @@ export default function SimuladorDeCenarios(props: Props) {
       .finally(() => { if (!novo.signal.aborted) setCarregando(false); });
   }
 
+  // O "(Entenda)" geral fica no título, como no Detector de Sinais (Proposta V3, seções A.4 e C.7): três frases e um exemplo, com o
+  // nome que a base dá à contagem; depois de um cálculo, "Ver explicação completa" abre "Como os métodos se saíram no passado".
+  const doSimulador = entendaDoSimulador(nomesDaBase);
   const cabecalho = <header className="ferramenta-cabecalho">
-    <h2 id="simulador-titulo" data-testid="simulador-titulo" tabIndex={-1} className="analise-titulo">Simulador de Cenários Territoriais</h2>
+    <div className="ferramenta-titulo-linha">
+      <h2 id="simulador-titulo" data-testid="simulador-titulo" tabIndex={-1} className="analise-titulo">Simulador de Cenários Territoriais</h2>
+      <Entenda sobre="Simulador de Cenários" texto={doSimulador.texto} exemplo={doSimulador.exemplo} testid="simulador-entenda-ferramenta"
+        onCompleta={resposta ? abrirAValidacao : undefined}/>
+    </div>
     <p className="analise-subtitulo">Cenários hipotéticos, condicionais ao método e às hipóteses que você escolher. Não são previsão, observação atual nem
       recomendação de provimento.</p>
   </header>;
@@ -325,6 +334,9 @@ export default function SimuladorDeCenarios(props: Props) {
    * que apontava para um conjunto tirado daqui sai junto. */
   const mudarLocal = (local: SelecaoLocal) => mudar({ local, acompanha: false, referencias: referenciasValidas(config.referencias, local) });
   const referencias = config.referencias ?? [];
+  // As premissas (o jeito de projetar, a janela, a faixa, a permanência e a comparação) estão no padrão? "Voltar ao padrão" é um
+  // botão só, sempre à vista, desligado enquanto elas são as do padrão (Proposta V3, seção A.4).
+  const noPadrao = premissasNoPadrao(config);
   const mudarReferencia = (id: string, parte: Partial<ReferenciaDaTela>) => mudar({ referencias: referencias.map(ref => ref.id === id ? { ...ref, ...parte } : ref) });
   function acrescentarReferencia(parte: Pick<ReferenciaDaTela, "alvo" | "rotulo" | "tipo">) {
     if (parte.tipo !== "valor" && referencias.some(ref => ref.alvo === parte.alvo)) { setAvisoDeReferencia("Esta referência já está na lista."); return; }
@@ -420,29 +432,27 @@ export default function SimuladorDeCenarios(props: Props) {
       {config.cenarios.length > 1 && <button type="button" className="analise-icone" aria-label={"Remover o cenário " + cenario.nome}
         onClick={() => mudar({ cenarios: config.cenarios.filter((_, k) => k !== indice) })}><Trash2 size={14} aria-hidden="true"/></button>}
     </div>}
-    <div className="ferramenta-controles">
-      <label className="analise-rotulo-campo">Método da base do cenário
-        <select data-testid="simulador-metodo" className="analise-campo" value={cenario.metodo}
-          onChange={event => mudarCenario(indice, { metodo: event.target.value as MetodoDoCenario })}>
-          {METODOS_DA_TELA.map(item => <option key={item.chave} value={item.chave}>{item.rotulo}</option>)}
-        </select></label>
-      {cenario.metodo === "manual" && <label className="analise-rotulo-campo">Sua taxa anual (%), como hipótese
-        <input data-testid="simulador-taxa-manual" inputMode="decimal" className="analise-campo" value={cenario.taxaManual} placeholder="0,0"
-          onChange={event => mudarCenario(indice, { taxaManual: event.target.value })}/></label>}
-      {config.modo === "avancado" && <>
-        <label className="analise-rotulo-campo">Janela própria: de
-          <select data-testid="simulador-cenario-janela-inicio" className="analise-campo" value={cenario.janela?.inicio ?? ""}
-            onChange={event => mudarCenario(indice, { janela: event.target.value ? { inicio: event.target.value, fim: cenario.janela?.fim ?? janela?.fim ?? ultimoRegistro } : null })}>
-            <option value="">a janela geral</option>
-            {p.competencias.slice(0, -1).map(c => <option key={c} value={c}>{competenciaCurta(c)}</option>)}
-          </select></label>
-        {cenario.janela && <label className="analise-rotulo-campo">até
-          <select data-testid="simulador-cenario-janela-fim" className="analise-campo" value={cenario.janela.fim}
+    {/* A premissa em frase, com os campos dentro dela (Proposta V3, seção C.5): o jeito de projetar e a janela do cenário. */}
+    <p data-testid="simulador-frase-do-jeito" className="ferramenta-frase">Jeito de projetar:{" "}
+      <select data-testid="simulador-metodo" className="ferramenta-campo-da-frase" aria-label="Jeito de projetar (o método da base do cenário)" value={cenario.metodo}
+        onChange={event => mudarCenario(indice, { metodo: event.target.value as MetodoDoCenario })}>
+        {METODOS_DA_TELA.map(item => <option key={item.chave} value={item.chave}>{item.rotulo}</option>)}
+      </select>
+      {cenario.metodo === "manual" && <>, de{" "}
+        <input data-testid="simulador-taxa-manual" inputMode="decimal" className="ferramenta-campo-da-frase" size={5} aria-label="Sua taxa anual (%), como hipótese"
+          value={cenario.taxaManual} placeholder="0,0" onChange={event => mudarCenario(indice, { taxaManual: event.target.value })}/>% ao ano (uma hipótese sua)</>}
+      {config.modo === "avancado" && <>, com{" "}
+        <select data-testid="simulador-cenario-janela-inicio" className="ferramenta-campo-da-frase" aria-label="Janela do cenário" value={cenario.janela?.inicio ?? ""}
+          onChange={event => mudarCenario(indice, { janela: event.target.value ? { inicio: event.target.value, fim: cenario.janela?.fim ?? janela?.fim ?? ultimoRegistro } : null })}>
+          <option value="">a janela geral</option>
+          {p.competencias.slice(0, -1).map(c => <option key={c} value={c}>uma janela própria, desde {competenciaCurta(c)}</option>)}
+        </select>
+        {cenario.janela && <>{" "}até{" "}
+          <select data-testid="simulador-cenario-janela-fim" className="ferramenta-campo-da-frase" aria-label="Fim da janela própria" value={cenario.janela.fim}
             onChange={event => mudarCenario(indice, { janela: { inicio: cenario.janela!.inicio, fim: event.target.value } })}>
             {p.competencias.filter(c => c > cenario.janela!.inicio).map(c => <option key={c} value={c}>{competenciaCurta(c)}</option>)}
-          </select></label>}
-      </>}
-    </div>
+          </select></>}
+      </>}.</p>
     <p className="ferramenta-apoio">{METODOS_DA_TELA.find(item => item.chave === cenario.metodo)?.apoio}.</p>
   </div>;
 
@@ -489,12 +499,14 @@ export default function SimuladorDeCenarios(props: Props) {
             <label className="analise-rotulo-campo">até
               <CampoDeData testid="simulador-plano-ate" valor={plano.ate} ultimo={ultimoRegistro} onMudar={data => mudarPlano(indice, { ate: data })}/></label>
           </>}
-          <label className="analise-rotulo-campo">Permanência (% ao ano)
-            <input data-testid="simulador-plano-permanencia" inputMode="decimal" className="analise-campo" value={plano.permanencia}
-              title="100 = todos permanecem (hipótese padrão)" onChange={event => mudarPlano(indice, { permanencia: event.target.value })}/></label>
           <button type="button" data-testid="simulador-plano-remover" className="analise-icone" aria-label="Remover o planejamento inverso"
             onClick={() => mudar({ cenarios: config.cenarios.map((item, k) => { if (k !== indice) return item; const { planejamento: _plano, ...resto } = item; return resto; }) })}>
             <Trash2 size={14} aria-hidden="true"/></button>
+          <p data-testid="simulador-frase-da-permanencia-do-plano" className="ferramenta-frase ferramenta-frase-inteira">Dos {r.profissionais} acrescentados, a
+            cada ano permanecem{" "}
+            <input data-testid="simulador-plano-permanencia" inputMode="decimal" className="ferramenta-campo-da-frase" size={4} aria-label="Permanência (% ao ano)"
+              value={plano.permanencia} title="100 = todos permanecem (hipótese padrão)"
+              onChange={event => mudarPlano(indice, { permanencia: event.target.value })}/>%.</p>
         </div>
       </>}
     </div>; };
@@ -523,11 +535,14 @@ export default function SimuladorDeCenarios(props: Props) {
         <label className="analise-rotulo-campo">até
           <CampoDeData testid="simulador-intervencao-ate" valor={item.ate} ultimo={ultimoRegistro} onMudar={data => mudarIntervencao(indice, k, { ate: data })}/></label>
       </>}
-      <label className="analise-rotulo-campo">Permanência (% ao ano)
-        <input data-testid="simulador-intervencao-permanencia" inputMode="decimal" className="analise-campo" value={item.permanencia}
-          title="100 = todos permanecem (hipótese padrão)" onChange={event => mudarIntervencao(indice, k, { permanencia: event.target.value })}/></label>
       <button type="button" className="analise-icone" aria-label="Remover a intervenção"
         onClick={() => mudarCenario(indice, { intervencoes: cenario.intervencoes.filter((_, n) => n !== k) })}><Trash2 size={14} aria-hidden="true"/></button>
+      {/* A permanência em frase, com o campo dentro dela (Proposta V3, seção C.5). */}
+      <p data-testid="simulador-frase-da-permanencia" className="ferramenta-frase ferramenta-frase-inteira">{item.tipo === "retirada"
+        ? "Do efeito da retirada, a cada ano permanecem" : "Dos " + r.profissionais + " acrescentados, a cada ano permanecem"}{" "}
+        <input data-testid="simulador-intervencao-permanencia" inputMode="decimal" className="ferramenta-campo-da-frase" size={4} aria-label="Permanência (% ao ano)"
+          value={item.permanencia} title="100 = todos permanecem (hipótese padrão)"
+          onChange={event => mudarIntervencao(indice, k, { permanencia: event.target.value })}/>%.</p>
     </div>)}
     <button type="button" data-testid="simulador-intervencao-nova" className="analise-botao-secundario" disabled={cenario.intervencoes.length >= MAX_INTERVENCOES}
       onClick={() => mudarCenario(indice, { intervencoes: [...cenario.intervencoes, novaIntervencao(anosDepois(ultimoRegistro, 1))] })}>
@@ -561,6 +576,10 @@ export default function SimuladorDeCenarios(props: Props) {
         <button type="button" data-testid="simulador-modo-avancado" className="analise-botao-secundario" aria-pressed={config.modo === "avancado"}
           onClick={() => mudar({ modo: "avancado" })}>Avançado</button>
       </div>
+      <button type="button" data-testid="simulador-voltar-ao-padrao" className="analise-botao-secundario" disabled={noPadrao}
+        title={noPadrao ? "As premissas em uso já são as do padrão"
+          : "Volta às premissas padrão: o jeito de projetar e a janela que a base escolheu, a faixa de 8 em cada 10, a permanência total e a comparação pela diferença"}
+        onClick={() => mudar(comAsPremissasPadrao(config))}><RotateCcw size={14} aria-hidden="true"/>Voltar ao padrão</button>
       <button type="button" data-testid="simulador-exportar-cenario" className="analise-botao-secundario"
         onClick={() => baixar("cenario_do_simulador.json", exportarCenario(config, { versaoDoMetodo: resposta?.versao ?? "", versaoDaBase: p.fonte.datasetVersion,
           ultimoRegistro, quando: new Date().toISOString(),
@@ -590,9 +609,8 @@ export default function SimuladorDeCenarios(props: Props) {
         territórios na Seleção de Territórios ou em “Avançado”.</p>}
       {avisoLocal && <p data-testid="simulador-aviso-local" role="status" className="ferramenta-apoio">{avisoLocal}</p>}
       {cenarioDoSimples.metodo !== "padrao" && <p data-testid="simulador-metodo-do-avancado" role="status" className="ferramenta-exploratorio">
-        Este cenário usa um jeito de projetar escolhido no modo avançado ({nomeCurtoDoMetodo(cenarioDoSimples.metodo, r)}), e não o que a base escolheu.{" "}
-        <button type="button" className="analise-link" onClick={() => mudarCenario(0, { metodo: "padrao", taxaManual: "", janela: null })}>
-          Voltar ao jeito escolhido pela base</button></p>}
+        Este cenário usa um jeito de projetar escolhido no modo avançado ({nomeCurtoDoMetodo(cenarioDoSimples.metodo, r)}), e não o que a base escolheu.
+        “Voltar ao padrão”, no alto, desfaz essa escolha.</p>}
       <fieldset data-testid="simulador-o-que-testar" className="ferramenta-teste analise-nao-imprimir">
         <legend>O que testar</legend>
         <div className="ferramenta-teste-opcoes">
@@ -800,17 +818,36 @@ export default function SimuladorDeCenarios(props: Props) {
         </div>
         {avisoDeReferencia && <p data-testid="simulador-referencia-aviso" role="status" className="ferramenta-apoio">{avisoDeReferencia}</p>}
         {referencias.length > 0 && <>
-          <label className="analise-rotulo-campo ferramenta-busca">Comparar por
-            <select data-testid="simulador-metrica" className="analise-campo" value={config.metrica ?? "quantidade"}
-              onChange={event => mudar({ metrica: event.target.value === "taxa" ? "taxa" : "quantidade" })}>
-              <option value="quantidade">Quantidade de {r.profissionais}</option>
-              <option value="taxa">Taxa por 1.000 habitantes, com a população constante</option>
-            </select></label>
+          {/* A comparação em frase, com os campos dentro dela (Proposta V3, seção C.5): pela diferença, pela razão ou pela taxa por 1.000
+              habitantes; na taxa, a população é a do último registro ou cresce x% ao ano depois dele, uma hipótese da pessoa. */}
+          <p data-testid="simulador-frase-da-comparacao" className="ferramenta-frase">Comparar cada cenário com {referencias.length === 1 ? "a referência" : "as referências"} por{" "}
+            <select data-testid="simulador-metrica" className="ferramenta-campo-da-frase" aria-label="Comparar por" value={modoDaComparacao(config)}
+              onChange={event => mudar(comAComparacao(event.target.value as ModoDaComparacao))}>
+              <option value="diferenca">diferença (em {r.profissionais})</option>
+              <option value="razao">razão (quantas vezes o valor da referência)</option>
+              <option value="taxa">taxa por 1.000 habitantes</option>
+            </select>
+            {config.metrica === "taxa" && <>, com a população{" "}
+              <select data-testid="simulador-populacao" className="ferramenta-campo-da-frase" aria-label="Hipótese de população" value={config.populacao ?? "constante"}
+                onChange={event => mudar({ populacao: event.target.value === "crescendo" ? "crescendo" : undefined })}>
+                <option value="constante">igual à do último registro ({competenciaCurta(ultimoRegistro)})</option>
+                <option value="crescendo">crescendo</option>
+              </select>
+              {config.populacao === "crescendo" && <>{" "}
+                <input data-testid="simulador-populacao-pct" inputMode="decimal" className="ferramenta-campo-da-frase" size={5}
+                  aria-label={"Crescimento da população (% ao ano, de −" + MAX_CRESCIMENTO_DA_POPULACAO + " a " + MAX_CRESCIMENTO_DA_POPULACAO + ")"}
+                  value={config.populacaoPct ?? ""} placeholder="0,0" onChange={event => mudar({ populacaoPct: event.target.value })}/>% ao ano depois dele (uma
+                hipótese sua)</>}
+            </>}.</p>
           <p data-testid="simulador-metrica-apoio" className="ferramenta-apoio">{config.metrica === "taxa"
-            ? "Hipótese: a população do último registro (" + competenciaCurta(ultimoRegistro) + ") vale em todas as datas simuladas; a base não traz população " +
-              "futura. Um valor seu é lido como taxa."
+            ? (config.populacao === "crescendo"
+              ? "Hipótese sua: a população cresce essa taxa ao ano depois do último registro (" + competenciaCurta(ultimoRegistro) + "), a mesma no território e " +
+                "na referência (um número negativo é uma população que diminui); a base não traz população futura. Um valor seu é lido como taxa e não muda."
+              : "Hipótese: a população do último registro (" + competenciaCurta(ultimoRegistro) + ") vale em todas as datas simuladas; a base não traz população " +
+                "futura. Um valor seu é lido como taxa.")
             : "Comparar a quantidade de " + r.profissionais + " de territórios de portes diferentes não é comparar a suficiência do atendimento."} A comparação mostra a
-            diferença, a razão e o índice (100 é a referência); uma referência que contém o território, ou é parte dele, leva o aviso de sobreposição.</p>
+            diferença, a razão e o índice (100 é a referência); {config.forma === "razao" && config.metrica !== "taxa" ? "a frase de cada cenário destaca a razão; " : ""}uma
+            referência que contém o território, ou é parte dele, leva o aviso de sobreposição.</p>
         </>}
       </div>
       <div className="ferramenta-detalhe-acoes">
@@ -827,25 +864,24 @@ export default function SimuladorDeCenarios(props: Props) {
     </div>}
 
     {etapaVisivel === 2 && <div data-testid="simulador-base" className="ferramenta-etapa-corpo">
-      <div className="ferramenta-controles">
-        <label className="analise-rotulo-campo">Janela histórica: de
-          <select data-testid="simulador-janela-inicio" className="analise-campo" value={janela?.inicio ?? ""}
-            onChange={event => mudar({ janela: { inicio: event.target.value, fim: janela?.fim ?? ultimoRegistro } })}>
-            {p.competencias.filter(c => !janela || c < janela.fim).map(c => <option key={c} value={c}>{competenciaCurta(c)}</option>)}
-          </select></label>
-        <label className="analise-rotulo-campo">até (a origem do cenário)
-          <select data-testid="simulador-janela-fim" className="analise-campo" value={janela?.fim ?? ""}
-            onChange={event => mudar({ janela: { inicio: janela?.inicio ?? p.competencias[0], fim: event.target.value } })}>
-            {p.competencias.filter(c => !janela || c > janela.inicio).map(c => <option key={c} value={c}>{competenciaCurta(c)}</option>)}
-          </select></label>
-        <div role="group" aria-label="Atalhos da janela" className="ferramenta-atalhos">
-          <button type="button" data-testid="simulador-janela-padrao" className="analise-botao-secundario" disabled={!config.janela}
-            onClick={() => mudar({ janela: null })}>Janela padrão (3 anos)</button>
-          <button type="button" data-testid="simulador-janela-5-anos" className="analise-botao-secundario" disabled={!janelaDeAnos(p.competencias, 5)}
-            onClick={() => mudar({ janela: janelaDeAnos(p.competencias, 5) })}>Últimos 5 anos</button>
-          <button type="button" data-testid="simulador-janela-completa" className="analise-botao-secundario" disabled={p.competencias.length < 2}
-            onClick={() => mudar({ janela: { inicio: p.competencias[0], fim: ultimoRegistro } })}>Série completa</button>
-        </div>
+      {/* A janela geral em frase, com os campos dentro dela (Proposta V3, seção C.5): quanto tempo antes da origem e a origem. A janela
+          igual à que a base escolheu vale como o padrão; "Voltar ao padrão", no alto, é o único caminho de volta a ele. */}
+      <p data-testid="simulador-frase-da-janela" data-padrao={config.janela ? "false" : "true"} className="ferramenta-frase">Janela histórica: o crescimento é
+        medido em{" "}
+        <select data-testid="simulador-janela-inicio" className="ferramenta-campo-da-frase" aria-label="Tamanho da janela histórica" value={janela?.inicio ?? ""}
+          onChange={event => mudar({ janela: janelaOuPadrao({ inicio: event.target.value, fim: janela?.fim ?? ultimoRegistro }, p.competencias) })}>
+          {p.competencias.filter(c => !janela || c < janela.fim).map(c => <option key={c} value={c}>
+            {tempoEntre(c, janela?.fim ?? ultimoRegistro) + " (desde " + competenciaCurta(c) + ")"}</option>)}
+        </select>{" "}antes de{" "}
+        <select data-testid="simulador-janela-fim" className="ferramenta-campo-da-frase" aria-label="Origem do cenário" value={janela?.fim ?? ""}
+          onChange={event => mudar({ janela: janelaOuPadrao({ inicio: janela?.inicio ?? p.competencias[0], fim: event.target.value }, p.competencias) })}>
+          {p.competencias.filter(c => !janela || c > janela.inicio).map(c => <option key={c} value={c}>{competenciaCurta(c)}</option>)}
+        </select>, a origem do cenário.</p>
+      <div role="group" aria-label="Atalhos da janela" className="ferramenta-atalhos">
+        <button type="button" data-testid="simulador-janela-5-anos" className="analise-botao-secundario" disabled={!janelaDeAnos(p.competencias, 5)}
+          onClick={() => { const cinco = janelaDeAnos(p.competencias, 5); if (cinco) mudar({ janela: janelaOuPadrao(cinco, p.competencias) }); }}>Últimos 5 anos</button>
+        <button type="button" data-testid="simulador-janela-completa" className="analise-botao-secundario" disabled={p.competencias.length < 2}
+          onClick={() => mudar({ janela: janelaOuPadrao({ inicio: p.competencias[0], fim: ultimoRegistro }, p.competencias) })}>Série completa</button>
       </div>
       <p className="ferramenta-apoio">A janela usa só registros reais{daPlanilha ? "" : ", de janeiro e junho (5 e 7 meses entre um e outro)"}.{janela && " De " + competenciaCurta(janela.inicio) +
         " a " + competenciaCurta(janela.fim) + ": " + ((mesDe(janela.fim) - mesDe(janela.inicio)) / 12).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " anos."}

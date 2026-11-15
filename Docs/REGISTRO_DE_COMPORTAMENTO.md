@@ -35,6 +35,80 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-15 · Etapa 7 do comando V23, rodada 2: as premissas do Simulador em frases, a comparação pela razão e com a população crescendo, o "(Entenda)" geral, um "Voltar ao padrão" único e a recusa de projeção que indica o Simulador com qualquer base
+- **Classificação (regra 1):** itens 5 e 6 do comando do responsável de 15/11/2026 (decisões da Pausa 2) e a parte do item 7
+  que trata da conversa. Decorrem do pedido (escopo): a seção C.5 da Proposta V3 completa ("todas as premissas em frases com
+  campos, inclusive “população crescendo x% ao ano” e a escolha entre diferença e razão"), o "(Entenda)" geral e um "Voltar ao
+  padrão" único no Simulador, e a recusa de projeção que indica o Simulador. Compatibilidade: o Simulador continua sendo a
+  exceção aprovada à exclusão de projeção da SPEC (AT-04), só nesta ferramenta, com cenários hipotéticos e condicionais e o
+  texto fixo de cenário. A população crescendo x% ao ano é uma hipótese digitada pela pessoa, declarada na frase, na resposta e
+  nas exportações, como a taxa informada por ela no método: o sistema não estima nem sugere população futura. O registro de
+  11/11/2026 dizia, como limite daquela etapa, que "a comparação por taxa vale só com a população constante"; a seção C.5 da
+  Proposta V3 (adotada pelo responsável em 13/11/2026) e o pedido de 15/11/2026 trazem a nova hipótese, que continua restrita ao
+  Simulador. A conversa continua recusando previsões e não monta cenários; indicar a ferramenta é a alternativa distinta que a
+  SPEC admite (RQ-GOV-11), já aprovada para a base do Brasil. Os endereços das rotas e os campos que as respostas já traziam não
+  mudaram (há campos novos, opcionais no pedido). Nada vai ao provedor de IA. A SPEC e a base não foram editadas. Fica para a
+  próxima rodada o resto do item 7: o grupo de cima de uma planilha como unidade.
+- **Antes:**
+  - **(5) premissas do modo avançado:** só a faixa estava em frase. A janela ("Janela histórica: de … até …"), o método ("Método
+    da base do cenário"), a janela própria e a permanência ("Permanência (% ao ano)") eram campos com rótulo; a comparação era
+    uma lista "Comparar por" com duas opções (a quantidade ou a taxa com a população constante). A frase de cada comparação
+    destacava sempre a diferença, e a população era sempre a do último registro;
+  - **(6) Simulador:** não havia "(Entenda)" no título, e a volta ao padrão estava em dois lugares, cada um para uma premissa: o
+    atalho "Janela padrão (3 anos)", na etapa 2, e "Voltar ao jeito escolhido pela base", no aviso do modo simples;
+  - **(7, conversa):** a recusa de projeção indicava o Simulador só com a base do Brasil.
+- **Agora:**
+  - **(5) as premissas ficam em frases, com os campos dentro delas**, como os critérios do Detector:
+    - "Janela histórica: o crescimento é medido em [3 anos (desde jun/2021)] antes de [jun/2024], a origem do cenário." A lista do
+      início diz quanto tempo antes da origem cada registro fica; a janela igual à que a base escolheu vale como o padrão;
+    - "Jeito de projetar: [Continuar como vinha (o jeito escolhido pela base)], com [a janela geral]." (com a taxa da pessoa,
+      "…, de [x]% ao ano (uma hipótese sua)"; com uma janela própria, "…, com [uma janela própria, desde jun/2019] até [jun/2024].");
+    - "Dos médicos acrescentados, a cada ano permanecem [100]%.", em cada intervenção e no planejamento inverso (numa retirada,
+      "Do efeito da retirada, a cada ano permanecem [100]%.");
+    - "Comparar cada cenário com as referências por [diferença (em médicos) / razão (quantas vezes o valor da referência) /
+      taxa por 1.000 habitantes]" e, na taxa, ", com a população [igual à do último registro (jun/2024) / crescendo] [x]% ao ano
+      depois dele (uma hipótese sua).".
+    **Pela razão**, a frase de cada comparação diz quantas vezes o valor da referência o território teria ("22 médicos, e a
+    referência …, 50: 0,44 vezes o valor da referência (índice 44; 100 é a referência)"); a diferença, a razão e o índice de cada
+    data são os mesmos nas duas formas. **Com a população crescendo**, a população de cada data é a do último registro × (1 +
+    x/100) elevado aos anos passados desde ele (até o último registro, vale a dele), com a mesma taxa no território e na
+    referência; x vai de −20 a 20 (um número negativo é uma população que diminui), e um valor informado como referência não
+    muda. A frase termina com "Hipótese sua: população crescendo 2% ao ano depois de jun/2024, a mesma taxa no território e na
+    referência.". Sem o número, a tela diz "Informe o crescimento da população: um número entre −20 e 20 (% ao ano)." e não pede
+    nada ao motor. No pedido, `comparacao` aceita `forma` (`diferenca` ou `razao`) e `populacao_pct_ao_ano` (só com a métrica
+    `taxa`); a resposta traz `comparacao.forma` e `comparacao.populacao_pct_ao_ano`, e cada comparação, `forma`. O cenário
+    exportado leva `forma`, `populacao` e `populacao_pct`, quando não são o padrão;
+  - **(6)** o título tem o **"(Entenda)" geral** (`simulador-entenda-ferramenta`), como no Detector: três frases simples e um
+    exemplo com números ilustrativos; depois de um cálculo, "Ver explicação completa" abre "Como os métodos se saíram no
+    passado". E há **um "Voltar ao padrão" só** (`simulador-voltar-ao-padrao`), sempre à vista nos dois modos: devolve de uma vez
+    o jeito de projetar e a janela que a base escolheu (também a janela trazida do Detector), a faixa de 8 em cada 10, a
+    permanência total e a comparação pela diferença, e fica desligado enquanto as premissas são as do padrão. O que testar, as
+    datas, a meta, o território e as referências ficam. O atalho "Janela padrão (3 anos)" e o botão "Voltar ao jeito escolhido
+    pela base" saíram; o aviso do modo simples diz que "Voltar ao padrão", no alto, desfaz a escolha;
+  - **(7, conversa)** a recusa de projeção termina com "Para montar cenários hipotéticos, que não são previsão, há o Simulador
+    de Cenários, na linha Ferramentas da área de análise: nele, você escolhe o método, as hipóteses e a data final." **também com
+    uma planilha enviada**.
+- **Permanece:** o modo simples (o pedido dele continua sem a janela geral, as referências, a permanência e a comparação); os
+  métodos, a retroprojeção, as faixas e os valores de todos os cenários; o pedido sem `forma` e sem `populacao_pct_ao_ano`, que dá
+  a mesma resposta de antes (com os dois campos novos, `diferenca` e `null`); os textos das comparações pela diferença e por taxa
+  com a população constante; os atalhos "Últimos 5 anos" e "Série completa"; os identificadores dos campos
+  (`simulador-janela-inicio`, `simulador-metodo`, `simulador-intervencao-permanencia` e os demais; `simulador-metrica` passa a
+  valer `diferenca`, `razao` ou `taxa`); o CSV das comparações (as mesmas colunas; a coluna da hipótese de população diz a
+  hipótese em uso); a conversa continua recusando previsões e projeções livres, sem nenhum número ou cenário.
+- **Motivo:** decisões do responsável na Pausa 2 do comando V23 (15/11/2026): completar a seção C.5 da Proposta V3 e dar ao
+  Simulador o "(Entenda)" geral e um "Voltar ao padrão" único, do mesmo jeito do Detector (seção A.4); e, com o Simulador
+  valendo para qualquer base, a conversa passa a indicá-lo também com uma planilha.
+- **Documentação e testes:** `Docs/SIMULADOR_DE_CENARIOS.md` ("Na tela", o modo avançado, "Referências e comparação", a rota, as
+  exportações, as limitações e os testes), `Docs/DIALOGO_GOVERNADO.md` (a recusa de projeção) e `README.md`; pytest
+  `backend/tests/test_simulador.py` (a comparação pela razão, com a referência em zero; a população crescendo e diminuindo; as
+  recusas) e `test_dialogo.py` (a recusa com uma planilha); Node `frontend/tests/simulador.test.mjs` (o pedido, a leitura da
+  resposta, o que falta para calcular, as premissas no padrão, o "Voltar ao padrão", a janela, o cenário exportado, o
+  "(Entenda)" geral e as frases na tela); navegador `backend/tests/ui_simulador.py`. Valores que mudaram de propósito nos testes:
+  o bloco `comparacao` da resposta (dois campos novos); `forma` em cada comparação lida pela tela; em `test_dialogo.py`, a recusa
+  com uma planilha, que passa a ser igual à da base do Brasil; em `ui_simulador.py`, o valor de `simulador-metrica` ("quantidade"
+  → "diferenca"), a volta à janela padrão (pelo "Voltar ao padrão") e a volta ao jeito escolhido pela base no modo simples
+  (idem), com a ordem do passo 17b ajustada para isso.
+
 ### 2026-11-15 · Etapa 7 do comando V23, rodada 1: os motivos dos sinais não avaliados e indisponíveis, o nome dos trabalhadores da planilha, os gráficos no celular e o resultado que sai ao trocar de território (decisões da Pausa 2 e revisão das capturas 17 a 25)
 - **Classificação (regra 1):** itens 9 a 15 do comando do responsável de 15/11/2026 (decisões da Pausa 2 e revisão das capturas
   17 a 25), mais a parte do item 7 que é só texto (sem população, a comparação por taxa no "não dá para") e o registro das

@@ -88,6 +88,10 @@ MINIMO_DE_CASOS_DA_FAIXA = FAIXAS_EM_10[FAIXA_PADRAO][2]
 MAX_TERRITORIOS, MAX_CENARIOS, MAX_INTERVENCOES, MAX_EVENTOS = 100, 6, 12, 240
 MAX_REFERENCIAS = 5
 METRICAS = ("quantidade", "taxa")
+# A comparação com uma referência (Proposta V3, seção C.5): pela diferença ou pela razão; por taxa, com a população igual à do
+# último registro ou crescendo x% ao ano, uma hipótese da pessoa (a mesma taxa no território e na referência).
+FORMAS_DA_COMPARACAO = ("diferenca", "razao")
+MAX_CRESCIMENTO_DA_POPULACAO = 20.0   # % ao ano, para cima ou para baixo
 ANO_LIMITE = 2100
 PREVISAO_NAO = "Cenário hipotético, não é previsão"
 
@@ -536,6 +540,11 @@ def _br(valor, casas: int = 1) -> str:
     if float(valor).is_integer():
         return f"{int(valor):,}".replace(",", ".")
     return f"{valor:,.{casas}f}".replace(",", "_").replace(".", ",").replace("_", ".")
+
+
+def _curto(valor: float) -> str:
+    """Um número com até duas casas, sem zeros à direita: 1, 1,5 ou 1,25."""
+    return ("%.2f" % valor).rstrip("0").rstrip(".").replace(".", ",")
 
 
 def _pct(valor, casas: int = 1) -> str:
@@ -1235,7 +1244,8 @@ def _retro_da_resposta(base: Base, retros: dict, em_10: int = FAIXA_PADRAO) -> d
             "em_10": em_10, "escolha": niveis["municipios"]["escolha"], "niveis": niveis}
 
 
-def _notas(base: Base, niveis: set, com_referencias: bool = False, com_planejamento: bool = False, em_10: int = FAIXA_PADRAO) -> list[str]:
+def _notas(base: Base, niveis: set, com_referencias: bool = False, com_planejamento: bool = False, em_10: int = FAIXA_PADRAO,
+           crescimento_pct: float = 0.0) -> list[str]:
     r = series_brasil.rotulos(base)
     meses = series_brasil.meses_de_registro(base.periodos)
     # Uma base só com anos ("AAAA00"): um registro por ano ou, quando faltam anos entre os registros, registros anuais espaçados.
@@ -1271,10 +1281,12 @@ def _notas(base: Base, niveis: set, com_referencias: bool = False, com_planejame
                       "um padrão provisório (o jeito escolhido para " + r["os_unidades"] + ").") +
                      " Num conjunto, o valor é a soma dos componentes, não o número de " + r["profissionais"] + " diferentes.")
     if com_referencias:
+        hipotese = ("população constante" if not crescimento_pct else _hipotese_de_populacao(base, crescimento_pct) +
+                    " (a base não traz população futura: a taxa de crescimento é uma hipótese sua)")
         notas.append("Referências: a comparação mostra a diferença, a razão e o índice (100 é a referência), sem chamar a variação de "
                      "convergência. Sem cruzamento, \"não alcança no horizonte simulado\": nenhuma data é inventada. Comparar "
                      "quantitativos de territórios de portes diferentes não é comparar a suficiência do atendimento; por taxa, vale a "
-                     "hipótese de população constante.")
+                     "hipótese de " + hipotese + ".")
     if com_planejamento:
         notas.append("Planejamento inverso: o menor número inteiro de " + r["profissionais"] + " por evento com que o cenário alcança a "
                      "meta na data final, com a base do cenário sem arredondar. É uma conta condicional às hipóteses, não um plano.")
@@ -1404,10 +1416,24 @@ def _sobreposicao(base: Base, territorio: Territorio, ref: dict) -> list[str]:
     return avisos
 
 
-def _comparar(base: Base, territorio: Territorio, resultado: dict, ref: dict, curva: dict, metrica: str, populacoes: dict) -> dict:
+def _hipotese_de_populacao(base: Base, crescimento_pct: float, com_valor_informado: bool = False) -> str:
+    """A hipótese de população da comparação por taxa, em palavras: constante (a do último registro) ou crescendo (ou diminuindo)
+    x% ao ano depois dele, uma hipótese da pessoa. A mesma taxa vale para o território e para a referência; quando a referência é
+    um valor informado, ele já é uma taxa e não muda."""
+    ultimo = detector.curta(base.periodos[-1])
+    if not crescimento_pct:
+        return "população constante, a de " + ultimo
+    return ("população " + ("crescendo " if crescimento_pct > 0 else "diminuindo ") + _curto(abs(crescimento_pct)) + "% ao ano depois de " +
+            ultimo + ("; o valor informado não muda" if com_valor_informado else ", a mesma taxa no território e na referência"))
+
+
+def _comparar(base: Base, territorio: Territorio, resultado: dict, ref: dict, curva: dict, metrica: str, populacoes: dict,
+              forma: str = "diferenca", crescimento_pct: float = 0.0) -> dict:
     """Um cenário de um território diante de uma referência: a diferença, a razão e o índice em cada data, e o alcance. Sem
-    cruzamento no horizonte, "não alcança no horizonte simulado": nenhuma data é inventada."""
-    cabecalho = {"id": ref["id"], "rotulo": ref["rotulo"], "tipo": ref["tipo"], "metrica": metrica,
+    cruzamento no horizonte, "não alcança no horizonte simulado": nenhuma data é inventada. `forma` diz o que a frase destaca (a
+    diferença ou a razão); os três números continuam em cada data. Por taxa, a população é a do último registro ou, com
+    `crescimento_pct`, cresce essa taxa ao ano depois dele (nas datas até o último registro, vale a dele)."""
+    cabecalho = {"id": ref["id"], "rotulo": ref["rotulo"], "tipo": ref["tipo"], "metrica": metrica, "forma": forma,
                  "avisos": _sobreposicao(base, territorio, ref)}
     if resultado["estado"] != "calculado":
         return {**cabecalho, "estado": "nao_calculavel", "motivo": "O cenário deste território não foi calculado."}
@@ -1419,18 +1445,21 @@ def _comparar(base: Base, territorio: Territorio, resultado: dict, ref: dict, cu
         pop_b = None if ref["territorio"] is None else populacoes.get(ref["territorio"].id)
         if not pop_a or (ref["territorio"] is not None and not pop_b):
             return {**cabecalho, "estado": "nao_calculavel", "motivo": "Sem população válida no último registro para a hipótese de "
-                    "população constante."}
+                    "população " + ("constante." if not crescimento_pct else "da comparação.")}
         fator_a = 1000.0 / pop_a
         fator_b = 1.0 if ref["territorio"] is None else 1000.0 / pop_b   # o valor informado já está na métrica escolhida
     origem = base.periodos.index(resultado["parametros"]["origem"])
     datas = [(int(base.meses[origem]), base.periodos[origem], float(resultado["parametros"]["n0"]))] + \
         [(mes_da_competencia(ponto["data"]), ponto["data"], float(ponto["total"])) for ponto in resultado["trajetoria"]]
+    ultimo = int(base.meses[-1])
     pontos = []
     for mes, data, a in datas:
         b = curva["funcao"](mes)
         if b is None:
             continue
-        a, b = a * fator_a, b * fator_b
+        # A população cresce só depois do último registro: até ele, vale a população dele.
+        da_populacao = (1.0 + crescimento_pct / 100.0) ** (max(0, mes - ultimo) / 12.0) if metrica == "taxa" else 1.0
+        a, b = a * fator_a / da_populacao, b * (fator_b / da_populacao if ref["territorio"] is not None else fator_b)
         pontos.append({"data": data, "territorio": a, "referencia": b, "diferenca": b - a,
                        "razao": (a / b) if b > 0 else None, "indice": (100.0 * a / b) if b > 0 else None})
     if not pontos:
@@ -1444,17 +1473,24 @@ def _comparar(base: Base, territorio: Territorio, resultado: dict, ref: dict, cu
     unidade = series_brasil.rotulos(base)["profissionais"] + ("" if metrica == "quantidade" else " por 1.000 habitantes")
     casas = 1 if metrica == "quantidade" else 2
     diferenca = final["diferenca"]
+    if abs(diferenca) < 0.5 * 10 ** -casas:
+        destaque = "o mesmo valor"
+    elif forma == "razao":
+        # Pela razão: quantas vezes o valor da referência o território teria (o índice é a mesma conta, vezes 100).
+        destaque = ("a razão não pode ser calculada, porque a referência é zero" if final["razao"] is None else
+                    _br(round(final["razao"], 2), 2) + " vezes o valor da referência")
+    else:
+        destaque = _br(round(abs(diferenca), casas), casas) + (" abaixo da referência" if diferenca > 0 else " acima da referência")
     texto = ("Em " + detector.curta(final["data"]) + ", " + territorio.rotulo + " teria " + _br(round(final["territorio"], casas), casas) +
              " " + unidade + ", e a referência " + ref["rotulo"] + " (" + curva["descricao"] + "), " +
-             _br(round(final["referencia"], casas), casas) + ": " +
-             ("o mesmo valor" if abs(diferenca) < 0.5 * 10 ** -casas else _br(round(abs(diferenca), casas), casas) +
-              (" abaixo da referência" if diferenca > 0 else " acima da referência")) +
+             _br(round(final["referencia"], casas), casas) + ": " + destaque +
              ("" if final["indice"] is None else " (índice " + _br(round(final["indice"], 1)) + "; 100 é a referência)") + ". " +
              {"ja_acima": "Na origem, o território já está no nível da referência ou acima dele.",
               "nao_alcanca": "Não alcança no horizonte simulado (até " + detector.curta(final["data"]) + ").",
               "alcanca": "No cenário, alcança a referência em " + detector.curta(alcance["data"] or final["data"]) +
                          ", a primeira data avaliada em que isso ocorre."}[alcance["estado"]] +
-             (" Hipótese: população constante, a de " + detector.curta(base.periodos[-1]) + "." if metrica == "taxa" else ""))
+             ((" Hipótese: " if not crescimento_pct else " Hipótese sua: ") +
+              _hipotese_de_populacao(base, crescimento_pct, ref["territorio"] is None) + "." if metrica == "taxa" else ""))
     return {**cabecalho, "estado": "calculada", "descricao": curva["descricao"], "metodo": curva["usado"],
             "avisos": cabecalho["avisos"] + [aviso["texto"] for aviso in curva["avisos"]],
             "pontos": pontos, "inicial": inicial, "final": final, "alcance": alcance, "texto": texto}
@@ -1649,6 +1685,19 @@ def _calcular(sources, opcoes: dict, base: Base | None = None) -> dict:
     metrica = comparacao.get("metrica", "quantidade") if isinstance(comparacao, dict) else None
     if metrica not in METRICAS:
         raise ValueError("Comparação inválida: a métrica é quantidade ou taxa.")
+    # A forma da comparação e a hipótese de população (seção C.5): campos novos e opcionais; sem eles, vale o de antes (a
+    # diferença e a população constante).
+    forma = comparacao.get("forma", "diferenca")
+    if forma not in FORMAS_DA_COMPARACAO:
+        raise ValueError("Comparação inválida: a forma é diferenca ou razao.")
+    crescimento_pct = comparacao.get("populacao_pct_ao_ano", 0)
+    if isinstance(crescimento_pct, bool) or not isinstance(crescimento_pct, (int, float)) or not math.isfinite(crescimento_pct) or \
+            abs(crescimento_pct) > MAX_CRESCIMENTO_DA_POPULACAO:
+        raise ValueError("Comparação inválida: o crescimento da população é um número entre −" + _br(MAX_CRESCIMENTO_DA_POPULACAO) + "% e +" +
+                         _br(MAX_CRESCIMENTO_DA_POPULACAO) + "% ao ano.")
+    crescimento_pct = float(crescimento_pct)
+    if crescimento_pct and metrica != "taxa":
+        raise ValueError("Comparação inválida: o crescimento da população vale só na comparação por taxa (a métrica taxa).")
     curvas = {ref["id"]: {**_curva_da_referencia(base, cal, retro, ref, inicio, fim), "rotulo": ref["rotulo"]} for ref in referencias}
     populacoes = {}
     if metrica == "taxa":   # hipótese explícita: a população do último registro vale em todas as datas simuladas
@@ -1660,8 +1709,8 @@ def _calcular(sources, opcoes: dict, base: Base | None = None) -> dict:
     def do_cenario(territorio: Territorio, cenario: dict) -> dict:
         resultado = _simular(base, cal, retro, territorio, cenario, inicio, fim, horizonte, varios, em_10)
         if referencias:
-            resultado["comparacoes"] = [_comparar(base, territorio, resultado, ref, curvas[ref["id"]], metrica, populacoes)
-                                        for ref in referencias]
+            resultado["comparacoes"] = [_comparar(base, territorio, resultado, ref, curvas[ref["id"]], metrica, populacoes, forma,
+                                                  crescimento_pct) for ref in referencias]
         planejado = _planejar(base, cal, retro, territorio, cenario, resultado, inicio, fim, horizonte, varios, curvas, em_10)
         if planejado is not None:
             resultado["planejamento"] = planejado
@@ -1697,8 +1746,14 @@ def _calcular(sources, opcoes: dict, base: Base | None = None) -> dict:
                              "unidade": None if ref["territorio"] is None else ref["territorio"].unidade,
                              "estado": curvas[ref["id"]]["estado"], "descricao": curvas[ref["id"]].get("descricao"),
                              "motivo": curvas[ref["id"]].get("motivo")} for ref in referencias],
-            "comparacao": {"metrica": metrica, "hipotese_de_populacao": ("constante: a população de " + detector.curta(base.periodos[-1]) +
-                                                                          " em todas as datas simuladas") if metrica == "taxa" else None},
+            "comparacao": {"metrica": metrica, "forma": forma,
+                           "populacao_pct_ao_ano": (crescimento_pct or None) if metrica == "taxa" else None,
+                           "hipotese_de_populacao": None if metrica != "taxa" else
+                           ("constante: a população de " + detector.curta(base.periodos[-1]) + " em todas as datas simuladas")
+                           if not crescimento_pct else
+                           (("crescendo " if crescimento_pct > 0 else "diminuindo ") + _curto(abs(crescimento_pct)) + "% ao ano depois de " +
+                            detector.curta(base.periodos[-1]) + " (hipótese sua), a mesma taxa em todos os territórios; até essa data, a "
+                            "população de " + detector.curta(base.periodos[-1]))},
             "notas": _notas(base, {territorio.nivel for territorio in territorios}, bool(referencias),
-                            any(cenario["planejamento"] for cenario in cenarios), em_10),
+                            any(cenario["planejamento"] for cenario in cenarios), em_10, crescimento_pct if metrica == "taxa" else 0.0),
             "limitacoes": ["CENARIO_HIPOTETICO", "PADRAO_ESCOLHIDO_PELA_BASE", "FAIXA_SO_DO_METODO_PADRAO"]}

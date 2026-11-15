@@ -1755,9 +1755,10 @@ def _governanca_executa(ato: dict, amb: Ambiente) -> dict:
             doc(id_doc)
         texto = ("Isso fica fora do que faço: “" + doc("DOC:TPL-06", "mensagem", "ADM-FE") + "” (" + descricao + "). " +
                  SUGESTOES[tipo])
-        if tipo == "projecao" and amb.fonte.get("tipo", "brasil") == "brasil":
+        if tipo == "projecao":
             # A conversa continua recusando previsões livres (AT-04) e só indica o caminho (comando V22, etapa 5): o Simulador de
-            # Cenários, a ferramenta determinística da base do Brasil, monta cenários hipotéticos, que não são previsão.
+            # Cenários, a ferramenta determinística, monta cenários hipotéticos, que não são previsão. Desde a etapa 7 do comando
+            # V23, também com uma planilha enviada: o Simulador vale para qualquer base.
             texto += " " + INDICA_O_SIMULADOR
     elif tipo == "ignorar_parametro":
         doc("DOC:INV-06")

@@ -512,10 +512,11 @@ test('as comparações, o planejamento inverso e a hipótese derivada da simula�
   const lida = S.normalizarSimulador(BRUTO_5);
   const [c1, m0] = lida.territorios[0].cenarios;
   const ponto = {territorio: 12, referencia: 50, diferenca: 38, razao: 0.24, indice: 24};
-  assert.deepEqual(c1.comparacoes[0], {id: 'r1', rotulo: 'BELEM (PA)', tipo: 'fixa', metrica: 'quantidade', estado: 'calculada', motivo: null,
+  // `forma` (a diferença ou a razão) é de 15/11/2026: a resposta de antes não a traz, e vale a diferença.
+  assert.deepEqual(c1.comparacoes[0], {id: 'r1', rotulo: 'BELEM (PA)', tipo: 'fixa', metrica: 'quantidade', forma: 'diferenca', estado: 'calculada', motivo: null,
     avisos: ['A referência contém o território.'], descricao: 'fixa: o valor de jun/2024 mantido', pontos: [{data: '202406', ...ponto}, {data: '202606', ...ponto}],
     final: {data: '202606', ...ponto}, alcance: {estado: 'nao_alcanca', data: null}, texto: 'Em jun/2026, …'}, 'o ponto sem valor fica de fora; nenhuma data de alcance é inventada');
-  assert.deepEqual(c1.comparacoes[1], {id: 'r2', rotulo: 'Meta', tipo: 'valor', metrica: 'quantidade', estado: 'nao_calculavel',
+  assert.deepEqual(c1.comparacoes[1], {id: 'r2', rotulo: 'Meta', tipo: 'valor', metrica: 'quantidade', forma: 'diferenca', estado: 'nao_calculavel',
     motivo: 'A referência não tem valor nas datas do cenário.', avisos: [], descricao: null, pontos: [], final: null, alcance: null, texto: null});
   // O caminho do cenário com o acréscimo (para o gráfico) vem do motor: o ponto sem data ou sem total fica de fora. A meta que
   // não é o patamar não traz a origem.
@@ -536,10 +537,10 @@ test('as comparações, o planejamento inverso e a hipótese derivada da simula�
   assert.deepEqual(c1.hipotetico, {rotulo: 'hipótese do cenário', data: '202606', valor: 12, inteiro: 12, classe: null, impactoPct: 8.333333333333334, naFaixa: null});
   assert.deepEqual([lida.referencias, lida.comparacao], [[{id: 'r1', rotulo: 'BELEM (PA)', tipo: 'fixa', territorio: 'code:150140',
     unidade: 'médicos registrados no município', estado: 'calculada', descricao: 'fixa: o valor de jun/2024 mantido', motivo: null}],
-    {metrica: 'quantidade', hipoteseDePopulacao: null}]);
+    {metrica: 'quantidade', forma: 'diferenca', populacaoPctAoAno: null, hipoteseDePopulacao: null}]);
   const antiga = S.normalizarSimulador(BRUTO).territorios[0].cenarios[0];   // uma resposta sem os campos da etapa 5
   assert.deepEqual([antiga.comparacoes, antiga.planejamento, antiga.hipotetico, S.normalizarSimulador(null).referencias, S.normalizarSimulador(null).comparacao],
-    [[], null, null, [], {metrica: 'quantidade', hipoteseDePopulacao: null}]);
+    [[], null, null, [], {metrica: 'quantidade', forma: 'diferenca', populacaoPctAoAno: null, hipoteseDePopulacao: null}]);
   // "Usar como intervenção deste cenário": por comando da pessoa, o acréscimo calculado entra nas intervenções, e o planejamento sai.
   const daTela = {...S.novoCenario('c1', 'Cenário 1'), planejamento: S.novoPlano('202501')};
   assert.deepEqual(S.comOPlanoComoIntervencao(daTela, c1.planejamento), {id: 'c1', nome: 'Cenário 1', metodo: 'padrao', taxaManual: '', janela: null,
@@ -1123,10 +1124,10 @@ test('qualquer base: os nomes da planilha antes da primeira resposta, e o cenár
   assert.deepEqual(['territorio' in padrao, 'faixa' in padrao, padrao.base.nome], [false, false, 'Brasil']);
   assert.equal('faixa' in S.importarCenario(JSON.stringify({...exportado, faixa: 7})).config, false);
   // Na tela: a exportação diz a planilha, e o modo simples avisa quando o cenário usa um jeito de projetar escolhido no modo
-  // avançado, com a volta ao que a base escolheu.
+  // avançado. Desde 15/11/2026, a volta ao que a base escolheu é pelo "Voltar ao padrão" único, no alto (o aviso só o indica).
   assert.ok(tela.includes('...(p.daBase ? { base: { nome: resposta?.fonte.base || "planilha enviada", categoria: resposta?.fonte.categoria || p.daBase.categoria || "" } } : {})'));
   assert.ok(tela.includes('{cenarioDoSimples.metodo !== "padrao" && <p data-testid="simulador-metodo-do-avancado"'));
-  assert.ok(tela.includes('onClick={() => mudarCenario(0, { metodo: "padrao", taxaManual: "", janela: null })}'));
+  assert.ok(tela.includes('“Voltar ao padrão”, no alto, desfaz essa escolha.</p>}') && !tela.includes('Voltar ao jeito escolhido pela base'));
 });
 
 test('modo simples: o pedido leva só o que a tela simples mostra — sem o calendário, a permanência e as outras intervenções do modo avançado', () => {
@@ -1259,4 +1260,132 @@ test('revisão das capturas de 15/11/2026: o singular com 1, a faixa inteira de 
   for (const trecho of ['export function tamanhoDoGrafico(medida: number, larguraMaxima: number, altura: number, alturaNoEstreito: number): { largura: number;',
     'const largura = Math.max(280, Math.min(larguraMaxima, Math.round(medida)));', 'const estreito = largura < 560;',
     'return { largura, altura: estreito ? alturaNoEstreito : altura, estreito };']) assert.ok(painelChart.includes(trecho), trecho);
+});
+
+test('etapa 7: a comparação pela diferença, pela razão ou pela taxa, com a população igual ou crescendo x% ao ano, e as premissas padrão', () => {
+  const inicial = S.configInicial({municipios: ['code:130260'], estados: [], conjuntos: []}, '202406');
+  const avancado = {...inicial, modo: 'avancado', referencias: [R2]};
+  // "Comparar … por": a diferença (o padrão), a razão ou a taxa por 1.000 habitantes (Proposta V3, seção C.5).
+  assert.deepEqual([{}, {metrica: 'quantidade'}, {forma: 'razao'}, {metrica: 'taxa'}, {metrica: 'taxa', forma: 'razao'}].map(S.modoDaComparacao),
+    ['diferenca', 'diferenca', 'razao', 'taxa', 'taxa']);
+  assert.deepEqual(['diferenca', 'razao', 'taxa'].map(S.comAComparacao),
+    [{metrica: undefined, forma: undefined}, {metrica: undefined, forma: 'razao'}, {metrica: 'taxa', forma: undefined}]);
+  // O pedido: nada no padrão; a forma, pela razão; por taxa, a métrica e, com a população crescendo, a taxa de crescimento (zero é
+  // a população constante). Sem a hipótese "crescendo" escolhida, um número guardado não vai; sem referências ou no modo simples,
+  // não há comparação a pedir.
+  const pede = parte => S.pedidoDoSimulador({...avancado, ...parte}).comparacao ?? null;
+  assert.deepEqual([pede({}), pede({forma: 'razao'}), pede({metrica: 'taxa'}), pede({metrica: 'taxa', forma: 'razao'}),
+    pede({metrica: 'taxa', populacao: 'crescendo', populacaoPct: '1,5'}), pede({metrica: 'taxa', populacao: 'crescendo', populacaoPct: '-2'}),
+    pede({metrica: 'taxa', populacao: 'crescendo', populacaoPct: '0'}), pede({metrica: 'taxa', populacaoPct: '3'}), pede({populacao: 'crescendo', populacaoPct: '3'})],
+    [null, {forma: 'razao'}, {metrica: 'taxa'}, {metrica: 'taxa'}, {metrica: 'taxa', populacao_pct_ao_ano: 1.5}, {metrica: 'taxa', populacao_pct_ao_ano: -2},
+      {metrica: 'taxa'}, {metrica: 'taxa'}, null]);
+  assert.deepEqual(['comparacao' in S.pedidoDoSimulador({...avancado, referencias: [], forma: 'razao'}),
+    'comparacao' in S.pedidoDoSimulador({...avancado, modo: 'simples', forma: 'razao'})], [false, false]);
+  // O que falta para calcular: com a população crescendo, a taxa é um número entre −20 e 20 — só quando ela vai no pedido.
+  const cresce = pct => ({...avancado, metrica: 'taxa', populacao: 'crescendo', populacaoPct: pct});
+  const falta = 'Informe o crescimento da população: um número entre −20 e 20 (% ao ano).';
+  assert.deepEqual(['', 'x', '21', '-20,5', '20', '-20', '1,5', '0'].map(pct => S.pendenciaDoPedido(cresce(pct))), [falta, falta, falta, falta, null, null, null, null]);
+  assert.deepEqual([{modo: 'simples'}, {referencias: []}, {metrica: 'quantidade'}, {populacao: undefined}].map(parte => S.pendenciaDoPedido({...cresce(''), ...parte})),
+    [null, null, null, null]);
+  assert.equal(S.MAX_CRESCIMENTO_DA_POPULACAO, 20);
+  // A resposta: a forma de cada comparação e, no cálculo, a forma e a hipótese de população (a taxa por ano, quando ela cresce).
+  const base = {versao: 'v', territorios: [{id: 'a', cenarios: [{id: 'c1', estado: 'calculado', comparacoes: [{id: 'r1', forma: 'razao', metrica: 'taxa'}, {id: 'r2'}]}]}]};
+  const lida = S.normalizarSimulador({...base, comparacao: {metrica: 'taxa', forma: 'razao', populacao_pct_ao_ano: 2, hipotese_de_populacao: 'crescendo 2% ao ano'}});
+  assert.deepEqual(lida.comparacao, {metrica: 'taxa', forma: 'razao', populacaoPctAoAno: 2, hipoteseDePopulacao: 'crescendo 2% ao ano'});
+  assert.deepEqual(lida.territorios[0].cenarios[0].comparacoes.map(comparacao => comparacao.forma), ['razao', 'diferenca']);
+  assert.deepEqual(S.normalizarSimulador({...base, comparacao: {metrica: 'taxa', populacao_pct_ao_ano: 'x'}}).comparacao,
+    {metrica: 'taxa', forma: 'diferenca', populacaoPctAoAno: null, hipoteseDePopulacao: null});
+  // As premissas no padrão: o jeito de projetar e a janela que a base escolheu, a faixa de 8 em cada 10, a permanência total e a
+  // comparação pela diferença. O que testar, as datas e as referências não são premissas.
+  const cen = (extra = {}) => ({...S.novoCenario('c1', 'Cenário 1'), ...extra});
+  const acrescimo = {tipo: 'acrescimo', quantidade: '5', em: '202501', periodica: false, ate: '202501', aCadaMeses: '12', permanencia: '90'};
+  assert.deepEqual([inicial, avancado, {...inicial, faixa: 8}, {...inicial, metrica: 'quantidade'}, {...inicial, populacao: 'crescendo', populacaoPct: '2'},
+    {...inicial, cenarios: [cen({intervencoes: [{...acrescimo, permanencia: '100'}]})]}, {...inicial, cenarios: [cen({intervencoes: [{...acrescimo, permanencia: ''}]})]}]
+    .map(S.premissasNoPadrao), [true, true, true, true, true, true, true]);
+  assert.deepEqual([{janela: {inicio: '201906', fim: '202406'}}, {janelaDoDetector: {inicio: '201801', fim: '202106'}}, {faixa: 5}, {metrica: 'taxa'}, {forma: 'razao'},
+    {cenarios: [cen({metodo: 'M1'})]}, {cenarios: [cen({janela: {inicio: '202106', fim: '202406'}})]}, {cenarios: [cen({intervencoes: [acrescimo]})]},
+    {cenarios: [cen({planejamento: {...S.novoPlano('202506'), valor: '30', permanencia: '80'}})]}].map(parte => S.premissasNoPadrao({...inicial, ...parte})),
+    Array(9).fill(false));
+  // "Voltar ao padrão": todas as premissas de volta, de uma vez; o cenário (a quantidade, a data, a meta, as referências, o
+  // território e a data final) fica como estava.
+  const cheio = {...inicial, modo: 'avancado', janela: {inicio: '201906', fim: '202406'}, janelaDoDetector: {inicio: '201801', fim: '202106'}, faixa: 5, metrica: 'taxa',
+    forma: 'razao', populacao: 'crescendo', populacaoPct: '2', referencias: [R2], territorio: 'code:130260', horizonte: '202806',
+    cenarios: [cen({metodo: 'manual', taxaManual: '1,5', janela: {inicio: '202106', fim: '202406'}, intervencoes: [acrescimo],
+      planejamento: {...S.novoPlano('202506'), valor: '30', permanencia: '80'}})]};
+  const volta = S.comAsPremissasPadrao(cheio), depois = {...cheio, ...volta};
+  assert.deepEqual(Object.keys(volta).sort(), ['cenarios', 'faixa', 'forma', 'janela', 'janelaDoDetector', 'metrica', 'populacao', 'populacaoPct']);
+  assert.deepEqual([volta.janela, volta.janelaDoDetector, volta.faixa, volta.metrica, volta.forma, volta.populacao, volta.populacaoPct],
+    [null, undefined, undefined, undefined, undefined, undefined, undefined]);
+  assert.deepEqual(volta.cenarios, [cen({intervencoes: [{...acrescimo, permanencia: '100'}], planejamento: {...S.novoPlano('202506'), valor: '30', permanencia: '100'}})]);
+  assert.equal(S.premissasNoPadrao(depois), true);
+  assert.deepEqual([depois.referencias, depois.territorio, depois.horizonte, depois.modo, depois.local], [[R2], 'code:130260', '202806', 'avancado', cheio.local]);
+  assert.deepEqual(S.pedidoDoSimulador(depois).cenarios[0], {id: 'c1', nome: 'Cenário 1', metodo: 'padrao',
+    intervencoes: [{tipo: 'acrescimo', quantidade: 5, em: '202501'}], planejamento: {meta: {tipo: 'valor', valor: 30}, em: '202506'}});
+  assert.deepEqual(['janela' in S.pedidoDoSimulador(depois), 'faixa' in S.pedidoDoSimulador(depois), 'comparacao' in S.pedidoDoSimulador(depois)], [false, false, false]);
+  // A janela igual à que a base escolheu vale como o padrão (sem janela escolhida); outra janela fica como foi escolhida.
+  assert.deepEqual(S.janelaPadrao(COMPETENCIAS), {inicio: '202106', fim: '202406'});
+  assert.deepEqual([{inicio: '202106', fim: '202406'}, {inicio: '201906', fim: '202406'}, {inicio: '202106', fim: '202401'}].map(janela => S.janelaOuPadrao(janela, COMPETENCIAS)),
+    [null, {inicio: '201906', fim: '202406'}, {inicio: '202106', fim: '202401'}]);
+  // O tempo da janela, em palavras (as opções da frase da janela), também numa base só com anos.
+  assert.deepEqual([['202106', '202406'], ['202306', '202406'], ['202401', '202406'], ['201401', '202406'], ['202301', '202401'], ['202305', '202406'],
+    ['202000', '202300'], ['202200', '202300']].map(([de, ate]) => S.tempoEntre(de, ate)),
+    ['3 anos', '1 ano', '5 meses', '10 anos e 5 meses', '1 ano', '1 ano e 1 mês', '3 anos', '1 ano']);
+  // O cenário exportado leva a forma e a hipótese de população (só quando não são o padrão), e a importação as repõe.
+  const exportado = JSON.parse(S.exportarCenario(cheio, {versaoDoMetodo: 'v', versaoDaBase: 'abc', ultimoRegistro: '202406', quando: 'q'}));
+  assert.deepEqual([exportado.metrica, exportado.forma, exportado.populacao, exportado.populacao_pct], ['taxa', 'razao', 'crescendo', '2']);
+  const importado = S.importarCenario(JSON.stringify(exportado)).config;
+  assert.deepEqual([importado.metrica, importado.forma, importado.populacao, importado.populacaoPct], ['taxa', 'razao', 'crescendo', '2']);
+  const semNada = JSON.parse(S.exportarCenario(inicial, {versaoDoMetodo: '', versaoDaBase: '', ultimoRegistro: '', quando: ''}));
+  assert.deepEqual(['forma' in semNada, 'populacao' in semNada, 'populacao_pct' in semNada], [false, false, false]);
+  const estranho = S.importarCenario(JSON.stringify({...exportado, populacao: 'outra', forma: 'x'})).config;
+  assert.deepEqual(['forma' in estranho, 'populacao' in estranho, 'populacaoPct' in estranho], [false, false, false]);
+});
+
+test('etapa 7: o "(Entenda)" geral no título, um "Voltar ao padrão" único e as premissas em frases com campos', () => {
+  // O "(Entenda)" geral: três frases simples e um exemplo, com o nome que a base dá à contagem.
+  const entenda = S.entendaDoSimulador();
+  assert.equal(entenda.texto, 'Mostra para onde o território iria se continuasse como vinha, e o efeito das mudanças que você quer testar. O “como vinha” e a ' +
+    'margem de erro vêm da própria base: o Agente refaz no passado a projeção que teria feito e confere com o que aconteceu depois. Todo resultado é um ' +
+    'cenário hipotético, nunca uma previsão.');
+  assert.equal(entenda.exemplo, 'Com 22 médicos no último registro, “continuar como vinha” pode levar a 25 dois anos depois; com 5 acrescentados, a 30. Os ' +
+    'números deste exemplo são ilustrativos.');
+  assert.equal(entenda.texto.split('. ').length, 3, 'duas ou três frases');
+  assert.ok(S.entendaDoSimulador({...S.NOMES_DO_BRASIL, profissional: 'enfermeiro', profissionais: 'enfermeiros'}).exemplo.startsWith('Com 22 enfermeiros no último registro'));
+  const tela = ler('SimuladorDeCenarios.tsx');
+  assert.ok(tela.includes('const doSimulador = entendaDoSimulador(nomesDaBase);'));
+  assert.match(tela, /<div className="ferramenta-titulo-linha">\s+<h2 id="simulador-titulo" data-testid="simulador-titulo" tabIndex=\{-1\} className="analise-titulo">Simulador de Cenários Territoriais<\/h2>\s+<Entenda sobre="Simulador de Cenários" texto=\{doSimulador\.texto\} exemplo=\{doSimulador\.exemplo\} testid="simulador-entenda-ferramenta"\s+onCompleta=\{resposta \? abrirAValidacao : undefined\}\/>/);
+  // Um "Voltar ao padrão" só, sempre à vista (fora das etapas), desligado enquanto as premissas são as do padrão. Os atalhos de
+  // volta de antes — "Janela padrão (3 anos)" e "Voltar ao jeito escolhido pela base" — saíram.
+  assert.ok(tela.includes('const noPadrao = premissasNoPadrao(config);'));
+  assert.match(tela, /<button type="button" data-testid="simulador-voltar-ao-padrao" className="analise-botao-secundario" disabled=\{noPadrao\}[\s\S]{0,400}?onClick=\{\(\) => mudar\(comAsPremissasPadrao\(config\)\)\}><RotateCcw size=\{14\} aria-hidden="true"\/>Voltar ao padrão<\/button>/);
+  assert.equal(tela.split('Voltar ao padrão</button>').length - 1, 1, 'um botão só');
+  assert.ok(tela.indexOf('data-testid="simulador-voltar-ao-padrao"') < tela.indexOf('{config.modo === "simples" && <div data-testid="simulador-simples"'), 'antes dos dois modos');
+  for (const fora of ['simulador-janela-padrao', 'Janela padrão (3 anos)', 'Voltar ao jeito escolhido pela base']) assert.ok(!tela.includes(fora), fora);
+  // As premissas em frases, com os campos dentro delas (seção C.5): a janela, o jeito de projetar, a permanência (na intervenção e
+  // no planejamento inverso) e a comparação. A faixa já era uma frase. Os campos mantêm os identificadores de antes.
+  for (const id of ['simulador-frase-da-janela', 'simulador-frase-do-jeito', 'simulador-frase-da-permanencia', 'simulador-frase-da-permanencia-do-plano',
+    'simulador-frase-da-comparacao', 'simulador-janela-inicio', 'simulador-janela-fim', 'simulador-metodo', 'simulador-taxa-manual', 'simulador-cenario-janela-inicio',
+    'simulador-cenario-janela-fim', 'simulador-intervencao-permanencia', 'simulador-plano-permanencia', 'simulador-metrica', 'simulador-populacao',
+    'simulador-populacao-pct', 'simulador-faixa-em-10']) assert.equal(tela.split('data-testid="' + id + '"').length - 1, 1, id);
+  for (const id of ['simulador-janela-inicio', 'simulador-janela-fim', 'simulador-metodo', 'simulador-taxa-manual', 'simulador-cenario-janela-inicio',
+    'simulador-cenario-janela-fim', 'simulador-intervencao-permanencia', 'simulador-plano-permanencia', 'simulador-metrica', 'simulador-populacao',
+    'simulador-populacao-pct', 'simulador-faixa-em-10'])
+    assert.match(tela, new RegExp('<(select|input) data-testid="' + id + '"( inputMode="(decimal|numeric)")? className="ferramenta-campo-da-frase"'), id);
+  assert.ok(!/<label className="analise-rotulo-campo">(Método da base do cenário|Janela própria: de|Janela histórica: de|Permanência \(% ao ano\))/.test(tela),
+    'nenhuma dessas premissas fica num campo com rótulo solto');
+  assert.ok(tela.includes('<p data-testid="simulador-frase-da-janela" data-padrao={config.janela ? "false" : "true"} className="ferramenta-frase">Janela histórica: o crescimento é'));
+  assert.ok(tela.includes('{tempoEntre(c, janela?.fim ?? ultimoRegistro) + " (desde " + competenciaCurta(c) + ")"}</option>)}'));
+  assert.equal(tela.split('janelaOuPadrao(').length - 1, 4, 'os dois campos e os dois atalhos da janela');
+  assert.ok(tela.includes('<p data-testid="simulador-frase-do-jeito" className="ferramenta-frase">Jeito de projetar:{" "}'));
+  assert.ok(tela.includes('<option value="">a janela geral</option>') && tela.includes('<option key={c} value={c}>uma janela própria, desde {competenciaCurta(c)}</option>)}'));
+  assert.ok(tela.includes('? "Do efeito da retirada, a cada ano permanecem" : "Dos " + r.profissionais + " acrescentados, a cada ano permanecem"}{" "}'));
+  assert.ok(tela.includes('Dos {r.profissionais} acrescentados, a\n            cada ano permanecem{" "}'));
+  assert.ok(tela.includes('Comparar cada cenário com {referencias.length === 1 ? "a referência" : "as referências"} por{" "}'));
+  assert.match(tela, /<select data-testid="simulador-metrica" className="ferramenta-campo-da-frase" aria-label="Comparar por" value=\{modoDaComparacao\(config\)\}\s+onChange=\{event => mudar\(comAComparacao\(event\.target\.value as ModoDaComparacao\)\)\}>\s+<option value="diferenca">diferença \(em \{r\.profissionais\}\)<\/option>\s+<option value="razao">razão \(quantas vezes o valor da referência\)<\/option>\s+<option value="taxa">taxa por 1\.000 habitantes<\/option>/);
+  assert.match(tela, /\{config\.metrica === "taxa" && <>, com a população\{" "\}\s+<select data-testid="simulador-populacao" className="ferramenta-campo-da-frase" aria-label="Hipótese de população" value=\{config\.populacao \?\? "constante"\}\s+onChange=\{event => mudar\(\{ populacao: event\.target\.value === "crescendo" \? "crescendo" : undefined \}\)\}>\s+<option value="constante">igual à do último registro \(\{competenciaCurta\(ultimoRegistro\)\}\)<\/option>\s+<option value="crescendo">crescendo<\/option>/);
+  assert.ok(tela.includes('value={config.populacaoPct ?? ""} placeholder="0,0" onChange={event => mudar({ populacaoPct: event.target.value })}/>% ao ano depois dele (uma'));
+  // As listas dentro das frases têm largura para o texto da opção, e a frase da permanência ocupa a linha inteira do bloco.
+  const css = ler('analise.css');
+  assert.ok(css.includes('select.ferramenta-campo-da-frase { max-width: min(100%, 30em); text-align: left; }'));
+  assert.ok(css.includes('.ferramenta-frase-inteira { grid-column: 1 / -1; }'));
 });
