@@ -1461,3 +1461,112 @@ nem outra configuração. O comando do update foi apresentado antes e executado 
 
 Ponto de retomada: a publicação do `dbc7fe3` está concluída. A conferência V da interface no endereço novo será registrada
 quando for informada.
+
+## S. Publicação controlada do `d44b7d4f` (15 e 16/11/2026)
+
+**"AUTORIZO a publicação controlada do commit d44b7d4f9dc574547ea70f0c521c577b2b421452, pelo seu plano, com estas mudanças"**
+(15/11/2026). As mudanças pedidas pela pessoa responsável:
+1. a revisão nova entra primeiro sem tráfego e com uma etiqueta. No endereço dela, medir do lado de quem pede, com a partida a
+   frio separada do tempo de cada pedido: o Detector com todos os municípios (a primeira vez, com a calibração, e a segunda), o
+   Simulador com Agrolândia (2 anos) e com o Pará como unidade, e o Detector com uma planilha pequena e, logo depois, de novo
+   com a base do Brasil; o pico de memória e os reinícios por falta de memória. Limites: nenhum pedido chega a 100 s, mesmo o
+   primeiro depois da partida a frio; a memória fica abaixo de 1,6 GiB; nenhum reinício. Fora deles, parar, com o tráfego na
+   revisão atual e sem mudar CPU, memória, timeout ou instâncias. Dentro deles, a conferência no endereço da etiqueta e só então
+   100% do tráfego para a revisão nova, com `--to-latest` (o tráfego volta a seguir a revisão mais recente, como antes da
+   publicação) e sem a etiqueta;
+2. a conferência do serviço com valores do Detector e do Simulador na base do Brasil em jun/2024;
+3. os tempos e a memória medidos neste registro.
+
+- **O commit:** o `d44b7d4f` traz os comandos V22 e V23, 32 commits desde o `dbc7fe3`:
+  - o Detector de Sinais e o Simulador de Cenários, nas rotas `/api/detector` e `/api/simulador`, já entre as operações
+    pesadas do serviço;
+  - a população do Ministério da Saúde e os 19 nomes corrigidos na base (versão `faa54169c5b6`; antes, `c4d82eeee4e4`);
+  - as coordenadas das ferramentas pela camada oficial e a malha das divisas na interface.
+
+  O CI dele passou nos 7 jobs e no `resumo` (execução 43763195817). Desde o `dbc7fe3`, não mudaram o Dockerfile, o
+  `.dockerignore`, as dependências da imagem, o CORS, a SPEC, os scripts do `.github` nem o modelo do destino.
+- **Antes da imagem:**
+  - a F2-0 deu 0 falhas e 2 itens MANUAL, e a P-2 foi confirmada no Console pela pessoa responsável;
+  - a conferência nova do serviço (só leitura, sem credencial), rodada como linha de base contra a produção do `dbc7fe3`, deu
+    12 OK e 28 falhas previstas. A produção ainda tinha a base `c4d82eeee4e4`: os pedidos do painel com a base nova recebiam
+    422 ("A base Brasil foi atualizada"), e as rotas novas, 404. O primeiro pedido pegou uma partida a frio: 25,1 s.
+- **Imagem:** a etiqueta `imagem-20261115-1` no `d44b7d4f` acionou a execução 43783164522 do `imagem.yml`, aprovada no ambiente
+  `producao` por `gustavohoff1987`: `sha256:cb15d7df63105bc083031f3dd71d6669d0ef83326bc21f9054da1987a957e1bd`.
+- **Cloud Run, primeiro sem tráfego:**
+  - a F2-0 de novo, logo antes do update, sem falhas, com os mesmos 2 itens MANUAL;
+  - o primeiro comando, com `--tag=v3`, foi recusado na validação, sem mudar nada: a etiqueta de tráfego do Cloud Run precisa de
+    pelo menos 3 caracteres. A pessoa responsável aprovou `--tag=v3-nova`;
+  - `gcloud run services update agente-diagnostico-territorial --project=agente-diagnostico-territorial --region=us-central1
+    --image=...@sha256:cb15d7df… --no-traffic --tag=v3-nova` criou a revisão `agente-diagnostico-territorial-00007-coj`, sem
+    tráfego, no endereço `https://v3-nova---agente-diagnostico-territorial-woz4embaja-uc.a.run.app`. No modelo da revisão, só a
+    imagem mudou (além do marcador interno do gcloud). Durante as medições, os 100% ficaram fixados na `00006-q6c`.
+- **Medições no endereço `v3-nova`** (16/11/2026, das 01:21 às 01:22 UTC), depois de a instância da conferência do update se
+  desligar, para o primeiro pedido pegar uma partida a frio de verdade. "No serviço" é o tempo registrado pelo Cloud Run:
+
+| Pedido | Do lado de quem pede | No serviço |
+|---|---|---|
+| Detector, todos os municípios, o 1º depois da partida a frio (com a calibração) | 27,5 s | 26,1 s |
+| Detector, todos os municípios, o 2º | 4,8 s | 3,7 s |
+| Simulador, Agrolândia, 2 anos (o 1º do Simulador, com a retroprojeção) | 7,5 s | 7,2 s |
+| Simulador, Pará como unidade | 0,3 s | 0,05 s |
+| Detector, planilha de teste (20 distritos) | 0,6 s | 0,25 s |
+| Detector, todos os municípios, logo depois da planilha | 5,0 s | 4,6 s |
+
+  - **Partida a frio:** 20,1 s do início da instância à porta aberta, com 13,3 s de aquecimento (base do Brasil 12,0 s;
+    biblioteca conversacional 1,2 s). Do primeiro pedido, cerca de 20 s foram a partida e cerca de 7,4 s, o pedido.
+  - **Reinícios:** uma instância só, a da medição. Nenhum reinício, nenhum aviso de falta de memória e nenhum erro nos registros.
+  - **Memória:** pico de 22% dos 2 GiB (cerca de 0,44 GiB), na linha de 99% do Cloud Monitoring, às 22h24 de Brasília, pela
+    leitura da pessoa responsável no Console. O gcloud deste computador não lê séries de métricas, e nenhuma API foi habilitada.
+  - **Limites respeitados:** o maior tempo foi de 27,5 s, a memória ficou bem abaixo de 1,6 GiB, e não houve reinício. Para
+    comparação, no processo, num computador comum e com a mesma base, o Detector com todos os municípios levou 4,9 s na
+    primeira vez e 3,0 s na segunda, com pico de 536 MiB com dois pedidos juntos.
+- **Conferência no endereço `v3-nova`:** 47 OK e 0 falhas. Ela confere a saúde, a documentação desligada, o CORS (a origem do
+  Pages aceita; a antiga e uma estranha, recusadas; a pré-verificação das duas rotas novas), a base `faa54169c5b6` e 23 respostas
+  iguais às deste commit no painel, no Detector e no Simulador (tudo exato, menos os números decimais, até 1e-9 relativo, a régua
+  do CI). Ela confere também os valores pedidos:
+  - Detector, todos os municípios: 40 críticos, 436 elevados, 978 moderados, 4.116 sem alerta e 0 sem comparações suficientes,
+    com 5.570 pontos no mapa;
+  - Brochier (RS): sem alerta, com os sinais 8 a 10 em "descontinuidade de registro";
+  - Simulador, Agrolândia (SC), 2 anos: de 23 para 28 médicos (27,8), faixa de 21,3 a 37,2, conferida;
+  - Simulador, Abelardo Luz (SC), vindo de "Simular recuperação": meta de 79 e acréscimo de 14 em jun/2025;
+  - Simulador, Pará como unidade: faixa indisponível (189 casos para 200);
+  - nenhuma chamada ao Gemini (o contador igual antes e depois).
+
+  A primeira rodada acusou 9 diferenças, todas no SHA-256 da camada de coordenadas que as respostas trazem (e na chave de
+  execução de um pedido do painel, que o inclui). Na cópia de trabalho do computador da conferência, o arquivo da camada tem fim
+  de linha CRLF (o conteúdo é o mesmo), e o gabarito tinha sido calculado com ela. O serviço responde o SHA-256 do arquivo do
+  commit, `1929129964a0…`, o mesmo registrado no README. Com o gabarito refeito a partir do commit exportado (`git archive`),
+  a conferência passou inteira.
+- **Tráfego:** `gcloud run services update-traffic agente-diagnostico-territorial --project=agente-diagnostico-territorial
+  --region=us-central1 --to-latest --remove-tags=v3-nova` (16/11/2026, 01:40 UTC) deixou 100% na `00007-coj`, seguindo a
+  revisão mais recente, como antes da publicação, e sem etiqueta.
+- **Etiquetas da imagem:** `em-uso` no `cb15d7df…` e `anterior` no `a5a34815…` (`dbc7fe3`, revisão `00006-q6c`). O
+  `b6728170…` (`590bf8b`) ficou só com a etiqueta do commit, para a limpeza automática; depois dela, a `00005-js5` não volta
+  mais ao ar.
+- **Conferência na produção**, no endereço principal, depois da troca: as mesmas verificações, 47 OK e 0 falhas.
+- **Interface:**
+  - o commit `94752ec` do destino passou o `origem.txt` para `d44b7d4f`. O `publicar.yml`, o `conferir_origem.py` e o
+    `verificar_chave_google.py` de lá são iguais aos desse commit; o `conferir_protecao.py` ficou como no `dbc7fe3`;
+  - a etiqueta `publicacao-pages-20261115-1` acionou a execução 43787740797. Os jobs `conferir`, `build` e `publicar` passaram,
+    com a aprovação de `gustavohoff1987` no ambiente `github-pages` do destino, e a publicação terminou às 01:49 UTC de 16/11;
+  - pela web: a página responde 200 com o título oficial. O script `index-CXDaSkqw.js` traz o endereço do serviço e os textos
+    novos ("Detector de Sinais", "Simulador de Cenários", "Por exemplo: enfermeiros"); a malha das divisas sai com 1.428.796
+    bytes e o SHA-256 `b509836495fa…`; o endereço antigo segue em 404.
+- **Observação, anterior a esta publicação:** desde 08/11, 13 pedidos à produção receberam 500 ("The request was aborted after
+  waiting too long for an available instance"), todos em partidas a frio, entre eles pedidos de sessão e de exame da base. Nada
+  foi mudado; fica para decisão da pessoa responsável.
+- **Preservados:**
+  - não houve merge no `main` do Teste-Agente nem mudança na SPEC;
+  - a API de orçamentos segue desligada, e a F2-0 conta 32 APIs ligadas, como antes;
+  - o faturamento não foi alterado: o orçamento e a trava só se conferem no Console (P-2);
+  - os limites do serviço (1 vCPU, 2 GiB, mínimo 0 e máximo 1 instância, concorrência 40, timeout 150 s) não mudaram.
+- **Reversão** (o serviço e a interface juntos):
+  - serviço: `gcloud run services update-traffic agente-diagnostico-territorial --project=agente-diagnostico-territorial
+    --region=us-central1 --to-revisions=agente-diagnostico-territorial-00006-q6c=100`, com a etiqueta `em-uso` de volta ao
+    `a5a34815…` e `anterior` no `cb15d7df…` (F2-6). A `00006-q6c` tem a mesma configuração, com a imagem do `dbc7fe3`;
+  - interface: o `origem.txt` do destino de volta a `dbc7fe3e57df806d6093ff005c4a8e545eb029c5` e uma etiqueta nova.
+
+Os scripts da conferência e da medição ficam fora do repositório, numa pasta local ignorada pelo Git.
+
+Ponto de retomada: a publicação do `d44b7d4f` está concluída. A conferência V da interface pela pessoa responsável será
+registrada quando for informada.
