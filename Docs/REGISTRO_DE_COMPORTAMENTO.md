@@ -35,6 +35,35 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-18 · AJ-01: o botão de abrir e fechar da Seleção de Territórios, com fundo colorido e a seta para baixo (fechado) ou para cima (aberto)
+- **Classificação (regra 1):** AJ-01 do comando de ajustes pré-publicação do responsável (18/11/2026, versão 6). Decorre do pedido
+  (escopo) e não contraria a SPEC nem uma divergência aprovada (compatibilidade): muda a aparência do controle de abrir e fechar e
+  o texto de ajuda; a mecânica da seleção e da expansão, os atributos de acessibilidade e os identificadores continuam. Nenhum
+  nível é somado a outro (RQ-DAD-30). Nada vai ao provedor de IA. A SPEC e a base não foram editadas.
+- **Antes:** nos três níveis da árvore que se abrem (na base do Brasil, o Brasil, as regiões e os estados; também na linha de um
+  estado achado pela busca), o controle era um botão transparente de 32 px (40 px em tela estreita e no toque), com uma seta de 16
+  px para a direita que girava para baixo quando o nível estava aberto. A seta não parecia clicável: a pessoa marcava a região sem
+  perceber que podia abri-la. A orientação dizia "A seta abre a lista; a caixa marca …".
+- **Agora:** o controle tem **cara de botão**: fundo na cor de destaque (`--cor-destaque`), cantos arredondados, 34 px (40 px até
+  699 px de largura e no toque) e a **seta vertical**, de 20 px, **para baixo com o nível fechado e para cima com ele aberto**
+  (`data-seta`, "baixo" ou "cima"). A seta usa a cor sobre o destaque (`--cor-sobre-tinta`): branca no claro e escura no escuro,
+  onde o botão fica num tom claro. Sob o mouse, o fundo passa a `--cor-destaque-realce`; o foco tem o contorno de todos os botões.
+  Contraste (WCAG 2.2, critério 1.4.11, que pede 3:1): no claro, o botão fica a 4,0:1 ou mais do fundo das linhas, e a seta, a
+  4,3:1 do botão; no escuro, 6,5:1 e 8,0:1. A orientação diz "O botão com a seta abre e fecha a lista; a caixa marca …".
+- **Permanece:** abrir nunca marca, marcar não abre e fechar não muda a seleção; `aria-expanded`, `aria-controls` e o nome
+  ("Abrir …", "Fechar …", "Ver os … municípios do …", "Fechar a lista …"); Enter e Espaço; os identificadores `analise-raiz-ver`,
+  `analise-regiao-ver`, `analise-grupo-ver` e `analise-busca-grupo-ver`; em tela estreita, a seta continua na linha da caixa; a
+  caixa, "Só o estado" e "Só os estados".
+- **Motivo:** AJ-01 do comando de ajustes pré-publicação (18/11/2026), para a versão usada na publicação do artigo: a seta não
+  era reconhecida como a ação de abrir.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (a árvore e o botão) e `README.md`. Testes: Node
+  `frontend/tests/modoEscuro.test.mjs` (teste novo: o contraste do botão com o fundo das linhas e da seta com o botão, pelas
+  variáveis dos dois esquemas; a seta para baixo e para cima na tela; os identificadores); navegador `backend/tests/ui_area_de_analise.py`
+  (passo novo: o botão nos três níveis e na busca, com as cores lidas das variáveis, cantos arredondados e 32 px ou mais; Enter e
+  Espaço alternando `aria-expanded` e a seta; abrir e fechar sem marcar nada nem pedir nada ao motor). O roteiro
+  `ui_responsivo.py` continua conferindo os 40 px no celular, e `ui_modo_escuro.py`, a seta legível no escuro. Valor que mudou de
+  propósito: em `backend/tests/ui_planilha_ficticia.py`, a orientação da árvore ("O botão com a seta abre e fecha a lista; …").
+
 ### 2026-11-15 · Revisão final do comando V23: as ferramentas com as coordenadas da camada oficial, o motivo na frase de todo sinal sem avaliação, a posição da distância em palavras simples, a cautela simples do cenário e as siglas dos estados sem sobreposição
 - **Classificação (regra 1):** itens 1 e 3 a 7 do comando do responsável de 15/11/2026 ("Revisão final da etapa 7"). Decorrem do
   pedido (escopo) e não contrariam a SPEC nem uma divergência aprovada (compatibilidade): a camada geográfica complementar é a

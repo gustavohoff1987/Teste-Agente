@@ -360,6 +360,56 @@ def main():
         sem_bastidor("Seleção de Territórios")
         page.wait_for_timeout(800)
         assert not painel_calls, "sem territórios escolhidos, nada é pedido ao motor"
+        # AJ-01 (comando de ajustes pré-publicação, 18/11/2026): nos três níveis que se abrem (o Brasil, as regiões e os estados) e
+        # na linha de um estado achado pela busca, o controle de abrir e fechar tem cara de botão — o fundo na cor de destaque
+        # (--cor-destaque) e a seta na cor sobre ela (--cor-sobre-tinta), cantos arredondados, 32 px ou mais — e a seta vertical:
+        # para baixo com o nível fechado, para cima com ele aberto. Enter e Espaço alternam aria-expanded; abrir e fechar não
+        # marcam nada nem pedem nada ao motor (o contraste pelas variáveis dos dois esquemas fica em modoEscuro.test.mjs).
+        def cara_de_botao(botao, rotulo, aberto):
+            expect(botao).to_have_attribute("aria-expanded", "true" if aberto else "false")
+            expect(botao).to_have_attribute("data-seta", "cima" if aberto else "baixo")
+            medida = botao.evaluate("""e => { const s = getComputedStyle(e), ref = document.createElement('span');
+              ref.style.backgroundColor = 'var(--cor-destaque)'; ref.style.color = 'var(--cor-sobre-tinta)'; document.body.appendChild(ref);
+              const r = getComputedStyle(ref), caixa = e.getBoundingClientRect();
+              const saida = { fundo: s.backgroundColor, cor: s.color, destaque: r.backgroundColor, sobre: r.color,
+                raio: parseFloat(s.borderTopLeftRadius), largura: caixa.width, altura: caixa.height, setas: e.querySelectorAll('svg').length };
+              ref.remove(); return saida; }""")
+            assert medida["fundo"] == medida["destaque"] and medida["cor"] == medida["sobre"], (rotulo, "as cores do botão", medida)
+            assert medida["raio"] >= 6 and min(medida["largura"], medida["altura"]) >= 32 and medida["setas"] == 1, (rotulo, medida)
+
+        def alterna_pelo_teclado(botao, tecla):
+            botao.scroll_into_view_if_needed()
+            botao.focus()
+            botao.press(tecla)
+
+        cara_de_botao(territorios.get_by_test_id("analise-raiz-ver"), "o Brasil, aberto de início", True)
+        norte = territorios.locator('[data-testid="analise-regiao"][data-id="1"]')
+        norte_ver = norte.get_by_test_id("analise-regiao-ver")
+        cara_de_botao(norte_ver, "a região, fechada de início", False)
+        alterna_pelo_teclado(norte_ver, "Enter")
+        expect(norte).to_have_attribute("data-aberta", "true")
+        cara_de_botao(norte_ver, "a região aberta pelo Enter", True)
+        alterna_pelo_teclado(norte_ver, "Space")
+        expect(norte).to_have_attribute("data-aberta", "false")
+        cara_de_botao(norte_ver, "a região fechada pelo Espaço", False)
+        alterna_pelo_teclado(norte_ver, "Space")
+        cara_de_botao(norte_ver, "a região aberta de novo pelo Espaço", True)
+        linha_am_ver = territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]').get_by_test_id("analise-grupo-ver")
+        cara_de_botao(linha_am_ver, "o estado fechado", False)
+        alterna_pelo_teclado(linha_am_ver, "Enter")
+        cara_de_botao(linha_am_ver, "o estado aberto pelo Enter", True)
+        expect(territorios.get_by_test_id("analise-grupo-voltar")).to_be_visible()
+        alterna_pelo_teclado(linha_am_ver, "Space")
+        cara_de_botao(linha_am_ver, "o estado fechado pelo Espaço", False)
+        busca.fill("Amazonas")
+        achado_ver = territorios.locator('[data-testid="analise-busca-grupo"][data-id="' + AM + '"]').get_by_test_id("analise-busca-grupo-ver")
+        cara_de_botao(achado_ver, "o estado achado pela busca", False)
+        busca.fill("")
+        alterna_pelo_teclado(norte_ver, "Enter")
+        expect(norte).to_have_attribute("data-aberta", "false")
+        expect(direita.get_by_test_id("analise-selecionados-itens")).to_contain_text("Nenhum território selecionado ainda")
+        page.wait_for_timeout(300)
+        assert not painel_calls, "abrir e fechar a árvore não marca nada nem pede nada ao motor"
         # A aba de uma análise sem territórios: "Entenda esta análise" recolhido desde a primeira visita (25/10/2026, pedido do
         # responsável, para não ocupar espaço), os ajustes e o convite a selecionar. Desde a Escolha dos territórios (27/10/2026), a
         # janela abre sozinha também sem territórios; desde 06/11/2026 (item 4.1 do comando, uma seleção só), a base é a seleção em

@@ -812,11 +812,14 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-no-raiz[data-marcado="true"] { border-color: var(--cor-destaque); }
 .analise-no-linha { display: flex; min-width: 0; align-items: center; gap: 4px; }
 .analise-no-filhos { margin: 2px 0 4px 18px; padding-left: 8px; border-left: 1px solid var(--cor-borda-campo); }
-.analise-no-seta { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0;
-  border: 0; border-radius: 8px; background: transparent; color: var(--cor-destaque-texto); cursor: pointer; }
-.analise-no-seta:hover { background: var(--cor-realce-destaque); }
-.analise-no-seta-icone { transition: transform .15s ease; }
-.analise-no-seta[aria-expanded="true"] .analise-no-seta-icone { transform: rotate(90deg); }
+/* O botão de abrir e fechar (AJ-01, 18/11/2026): fundo na cor de destaque, cantos arredondados e a seta vertical (para baixo
+   fechado, para cima aberto), com 3:1 ou mais entre o botão e o fundo da linha e entre a seta e o botão, no claro e no escuro
+   (WCAG 2.2, 1.4.11; o teste modoEscuro.test.mjs confere pelas variáveis). O foco usa o contorno de todos os botões. */
+.analise-no-seta { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0;
+  border: 0; border-radius: 9px; background: var(--cor-destaque); color: var(--cor-sobre-tinta); cursor: pointer;
+  box-shadow: 0 1px 2px var(--cor-sombra); }
+.analise-no-seta:hover { background: var(--cor-destaque-realce); }
+.analise-no-seta-icone { flex: none; }
 /* A caixa e o nome ocupam o resto da linha ao lado da seta (base zero): em tela estreita, o nome quebra por dentro, e a seta não
    fica sozinha numa linha. */
 .analise-caixa.analise-no-caixa { flex: 1 1 0; min-width: 0; min-height: 34px; }

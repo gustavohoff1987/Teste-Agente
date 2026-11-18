@@ -308,6 +308,48 @@ test('contraste no escuro: textos, avisos, links e botões a 4,5:1 ou mais nas s
   ordem.slice(1).forEach((valor, i) => assert.ok(valor > ordem[i], 'superfícies em ordem de elevação'));
 });
 
+test('AJ-01: o botão de abrir e fechar da árvore fica a 3:1 ou mais do fundo da linha, e a seta, do botão, no claro e no escuro', () => {
+  // As cores vêm das regras de analise.css (o botão e o botão sob o mouse) e das variáveis de styles.css dos dois esquemas
+  // (WCAG 2.2, critério 1.4.11: componentes e objetos gráficos a 3:1). As linhas da árvore ficam sobre a superfície do painel, a
+  // superfície suave (a linha do Brasil), o realce de destaque (o estado como unidade) ou a página.
+  const ANALISE = semComentarios(ler('src/analise.css'));
+  const regra = seletor => {
+    const achada = new RegExp(seletor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}').exec(ANALISE);
+    assert.ok(achada, 'a regra ' + seletor + ' em analise.css');
+    return achada[1];
+  };
+  const variavel = (bloco, propriedade) => {
+    const achada = new RegExp('(?:^|[;{\\s])' + propriedade + '\\s*:\\s*var\\((--[\\w-]+)\\)').exec(bloco);
+    assert.ok(achada, propriedade + ' por variável');
+    return achada[1];
+  };
+  const botao = regra('.analise-no-seta'), sobOMouse = regra('.analise-no-seta:hover');
+  const fundo = variavel(botao, 'background'), seta = variavel(botao, 'color'), realce = variavel(sobOMouse, 'background');
+  assert.deepEqual([fundo, seta, realce], ['--cor-destaque', '--cor-sobre-tinta', '--cor-destaque-realce']);
+  assert.match(botao, /border-radius:\s*\d+px/, 'cantos arredondados');
+  const lado = Number(/width:\s*(\d+)px/.exec(botao)?.[1]);
+  assert.ok(lado >= 32 && Number(/height:\s*(\d+)px/.exec(botao)?.[1]) === lado, 'a área de toque de antes (32 px) ou maior');
+  assert.match(ANALISE, /@media \(max-width: 699px\), \(pointer: coarse\) \{[^@]*\.analise-no-seta \{ width: 40px; height: 40px; \}/,
+    'no celular e no toque, 40 px, como antes');
+  for (const esquema of ['claro', 'escuro']) {
+    const v = nome => nome.startsWith('--tom-') ? hexDosCanais(nome, esquema) : hexDe(nome, esquema);
+    for (const cor of [fundo, realce]) {
+      for (const linha of ['--cor-superficie', '--cor-superficie-suave', '--cor-realce-destaque', '--cor-pagina', '--cor-superficie-elevada']) {
+        const razao = contraste(v(cor), v(linha));
+        assert.ok(razao >= 3, esquema + ': ' + cor + ' sobre ' + linha + ' a ' + razao.toFixed(2) + ':1');
+      }
+      const daSeta = contraste(v(seta), v(cor));
+      assert.ok(daSeta >= 3, esquema + ': a seta (' + seta + ') sobre ' + cor + ' a ' + daSeta.toFixed(2) + ':1');
+    }
+  }
+  // Na tela: a seta para baixo com o nível fechado e para cima com ele aberto, nos três níveis, com os mesmos identificadores.
+  const tela = ler('src/PainelTerritorios.tsx');
+  assert.match(tela, /data-seta=\{aberta \? "cima" : "baixo"\}/);
+  assert.match(tela, /\{aberta \? <ChevronUp [^>]*\/>\s*: <ChevronDown [^>]*\/>\}/);
+  for (const testid of ['"analise-raiz-ver"', '"analise-regiao-ver"', '"analise-grupo-ver"', '"analise-busca-grupo-ver"']) assert.ok(tela.includes(testid), testid);
+  assert.ok(!/rotate\(90deg\)/.test(ANALISE), 'a seta não gira mais: ela troca de sentido');
+});
+
 test('Tailwind: cada tom das classes lê uma variável com os dois esquemas; as classes mudam sozinhas no escuro', () => {
   const cores = TAILWIND.theme.extend.colors;
   const valores = [];

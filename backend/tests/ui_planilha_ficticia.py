@@ -181,10 +181,12 @@ def main():
         # concordância dos nomes da planilha.
         raiz = area.get_by_test_id("analise-raiz")
         expect(raiz).to_contain_text("Solária")
-        # O resumo do universo e a orientação da árvore (comando V22, seção 3): a seta abre, a caixa marca, "Só o condado".
+        # O resumo do universo e a orientação da árvore (comando V22, seção 3): a seta abre, a caixa marca, "Só o condado". Desde o
+        # AJ-01 (18/11/2026), a seta fica num botão colorido, e a orientação diz "O botão com a seta abre e fecha a lista" (muda de
+        # propósito; antes, "A seta abre a lista").
         expect(area.get_by_test_id("analise-raiz-universo")).to_have_text("16 comunas | 4 condados")
         expect(area.get_by_test_id("analise-territorios-instrucao")).to_have_text(
-            "A seta abre a lista; a caixa marca as comunas. “Só o condado” põe o condado na seleção como uma unidade.")
+            "O botão com a seta abre e fecha a lista; a caixa marca as comunas. “Só o condado” põe o condado na seleção como uma unidade.")
 
         def marca_a_planilha():
             caixa = area.get_by_test_id("analise-raiz-caixa")

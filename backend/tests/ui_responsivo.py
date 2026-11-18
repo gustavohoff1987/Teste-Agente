@@ -173,13 +173,18 @@ def main():
               const r = document.createRange(); r.selectNodeContents(n);
               const linhas = new Set([...r.getClientRects()].map(x => Math.round(x.top))).size;
               return { id: e.dataset.id, nome: n.textContent, cortado: n.scrollWidth > n.clientWidth + 1, largura: n.getBoundingClientRect().width,
-                linhas, ver: [v.getBoundingClientRect().width, v.getBoundingClientRect().height], caixa: c.getBoundingClientRect().height }; })""")
+                linhas, ver: [v.getBoundingClientRect().width, v.getBoundingClientRect().height], caixa: c.getBoundingClientRect().height,
+                centroDaSeta: v.getBoundingClientRect().top + v.getBoundingClientRect().height / 2,
+                faixaDaCaixa: [c.getBoundingClientRect().top, c.getBoundingClientRect().bottom], seta: v.dataset.seta }; })""")
             for medida in medidas:
                 # Espremido: com menos de 60 px e o nome quebrado em linhas. Um nome curto ("Pará (PA)", 58 px) cabe inteiro numa linha.
                 espremido = medida["largura"] < 60 and medida["linhas"] > 1
                 assert not medida["cortado"] and not espremido, (nome, "nome do estado cortado ou espremido", medida)
                 if movel:
                     assert min(medida["ver"]) >= 39.5 and medida["caixa"] >= 39.5, (nome, "alvo de toque menor que 40 px", medida)
+                # AJ-01 (18/11/2026): o botão da seta fica na linha da caixa (não sozinho numa linha), com a seta para baixo (fechado).
+                assert medida["faixaDaCaixa"][0] <= medida["centroDaSeta"] <= medida["faixaDaCaixa"][1], (nome, "a seta fora da linha", medida)
+                assert medida["seta"] == "baixo", (nome, "estado fechado com a seta para baixo", medida)
             legivel(territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"] .analise-no-nome'), "nome do estado")
             legivel(territorios.get_by_test_id("analise-territorios-instrucao"), "orientação da árvore")
             # O Amazonas inteiro e um município do Pará: a combinação, com o Pará em parte.

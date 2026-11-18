@@ -143,9 +143,19 @@ descrição de 05 a 09/11/2026 que vem depois dela (marcada como histórico).
   (`analise-grupo-contagem`) e "Só o estado" (`analise-grupo-so-estado`). A seta só abre e fecha, nas regiões e nos estados, de
   forma independente, e recolher não muda a seleção (recolher uma região fecha também a lista aberta de um estado dela); as
   regiões abertas continuam abertas ao voltar à Seleção; a caixa só marca, e marcar não abre. A lista dos municípios de um estado abre
-  abaixo da linha dele, numa caixa com rolagem própria, para a linha seguinte continuar perto. A orientação diz "A seta abre a
-  lista; a caixa marca os municípios. “Só o estado” põe o estado na seleção como uma unidade, com a fonte estadual."
-  (`analise-territorios-instrucao`). Até 699 px de largura e no toque, a seta, a caixa e "Só o estado" têm 40 px.
+  abaixo da linha dele, numa caixa com rolagem própria, para a linha seguinte continuar perto. A orientação diz "O botão com a
+  seta abre e fecha a lista; a caixa marca os municípios. “Só o estado” põe o estado na seleção como uma unidade, com a fonte
+  estadual." (`analise-territorios-instrucao`). Até 699 px de largura e no toque, a seta, a caixa e "Só o estado" têm 40 px.
+- **O botão de abrir e fechar** (AJ-01, 18/11/2026): nos três níveis que se abrem (o Brasil, as regiões e os estados; também na
+  linha de um estado achado pela busca, `analise-busca-grupo-ver`), a seta fica num botão com cara de botão — fundo na cor de
+  destaque (`--cor-destaque`), cantos arredondados, 34 px (40 px até 699 px de largura e no toque) — e é vertical: **para baixo com
+  o nível fechado e para cima com ele aberto** (`data-seta` "baixo" ou "cima"). A seta usa a cor sobre o destaque
+  (`--cor-sobre-tinta`): branca no claro e escura no escuro, onde o botão fica num tom claro. O botão fica a 3:1 ou mais do fundo
+  da linha, e a seta, do botão, nos dois esquemas (WCAG 2.2, critério 1.4.11); sob o mouse, o fundo escurece no claro e clareia
+  no escuro (`--cor-destaque-realce`), e o foco tem o contorno de todos os botões. A mecânica, os atributos de acessibilidade
+  (`aria-expanded`, `aria-controls` e o nome "Abrir …" ou "Fechar …"), o teclado (Enter e Espaço) e os identificadores são os de
+  antes; em tela estreita, a seta continua na linha da caixa. Até 18/11/2026, a seta era um ícone para a direita num botão
+  transparente, que girava para baixo quando o nível estava aberto.
 - **O estado como unidade** (decisão 3): "Só o estado" põe o estado na seleção como uma unidade (uma bolha, com a contagem
   estadual de médicos únicos), num só passo do Desfazer; os municípios dele que estavam marcados saem e, enquanto isso, ficam
   esmaecidos e bloqueados (`data-bloqueada`, com o motivo no título e na lista do estado). Desligar tira o estado e deixa os

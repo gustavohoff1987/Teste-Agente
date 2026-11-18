@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode, type Dispatch, type SetStateAction } from "react";
-import { ArrowRight, ChevronRight, Filter, Layers3, Pencil, Search, X } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Filter, Layers3, Pencil, Search, X } from "lucide-react";
 import MapaDosConjuntos, { type ConjuntoNoMapa } from "./MapaDosConjuntos";
 import type { PainelConjuntoPedido, PainelMunicipios, PainelNivel, Rotulo } from "./painelApi";
 import {
@@ -203,9 +203,14 @@ export default function PainelTerritorios(p: Props) {
   };
 
   // ------------------------------------------------------------------------------------------ partes da árvore
+  // O botão de abrir e fechar (comando de ajustes pré-publicação, AJ-01, 18/11/2026): com cara de botão — fundo na cor de destaque,
+  // cantos arredondados e a seta vertical, para baixo com o nível fechado e para cima com ele aberto —, nos três níveis que se abrem
+  // (o todo, os grupos do meio e os grupos de cima). A mecânica é a de antes: abrir nunca marca, e fechar não muda a seleção.
   const seta = (aberta: boolean, rotulo: string, testid: string, alternar: () => void, controla?: string) =>
-    <button type="button" data-testid={testid} className="analise-no-seta" aria-expanded={aberta} aria-controls={aberta ? controla : undefined}
-      aria-label={rotulo} title={rotulo} onClick={alternar}><ChevronRight size={16} aria-hidden="true" className="analise-no-seta-icone"/></button>;
+    <button type="button" data-testid={testid} data-seta={aberta ? "cima" : "baixo"} className="analise-no-seta" aria-expanded={aberta}
+      aria-controls={aberta ? controla : undefined} aria-label={rotulo} title={rotulo} onClick={alternar}>
+      {aberta ? <ChevronUp size={20} strokeWidth={2.75} aria-hidden="true" className="analise-no-seta-icone"/>
+        : <ChevronDown size={20} strokeWidth={2.75} aria-hidden="true" className="analise-no-seta-icone"/>}</button>;
   const botaoComoUnidade = (ativo: boolean, rotulo: string, testid: string, acao: () => void, descricao: string) =>
     <button type="button" data-testid={testid} aria-pressed={ativo} className="analise-so-estado" title={descricao} onClick={acao}>{rotulo}</button>;
 
@@ -522,7 +527,7 @@ export default function PainelTerritorios(p: Props) {
     <div className="analise-territorios-colunas">
       <div data-testid="analise-territorios-lista" className="analise-territorios-lista">
         <p data-testid="analise-territorios-instrucao" className="analise-territorios-instrucao">{temGrupos
-          ? "A seta abre a lista; a caixa marca " + artigo(unidade, true) + " " + unidade.plural + ". “" + soO(grupoRotulo) +
+          ? "O botão com a seta abre e fecha a lista; a caixa marca " + artigo(unidade, true) + " " + unidade.plural + ". “" + soO(grupoRotulo) +
             "” põe " + artigo(grupoRotulo, false) + " " + grupoRotulo.singular + " na seleção como uma unidade" + (p.brasil ? ", com a fonte estadual" : "") + "."
           : "Marque " + unidade.plural + (generoF ? " uma a uma" : " um a um") + " ou " + (p.rotulos.todo?.nome?.trim() ? todoInteiro(false, p.rotulos) : "toda a base") + "."}</p>
         <div className="analise-busca">
