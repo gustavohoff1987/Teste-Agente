@@ -60,8 +60,8 @@ FAIXAS = {5: (25, 75, 80, 50), 8: (10, 90, 200, 80), 9: (5, 95, 400, 90)}
 ROTULOS = {"M0": "persistência (o último valor se mantém)", "M0d": "persistência com o crescimento recente do estado",
            "M0g": "persistência com o crescimento recente da base toda", "M1": "taxa composta da janela"}
 # Os textos fixos dos cenários que se repetem nos testes.
-SO_DO_ESCOLHIDO = ("A faixa de 8 em cada 10 só existe para o jeito de projetar e a janela que a própria base escolheu ({}, com os 3 anos até a "
-                   "origem). Com outro jeito ou outra janela, não há faixa.")
+SO_DO_ESCOLHIDO = ("A faixa de 8 em cada 10 só existe para a forma de projetar e a janela que a própria base escolheu ({}, com os 3 anos até a "
+                   "origem). Com outra forma ou outra janela, não há faixa.")
 SEM_FAIXA = "Sem a faixa, o cenário mostra só a linha: ela não diz quanto o valor real costuma se afastar."
 REFEITA = ("Refizemos este tipo de projeção em datas passadas, para territórios do mesmo porte. Em {} de cada 10 vezes, o valor real ficou "
            "dentro desta faixa. Não é garantia: o passado testado (2017–2024) pode não se repetir.")
@@ -69,14 +69,14 @@ AINDA_PROVISORIA = (" Faixa provisória: ainda não deu para conferi-la com dado
                     "esperado.")
 SEM_CONFERENCIA = "Faixa provisória: ainda não deu para conferi-la com dados que vieram depois (poucas origens ou poucos casos de teste)."
 MARGEM_DO_PORTE = "a margem observada no passado da base, em municípios do mesmo porte; acompanha a intervenção"
-ERROU_MENOS = "Usamos este jeito porque, nesta base, ele errou menos que simplesmente manter o último valor, quando refeito no passado."
-NAO_PODE_SER_USADO = "Neste caso, o jeito escolhido pela base não pôde ser usado, e o cenário mantém o último valor."
-NENHUM_VALE = ("Nesta base, nenhum jeito de projetar errou menos que manter o último valor, quando conferido com o passado: o cenário mantém o "
+ERROU_MENOS = "Usamos esta forma porque, nesta base, ela errou menos que simplesmente manter o último valor, quando refeita no passado."
+NAO_PODE_SER_USADO = "Neste caso, a forma escolhida pela base não pôde ser usada, e o cenário mantém o último valor."
+NENHUM_VALE = ("Nesta base, nenhuma forma de projetar errou menos que manter o último valor, quando conferida com o passado: o cenário mantém o "
                "último valor.")
 SEM_RETROPROJECAO_BASTANTE = "A faixa de 8 em cada 10 vem da retroprojeção, e esta base não tem retroprojeção bastante: "
 # Quando o padrão cai no último valor neste território (o porte em que o escolhido errou mais, ou a falta do crescimento que ele
 # pede), a faixa da base é a do jeito escolhido, e o cenário fica sem ela.
-SO_O_ULTIMO_VALOR = ("A faixa de 8 em cada 10 é a do jeito de projetar que a base escolheu ({}). Neste território, o cenário mantém o último "
+SO_O_ULTIMO_VALOR = ("A faixa de 8 em cada 10 é a da forma de projetar que a base escolheu ({}). Neste território, o cenário mantém o último "
                      "valor, e não há faixa.")
 SEM_A_TAXA_COMPOSTA = ("Sem a taxa composta do território (ela exige dois registros nos 3 anos até a origem, com o primeiro e o último acima de "
                        "zero): o cenário usa a persistência (o último valor se mantém).")
@@ -400,7 +400,7 @@ def test_persistencia_e_persistencia_com_a_deriva_do_estado():
     # O "Entenda" do jeito de projetar: o que o cenário faz, com os números dele, e de quem foi a escolha.
     assert deriva["entenda"]["jeito"] == {
         "texto": "O cenário parte do último registro usado (jun/2024) e soma o crescimento recente do estado: +10,00% ao ano nos 3 anos "
-                 "anteriores. Este jeito foi escolhido por você: o que a base escolheu é a taxa composta da janela.",
+                 "anteriores. Esta forma foi escolhida por você: a que a base escolheu é a taxa composta da janela.",
         "exemplo": "De 10 médicos em jun/2024, a base do cenário vai a 11 um ano depois, sem contar intervenções."}
     # Data final em qualquer mês: 4,5 anos depois, com o tempo real.
     assert simular(b, alvo, {"metodo": "M0d"}, "202812")["final"]["base"] == pytest.approx(10 * 1.1 ** 4.5)
@@ -908,7 +908,7 @@ def test_o_padrao_e_o_jeito_de_projetar_que_a_propria_base_escolhe(grupos, por_g
     if escolhido == "M0":
         assert aviso(cenario, "PADRAO_E_O_ULTIMO_VALOR") == NENHUM_VALE
         assert cenario["entenda"]["jeito"]["texto"] == ("O cenário parte do último registro usado (jun/2024) e mantém o valor dele. Nesta base, "
-                                                        "nenhum outro jeito errou menos que manter o último valor, quando refeito no passado.")
+                                                        "nenhuma outra forma errou menos que manter o último valor, quando refeita no passado.")
     else:
         assert cenario["entenda"]["jeito"]["texto"].endswith(ERROU_MENOS)
     # As faixas são as do jeito escolhido (as do último valor, quando nenhum vale): no porte dos casos, há faixa de 8 em 10.
@@ -1115,11 +1115,11 @@ def test_num_porte_em_que_o_escolhido_erra_mais_vale_o_ultimo_valor_e_o_aviso_da
     do_pequeno = simular(b, pequeno, {"metodo": "padrao"}, retros=retros)
     assert do_pequeno["metodo"] == jeito("padrao", "M0", "M0d") and avisos(do_pequeno) == ["PORTE_USA_O_ULTIMO_VALOR", "HORIZONTE_CAUTELA"]
     assert aviso(do_pequeno, "PORTE_USA_O_ULTIMO_VALOR") == (
-        "Em territórios de 10 a 19 médicos, o jeito de projetar escolhido pela base errou mais que manter o último valor, em todos os prazos "
+        "Em territórios de 10 a 19 médicos, a forma de projetar escolhida pela base errou mais que manter o último valor, em todos os prazos "
         "conferidos: o cenário mantém o último valor.")
     assert do_pequeno["final"]["total"] == pequeno.serie[-1] and do_pequeno["entenda"]["jeito"]["texto"] == (
-        "O cenário parte do último registro usado (jun/2024) e mantém o valor dele. Neste porte, o jeito escolhido pela base errou mais que "
-        "manter o último valor, quando refeito no passado: o cenário mantém o último valor.")
+        "O cenário parte do último registro usado (jun/2024) e mantém o valor dele. Neste porte, a forma escolhida pela base errou mais que "
+        "manter o último valor, quando refeita no passado: o cenário mantém o último valor.")
     # A faixa da base é a do jeito escolhido: neste porte, o padrão fica sem ela, e o motivo diz por quê. Pedido pelo nome, o
     # último valor é "outro jeito" (o motivo de sempre); o crescimento do estado, pedido pelo nome, tem a faixa dele.
     assert do_pequeno["faixa"] == {"estado": "indisponivel", "motivo": SO_O_ULTIMO_VALOR.format(ROTULOS["M0d"]), "rotulo": None, "em_10": 8}
@@ -1160,7 +1160,7 @@ def test_o_todo_numa_base_sem_a_contagem_dos_grupos_usa_a_taxa_composta_da_serie
     assert cenario["parametros"]["taxa_pct"] == pytest.approx(100 * taxa) and cenario["final"]["total"] == pytest.approx(b.brasil[-1] * (1 + taxa) ** 2)
     assert cenario["parametros"]["janela"] == {"inicio": "202106", "fim": "202406", "registros": 7}
     assert avisos(cenario) == ["PADRAO_PROVISORIO_DO_NIVEL", "HORIZONTE_CAUTELA"]
-    provisorio = "Para o Brasil, o método padrão é provisório: uma série só não tem retroprojeção própria, e vale o jeito escolhido para os municípios."
+    provisorio = "Para o Brasil, o método padrão é provisório: uma série só não tem retroprojeção própria, e vale a forma escolhida para os municípios."
     assert aviso(cenario, "PADRAO_PROVISORIO_DO_NIVEL") == provisorio + " Ele só foi conferido num período de crescimento."
     # O todo não tem faixa: uma série só não tem retroprojeção própria. O motivo é esse com o padrão e com um método pedido pelo nome.
     sem_faixa = {"estado": "indisponivel", "motivo": "Não há faixa para o Brasil: uma série só não tem retroprojeção própria.", "rotulo": None, "em_10": 8}
@@ -1447,7 +1447,7 @@ def test_o_padrao_no_cenario_so_o_jeito_escolhido_tem_faixa_e_os_casos_sem_ela()
         assert outro["faixa"] == so_do_m0d and all(ponto["faixa"] is None for ponto in outro["trajetoria"]), metodo
         assert outro["entenda"]["faixa"] == {"texto": so_do_m0d["motivo"], "exemplo": SEM_FAIXA}, metodo
     assert simular(b, alvo, {"metodo": "M0"}, retros=retros)["entenda"]["jeito"]["texto"] == (
-        "O cenário parte do último registro usado (jun/2024) e mantém o valor dele. Este jeito foi escolhido por você: o que a base "
+        "O cenário parte do último registro usado (jun/2024) e mantém o valor dele. Esta forma foi escolhida por você: a que a base "
         "escolheu é a persistência com o crescimento recente do estado.")
     # Um município sem médicos: o padrão (o crescimento do estado) mantém o zero, e não há faixa para zero na origem.
     zero = simular(b, municipio(b, "119999"), {"metodo": "padrao"}, retros=retros)
@@ -1632,8 +1632,8 @@ def test_compute_a_opcao_faixa_e_a_retroprojecao_por_nivel():
             "Para os municípios, a base escolheu a persistência com o crescimento recente do estado: na retroprojeção, ela errou 45% menos que "
             "manter o último valor, e menos em 22 de 22 combinações de origem e prazo.")
         assert (dos_estados["escolha"]["metodo"], dos_estados["escolha"]["motivo"], dos_estados["escolha"]["rotulo"]) == ("M0", "nenhum_vale", ROTULOS["M0"])
-        assert dos_estados["escolha"]["texto"] == ("Para os estados como unidade: nesta base, nenhum jeito de projetar errou menos que manter o "
-                                                   "último valor, quando conferido com o passado: o cenário mantém o último valor.")
+        assert dos_estados["escolha"]["texto"] == ("Para os estados como unidade: nesta base, nenhuma forma de projetar errou menos que manter o "
+                                                   "último valor, quando conferida com o passado: o cenário mantém o último valor.")
         assert [(faixa["porte"], faixa["anos"], faixa["estado"], faixa["casos"], faixa["inferior_pct"]) for faixa in dos_estados["faixas"]] == [
             ("1.000 a 2.999", anos, "indisponivel", 8 - anos, None) for anos in (1, 2, 3, 4)]
         assert {linha["metodo"] for linha in retro["tabela"]} == {"M0", "M0d", "M0g", "M1", "M2", "M3"}
@@ -1645,7 +1645,7 @@ def test_compute_a_opcao_faixa_e_a_retroprojecao_por_nivel():
         assert do_municipio["metodo"] == jeito("padrao", "M0d", "M0d") and do_municipio["faixa"]["estado"] == "disponivel"
         assert (do_municipio["final"]["faixa"] or {}).get("estado") == {8: "provisoria", 5: "conferida", 9: None}[em_10]
         assert do_estado["faixa"]["motivo"] == poucos_casos(7, em_10)
-        assert sum(nota.startswith("A faixa de %d em cada 10 só existe para o jeito e a janela escolhidos" % em_10) for nota in body["notas"]) == 1
+        assert sum(nota.startswith("A faixa de %d em cada 10 só existe para a forma e a janela escolhidas" % em_10) for nota in body["notas"]) == 1
     for invalida in (7, 0, "8", True, 8.5, None):
         with pytest.raises(ValueError, match="Faixa inválida: escolha 5, 8 ou 9 em cada 10."):
             simulador.compute(None, {**opcoes, "faixa": invalida}, base=b)
@@ -1653,7 +1653,7 @@ def test_compute_a_opcao_faixa_e_a_retroprojecao_por_nivel():
     com_decimal = simulador.compute(None, {**opcoes, "faixa": 8.0}, base=b)
     assert com_decimal["faixa"] == {"em_10": 8, "opcoes": [5, 8, 9], "padrao": 8} and type(com_decimal["faixa"]["em_10"]) is int
     assert type(com_decimal["retroprojecao"]["em_10"]) is int and type(com_decimal["territorios"][0]["cenarios"][0]["faixa"]["em_10"]) is int
-    assert sum(nota.startswith("A faixa de 8 em cada 10 só existe para o jeito e a janela escolhidos") for nota in com_decimal["notas"]) == 1
+    assert sum(nota.startswith("A faixa de 8 em cada 10 só existe para a forma e a janela escolhidas") for nota in com_decimal["notas"]) == 1
 
 
 def test_compute_devolve_a_marca_de_base_anual_ao_que_era():
@@ -1872,8 +1872,8 @@ def test_rota_do_simulador_cenarios_estatisticas_e_recusas(catalogo, monkeypatch
     assert par["cenarios"][2]["final"]["total"] == pytest.approx((51 + 12) * (1 + deriva) ** 2 + 4)
     assert "Par (soma das projeções dos membros) teria" in par["cenarios"][2]["texto"]
     assert any("soma dos componentes" in nota for nota in body["notas"]) and any("não são previsão" in nota for nota in body["notas"])
-    assert any(nota.startswith("\"Continuar como vinha\" usa o jeito de projetar que a própria base escolheu, pela retroprojeção") for nota in body["notas"])
-    assert any(nota.startswith("A faixa de 8 em cada 10 só existe para o jeito e a janela escolhidos pela base") for nota in body["notas"])
+    assert any(nota.startswith("\"Continuar como vinha\" usa a forma de projetar que a própria base escolheu, pela retroprojeção") for nota in body["notas"])
+    assert any(nota.startswith("A faixa de 8 em cada 10 só existe para a forma e a janela escolhidas pela base") for nota in body["notas"])
     assert any(nota.endswith("A base só tem médicos, com registros de janeiro e junho (5 e 7 meses entre um e outro).") for nota in body["notas"])
     # Sem cenários no pedido: um cenário sem intervenção, no método padrão, 2 anos depois do último registro.
     simples = corpo(pedir({"base": {"municipios": {"ids": ["code:130260"]}}}))
@@ -1927,7 +1927,7 @@ def _comparacao(body, territorio, referencia, cenario=0):
     return next(c for c in item["cenarios"][cenario]["comparacoes"] if c["id"] == referencia)
 
 
-PROVISORIO_DO_BRASIL = ("Para o Brasil, o método padrão é provisório: uma série só não tem retroprojeção própria, e vale o jeito escolhido para os "
+PROVISORIO_DO_BRASIL = ("Para o Brasil, o método padrão é provisório: uma série só não tem retroprojeção própria, e vale a forma escolhida para os "
                         "estados. Ele só foi conferido num período de crescimento.")
 SEM_FAIXA_DO_BRASIL = {"estado": "indisponivel", "motivo": "Não há faixa para o Brasil: uma série só não tem retroprojeção própria.", "rotulo": None,
                        "em_10": 8}
@@ -1959,7 +1959,7 @@ def test_rota_o_brasil_e_territorio_so_do_simulador_com_o_padrao_provisorio(cata
     # O crescimento da base toda não vale para o todo: a série dele é a própria base toda.
     assert da_base["estado"] == "nao_aplicavel" and da_base["motivo"] == (
         "O crescimento da base toda não vale para o Brasil: a série é a própria base toda. Use a taxa composta (M1).")
-    assert any("e o Brasil, a contagem do todo, com um padrão provisório (o jeito escolhido para o nível de baixo)" in nota for nota in body["notas"])
+    assert any("e o Brasil, a contagem do todo, com um padrão provisório (a forma escolhida para o nível de baixo)" in nota for nota in body["notas"])
     # O Brasil entra por último, ao lado dos demais territórios: cada um é simulado à parte, e ele nunca é somado a eles.
     juntos = corpo(pedir({"base": {"municipios": {"ids": ["code:130260"]}}, "estados_unidade": ["15"], "brasil": True}))
     assert [item["id"] for item in juntos["territorios"]] == ["code:130260", "uf:15", "br"]

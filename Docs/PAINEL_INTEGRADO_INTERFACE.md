@@ -296,7 +296,7 @@ as ferramentas avaliam as unidades e os conjuntos: o grupo de cima como unidade 
   `detector-entenda-exemplo` e `detector-entenda-completa`).
 - **Simulador de Cenários** (`analise-ferramenta-simulador`): [Simulador de Cenários Territoriais](SIMULADOR_DE_CENARIOS.md).
   Desde 14/11/2026 (Proposta V3, Parte C), abre no **modo simples, numa tela só** (o território, o que testar e até quando; o
-  resultado traz o gráfico, a frase fixa, três números e os "Entenda" do jeito de projetar e da faixa); as quatro etapas ficam em
+  resultado traz o gráfico, a frase fixa, três números e os "Entenda" da forma de projetar e da faixa); as quatro etapas ficam em
   "Avançado". Trabalha numa **seleção local**, cópia da seleção em uso, guardada na área enquanto a fonte for a mesma (sair e
   voltar não a perde, nem os cenários). A seleção em uso só muda por "Aplicar à seleção principal", que é um passo do Desfazer ("Aplicar a
   seleção do Simulador") e deixa a ferramenta aberta.
@@ -1417,7 +1417,7 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   [Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md); [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md)). Desde
   13/11/2026 (comando V23), o Detector segue a [Proposta V3](DETECTOR_E_SIMULADOR_V3.md): a régua comum por porte, os níveis
   moderado, elevado e crítico, a lista de quatro colunas, os critérios em frases e o "Entenda". Desde 14/11/2026, o Simulador
-  também: o modo simples, o jeito de projetar escolhido pela base, a faixa de 8 em cada 10 conferida no tempo e o uso com uma
+  também: o modo simples, a forma de projetar escolhida pela base, a faixa de 8 em cada 10 conferida no tempo e o uso com uma
   planilha enviada (nos dois modos, também quando ela só traz o ano).
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).

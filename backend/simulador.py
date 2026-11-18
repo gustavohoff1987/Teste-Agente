@@ -673,7 +673,7 @@ MOTIVOS_SEM_ESCOLHA = {
                        "último valor.",
     "poucas_origens": "A base não tem história bastante para a retroprojeção (são menos de 3 origens com 3 anos antes e 1 ano "
                       "depois): o cenário mantém o último valor.",
-    "nenhum_vale": "Nesta base, nenhum jeito de projetar errou menos que manter o último valor, quando conferido com o passado: o "
+    "nenhum_vale": "Nesta base, nenhuma forma de projetar errou menos que manter o último valor, quando conferida com o passado: o "
                    "cenário mantém o último valor.",
 }
 
@@ -704,7 +704,7 @@ def _base_do_cenario(base: Base, cal: detector.Calibracao, retro: Retroprojecao 
             # A exceção por porte: neste porte, o jeito escolhido errou mais que manter o último valor em todos os prazos.
             metodo = "M0"
             avisos.append({"codigo": "PORTE_USA_O_ULTIMO_VALOR", "texto": "Em territórios de " + ROTULOS_DOS_PORTES_DA_FAIXA[_porte_da_faixa(n0)] +
-                           " " + r["profissionais"] + ", o jeito de projetar escolhido pela base errou mais que manter o último valor, "
+                           " " + r["profissionais"] + ", a forma de projetar escolhida pela base errou mais que manter o último valor, "
                            "em todos os prazos conferidos: o cenário mantém o último valor."})
         if territorio.tipo == "brasil" and metodo in ("M0d", "M0g"):
             # O todo é a própria base toda: o crescimento recente dela é a taxa composta da série dele nos 3 anos até a origem.
@@ -722,7 +722,7 @@ def _base_do_cenario(base: Base, cal: detector.Calibracao, retro: Retroprojecao 
             provisorio = True
             avisos.append({"codigo": "PADRAO_PROVISORIO_DO_NIVEL", "texto":
                            "Para " + r["o_todo"] + ", o método padrão é provisório: uma série só não tem retroprojeção própria, e vale o "
-                           "jeito escolhido para " + (r["os_grupos"] if base.estados and not base.grupos_por_soma else r["os_unidades"]) + "." +
+                           "forma escolhida para " + (r["os_grupos"] if base.estados and not base.grupos_por_soma else r["os_unidades"]) + "." +
                            (" Ele só foi conferido num período de crescimento." if base.do_brasil else "")})
     parametros = {"n0": n0, "origem": base.periodos[origem], "janela": {"inicio": base.periodos[indices[0]], "fim": base.periodos[origem],
                                                                           "registros": len(indices)}}
@@ -976,12 +976,12 @@ def _faixa_do_cenario(base: Base, retro: Retroprojecao | None, territorio: Terri
     if not da_base and resultado["pedido"] == "padrao":
         # O padrão caiu no último valor neste território (o porte em que o escolhido errou mais, ou a falta do crescimento que
         # ele pede): a faixa da base é a do jeito escolhido, e não a do último valor.
-        faixa["motivo"] = (de_cada + " é a do jeito de projetar que a base escolheu (" + _nome_do_metodo(base, escolha["metodo"]) +
+        faixa["motivo"] = (de_cada + " é a da forma de projetar que a base escolheu (" + _nome_do_metodo(base, escolha["metodo"]) +
                            "). Neste território, o cenário mantém o último valor, e não há faixa.")
         return faixa, {}
     if not da_base:
-        faixa["motivo"] = (de_cada + " só existe para o jeito de projetar e a janela que a própria base escolheu (" +
-                           _nome_do_metodo(base, escolha["metodo"]) + ", com os 3 anos até a origem). Com outro jeito ou outra janela, "
+        faixa["motivo"] = (de_cada + " só existe para a forma de projetar e a janela que a própria base escolheu (" +
+                           _nome_do_metodo(base, escolha["metodo"]) + ", com os 3 anos até a origem). Com outra forma ou outra janela, "
                            "não há faixa.")
         return faixa, {}
     if porte is None:
@@ -1041,19 +1041,19 @@ def _entenda_do_cenario(base: Base, retro: Retroprojecao | None, territorio: Ter
     if escolha is None or escolha["motivo"] in ("sem_serie_anual", "poucas_origens"):
         porque = "Sem retroprojeção bastante nesta base, o padrão é manter o último valor."
     elif usado == escolha["metodo"] and escolha["motivo"] == "escolhido":
-        porque = "Usamos este jeito porque, nesta base, ele errou menos que simplesmente manter o último valor, quando refeito no passado."
+        porque = "Usamos esta forma porque, nesta base, ela errou menos que simplesmente manter o último valor, quando refeita no passado."
     elif usado == escolha["metodo"]:
-        porque = "Nesta base, nenhum outro jeito errou menos que manter o último valor, quando refeito no passado."
+        porque = "Nesta base, nenhuma outra forma errou menos que manter o último valor, quando refeita no passado."
     elif resultado["pedido"] == "padrao" and usado == "M0":
-        porque = ("Neste porte, o jeito escolhido pela base errou mais que manter o último valor, quando refeito no passado: o cenário "
+        porque = ("Neste porte, a forma escolhida pela base errou mais que manter o último valor, quando refeita no passado: o cenário "
                   "mantém o último valor." if any(aviso["codigo"] == "PORTE_USA_O_ULTIMO_VALOR" for aviso in resultado["avisos"]) else
-                  "Neste caso, o jeito escolhido pela base não pôde ser usado, e o cenário mantém o último valor.")
+                  "Neste caso, a forma escolhida pela base não pôde ser usada, e o cenário mantém o último valor.")
     elif resultado["pedido"] == "padrao":
         # O todo: o crescimento do grupo de cima ou da base toda, para ele, é o da própria série.
         porque = ("Para " + r["o_todo"] + ", o crescimento da base toda é o da própria série: vale a taxa composta dos 3 anos até a "
                   "origem, como padrão provisório.")
     else:
-        porque = "Este jeito foi escolhido por você: o que a base escolheu é a " + _nome_do_metodo(base, escolha["metodo"]) + "."
+        porque = "Esta forma foi escolhida por você: a que a base escolheu é a " + _nome_do_metodo(base, escolha["metodo"]) + "."
     exemplo_do_jeito = ("De " + _br(round(p["n0"], 1)) + " " + (r["profissional"] if round(p["n0"], 1) == 1 else r["profissionais"]) +
                         " em " + detector.curta(p["origem"]) +
                         ", a base do cenário vai a " + _br(round(float(resultado["funcao"](1.0)), 1)) + " um ano depois, sem contar intervenções.")
@@ -1278,10 +1278,10 @@ def _notas(base: Base, niveis: set, com_referencias: bool = False, com_planejame
              "Cada intervenção vale para cada território do cenário: cada " + r["unidade"] +
              (", " + r["grupo"] + " como unidade" if base.estados else "") + " e conjunto recebe o acréscimo "
              "ou a retirada inteiros, não uma parte de um total.",
-             "\"Continuar como vinha\" usa o jeito de projetar que a própria base escolheu, pela retroprojeção: o Agente refaz no "
+             "\"Continuar como vinha\" usa a forma de projetar que a própria base escolheu, pela retroprojeção: o Agente refaz no "
              "passado a projeção que teria feito e confere com o que aconteceu depois. Comparar métodos e janelas mostra a "
              "sensibilidade ao método e à janela, não uma faixa de confiança.",
-             "A faixa de " + str(em_10) + " em cada 10 só existe para o jeito e a janela escolhidos pela base, quando há casos bastantes "
+             "A faixa de " + str(em_10) + " em cada 10 só existe para a forma e a janela escolhidas pela base, quando há casos bastantes "
              "na retroprojeção; é \"conferida\" quando cobriu o esperado nos dados que vieram depois e \"provisória\" quando ainda não "
              "deu para conferir. Fora disso, é indisponível, com o motivo. O passado testado não garante o futuro.",
              "A média aritmética das taxas é só descrição do passado; o percentual médio que reproduz o crescimento ocorrido é a taxa "
@@ -1291,9 +1291,9 @@ def _notas(base: Base, niveis: set, com_referencias: bool = False, com_planejame
         # planilha), o todo é a soma das unidades com registro.
         # Numa planilha com a coluna de grupo, o grupo como unidade é a soma das unidades dele (nas datas em que todas têm registro).
         do_todo = (r["o_todo"][:1].upper() + r["o_todo"][1:] + " é a soma d" + r["os_unidades"] + " com registro em cada data e entra com "
-                   "um padrão provisório (o jeito escolhido para " + r["os_unidades"] + ").")
+                   "um padrão provisório (a forma escolhida para " + r["os_unidades"] + ").")
         notas.append((r["grupos"][:1].upper() + r["grupos"][1:] + " como unidade usam a contagem própria de cada um, e " + r["o_todo"] +
-                      ", a contagem do todo, com um padrão provisório (o jeito escolhido para o nível de baixo)."
+                      ", a contagem do todo, com um padrão provisório (a forma escolhida para o nível de baixo)."
                       if base.estados and not base.grupos_por_soma else
                       r["grupos"][:1].upper() + r["grupos"][1:] + " como unidade são a soma d" + r["os_unidades"] + " de cada " +
                       ("um" if r["o_grupo"].startswith("o ") else "uma") + ", nas datas em "

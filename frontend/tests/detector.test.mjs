@@ -129,7 +129,11 @@ test('a lista de quatro colunas: o alerta (um nível, sempre escrito, com o tipo
   // Alerta: o nível e o tipo de critério; o porquê é a frase do motor, com quantos outros sinais têm nível.
   const critico = lerLinha({alerta: alerta('critico', 'estrutural', 'por convenção', 'Só 1 médico (+1 sinal)', {outros: 1,
     sinais: [{sinal: 'estrutural', nivel: 'critico', criterio: 'por convenção'}, {sinal: 'perda', nivel: 'moderado', criterio: 'comparado com a base'}]})});
-  assert.deepEqual(D.textoDoAlerta(critico), {estado: 'critico', nivel: 'critico', texto: 'Crítico', criterio: 'por convenção'});
+  // AJ-05 (18/11/2026): na tela, o critério do motor "por convenção" se chama "limite fixo"; o campo da resposta não muda.
+  assert.deepEqual(D.textoDoAlerta(critico), {estado: 'critico', nivel: 'critico', texto: 'Crítico', criterio: 'limite fixo'});
+  assert.equal(critico.alerta.criterio, 'por convenção', 'o campo da resposta continua o do motor');
+  assert.deepEqual(['por convenção', 'comparado com a base', null, undefined, 'outro'].map(D.rotuloDoCriterio),
+    ['limite fixo', 'comparado com a base', null, null, 'outro']);
   assert.equal(D.textoDoPorQue(critico), 'Só 1 médico (+1 sinal)');
   assert.deepEqual(critico.alerta.sinais.map(item => item.sinal + ':' + item.nivel), ['estrutural:critico', 'perda:moderado']);
   // Sem alerta, sem comparações suficientes (com os sinais que faltaram) e sem nível (o conjunto, com o motivo do motor).
@@ -227,9 +231,11 @@ test('filtros (Nível, Sinal e Buscar) e a ordem da lista, que não é um índic
 test('"Ajustar critérios": os limites em frases, com os campos dentro delas, para todos os parâmetros do motor', () => {
   const criterios = D.criteriosEmFrases();
   assert.deepEqual(criterios.map(criterio => [criterio.sinal, criterio.numero, criterio.titulo, criterio.tipo, criterio.frases.length]), [
-    ['estrutural', '1–2', 'Poucos médicos ou nenhum', 'por convenção', 1], ['declinio', '3', 'Declínio persistente', 'por convenção', 3],
-    ['desaceleracao', '4', 'Desaceleração', 'por convenção (exploratório)', 1], ['instabilidade', '5', 'Instabilidade', 'comparado com a base', 1],
-    ['perda', '6', 'Queda recente', 'comparado com a base, com tamanho mínimo', 3], ['patamar', '7', 'Abaixo do que já teve', 'por convenção e comparado com a base', 4],
+    ['estrutural', '1–2', 'Poucos médicos ou nenhum', 'limite fixo', 1], ['declinio', '3', 'Declínio persistente', 'limite fixo', 3],
+    ['desaceleracao', '4', 'Desaceleração', 'limite fixo (exploratório)', 1], ['instabilidade', '5', 'Instabilidade', 'comparado com a base', 1],
+    ['perda', '6', 'Queda recente', 'comparado com a base, com tamanho mínimo', 3],
+    // O sinal 7 não fica só com "comparado com a base": o moderado dele vem de um limite fixo (AJ-05, item 2).
+    ['patamar', '7', 'Abaixo do que já teve', 'limite fixo no moderado; comparado com a base no elevado e no crítico', 4],
     ['disponibilidade', '8', 'Menos médicos por habitante', 'comparado com a base', 2], ['posicao', '9', 'Perda de posição', 'comparado com a base', 2],
     ['defasagem', '10', 'Mais longe da referência', 'comparado com a base', 2], ['contexto', '11', 'Distância', 'só contexto', 1]]);
   // Cada parâmetro que o motor deixa trocar (detector.EDITAVEIS e comparativos.EDITAVEIS) tem um campo numa frase, uma vez só.
@@ -653,4 +659,23 @@ test('revisão das capturas de 15/11/2026: a série do território na largura da
   assert.ok(series.startsWith('export default function PainelSeries({ itens, competencias, indicador, rotulos, referencias = [], rotuloDaData = exibirCompetencia }: Props) {'));
   assert.equal(series.split('rotuloDaData(').length - 1, 4, 'o eixo, a dica e a descrição usam a mesma função');
   assert.equal(series.split('exibirCompetencia(').length - 1, 0, 'nenhuma data do gráfico escrita fora dela');
+});
+
+test('AJ-05: nos textos da tela do Detector, nada de "por convenção" nem de "jeito"; o nome da tela é "limite fixo"', () => {
+  // Os textos que vão à tela: as cadeias, os modelos de texto e o texto do JSX do modelo e dos dois componentes do Detector.
+  const textos = [['detectorModel.ts', ts.ScriptKind.TS], ['DetectorDeSinais.tsx', ts.ScriptKind.TSX], ['DetectorGraficos.tsx', ts.ScriptKind.TSX]]
+    .flatMap(([nome, tipo]) => {
+      const achados = [];
+      const visitar = no => {
+        if (ts.isStringLiteralLike(no) || ts.isTemplateHead(no) || ts.isTemplateMiddle(no) || ts.isTemplateTail(no) || ts.isJsxText(no)) achados.push(no.text);
+        ts.forEachChild(no, visitar);
+      };
+      visitar(ts.createSourceFile(nome, ler(nome), ts.ScriptTarget.ES2022, true, tipo));
+      return achados;
+    });
+  // A única cadeia com "convenção" é o valor do motor, como chave da tabela que dá o nome da tela ("por convenção" → "limite fixo").
+  assert.deepEqual(textos.filter(texto => /convenç/i.test(texto)), ['por convenção']);
+  assert.deepEqual(textos.filter(texto => /jeito/i.test(texto)), []);
+  assert.ok(textos.includes('limite fixo'));
+  assert.equal(D.ROTULOS_DOS_CRITERIOS['por convenção'], 'limite fixo');
 });

@@ -487,15 +487,15 @@ def main():
         assert (do_perfil["origem"], do_perfil["territorios"], do_perfil["registros"]) == ("planilha", 16, 5), do_perfil
         # O que a base não sustenta nas comunas e, desde a etapa 7 do comando V23 (o grupo de cima entra como unidade), nos condados
         # como unidade: são só 4 condados e 5 registros, e nenhum nível tem comparações bastantes. Muda de propósito: antes, o
-        # resumo trazia só as três linhas das comunas.
+        # resumo trazia só as três linhas das comunas. Desde o AJ-05 (18/11/2026), "a forma de projetar" (antes, "o jeito").
         do_que = {item["o_que"]: item["motivo"] for item in do_perfil["nao_da_para"]}
         assert [o_que for o_que in do_que if "como unidade" not in o_que] == [
-            "Alertas elevados", "Alertas críticos", "Escolher o jeito de projetar do Simulador pela retroprojeção"], do_perfil["nao_da_para"]
+            "Alertas elevados", "Alertas críticos", "Escolher a forma de projetar do Simulador pela retroprojeção"], do_perfil["nao_da_para"]
         assert [o_que for o_que in do_que if "como unidade" in o_que] == [
             "Alertas moderados nos condados como unidade", "Alertas elevados nos condados como unidade",
             "Alertas críticos nos condados como unidade",
-            "Escolher o jeito de projetar do Simulador nos condados como unidade pela retroprojeção"], do_perfil["nao_da_para"]
-        assert do_que["Escolher o jeito de projetar do Simulador pela retroprojeção"].startswith(
+            "Escolher a forma de projetar do Simulador nos condados como unidade pela retroprojeção"], do_perfil["nao_da_para"]
+        assert do_que["Escolher a forma de projetar do Simulador pela retroprojeção"].startswith(
             "ela pede 3 origens com 3 anos antes e 1 ano depois, e esta base tem "), do_perfil["nao_da_para"]
         assert do_que["Alertas críticos"].startswith("eles pedem 999 comparações, e esta base chega a "), do_perfil["nao_da_para"]
         assert do_que["Alertas moderados nos condados como unidade"].startswith("eles pedem 19 comparações, e esta base chega a "), do_perfil["nao_da_para"]

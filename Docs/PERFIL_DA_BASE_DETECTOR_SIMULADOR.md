@@ -148,7 +148,7 @@ pedir.
 | Datas e intervalos | Mede os meses entre registros e só compara mudanças com o mesmo tempo entre eles; durações com até 1 mês de diferença ficam juntas | — |
 | Série anual | O mês presente em todos os anos (o mês do último registro, quando ele se repete em todos); numa planilha só com anos, um registro por ano | Ficam indisponíveis os sinais anuais (3, 4 e 8 a 10) |
 | Portes | As 10 faixas pelo número de profissionais, no último registro de cada território; faltando casos, a faixa junta-se às vizinhas | — |
-| Grupo de cima | Na base do Brasil, o estado (pelo prefixo do código IBGE); numa planilha, a coluna de grupo escolhida | O sinal 10 fica indisponível. No Simulador, o crescimento da base toda é testado no lugar do crescimento do grupo; o jeito de projetar sai da retroprojeção |
+| Grupo de cima | Na base do Brasil, o estado (pelo prefixo do código IBGE); numa planilha, a coluna de grupo escolhida | O sinal 10 fica indisponível. No Simulador, o crescimento da base toda é testado no lugar do crescimento do grupo; a forma de projetar sai da retroprojeção |
 | População | Os trechos de população comparável, lidos da própria base | Ficam indisponíveis os sinais 8 a 11 e a comparação por taxa (por habitante) do Simulador |
 | Coordenadas | Com o referencial informado (na base do Brasil, SIRGAS 2000, do perfil oficial) | O sinal 11 fica indisponível |
 | O que a contagem conta | A unidade de contagem informada, como nas análises: pessoas, vínculos, postos ou outra | Aviso de dupla contagem |
@@ -159,9 +159,9 @@ com registro pôde ser comparada em cada nível (19, 99 e 999 comparações, com
 de todas as faixas) e, do que a base não sustenta, quantas comparações ela tem e quantas o nível pede.
 
 Desde a etapa do Simulador (14/11/2026; Proposta V3, Parte C), o resumo traz também **o que a retroprojeção do Simulador de
-Cenários sustenta** (`perfil_da_base.capacidade_do_simulador`; campo `simulador` do perfil, por nível de território): o jeito de
-projetar que a base escolheu ("Cenários do Simulador com o jeito de projetar que a base escolheu: …"), ou que o cenário mantém o
-último valor porque nenhum jeito errou menos que isso, ou que falta história para escolher ("ela pede 3 origens com 3 anos antes
+Cenários sustenta** (`perfil_da_base.capacidade_do_simulador`; campo `simulador` do perfil, por nível de território): a forma de
+projetar que a base escolheu (\"Cenários do Simulador com a forma de projetar que a base escolheu: …\"), ou que o cenário mantém o
+último valor porque nenhuma forma errou menos que isso, ou que falta história para escolher ("ela pede 3 origens com 3 anos antes
 e 1 ano depois, e esta base tem N"); e a faixa de 8 em cada 10 — até quantos anos existe e até quantos foi conferida com o que
 veio depois —, ou o motivo de não haver ("ela pede 200 casos por prazo, e esta base tem N").
 
@@ -176,7 +176,7 @@ de um território mostra; os sinais com os mesmos motivos ficam na mesma linha, 
 dizia que o sinal 10 faltava por não haver grupo de cima e o 11, por não haver coordenadas, e o detalhe mostrava os dois só como
 falta de população. O que falta para o Simulador vem em linhas próprias:
 
-- **sem grupo de cima**, o Simulador **testa** o crescimento da base toda no lugar do crescimento do grupo, e o jeito de projetar
+- **sem grupo de cima**, o Simulador **testa** o crescimento da base toda no lugar do crescimento do grupo, e a forma de projetar
   sai da retroprojeção (pode ser manter o último valor). Antes, o perfil dizia "o Simulador usa o crescimento da base toda", o
   que contradizia o cenário quando a retroprojeção escolhia manter o último valor;
 - **sem população**, a comparação por taxa (por 1.000 habitantes) do Simulador fica no "não dá para", com o motivo.
@@ -189,7 +189,7 @@ falta de população. O que falta para o Simulador vem em linhas próprias:
   - sinais por habitante (8 a 10), de 2014 a 2024, e a distância (sinal 11, só contexto);
   - alertas moderados nos estados como unidade desde jun/2015 e elevados desde jun/2019;
   - sinais anuais (declínio persistente e desaceleração), pela série de junho;
-  - cenários do Simulador com o jeito de projetar que a base escolheu: nos municípios, a persistência com o crescimento recente
+  - cenários do Simulador com a forma de projetar que a base escolheu: nos municípios, a persistência com o crescimento recente
     do estado; nos estados como unidade, a taxa composta da janela;
   - a faixa de 8 em cada 10 do Simulador nos municípios, até 4 anos à frente (conferida com o que veio depois até 2 anos; depois,
     provisória).
@@ -204,15 +204,15 @@ durante 10 anos, de jan/2014 a jul/2023, sem grupo de cima, sem população e se
   - alertas moderados desde jan/2015 (o 2º ano da base);
   - alertas elevados desde jan/2018 (o 5º ano da base);
   - sinais anuais (declínio persistente e desaceleração), pela série de julho;
-  - cenários do Simulador mantendo o último valor: na retroprojeção desta base (6 origens, de jul/2017 a jul/2022), nenhum jeito
+  - cenários do Simulador mantendo o último valor: na retroprojeção desta base (6 origens, de jul/2017 a jul/2022), nenhuma forma
     de projetar errou menos que isso.
 - Não dá para:
   - alertas críticos: eles pedem 999 comparações, e esta base chega a 360;
   - "Menos enfermeiros por habitante" e "perda de posição" (sinais 8 e 9): a base não tem população;
   - "Mais longe da referência" (sinal 10): a base não tem população nem grupo de cima;
   - "Distância" (sinal 11): a base não tem população nem coordenadas com o referencial informado;
-  - o crescimento do grupo de cima como jeito de projetar no Simulador: a base não tem grupo de cima; no lugar dele, o Simulador
-    testa o crescimento da base toda, e o jeito de projetar sai da retroprojeção;
+  - o crescimento do grupo de cima como forma de projetar no Simulador: a base não tem grupo de cima; no lugar dele, o Simulador
+    testa o crescimento da base toda, e a forma de projetar sai da retroprojeção;
   - a comparação por taxa (por 1.000 habitantes) no Simulador: a base não tem população;
   - a faixa do Simulador: ela pede 200 casos por prazo, e esta base tem 120.
 

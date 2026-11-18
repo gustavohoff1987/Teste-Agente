@@ -36,6 +36,9 @@ OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 SC, PR, RIO_RUFINO, ABELARDO_LUZ = "42", "41", "code:421505", "code:420010"
 ESTADOS = ("critico", "elevado", "moderado", "sem_alerta", "sem_comparacoes", "sem_nivel")
 NOMES = {"critico": "Crítico", "elevado": "Elevado", "moderado": "Moderado"}
+# AJ-05 (18/11/2026): o tipo de critério na tela. O campo `criterio` do motor e as exportações continuam "por convenção" para o
+# limite fixo; a tela diz "limite fixo".
+NA_TELA = {"por convenção": "limite fixo", "comparado com a base": "comparado com a base"}
 SINAIS = ["estrutural", "declinio", "desaceleracao", "instabilidade", "perda", "patamar", "disponibilidade", "posicao", "defasagem", "contexto",
           "coexistencia"]
 
@@ -140,7 +143,7 @@ def main():
         expect(primeira).to_have_attribute("data-alerta", "critico")
         expect(primeira.get_by_test_id("detector-nivel")).to_have_text("Crítico")
         do_primeiro = next(item for item in corpo["linhas"] if item["id"] == primeira.get_attribute("data-id"))
-        expect(primeira.get_by_test_id("detector-criterio")).to_have_text(do_primeiro["alerta"]["criterio"])
+        expect(primeira.get_by_test_id("detector-criterio")).to_have_text(NA_TELA[do_primeiro["alerta"]["criterio"]])
         expect(primeira.get_by_test_id("detector-por-que")).to_have_text(do_primeiro["alerta"]["por_que"])
         assert do_primeiro["alerta"]["criterio"] in ("por convenção", "comparado com a base"), do_primeiro["alerta"]
         page.screenshot(path=str(OUTPUT / "detector-01-lista-real.png"), full_page=True)
@@ -177,7 +180,7 @@ def main():
         # Desde a etapa 5 do comando V23, o resumo traz também o que a retroprojeção do Simulador sustenta (8 linhas viraram 11).
         assert len(do_perfil["perfil"]["da_para"]) == 11 and do_perfil["perfil"]["da_para"][0] == "Alertas moderados desde jun/2015 (o 2º ano da base).", (
             do_perfil["perfil"]["da_para"])
-        assert do_perfil["perfil"]["da_para"][8] == ("Cenários do Simulador com o jeito de projetar que a base escolheu: persistência com o "
+        assert do_perfil["perfil"]["da_para"][8] == ("Cenários do Simulador com a forma de projetar que a base escolheu: persistência com o "
                                                      "crescimento recente do estado."), do_perfil["perfil"]["da_para"]
         expect(perfil.get_by_test_id("perfil-da-para").locator("li")).to_have_text(do_perfil["perfil"]["da_para"])
         expect(perfil.get_by_test_id("perfil-nao-da-para").locator("li")).to_have_text(
@@ -233,7 +236,7 @@ def main():
             expect(da_tela.get_by_test_id("detector-fenomeno-situacao")).to_contain_text(item["situacao"])
             if item["nivel"]:
                 expect(da_tela.get_by_test_id("detector-nivel")).to_have_text(NOMES[item["nivel"]])
-                expect(da_tela.get_by_test_id("detector-fenomeno-criterio")).to_contain_text(item["criterio_do_nivel"])
+                expect(da_tela.get_by_test_id("detector-fenomeno-criterio")).to_contain_text(NA_TELA[item["criterio_do_nivel"]])
             else:
                 expect(da_tela.get_by_test_id("detector-nivel")).to_have_count(0)
             expect(da_tela.get_by_test_id("detector-entenda-botao")).to_have_text("Entenda")
@@ -280,6 +283,20 @@ def main():
         expect(explicacao.get_by_test_id("detector-campo-qualidade").locator("dd")).to_contain_text("pico que volta")
         da_queda.get_by_test_id("detector-fenomeno-completa").click()
         expect(explicacao).to_have_count(0)
+        # AJ-05 (18/11/2026): o critério do sinal 1–2, escrito pelo motor nos sete campos, diz "Limite fixo" (antes, "Por
+        # convenção"); nenhum texto à vista no Detector traz "por convenção" nem "jeito", com as explicações de dois sinais abertas.
+        dos_poucos = sinal_da_tela(detalhe, "estrutural")
+        do_motor_dos_poucos = next(item for item in detalhe_do_motor["fenomenos"] if item["chave"] == "estrutural")
+        assert do_motor_dos_poucos["criterio"].startswith("Limite fixo, pelo número de médicos no último registro"), do_motor_dos_poucos
+        assert do_motor_dos_poucos["criterio_do_nivel"] == "por convenção", "o campo do motor não muda"
+        dos_poucos.get_by_test_id("detector-fenomeno-completa").click()
+        expect(dos_poucos.get_by_test_id("detector-campo-criterio").locator("dd")).to_have_text(do_motor_dos_poucos["criterio"])
+        da_queda.get_by_test_id("detector-fenomeno-completa").click()
+        texto_a_vista = detector.inner_text().lower()
+        assert "convenção" not in texto_a_vista and "jeito" not in texto_a_vista, "por convenção ou jeito à vista no Detector"
+        da_queda.get_by_test_id("detector-fenomeno-completa").click()
+        dos_poucos.get_by_test_id("detector-fenomeno-completa").click()
+        expect(detalhe.get_by_test_id("detector-fenomeno-explicacao")).to_have_count(0)
         detalhe.get_by_test_id("detector-historico-botao").click()
         expect(detalhe.get_by_test_id("detector-historico").locator("tbody tr")).to_have_count(22)
         expect(detalhe.get_by_test_id("detector-historico").locator('tbody tr[data-competencia="202401"]')).to_contain_text(
@@ -312,6 +329,12 @@ def main():
         expect(da_queda_em_frases).to_contain_text("mudanças anteriores foi uma queda igual ou maior.")
         assert [criterios.get_by_test_id("detector-parametro-perda-elevado_" + campo).input_value() for campo in ("minimo", "fracao", "um_em")] == ["2", "20", "100"]
         expect(criterios.get_by_test_id("detector-janela-inicio")).to_have_value("201401")
+        # AJ-05: o tipo de critério de cada sinal em palavras da tela; o sinal 7 não fica só com "comparado com a base", porque o
+        # moderado dele vem de um limite fixo.
+        expect(criterios.locator('[data-testid="detector-criterio"][data-sinal="estrutural"] legend')).to_contain_text("· limite fixo")
+        expect(criterios.locator('[data-testid="detector-criterio"][data-sinal="patamar"] legend')).to_contain_text(
+            "· limite fixo no moderado; comparado com a base no elevado e no crítico")
+        assert "convenção" not in criterios.inner_text().lower() and "jeito" not in criterios.inner_text().lower()
         campo = criterios.get_by_test_id("detector-parametro-estrutural-moderado")
         expect(campo).to_have_value("5")
         expect(campo).to_have_attribute("data-trocado", "false")

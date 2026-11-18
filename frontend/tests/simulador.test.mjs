@@ -147,7 +147,7 @@ test('o pedido ao motor: a seleção local, os cenários em uso e a persistênci
   assert.equal(S.METODOS_DA_TELA.some(item => /média aritmética/i.test(item.rotulo)), false);
   // Os métodos da tela (V3): o primeiro é o jeito que a própria base escolheu; entram o M0d e o M0g; os nomes valem para qualquer base.
   assert.deepEqual(S.METODOS_DA_TELA.map(item => item.chave), ['padrao', 'M0', 'M0d', 'M0g', 'M1', 'M2', 'M3', 'manual']);
-  assert.deepEqual(S.METODOS_DA_TELA.slice(0, 4).map(item => item.rotulo), ['Continuar como vinha (o jeito escolhido pela base)', 'Persistência (M0)',
+  assert.deepEqual(S.METODOS_DA_TELA.slice(0, 4).map(item => item.rotulo), ['Continuar como vinha (a forma escolhida pela base)', 'Persistência (M0)',
     'Último valor com o crescimento do grupo de cima (M0d)', 'Último valor com o crescimento da base toda (M0g)']);
   assert.equal(/médic|estado|municíp/i.test(JSON.stringify(S.METODOS_DA_TELA)), false);
 });
@@ -287,9 +287,13 @@ test('a resposta do motor vira os tipos da tela, sem calcular nada', () => {
     visitar(ts.createSourceFile(nome, ler(nome), ts.ScriptTarget.ES2022, true, tipo));
     return textos;
   });
-  assert.ok(textosDoCodigo.includes('O que testar') && textosDoCodigo.includes(' (escolhido pela base)'), 'os textos da tela entram na conferência');
+  assert.ok(textosDoCodigo.includes('O que testar') && textosDoCodigo.includes(' (escolhida pela base)'), 'os textos da tela entram na conferência');
   for (const termo of ['deriva', 'candidato', 'não calibrado', 'limiar', 'theil', 'poisson', 'fora da amostra', 'média aritmética como'])
     assert.deepEqual(textosDoCodigo.filter(texto => texto.toLowerCase().includes(termo)), [], termo);
+  // AJ-05 (18/11/2026): nos textos da tela do Simulador, "forma de projetar", nunca "jeito"; e nada de "por convenção" (os limites dos
+  // sinais 1 e 2 aplicados ao cenário são os "limites fixos" do Detector). Os identificadores (data-testid) e o campo `jeito` da
+  // resposta do motor, que não muda, não são textos da tela.
+  assert.deepEqual(textosDoCodigo.filter(texto => /jeito|convenç/i.test(texto) && !/^[a-z0-9-]+$/.test(texto)), [], 'jeito ou convenção num texto da tela');
   // As contas da data final: a base do cenário e a intervenção, separadas.
   assert.equal(S.contasDoFinal(calculado), 'Na data final, neste território: base do cenário de 54,5 + 4 da intervenção = 58,5 médicos (o texto acima arredonda para o inteiro).');
   assert.equal(S.contasDoFinal({...calculado, final: {...calculado.final, intervencao: -3, total: 51.5189}}),
@@ -556,10 +560,10 @@ test('os níveis no cenário: só "Poucos médicos", como hipótese do cenário 
     naFaixa: {inferior: 'critico', superior: 'elevado'}, ...extra});
   // Proposta V3, seção C.6: "seria Crítico em 'Poucos médicos'"; quando a faixa cruza um limite, "pode ficar entre…", sem escolher um só.
   assert.equal(S.textoDaHipotese(h()), 'Hipótese do cenário (não é um sinal observado): com 1 médico em jun/2026, o território seria Crítico em “Poucos médicos” ' +
-    '(a saída de 1 tiraria 100,0%). Pela faixa do cenário, pode ficar entre elevado e crítico. Os limites são os do Detector, por convenção; os sinais comparados ' +
+    '(a saída de 1 tiraria 100,0%). Pela faixa do cenário, pode ficar entre elevado e crítico. Os limites são os limites fixos do Detector; os sinais comparados ' +
     'com a base valem só para registros reais.');
   assert.equal(S.textoDaHipotese(h({inteiro: 12, valor: 12, classe: null, impactoPct: 8.3333, naFaixa: null})), 'Hipótese do cenário (não é um sinal observado): ' +
-    'com 12 médicos em jun/2026, o território não teria alerta em “Poucos médicos” (a saída de 1 tiraria 8,3%). Os limites são os do Detector, por convenção; os ' +
+    'com 12 médicos em jun/2026, o território não teria alerta em “Poucos médicos” (a saída de 1 tiraria 8,3%). Os limites são os limites fixos do Detector; os ' +
     'sinais comparados com a base valem só para registros reais.');
   assert.ok(S.textoDaHipotese(h({inteiro: 6018, valor: 6017.98, classe: null, impactoPct: 0.0166, naFaixa: {inferior: null, superior: null}}))
     .startsWith('Hipótese do cenário (não é um sinal observado): com 6.018 médicos em jun/2026, o território não teria alerta em “Poucos médicos”. O'));
@@ -856,7 +860,7 @@ test('os textos com os nomes de outra base: nada de "médicos", "município" ou 
     ['Na data final, neste território: base do cenário de 54,5 + 4 da intervenção = 58,5 enfermeiros (o texto acima arredonda para o inteiro).',
       'Na data final: base do cenário de 54,5 enfermeiros, sem intervenção.']);
   assert.equal(S.textoDaHipotese(hipotese, OUTRA), 'Hipótese do cenário (não é um sinal observado): com 1 enfermeiro em jun/2026, o território seria Crítico em “Poucos ' +
-    'enfermeiros” (a saída de 1 tiraria 100,0%). Pela faixa do cenário, pode ficar entre elevado e crítico. Os limites são os do Detector, por convenção; os sinais ' +
+    'enfermeiros” (a saída de 1 tiraria 100,0%). Pela faixa do cenário, pode ficar entre elevado e crítico. Os limites são os limites fixos do Detector; os sinais ' +
     'comparados com a base valem só para registros reais.');
   assert.ok(S.textoDaHipotese({...hipotese, inteiro: 12, valor: 12, classe: null, impactoPct: 8.3333, naFaixa: null}, OUTRA)
     .startsWith('Hipótese do cenário (não é um sinal observado): com 12 enfermeiros em jun/2026, o território não teria alerta em “Poucos enfermeiros” (a saída'));
@@ -929,8 +933,8 @@ test('a tela: o modo simples numa tela só, e as quatro etapas só no modo avan�
   assert.match(simples, /<div data-testid="simulador-resultado" data-estado=\{resultadoDoSimples\.estado\}\s+data-metodo=\{resultadoDoSimples\.metodo\.usado \?\? ""\} data-faixa=\{resultadoDoSimples\.faixa\.estado\} data-conferencia=\{resultadoDoSimples\.final\?\.faixa\?\.estado \?\? ""\}/);
   assert.ok(simples.includes('<p data-testid="simulador-texto" className="ferramenta-texto-do-cenario">{resultadoDoSimples.texto}</p>'));
   assert.ok(simples.includes('{tresNumeros(resultadoDoSimples, r).map(item => <div key={item.rotulo}><dt>{item.rotulo}</dt><dd>{item.valor}</dd></div>)}'));
-  assert.ok(simples.includes('<span>Jeito de projetar: {resultadoDoSimples.metodo.rotulo}{resultadoDoSimples.metodo.eOEscolhido ? " (escolhido pela base)" : ""}</span>'));
-  assert.match(simples, /<Entenda sobre="O jeito de projetar" texto=\{resultadoDoSimples\.entenda\.jeito\.texto\} exemplo=\{resultadoDoSimples\.entenda\.jeito\.exemplo\}\s+testid="simulador-entenda-jeito" onCompleta=\{abrirAValidacao\}\/>/);
+  assert.ok(simples.includes('<span>Forma de projetar: {resultadoDoSimples.metodo.rotulo}{resultadoDoSimples.metodo.eOEscolhido ? " (escolhida pela base)" : ""}</span>'));
+  assert.match(simples, /<Entenda sobre="A forma de projetar" texto=\{resultadoDoSimples\.entenda\.jeito\.texto\} exemplo=\{resultadoDoSimples\.entenda\.jeito\.exemplo\}\s+testid="simulador-entenda-jeito" onCompleta=\{abrirAValidacao\}\/>/);
   assert.match(simples, /<Entenda sobre=\{"A faixa de " \+ resultadoDoSimples\.faixa\.em10 \+ " em cada 10"\} texto=\{resultadoDoSimples\.entenda\.faixa\.texto\}\s+exemplo=\{resultadoDoSimples\.entenda\.faixa\.exemplo\} testid="simulador-entenda-faixa" onCompleta=\{abrirAValidacao\}\/>/);
   assert.match(simples, /<span data-testid="simulador-faixa-estado">Faixa de \{resultadoDoSimples\.faixa\.em10\} em cada 10: \{!resultadoDoSimples\.final\?\.faixa \? "indisponível"\s+: resultadoDoSimples\.final\.faixa\.estado === "conferida" \? "conferida" : "provisória"\}<\/span>/);
   assert.ok(simples.includes('<p data-testid="simulador-faixa-texto" className="ferramenta-apoio">{textoDaFaixa(resultadoDoSimples, territorioEmFoco.tipo === "conjunto", r)}</p>'));
@@ -1127,7 +1131,7 @@ test('qualquer base: os nomes da planilha antes da primeira resposta, e o cenár
   // avançado. Desde 15/11/2026, a volta ao que a base escolheu é pelo "Voltar ao padrão" único, no alto (o aviso só o indica).
   assert.ok(tela.includes('...(p.daBase ? { base: { nome: resposta?.fonte.base || "planilha enviada", categoria: resposta?.fonte.categoria || p.daBase.categoria || "" } } : {})'));
   assert.ok(tela.includes('{cenarioDoSimples.metodo !== "padrao" && <p data-testid="simulador-metodo-do-avancado"'));
-  assert.ok(tela.includes('“Voltar ao padrão”, no alto, desfaz essa escolha.</p>}') && !tela.includes('Voltar ao jeito escolhido pela base'));
+  assert.ok(tela.includes('“Voltar ao padrão”, no alto, desfaz essa escolha.</p>}') && !tela.includes('Voltar ao jeito escolhido pela base') && !tela.includes('Voltar à forma escolhida pela base'));
 });
 
 test('modo simples: o pedido leva só o que a tela simples mostra — sem o calendário, a permanência e as outras intervenções do modo avançado', () => {
@@ -1171,7 +1175,7 @@ test('modo simples: o pedido leva só o que a tela simples mostra — sem o cale
   // Na tela, o todo já na seleção diz o nome com o artigo, e a referência dinâmica segue o jeito escolhido pela base.
   const tela = ler('SimuladorDeCenarios.tsx');
   assert.ok(tela.includes('setAvisoLocal(comMaiuscula(formas.oTodo) + " já está na seleção do Simulador.");'));
-  assert.ok(tela.includes('<option value="dinamica">Dinâmica: segue o jeito escolhido pela base</option>'));
+  assert.ok(tela.includes('<option value="dinamica">Dinâmica: segue a forma escolhida pela base</option>'));
 });
 
 test('revisão das capturas: a meta sai ao trocar de território, a meta do patamar é inteira e diz de onde veio, e o gráfico mostra o caminho com o acréscimo', () => {
@@ -1231,7 +1235,7 @@ test('revisão das capturas de 15/11/2026: o singular com 1, a faixa inteira de 
   const [calculado, retirada] = S.normalizarSimulador(BRUTO).territorios[0].cenarios;
   const com = (total, inferior, superior) => ({...calculado, final: {...calculado.final, total, faixa: {...calculado.final.faixa, inferior, superior}}});
   const fora = lado => ' A faixa fica inteira ' + lado + ' da linha do cenário: no passado da base, neste porte e neste prazo, o número observado ficou, na maior ' +
-    'parte dos casos, ' + lado + ' do que este jeito de projetar dava.';
+    'parte dos casos, ' + lado + ' do que esta forma de projetar dava.';
   assert.deepEqual([com(60, 48.2, 74.9), com(60, 61, 74.9), com(60, 40, 59.5), com(60, 60, 70), com(60, 50, 60), {...calculado, final: {...calculado.final, faixa: null}},
     retirada].map(S.faixaSemALinha), ['', fora('acima'), fora('abaixo'), '', '', '', '']);
   assert.ok(S.textoDaFaixa(com(60, 61, 74.9)).endsWith(' Conferida com o que veio depois.' + fora('acima')));
@@ -1380,7 +1384,7 @@ test('etapa 7: o "(Entenda)" geral no título, um "Voltar ao padrão" único e a
   // de "Voltar ao padrão", a janela de um cálculo anterior feito com outra janela não aparece como se fosse a que vale.
   assert.ok(tela.includes('const janela = config.janela ?? (resposta?.janela.padrao ? resposta.janela : null) ?? janelaPadrao(p.competencias);'));
   assert.ok(!tela.includes('config.janela ?? resposta?.janela ??'));
-  assert.ok(tela.includes('<p data-testid="simulador-frase-do-jeito" className="ferramenta-frase">Jeito de projetar:{" "}'));
+  assert.ok(tela.includes('<p data-testid="simulador-frase-do-jeito" className="ferramenta-frase">Forma de projetar:{" "}'));
   assert.ok(tela.includes('<option value="">a janela geral</option>') && tela.includes('<option key={c} value={c}>uma janela própria, desde {competenciaCurta(c)}</option>)}'));
   assert.ok(tela.includes('? "Do efeito da retirada, a cada ano permanecem" : "Dos " + r.profissionais + " acrescentados, a cada ano permanecem"}{" "}'));
   assert.ok(tela.includes('Dos {r.profissionais} acrescentados, a\n            cada ano permanecem{" "}'));

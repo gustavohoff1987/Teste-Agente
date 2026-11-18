@@ -2,7 +2,8 @@
 // POST /api/detector para os tipos da tela, os textos curtos da lista, os filtros, a ordem, os critérios em frases e as exportações.
 // Nada é calculado aqui: a contagem, a mudança, a comparação com territórios do mesmo porte, o nível de cada sinal e o alerta do
 // território (um nível só, o maior entre os sinais) vêm do motor (backend/detector.py). Os níveis são moderado, elevado e
-// crítico, sempre com o tipo de critério ("comparado com a base" ou "por convenção"); quando a base não tem comparações bastantes,
+// crítico, sempre com o tipo de critério: na tela, "comparado com a base" ou "limite fixo" (desde 18/11/2026; no campo `criterio`
+// da resposta e nas exportações, o limite fixo continua escrito "por convenção"); quando a base não tem comparações bastantes,
 // a tela diz "sem comparações suficientes", com os números. Os nomes ("médicos", "estado") vêm da base (`fonte.rotulos`). Sem
 // importações em tempo de execução, para os testes Node lerem só este arquivo.
 import type { PainelDominio, PainelItem, PainelMunicipios } from "./painelApi";
@@ -376,10 +377,15 @@ export const textoDaContagem = (estado: EstadoDoAlerta, n: number): string => in
 /** O nome do estado do alerta para o filtro "Nível" e a coluna "Alerta": "Crítico", "Sem alerta", "Sem comparações suficientes". */
 export const nomeDoEstado = (estado: EstadoDoAlerta): string => estado === "sem_nivel" ? "Sem nível (conjunto)" : maiuscula(NOMES_DOS_ESTADOS[estado][0]);
 
-/** A coluna "Alerta": o nível (sempre escrito) e o tipo de critério; sem nível, o que a base diz no lugar. */
+/** O tipo de critério na tela (AJ-05, decisão do responsável de 18/11/2026): "limite fixo" (um limite igual para todos os
+ * territórios) ou "comparado com a base" (raro entre territórios do mesmo porte na própria base). O campo `criterio` da resposta e
+ * as exportações continuam com o valor do motor ("por convenção" para o limite fixo); só a tela muda o nome. */
+export const ROTULOS_DOS_CRITERIOS: Record<string, string> = { "por convenção": "limite fixo", "comparado com a base": "comparado com a base" };
+export const rotuloDoCriterio = (criterio: string | null | undefined): string | null => !criterio ? null : ROTULOS_DOS_CRITERIOS[criterio] ?? criterio;
+/** A coluna "Alerta": o nível (sempre escrito) e o tipo de critério, pelo nome da tela; sem nível, o que a base diz no lugar. */
 export function textoDoAlerta(linha: LinhaDoDetector): { estado: EstadoDoAlerta; nivel: NivelDoAlerta | null; texto: string; criterio: string | null } {
   const estado = estadoDoAlerta(linha);
-  return { estado, nivel: linha.alerta.nivel, texto: nomeDoEstado(estado), criterio: linha.alerta.nivel ? linha.alerta.criterio : null };
+  return { estado, nivel: linha.alerta.nivel, texto: nomeDoEstado(estado), criterio: linha.alerta.nivel ? rotuloDoCriterio(linha.alerta.criterio) : null };
 }
 const listar = (itens: string[]) => itens.length <= 1 ? itens.join("") : itens.slice(0, -1).join(", ") + " e " + itens[itens.length - 1];
 /** A coluna "Por quê": a frase do sinal principal (do motor), com quantos outros sinais têm nível; sem alerta, o que a base diz. */
@@ -612,15 +618,16 @@ export function criteriosEmFrases(r: RotulosDaBase = ROTULOS_DO_BRASIL): Criteri
   const emDoisAnos = (grupo: string, o_que: string) => ["Moderado quando " + o_que + " em 2 anos for rara: " + raro(grupo, "moderado", "variações", "igual ou pior") +
     ".", "Elevado: só 1 em cada {" + grupo + ".elevado_um_em}. Crítico: só 1 em cada {" + grupo + ".critico_um_em}."];
   const criterios: [string, string, string, string[]][] = [
-    ["estrutural", "1–2", "por convenção", ["Pelo número de " + r.profissionais + " no último registro: crítico até {estrutural.critico} (zero é sempre crítico); " +
+    ["estrutural", "1–2", "limite fixo", ["Pelo número de " + r.profissionais + " no último registro: crítico até {estrutural.critico} (zero é sempre crítico); " +
       "elevado até {estrutural.elevado}; moderado até {estrutural.moderado}."]],
-    ["declinio", "3", "por convenção", ["Moderado com {declinio.moderado_quedas} quedas anuais seguidas e perda de {declinio.moderado_perda}% ou mais.",
+    ["declinio", "3", "limite fixo", ["Moderado com {declinio.moderado_quedas} quedas anuais seguidas e perda de {declinio.moderado_perda}% ou mais.",
       "Elevado com {declinio.elevado_quedas} quedas e {declinio.elevado_perda}% ou mais.",
       "Crítico com {declinio.critico_quedas} quedas e {declinio.critico_perda}% ou mais."]],
-    ["desaceleracao", "4", "por convenção (exploratório)", ["Moderado quando o crescimento perde ritmo em {desaceleracao.anos} anos seguidos."]],
+    ["desaceleracao", "4", "limite fixo (exploratório)", ["Moderado quando o crescimento perde ritmo em {desaceleracao.anos} anos seguidos."]],
     ["instabilidade", "5", "comparado com a base", ["Moderado quando a oscilação for rara: " + raro("instabilidade", "moderado", "oscilações", "igual ou maior") + "."]],
     ["perda", "6", "comparado com a base, com tamanho mínimo", [queda("moderado", "moderado"), queda("elevado", "elevado"), queda("critico", "crítico")]],
-    ["patamar", "7", "por convenção e comparado com a base", [
+    // O sinal 7 tem os dois tipos: o moderado vem de um limite fixo, e o elevado e o crítico pedem, além disso, a raridade.
+    ["patamar", "7", "limite fixo no moderado; comparado com a base no elevado e no crítico", [
       "Moderado quando os 2 últimos registros estiverem {patamar.moderado}% ou mais abaixo do patamar (o melhor período que o território já teve).",
       "Elevado quando, além disso, o afastamento for raro: " + raro("patamar", "elevado", "afastamentos", "igual ou maior") + ".",
       "Crítico quando os 4 últimos registros estiverem {patamar.critico}% ou mais abaixo e o afastamento for raro: só 1 em cada {patamar.critico_um_em}.",

@@ -35,6 +35,67 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-18 · AJ-05: os termos na tela do Detector e do Simulador — "limite fixo" no lugar de "por convenção" e "forma" no lugar de "jeito"
+- **Classificação (regra 1):** AJ-05 do comando de ajustes pré-publicação do responsável (18/11/2026, versão 6). A troca de "jeito"
+  por "forma" decorre do pedido e não contraria a SPEC nem uma divergência aprovada: **mudança prevista**. A retirada de "por
+  convenção" da tela **falhou no teste de compatibilidade**: contrariava a divergência aprovada D-A como o responsável a estendeu
+  em 13/11/2026 ("alerta" para os três níveis, **sempre com o tipo de critério**; Proposta V3, seção B.1: "O tipo de critério
+  sempre aparece"). Consulta ao responsável em 18/11/2026, antes de implementar essa parte, com três opções (como pedido no
+  comando; "limite fixo" no lugar do termo; ou manter). **Decisão do responsável: trocar por "limite fixo"** — a tela diz
+  "limite fixo" ou "comparado com a base", e o tipo de critério continua sempre à vista: a D-A não muda. Decisão complementar do
+  mesmo dia: as fichas metodológicas também dizem "limite fixo", e "por convenção" só aparece nelas para explicar o campo das
+  exportações. No backend, mudaram só palavras dos textos que a tela mostra; nenhum número, campo, critério ou regra. Nada vai ao
+  provedor de IA. A SPEC e a base não foram editadas.
+- **Antes:**
+  - **Detector:** abaixo do nível, na lista e no detalhe, "por convenção" (o valor do campo `criterio` do motor) ou "comparado com
+    a base"; em "Ajustar critérios", os tipos "por convenção", "por convenção (exploratório)" e, no sinal 7, "por convenção e
+    comparado com a base"; nos textos do motor, "Por convenção, pelo número de médicos no último registro: …", "Por convenção: o
+    limite é o mesmo para todos os territórios…", "Moderado, por convenção: os 2 últimos registros…", "Os limites são uma
+    convenção…" e, no "Entenda" do Alerta, "“por convenção”, um limite igual para todos";
+  - **Simulador:** "Jeito de projetar: … (escolhido pela base)", "Continuar como vinha (o jeito escolhido pela base)", "outros
+    jeitos de projetar", "Dinâmica: segue o jeito escolhido pela base", "Este cenário usa um jeito de projetar escolhido no modo
+    avançado…" e, no painel "Poucos médicos, no cenário", "Os limites são os do Detector, por convenção"; nos textos do motor,
+    "Usamos este jeito porque…", "Este jeito foi escolhido por você…", "nenhum jeito de projetar errou menos…", "A faixa de 8 em
+    cada 10 só existe para o jeito de projetar e a janela…", "Com outro jeito ou outra janela…" e as notas; no perfil da base,
+    "o jeito de projetar que a base escolheu" e "Escolher o jeito de projetar do Simulador…".
+- **Agora:**
+  - **Detector:** o tipo de critério na tela é **"limite fixo"** (um limite igual para todos os territórios) ou "comparado com a
+    base" (`detectorModel.rotuloDoCriterio`), na lista, no detalhe e em "Ajustar critérios" ("limite fixo", "limite fixo
+    (exploratório)" e, no sinal 7, "limite fixo no moderado; comparado com a base no elevado e no crítico", porque o moderado dele
+    não vem de comparação). O motor escreve "Limite fixo, pelo número de …", "Limite fixo: o mesmo para todos os territórios, e
+    não uma comparação com a base.", "Limite fixo, pelas quedas seguidas…", "Moderado, por limite fixo e exploratório…", "Limite
+    fixo e exploratório: a classe se repete há N anos.", "Moderado, por limite fixo: os 2 últimos registros…", "Os limites são
+    fixos, iguais para todos…" e, no "Entenda" do Alerta, "“limite fixo”, o mesmo limite para todos os territórios";
+  - **Simulador:** "**forma**", no feminino: "Forma de projetar: … (escolhida pela base)", "Continuar como vinha (a forma
+    escolhida pela base)", "outras formas de projetar", "Dinâmica: segue a forma escolhida pela base", "Este cenário usa uma
+    forma de projetar escolhida no modo avançado (…), e não a que a base escolheu." e, no painel do cenário, "Os limites são os
+    limites fixos do Detector". O motor escreve "Usamos esta forma porque, nesta base, ela errou menos… quando refeita no
+    passado.", "Esta forma foi escolhida por você: a que a base escolheu é a …", "nenhuma forma de projetar errou menos… quando
+    conferida com o passado", "A faixa de 8 em cada 10 só existe para a forma de projetar e a janela… Com outra forma ou outra
+    janela, não há faixa.", "a forma escolhida para os municípios" e as notas com "forma"; o perfil da base, "a forma de projetar
+    que a base escolheu" e "Escolher a forma de projetar do Simulador…".
+- **Permanece:** o campo `criterio` da resposta (no alerta, em cada sinal com nível e em `criterio_do_nivel`), com "por convenção"
+  ou "comparado com a base"; a coluna "Tipo de critério" de "Exportar a lista (CSV)"; as notas da resposta do Detector, que vão em
+  "Exportar o método (JSON)" e dizem os dois valores do campo; o campo `entenda.jeito` da resposta do Simulador e os
+  identificadores `simulador-entenda-jeito` e `simulador-frase-do-jeito`; os números, os níveis, os critérios, a régua, a escolha
+  da forma de projetar, as faixas e os avisos (com os mesmos códigos).
+- **Motivo:** AJ-05 do comando de ajustes pré-publicação (18/11/2026) e a decisão do responsável, no mesmo dia, de trocar "por
+  convenção" por "limite fixo" na tela e nas fichas.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md` (o tipo de critério e a tabela dos 12 sinais),
+  `Docs/SIMULADOR_DE_CENARIOS.md`, `Docs/PERFIL_DA_BASE_DETECTOR_SIMULADOR.md`, `Docs/PAINEL_INTEGRADO_INTERFACE.md` e
+  `README.md`; `scripts/calibrar_simulador.py` (os títulos das tabelas). Testes: pytest novo
+  `backend/tests/test_ajustes_pre_publicacao.py` (numa base sintética com os sinais de limite fixo com nível: os textos que a tela
+  mostra dizem "limite fixo" e nunca "convenção" nem "jeito"; o campo `criterio` e as notas exportadas continuam com "por
+  convenção"; o Simulador e o perfil dizem "forma de projetar", e o campo `entenda.jeito` continua); Node `detector.test.mjs` (o
+  nome da tela do critério, os tipos de "Ajustar critérios" e, pela árvore de sintaxe, nenhum texto do Detector com "convenção"
+  além da chave do valor do motor, nem com "jeito") e `simulador.test.mjs` (o mesmo nos textos do Simulador); navegador
+  `ui_detector.py` (o critério da lista e do detalhe pelo nome da tela, com o campo do motor intacto; os sete campos do sinal 1–2
+  com "Limite fixo"; nada de "convenção" nem "jeito" à vista, também em "Ajustar critérios") e `ui_simulador.py` (o motivo da faixa
+  da persistência, escrito pelo motor, com "forma"; nada de "jeito" nem "convenção" à vista). **Valores que mudaram de propósito
+  nos testes:** os textos acima em `test_simulador.py`, `test_ferramentas_qualquer_base.py`, `simulador.test.mjs`,
+  `detector.test.mjs` (`textoDoAlerta` devolve "limite fixo"), `ui_simulador.py`, `ui_detector.py` e `ui_planilha_ficticia.py`.
+  Nenhum teste foi afrouxado.
+
 ### 2026-11-18 · AJ-01: o botão de abrir e fechar da Seleção de Territórios, com fundo colorido e a seta para baixo (fechado) ou para cima (aberto)
 - **Classificação (regra 1):** AJ-01 do comando de ajustes pré-publicação do responsável (18/11/2026, versão 6). Decorre do pedido
   (escopo) e não contraria a SPEC nem uma divergência aprovada (compatibilidade): muda a aparência do controle de abrir e fechar e

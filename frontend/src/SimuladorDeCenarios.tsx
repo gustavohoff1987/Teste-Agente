@@ -31,7 +31,7 @@ import {
 // Detector de Sinais ("Abrir no Simulador" e "Simular recuperação").
 // Proposta V3 (comando V23, Parte C): o Simulador abre em **modo simples, numa tela só** — o território, o que testar (só continuar
 // como vinha, acrescentar, retirar ou chegar a uma meta) e até quando; o resultado traz o gráfico, a frase fixa, três números e
-// os "Entenda" do jeito de projetar e da faixa. "Continuar como vinha" usa o jeito de projetar que a própria base escolheu, e a
+// os "Entenda" da forma de projetar e da faixa. "Continuar como vinha" usa a forma de projetar que a própria base escolheu, e a
 // faixa (8 em cada 10, por padrão) é conferida, provisória ou indisponível, com o motivo. As quatro etapas ficam em "Avançado".
 // Vale para qualquer base: com uma planilha enviada, o pedido leva o que a descreve, e os nomes vêm dela.
 
@@ -334,7 +334,7 @@ export default function SimuladorDeCenarios(props: Props) {
    * que apontava para um conjunto tirado daqui sai junto. */
   const mudarLocal = (local: SelecaoLocal) => mudar({ local, acompanha: false, referencias: referenciasValidas(config.referencias, local) });
   const referencias = config.referencias ?? [];
-  // As premissas (o jeito de projetar, a janela, a faixa, a permanência e a comparação) estão no padrão? "Voltar ao padrão" é um
+  // As premissas (a forma de projetar, a janela, a faixa, a permanência e a comparação) estão no padrão? "Voltar ao padrão" é um
   // botão só, sempre à vista, desligado enquanto elas são as do padrão (Proposta V3, seção A.4).
   const noPadrao = premissasNoPadrao(config);
   const mudarReferencia = (id: string, parte: Partial<ReferenciaDaTela>) => mudar({ referencias: referencias.map(ref => ref.id === id ? { ...ref, ...parte } : ref) });
@@ -435,9 +435,9 @@ export default function SimuladorDeCenarios(props: Props) {
       {config.cenarios.length > 1 && <button type="button" className="analise-icone" aria-label={"Remover o cenário " + cenario.nome}
         onClick={() => mudar({ cenarios: config.cenarios.filter((_, k) => k !== indice) })}><Trash2 size={14} aria-hidden="true"/></button>}
     </div>}
-    {/* A premissa em frase, com os campos dentro dela (Proposta V3, seção C.5): o jeito de projetar e a janela do cenário. */}
-    <p data-testid="simulador-frase-do-jeito" className="ferramenta-frase">Jeito de projetar:{" "}
-      <select data-testid="simulador-metodo" className="ferramenta-campo-da-frase" aria-label="Jeito de projetar (o método da base do cenário)" value={cenario.metodo}
+    {/* A premissa em frase, com os campos dentro dela (Proposta V3, seção C.5): a forma de projetar e a janela do cenário. */}
+    <p data-testid="simulador-frase-do-jeito" className="ferramenta-frase">Forma de projetar:{" "}
+      <select data-testid="simulador-metodo" className="ferramenta-campo-da-frase" aria-label="Forma de projetar (o método da base do cenário)" value={cenario.metodo}
         onChange={event => mudarCenario(indice, { metodo: event.target.value as MetodoDoCenario })}>
         {METODOS_DA_TELA.map(item => <option key={item.chave} value={item.chave}>{item.rotulo}</option>)}
       </select>
@@ -581,7 +581,7 @@ export default function SimuladorDeCenarios(props: Props) {
       </div>
       <button type="button" data-testid="simulador-voltar-ao-padrao" className="analise-botao-secundario" disabled={noPadrao}
         title={noPadrao ? "As premissas em uso já são as do padrão"
-          : "Volta às premissas padrão: o jeito de projetar e a janela que a base escolheu, a faixa de 8 em cada 10, a permanência total e a comparação pela diferença"}
+          : "Volta às premissas padrão: a forma de projetar e a janela que a base escolheu, a faixa de 8 em cada 10, a permanência total e a comparação pela diferença"}
         onClick={() => mudar(comAsPremissasPadrao(config))}><RotateCcw size={14} aria-hidden="true"/>Voltar ao padrão</button>
       <button type="button" data-testid="simulador-exportar-cenario" className="analise-botao-secundario"
         onClick={() => baixar("cenario_do_simulador.json", exportarCenario(config, { versaoDoMetodo: resposta?.versao ?? "", versaoDaBase: p.fonte.datasetVersion,
@@ -612,7 +612,7 @@ export default function SimuladorDeCenarios(props: Props) {
         territórios na Seleção de Territórios ou em “Avançado”.</p>}
       {avisoLocal && <p data-testid="simulador-aviso-local" role="status" className="ferramenta-apoio">{avisoLocal}</p>}
       {cenarioDoSimples.metodo !== "padrao" && <p data-testid="simulador-metodo-do-avancado" role="status" className="ferramenta-exploratorio">
-        Este cenário usa um jeito de projetar escolhido no modo avançado ({nomeCurtoDoMetodo(cenarioDoSimples.metodo, r)}), e não o que a base escolheu.
+        Este cenário usa uma forma de projetar escolhida no modo avançado ({nomeCurtoDoMetodo(cenarioDoSimples.metodo, r)}), e não a que a base escolheu.
         “Voltar ao padrão”, no alto, desfaz essa escolha.</p>}
       <fieldset data-testid="simulador-o-que-testar" className="ferramenta-teste analise-nao-imprimir">
         <legend>O que testar</legend>
@@ -662,8 +662,8 @@ export default function SimuladorDeCenarios(props: Props) {
             {tresNumeros(resultadoDoSimples, r).map(item => <div key={item.rotulo}><dt>{item.rotulo}</dt><dd>{item.valor}</dd></div>)}
           </dl>
           {resultadoDoSimples.entenda && <p className="ferramenta-entendas">
-            <span>Jeito de projetar: {resultadoDoSimples.metodo.rotulo}{resultadoDoSimples.metodo.eOEscolhido ? " (escolhido pela base)" : ""}</span>
-            <Entenda sobre="O jeito de projetar" texto={resultadoDoSimples.entenda.jeito.texto} exemplo={resultadoDoSimples.entenda.jeito.exemplo}
+            <span>Forma de projetar: {resultadoDoSimples.metodo.rotulo}{resultadoDoSimples.metodo.eOEscolhido ? " (escolhida pela base)" : ""}</span>
+            <Entenda sobre="A forma de projetar" texto={resultadoDoSimples.entenda.jeito.texto} exemplo={resultadoDoSimples.entenda.jeito.exemplo}
               testid="simulador-entenda-jeito" onCompleta={abrirAValidacao}/>
             <span data-testid="simulador-faixa-estado">Faixa de {resultadoDoSimples.faixa.em10} em cada 10: {!resultadoDoSimples.final?.faixa ? "indisponível"
               : resultadoDoSimples.final.faixa.estado === "conferida" ? "conferida" : "provisória"}</span>
@@ -706,7 +706,7 @@ export default function SimuladorDeCenarios(props: Props) {
       <p className="ferramenta-apoio analise-nao-imprimir">
         <button type="button" data-testid="simulador-avancado" className="analise-link"
           onClick={() => mudar({ modo: "avancado" })}>Avançado<ChevronRight size={14} className="inline" aria-hidden="true"/></button>{" "}
-        Vários cenários, outros jeitos de projetar e outras janelas, referências, calendário de acréscimos e permanência, conjuntos e vários territórios, exportar e importar.</p>
+        Vários cenários, outras formas de projetar e outras janelas, referências, calendário de acréscimos e permanência, conjuntos e vários territórios, exportar e importar.</p>
     </div>}
 
     {config.modo === "avancado" && <ol className="ferramenta-etapas analise-nao-imprimir" aria-label="Etapas do Simulador">
@@ -780,7 +780,7 @@ export default function SimuladorDeCenarios(props: Props) {
       <div data-testid="simulador-referencias" data-total={referencias.length} data-metrica={config.metrica ?? "quantidade"} className="ferramenta-cartao">
         <p className="ferramenta-cartao-titulo">Referências de comparação (opcional)</p>
         <p className="ferramenta-apoio">Uma referência é um território, ou um valor seu, com que cada cenário é comparado. Ela pode ficar fora da seleção do
-          Simulador e não muda a seleção principal. <strong>Fixa</strong>: o último valor registrado se mantém. <strong>Dinâmica</strong>: segue o jeito de
+          Simulador e não muda a seleção principal. <strong>Fixa</strong>: o último valor registrado se mantém. <strong>Dinâmica</strong>: segue a forma de
           projetar que a base escolheu para o nível dela, sem intervenções.</p>
         {referencias.length > 0 && <ul data-testid="simulador-referencias-lista" className="ferramenta-referencias" aria-label="Referências de comparação">
           {referencias.map(ref => <li key={ref.id} data-testid="simulador-referencia-item" data-id={ref.id} data-alvo={ref.alvo} data-tipo={ref.tipo}
@@ -792,7 +792,7 @@ export default function SimuladorDeCenarios(props: Props) {
               : <label className="analise-rotulo-campo">Como evolui
                 <select data-testid="simulador-referencia-tipo" className="analise-campo" value={ref.tipo}
                   onChange={event => mudarReferencia(ref.id, { tipo: event.target.value as ReferenciaDaTela["tipo"] })}>
-                  <option value="fixa">Fixa: o último valor se mantém</option><option value="dinamica">Dinâmica: segue o jeito escolhido pela base</option>
+                  <option value="fixa">Fixa: o último valor se mantém</option><option value="dinamica">Dinâmica: segue a forma escolhida pela base</option>
                 </select></label>}
             <button type="button" className="analise-icone" aria-label={"Tirar a referência " + ref.rotulo}
               onClick={() => mudar({ referencias: referencias.filter(item => item.id !== ref.id) })}><Trash2 size={14} aria-hidden="true"/></button>
@@ -940,7 +940,7 @@ export default function SimuladorDeCenarios(props: Props) {
         <select data-testid="simulador-faixa-em-10" className="ferramenta-campo-da-frase" aria-label="Faixa: quantos em cada 10" value={config.faixa ?? 8}
           onChange={event => mudar({ faixa: Number(event.target.value) as 5 | 8 | 9 })}>
           {[5, 8, 9].map(quantos => <option key={quantos} value={quantos}>{quantos}</option>)}
-        </select>{" "}de cada 10 retroprojeções de territórios do mesmo porte. A faixa existe só para o jeito de projetar e a janela que a própria base escolheu, até o
+        </select>{" "}de cada 10 retroprojeções de territórios do mesmo porte. A faixa existe só para a forma de projetar e a janela que a própria base escolheu, até o
         maior prazo com casos suficientes; fora disso, é indisponível, com o motivo.</p>
       <p className="ferramenta-cartao-titulo">Intervenções hipotéticas</p>
       <p className="ferramenta-apoio">Acréscimos e retiradas somam-se à base do cenário; o crescimento histórico não é aplicado aos {r.profissionais} acrescentados. Permanência de 100% ao
@@ -1051,7 +1051,7 @@ export default function SimuladorDeCenarios(props: Props) {
         {verValidacao && <div data-testid="simulador-validacao" className="ferramenta-metodo-corpo">
           <ul className="ferramenta-notas">{resposta.notas.map(nota => <li key={nota}>{nota}</li>)}</ul>
           <div className="ferramenta-rolagem"><table data-testid="simulador-faixas" className="analise-tabela ferramenta-tabela">
-            <caption className="ferramenta-apoio">Faixas de {resposta.retroprojecao.em10} em cada 10 do jeito de projetar que a base escolheu para {formas.osUnidades}, medidas no
+            <caption className="ferramenta-apoio">Faixas de {resposta.retroprojecao.em10} em cada 10 da forma de projetar que a base escolheu para {formas.osUnidades}, medidas no
               passado da própria base (retroprojeção com origens em{" "}{resposta.retroprojecao.origens.map(competenciaCurta).join(", ")}): quanto o observado ficou acima ou
               abaixo do cenário, em {resposta.retroprojecao.em10} de cada 10 casos.</caption>
             <thead><tr><th scope="col">{comMaiuscula(r.profissionais)} na origem</th>{[1, 2, 3, 4].map(anos => <th key={anos} scope="col">{anos === 1 ? "1 ano" : anos + " anos"}</th>)}</tr></thead>

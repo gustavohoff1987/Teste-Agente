@@ -5,7 +5,7 @@ import Entenda from "./Entenda";
 import { tamanhoDoGrafico, useLargura } from "./PainelChart";
 import { ErroDoMotor, pedirAoMotor, type FonteDoMotor, type RotulosTerritoriais } from "./painelApi";
 import {
-  ESTADOS_DO_ALERTA, NIVEIS, NOMES_DOS_NIVEIS, SEM_FILTROS, alvoDoSimulador, artigoDaUnidade, competenciaCurta, criteriosEmFrases, csvDoDetector, estadoDoAlerta,
+  ESTADOS_DO_ALERTA, NIVEIS, NOMES_DOS_NIVEIS, SEM_FILTROS, alvoDoSimulador, rotuloDoCriterio, artigoDaUnidade, competenciaCurta, criteriosEmFrases, csvDoDetector, estadoDoAlerta,
   filtrarLinhas, filtrosDeSinal, formatarInteiro, formatarPct, formatarTaxa, metodoDoDetector, nomeDoEstado, nomeDoSinal, normalizarDetalhe,
   metaDaRecuperacao, normalizarDetector, ordenarLinhas, parametrosPersonalizados, patamarARecuperar, profissionais, rotuloDoCampo, textoDaContagem, textoDaMesmaQueda,
   textoDaUltima, textoDoAlerta, textoDoCorte, textoDoPorQue, textoDoRegistro, textoDosTrechos, tipoDoTerritorio,
@@ -18,7 +18,7 @@ import {
 // quatro colunas (Território · Alerta · Por quê · Último registro), com o resumo dos níveis no alto, clicável como filtro, os
 // filtros numa linha (Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico. Cada território tem um nível só — moderado,
 // elevado ou crítico, o maior entre os seus sinais, sem soma nem índice —, sempre escrito e com o tipo de critério ("comparado
-// com a base" ou "por convenção"); quando a base não tem comparações bastantes, a tela diz "sem comparações suficientes", com
+// com a base" ou "limite fixo"); quando a base não tem comparações bastantes, a tela diz "sem comparações suficientes", com
 // os números. "Ajustar critérios" mostra os limites em frases, com os campos dentro delas: trocar um valor torna a configuração
 // exploratória, com aviso no alto, e "Voltar ao padrão" fica sempre à vista. O detalhe de um território traz a série e os 12
 // sinais em quatro grupos (Quantos há, Como mudou, Comparado com outros, Onde fica), mais Juntos; em cada sinal, o nível, uma
@@ -127,7 +127,7 @@ function SinalDoTerritorio({ sinal, aberto, onAlternar }: { sinal: FenomenoDoDet
       <span className="ferramenta-sinal-nome"><span className="ferramenta-apoio">Sinal {sinal.numero}</span>{sinal.nome}</span>
       <span data-testid="detector-fenomeno-nivel" className="ferramenta-sinal-nivel">
         {sinal.nivel ? <><Nivel nivel={sinal.nivel}/><span data-testid="detector-fenomeno-criterio" className="ferramenta-apoio">
-          {sinal.criterioDoNivel}{sinal.exploratorio ? " · exploratório" : ""}</span></>
+          {rotuloDoCriterio(sinal.criterioDoNivel)}{sinal.exploratorio ? " · exploratório" : ""}</span></>
           : estado ? <span className="ferramenta-sem-nivel">{estado}</span> : null}
       </span>
       {/* O sinal que a base não sustenta (sem população, coordenadas, grupo de cima ou série anual): a frase é o motivo. */}

@@ -16,7 +16,9 @@ histórico de sinais. Três coisas nunca se confundem:
 2. **raridade:** se a mudança é rara entre as mudanças anteriores de territórios do mesmo porte, com o mesmo tempo entre
    registros;
 3. **nível do alerta:** **moderado**, **elevado** ou **crítico**, sempre escrito (nunca só pela cor) e sempre com o **tipo de
-   critério**: "comparado com a base" ou "por convenção".
+   critério**: "comparado com a base" ou "limite fixo" (um limite igual para todos os territórios). Até
+   18/11/2026, a tela dizia "por convenção" no lugar de "limite fixo" (AJ-05, decisão do responsável): esse continua sendo o valor
+   do campo `criterio` da resposta e das exportações, e o estudo de calibração abaixo usa os dois nomes.
 
 Além dos três níveis, um território pode ficar **sem alerta**, **sem comparações suficientes** (a base ainda não tem história para
 comparar, e a tela diz quantas comparações há e quantas o nível pede) ou **sem nível** (um conjunto, que não tem outros iguais para
@@ -72,13 +74,13 @@ Todos os limites são padrões e podem ser trocados em "Ajustar critérios" (a c
 
 | # | Sinal | O que mede | Moderado | Elevado | Crítico | Critério |
 |---|---|---|---|---|---|---|
-| 1 | Poucos profissionais | Número no último registro | 4 ou 5 | 2 ou 3 | 1 | Por convenção |
-| 2 | Nenhum profissional registrado | Zero confirmado, e há quanto tempo | — | — | Zero, com a duração | Por convenção |
-| 3 | Declínio persistente | Quedas anuais seguidas (o mês âncora) e perda acumulada | 2 quedas e 10% ou mais | 3 quedas e 20% ou mais | 4 quedas e 30% ou mais | Por convenção |
-| 4 | Desaceleração | A classe "Desaceleração do crescimento" da Análise de Tendência, nos 4 registros anuais | A classe em 2 anos seguidos | — | — | Por convenção (exploratório) |
+| 1 | Poucos profissionais | Número no último registro | 4 ou 5 | 2 ou 3 | 1 | Limite fixo |
+| 2 | Nenhum profissional registrado | Zero confirmado, e há quanto tempo | — | — | Zero, com a duração | Limite fixo |
+| 3 | Declínio persistente | Quedas anuais seguidas (o mês âncora) e perda acumulada | 2 quedas e 10% ou mais | 3 quedas e 20% ou mais | 4 quedas e 30% ou mais | Limite fixo |
+| 4 | Desaceleração | A classe "Desaceleração do crescimento" da Análise de Tendência, nos 4 registros anuais | A classe em 2 anos seguidos | — | — | Limite fixo (exploratório) |
 | 5 | Instabilidade | Oscilação de 7 registros ÷ a típica do porte | 1 em 20 | — | — | Comparado com a base |
 | 6 | Queda recente | Queda de um registro para o seguinte | 1 em 20, e pelo menos 2 profissionais e 10% | 1 em 100, e pelo menos 2 e 20% | 1 em 1.000, e pelo menos 3 e 30% | Comparado com a base, com tamanho mínimo |
-| 7 | Abaixo do que já teve | Distância ao patamar: a maior média de 2 anos completos, antes dos 4 últimos registros | 2 últimos registros 15% ou mais abaixo | Isso, e 1 em 100 | 4 últimos registros 30% ou mais abaixo, e 1 em 1.000 | Por convenção e comparado com a base; patamar de pelo menos 20 |
+| 7 | Abaixo do que já teve | Distância ao patamar: a maior média de 2 anos completos, antes dos 4 últimos registros | 2 últimos registros 15% ou mais abaixo | Isso, e 1 em 100 | 4 últimos registros 30% ou mais abaixo, e 1 em 1.000 | Limite fixo no moderado; comparado com a base no elevado e no crítico; patamar de pelo menos 20 |
 | 8 | Menos profissionais por habitante | Variação da taxa por 1.000 habitantes em 2 anos | 1 em 20 | 1 em 100 | 1 em 1.000 | Comparado com a base; população comparável; pelo menos 20 no início da janela |
 | 9 | Perda de posição | Variação do percentil da taxa em 2 anos | 1 em 20 | 1 em 100 | 1 em 1.000 | Idem |
 | 10 | Mais longe da referência | Variação do índice ante o grupo de cima, sem o próprio território, em 2 anos | 1 em 20 | 1 em 100 | 1 em 1.000 | Idem; precisa de grupo de cima |
@@ -97,7 +99,7 @@ Notas:
 - **Sinal 6:** o nível é o mais grave em que a queda é rara **e** tem o tamanho mínimo daquele nível (o maior entre o mínimo em
   profissionais e a fração do que havia, arredondada para cima). Sem queda, a tela ainda diz que níveis a base sustenta para o
   porte.
-- **Sinal 7:** o moderado é por convenção; o elevado e o crítico pedem também a raridade do afastamento entre territórios com
+- **Sinal 7:** o moderado é por limite fixo; o elevado e o crítico pedem também a raridade do afastamento entre territórios com
   patamar do mesmo porte. Com patamar abaixo de 20, é só descritivo. O patamar é uma média e pode ter decimal: abaixo de 100, a
   frase o mostra com as casas ("patamar de 1,75", e não "patamar de 2"); de 100 para cima, o inteiro mais próximo. **Quando o
   sinal não é avaliado, a frase diz o motivo**, como nos sinais 5 e 8 a 10 (desde 15/11/2026): "43% abaixo do que já teve (patamar

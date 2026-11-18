@@ -30,7 +30,7 @@ export const FORMAS_DO_BRASIL: FormasDaBase = { oUnidade: "o município", osUnid
 /** Um texto com a primeira letra maiúscula ("médicos" → "Médicos"), para o começo de um rótulo. */
 export const comMaiuscula = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
 export const METODOS_DA_TELA: { chave: MetodoDoCenario; rotulo: string; apoio: string }[] = [
-  { chave: "padrao", rotulo: "Continuar como vinha (o jeito escolhido pela base)", apoio: "o jeito de projetar que a própria base escolheu, pela retroprojeção: o Agente refaz no passado a projeção que teria feito e confere com o que aconteceu depois" },
+  { chave: "padrao", rotulo: "Continuar como vinha (a forma escolhida pela base)", apoio: "a forma de projetar que a própria base escolheu, pela retroprojeção: o Agente refaz no passado a projeção que teria feito e confere com o que aconteceu depois" },
   { chave: "M0", rotulo: "Persistência (M0)", apoio: "o último valor se mantém" },
   { chave: "M0d", rotulo: "Último valor com o crescimento do grupo de cima (M0d)", apoio: "o último valor com o crescimento recente do grupo de cima do território, nos 3 anos anteriores" },
   { chave: "M0g", rotulo: "Último valor com o crescimento da base toda (M0g)", apoio: "o último valor com o crescimento recente da soma de todos os territórios, nos 3 anos anteriores" },
@@ -81,7 +81,7 @@ export const TESTES: { chave: TesteDoCenario; rotulo: string }[] = [{ chave: "co
 /** O teste em uso num cenário do modo simples, pelo que ele tem: a meta, a primeira intervenção ou nada. */
 export const testeDoCenario = (cenario: CenarioDaTela): TesteDoCenario => cenario.planejamento ? "meta"
   : !cenario.intervencoes.length ? "continuar" : cenario.intervencoes[0].tipo === "retirada" ? "retirar" : "acrescentar";
-/** O cenário com outro teste: o jeito de projetar volta ao escolhido pela base; a quantidade, a meta e a data digitadas ficam. */
+/** O cenário com outro teste: a forma de projetar volta à escolhida pela base; a quantidade, a meta e a data digitadas ficam. */
 export function comOTeste(cenario: CenarioDaTela, teste: TesteDoCenario, em: string): CenarioDaTela {
   const { planejamento, ...resto } = cenario;
   const base = { ...resto, metodo: "padrao" as MetodoDoCenario, taxaManual: "", janela: null };
@@ -278,7 +278,7 @@ export function comparacaoDoPedido(config: ConfigDoSimulador): Record<string, un
   }
   return config.forma === "razao" ? { forma: "razao" } : null;
 }
-/** As premissas do Simulador estão todas no padrão (Proposta V3, seções A.4 e C.5)? O jeito de projetar e a janela que a base
+/** As premissas do Simulador estão todas no padrão (Proposta V3, seções A.4 e C.5)? A forma de projetar e a janela que a base
  * escolheu, a faixa de 8 em cada 10, a permanência total e a comparação pela diferença. O território, o que testar (as quantidades,
  * as datas e a meta), a data final e as referências não são premissas: são o cenário. */
 export function premissasNoPadrao(config: ConfigDoSimulador): boolean {
@@ -540,12 +540,12 @@ export type PontoDoCenario = { data: string; anos: number; base: number; interve
 export type TextoDoEntenda = { texto: string; exemplo: string };
 export type CenarioCalculado = { id: string; nome: string; estado: string; motivo: string | null;
   metodo: { pedido: string; usado: string | null; rotulo: string | null; padrao: boolean; provisorio: boolean; voltouAoM0: boolean; soma: string | null;
-    /** O jeito de projetar que a própria base escolheu para o nível do território, e se é o que está em uso. */
+    /** A forma de projetar que a própria base escolheu para o nível do território, e se é a que está em uso. */
     escolhidoPelaBase: string | null; eOEscolhido: boolean };
   parametros: Record<string, unknown>; avisos: { codigo: string; texto: string }[]; trajetoria: PontoDoCenario[];
   /** A faixa do cenário: N em cada 10, até quantos anos vai e, quando falta, o motivo. */
   faixa: { estado: string; motivo: string | null; rotulo: string | null; em10: number; ateAnos: number | null; conferencia: string | null; como: string | null };
-  /** Os "Entenda" do resultado: o jeito de projetar e a faixa, em duas ou três frases e um exemplo (do motor). */
+  /** Os "Entenda" do resultado (do motor): a forma de projetar (no campo `jeito`) e a faixa, em duas ou três frases e um exemplo. */
   entenda: { jeito: TextoDoEntenda; faixa: TextoDoEntenda } | null;
   final: { data: string; base: number; intervencao: number; total: number; faixa: PontoDoCenario["faixa"] } | null; texto: string | null;
   horizonte: { anos: number; aviso: string } | null;
@@ -578,7 +578,7 @@ export type FaixaDaRetroprojecao = { porte: string; anos: number; inferiorPct: n
   coberturaPct: number | null; rotulo: string };
 export type LinhaDaRetroprojecao = { metodo: string; porte: string; anos: number; casos: number; origens: number; erroAbsolutoMedio: number; vies: number;
   frenteAoM0: number | null };
-/** O jeito de projetar que a base escolheu para um nível de território, com a frase que o motor escreveu (regra C.3). */
+/** A forma de projetar que a base escolheu para um nível de território, com a frase que o motor escreveu (regra C.3). */
 export type EscolhaDaBase = { metodo: string; rotulo: string; motivo: string; texto: string;
   candidatos: { metodo: string; rotulo: string; frenteAoM0: number | null; menosErroEm: number; combinacoes: number; vale: boolean }[] };
 export type RespostaDoSimulador = { versao: string; fonte: { base: string; categoria: string; versao: string; primeira: string; ultima: string;
@@ -775,7 +775,7 @@ export function faixaSemALinha(cenario: CenarioCalculado): string {
   if (!faixa || total === undefined || (faixa.inferior <= total + 1e-9 && faixa.superior >= total - 1e-9)) return "";
   const lado = faixa.inferior > total ? "acima" : "abaixo";
   return " A faixa fica inteira " + lado + " da linha do cenário: no passado da base, neste porte e neste prazo, o número observado ficou, na maior parte " +
-    "dos casos, " + lado + " do que este jeito de projetar dava.";
+    "dos casos, " + lado + " do que esta forma de projetar dava.";
 }
 /** As contas da data final, com uma casa: a base do cenário, a intervenção e o total (o texto do cenário arredonda para o inteiro). */
 export function contasDoFinal(cenario: CenarioCalculado, r: NomesDaBase = NOMES_DO_BRASIL): string {
@@ -797,7 +797,7 @@ export function metodoNaTabela(cenario: CenarioCalculado, conjunto = false, r: N
 const NOMES_DOS_NIVEIS: Record<string, string> = { moderado: "moderado", elevado: "elevado", critico: "crítico" };
 /** O nível de "Poucos médicos" num valor do cenário: "moderado", "elevado", "crítico" ou "sem alerta". */
 export const nivelNoCenario = (classe: string | null) => classe ? NOMES_DOS_NIVEIS[classe] ?? classe : "sem alerta";
-/** Os níveis no cenário (Proposta V3, seção C.6): só os sinais 1 e 2 do Detector, por convenção, valem para um valor simulado,
+/** Os níveis no cenário (Proposta V3, seção C.6): só os sinais 1 e 2 do Detector, de limite fixo, valem para um valor simulado,
  * rotulados como hipótese do cenário (o rótulo vem do motor). Quando a faixa cruza um limite, a tela diz "pode ficar entre
  * moderado e elevado", sem escolher um só. Os sinais comparados com a base nunca se aplicam a valores simulados. */
 export function textoDaHipotese(h: HipoteseDerivada, r: NomesDaBase = NOMES_DO_BRASIL): string {
@@ -810,7 +810,7 @@ export function textoDaHipotese(h: HipoteseDerivada, r: NomesDaBase = NOMES_DO_B
     (h.impactoPct !== null && h.inteiro <= 20 ? " (a saída de 1 tiraria " + umaCasa.format(h.impactoPct) + "%)" : "") + "." +
     (h.naFaixa && (h.naFaixa.inferior !== h.classe || h.naFaixa.superior !== h.classe)
       ? " Pela faixa do cenário, pode ficar entre " + nivelNoCenario(h.naFaixa.superior) + " e " + nivelNoCenario(h.naFaixa.inferior) + "." : "") +
-    " Os limites são os do Detector, por convenção; os sinais comparados com a base valem só para registros reais.";
+    " Os limites são os limites fixos do Detector; os sinais comparados com a base valem só para registros reais.";
 }
 /** A hipótese entra na tela só quando é pertinente: há nível no valor do cenário ou num dos limites da faixa, ou o território
  * teria até 20 médicos (o sinal trata de poucos médicos; num território grande, o painel seria só ruído). */

@@ -236,7 +236,7 @@ def test_grupo_de_cima_da_planilha_entra_como_unidade_pela_soma_das_unidades_del
     assert [item for item in lido["nao_da_para"] if "como unidade" in item["o_que"]] == [
         {"o_que": "Alertas elevados nas zonas como unidade", "motivo": "eles pedem 99 comparações, e esta base chega a 20."},
         {"o_que": "Alertas críticos nas zonas como unidade", "motivo": "eles pedem 999 comparações, e esta base chega a 20."},
-        {"o_que": "Escolher o jeito de projetar do Simulador nas zonas como unidade pela retroprojeção",
+        {"o_que": "Escolher a forma de projetar do Simulador nas zonas como unidade pela retroprojeção",
          "motivo": "ela pede 3 origens com 3 anos antes e 1 ano depois, e esta base tem 2; o cenário mantém o último valor."}]
     # No Simulador: a zona como território e como referência (pelo identificador "uf:<zona>"), com os textos da base. O todo da
     # planilha continua com o jeito escolhido para as áreas, como antes: a soma das zonas não é um nível próprio.
@@ -256,10 +256,10 @@ def test_grupo_de_cima_da_planilha_entra_como_unidade_pela_soma_das_unidades_del
     assert da_referencia["texto"].startswith("Em jul/2026, Norte (zona) teria 102 postos, e a referência Sul (zona) (fixa: o valor de jul/2024 "
                                              "mantido), 114: 12 abaixo da referência (índice 89,5; 100 é a referência).")
     assert ("Zonas como unidade são a soma das áreas de cada uma, nas datas em que todas têm registro. A base toda é a soma das áreas com "
-            "registro em cada data e entra com um padrão provisório (o jeito escolhido para as áreas). Num conjunto, o valor é a soma dos "
+            "registro em cada data e entra com um padrão provisório (a forma escolhida para as áreas). Num conjunto, o valor é a soma dos "
             "componentes, não o número de postos diferentes.") in cenarios["notas"]
     do_padrao = next(aviso["texto"] for aviso in do_todo["cenarios"][0]["avisos"] if aviso["codigo"] == "PADRAO_PROVISORIO_DO_NIVEL")
-    assert do_padrao == ("Para a base toda, o método padrão é provisório: uma série só não tem retroprojeção própria, e vale o jeito escolhido "
+    assert do_padrao == ("Para a base toda, o método padrão é provisório: uma série só não tem retroprojeção própria, e vale a forma escolhida "
                          "para as áreas.")
     # A soma só existe quando todas as unidades do grupo têm registro: sem o registro de uma área numa data, a zona fica sem valor
     # nela (ausência de dado, nunca uma queda que não houve); o todo continua sendo a soma das áreas com registro.
@@ -437,7 +437,7 @@ def test_planilha_so_com_anos_tem_as_datas_e_os_textos_sem_mes():
     assert perfil["itens"][1]["lido"] == "A base tem um registro por ano (10 anos, de 2014 a 2023)."
     assert perfil["da_para"] == ["Alertas moderados desde 2016 (o 3º ano da base).", "Alertas elevados desde 2020 (o 7º ano da base).",
                                  "Sinais anuais (declínio persistente e desaceleração), pela série de cada ano.",
-                                 "Cenários do Simulador mantendo o último valor: na retroprojeção desta base, nenhum jeito de projetar "
+                                 "Cenários do Simulador mantendo o último valor: na retroprojeção desta base, nenhuma forma de projetar "
                                  "errou menos que isso."]
     assert perfil["nao_da_para"][0] == {"o_que": "Alertas críticos", "motivo": "eles pedem 999 comparações, e esta base chega a 160."}
     # O Simulador com um registro por ano: as datas do cenário são anos ("AAAA00"), e a janela padrão são os 3 anos até o último
@@ -492,7 +492,7 @@ def test_perfil_da_planilha_de_teste_da_para_e_nao_da_para():
         # Sem grupo de cima, o Simulador testa o crescimento da base toda no lugar do crescimento do grupo: o jeito em uso é o que
         # a retroprojeção escolher (aqui, manter o último valor), e o perfil não diz mais que ele "usa" esse crescimento.
         ("grupo", "Grupo de cima", "A base não tem coluna de grupo.", "O sinal 10 fica indisponível. No Simulador, o crescimento da base toda "
-         "é testado no lugar do crescimento do grupo; o jeito de projetar sai da retroprojeção."),
+         "é testado no lugar do crescimento do grupo; a forma de projetar sai da retroprojeção."),
         ("populacao", "População", "A base não tem coluna de população.",
          "Ficam indisponíveis os sinais 8 a 11 e a comparação por taxa (por habitante) do Simulador."),
         ("coordenadas", "Coordenadas", "A base não tem coordenadas com o referencial informado.", "O sinal 11 (distância) fica indisponível."),
@@ -501,7 +501,7 @@ def test_perfil_da_planilha_de_teste_da_para_e_nao_da_para():
     # O resumo, como no exemplo da seção A.3 da Proposta V3: o que a base sustenta e, do que não sustenta, o motivo com os números.
     assert perfil["da_para"] == ["Alertas moderados desde jan/2015 (o 2º ano da base).", "Alertas elevados desde jan/2018 (o 5º ano da base).",
                                  "Sinais anuais (declínio persistente e desaceleração), pela série de julho.",
-                                 "Cenários do Simulador mantendo o último valor: na retroprojeção desta base, nenhum jeito de projetar "
+                                 "Cenários do Simulador mantendo o último valor: na retroprojeção desta base, nenhuma forma de projetar "
                                  "errou menos que isso."]
     # Os sinais que a base não sustenta, cada um com todos os motivos (os mesmos do detalhe do território); sem população, a
     # comparação por taxa do Simulador também fica no "não dá para", com o motivo.
@@ -512,8 +512,8 @@ def test_perfil_da_planilha_de_teste_da_para_e_nao_da_para():
         {"o_que": "\"Mais longe da referência\" (sinal 10)", "motivo": "a base não tem população nem grupo de cima.", "sinais": ["defasagem"]},
         {"o_que": "\"Distância\" (sinal 11)", "motivo": "a base não tem população nem coordenadas com o referencial informado.",
          "sinais": ["contexto"]},
-        {"o_que": "O crescimento do grupo de cima como jeito de projetar no Simulador",
-         "motivo": "a base não tem grupo de cima; no lugar dele, o Simulador testa o crescimento da base toda, e o jeito de projetar sai da "
+        {"o_que": "O crescimento do grupo de cima como forma de projetar no Simulador",
+         "motivo": "a base não tem grupo de cima; no lugar dele, o Simulador testa o crescimento da base toda, e a forma de projetar sai da "
                    "retroprojeção."},
         {"o_que": "A comparação por taxa (por 1.000 habitantes) no Simulador", "motivo": "a base não tem população."},
         {"o_que": "A faixa do Simulador", "motivo": "ela pede 200 casos por prazo, e esta base tem 120."}]
@@ -615,8 +615,8 @@ def test_rota_do_simulador_aceita_a_planilha_e_a_base_escolhe_o_jeito_de_projeta
         "pedido": "padrao", "usado": "M0", "rotulo": "persistência (o último valor se mantém)", "padrao": True, "provisorio": False,
         "voltou_ao_m0": False, "soma": None, "escolhido_pela_base": "M0", "e_o_escolhido": True}
     assert cenario["avisos"] == [
-        {"codigo": "PADRAO_E_O_ULTIMO_VALOR", "texto": "Nesta base, nenhum jeito de projetar errou menos que manter o último valor, quando "
-                                                       "conferido com o passado: o cenário mantém o último valor."},
+        {"codigo": "PADRAO_E_O_ULTIMO_VALOR", "texto": "Nesta base, nenhuma forma de projetar errou menos que manter o último valor, quando "
+                                                       "conferida com o passado: o cenário mantém o último valor."},
         # Manter o último valor não usa a história: a cautela é uma frase simples, sem "referência" (revisão final do V23).
         {"codigo": "HORIZONTE_CAUTELA", "texto": "Cautela: quanto mais longe a data final, mais incerto o cenário (aqui, 2 anos à frente)."}]
     assert [(ponto["data"], ponto["total"]) for ponto in cenario["trajetoria"]] == [("202401", 22.0), ("202407", 22.0), ("202501", 22.0),
@@ -631,8 +631,8 @@ def test_rota_do_simulador_aceita_a_planilha_e_a_base_escolhe_o_jeito_de_projeta
                  "juntando os portes vizinhos e os menores.")
     assert cenario["faixa"] == {"estado": "indisponivel", "motivo": sem_faixa, "rotulo": None, "em_10": 8}
     assert cenario["entenda"] == {
-        "jeito": {"texto": "O cenário parte do último registro usado (jul/2023) e mantém o valor dele. Nesta base, nenhum outro jeito errou "
-                           "menos que manter o último valor, quando refeito no passado.",
+        "jeito": {"texto": "O cenário parte do último registro usado (jul/2023) e mantém o valor dele. Nesta base, nenhuma outra forma errou "
+                           "menos que manter o último valor, quando refeita no passado.",
                   "exemplo": "De 19 enfermeiros em jul/2023, a base do cenário vai a 19 um ano depois, sem contar intervenções."},
         "faixa": {"texto": sem_faixa,
                   "exemplo": "Sem a faixa, o cenário mostra só a linha: ela não diz quanto o valor real costuma se afastar."}}
@@ -644,8 +644,8 @@ def test_rota_do_simulador_aceita_a_planilha_e_a_base_escolhe_o_jeito_de_projeta
     candidatos = escolha.pop("candidatos")
     assert escolha == {"metodo": "M0", "rotulo": "persistência (o último valor se mantém)", "motivo": "nenhum_vale", "origens": 6,
                        "combinacoes": 18, "excecoes": [],
-                       "texto": "Para os distritos: nesta base, nenhum jeito de projetar errou menos que manter o último valor, quando "
-                                "conferido com o passado: o cenário mantém o último valor."}
+                       "texto": "Para os distritos: nesta base, nenhuma forma de projetar errou menos que manter o último valor, quando "
+                                "conferida com o passado: o cenário mantém o último valor."}
     assert [(item["metodo"], round(item["frente_ao_m0"], 3), item["menos_erro_em"], item["combinacoes"], item["vale"]) for item in candidatos] == [
         ("M1", 1.482, 0, 18, False), ("M0g", 1.173, 5, 18, False)]
     assert [(item["porte"], item["anos"], item["estado"], item["casos"], item["pede"]) for item in retro["faixas"]] == [
@@ -718,7 +718,7 @@ def test_rota_do_simulador_aceita_a_planilha_e_a_base_escolhe_o_jeito_de_projeta
                                                "composta (M1).")
     assert o_todo["cenarios"][0]["comparacoes"][0]["avisos"] == ["A referência é o próprio território."]
     assert o_todo["cenarios"][0]["comparacoes"][1]["avisos"][0] == "O território (Solária) contém a referência: a comparação não é independente."
-    assert ("A Solária é a soma dos distritos com registro em cada data e entra com um padrão provisório (o jeito escolhido para os distritos). "
+    assert ("A Solária é a soma dos distritos com registro em cada data e entra com um padrão provisório (a forma escolhida para os distritos). "
             "Num conjunto, o valor é a soma dos componentes, não o número de enfermeiros diferentes.") in avancado["notas"]
     achados = sorted({texto for texto in textos(avancado) if DO_BRASIL.search(texto)})
     assert not achados, achados[:3]
@@ -788,9 +788,9 @@ def test_real_perfil_da_base_do_brasil(real):
         "Alertas moderados nos estados como unidade desde jun/2015 (o 2º ano da base).",
         "Alertas elevados nos estados como unidade desde jun/2019 (o 6º ano da base).",
         "Sinais anuais (declínio persistente e desaceleração), pela série de junho.",
-        "Cenários do Simulador com o jeito de projetar que a base escolheu: persistência com o crescimento recente do estado.",
+        "Cenários do Simulador com a forma de projetar que a base escolheu: persistência com o crescimento recente do estado.",
         "A faixa de 8 em cada 10 do Simulador, até 4 anos à frente (conferida com o que veio depois até 2 anos; depois, provisória).",
-        "Cenários do Simulador nos estados como unidade com o jeito de projetar que a base escolheu: taxa composta da janela."]
+        "Cenários do Simulador nos estados como unidade com a forma de projetar que a base escolheu: taxa composta da janela."]
     assert perfil["nao_da_para"] == [
         {"o_que": "Alertas críticos nos estados como unidade", "motivo": "eles pedem 999 comparações, e esta base chega a 270."},
         {"o_que": "A faixa do Simulador nos estados como unidade", "motivo": "ela pede 200 casos por prazo, e esta base tem 189."}]

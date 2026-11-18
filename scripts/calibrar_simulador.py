@@ -7,10 +7,10 @@ O que faz (Docs/DETECTOR_E_SIMULADOR_V3.md, Parte C, seções C.3 e C.4; os resu
 
 1. lê a base Brasil pela mesma leitura verificada do serviço e roda a retroprojeção com origens móveis do Simulador
    (simulador.retroprojetar), nos municípios e nos estados como unidade: em cada registro do mês âncora com 3 anos de história,
-   cada jeito de projetar é ajustado só com os registros até a origem e confrontado com o observado 1, 2, 3 e 4 anos depois;
-2. imprime a escolha do jeito de projetar de cada nível (regra C.3): o erro de cada candidato frente a manter o último valor, em
+   cada forma de projetar é ajustada só com os registros até a origem e confrontada com o observado 1, 2, 3 e 4 anos depois;
+2. imprime a escolha da forma de projetar de cada nível (regra C.3): o erro de cada candidato frente a manter o último valor, em
    quantas combinações de origem e prazo ele errou menos, quem vale, o escolhido e as exceções por porte;
-3. imprime as faixas de 5, 8 e 9 em cada 10 do jeito escolhido, por porte na origem e prazo, com o estado de cada uma (conferida,
+3. imprime as faixas de 5, 8 e 9 em cada 10 da forma escolhida, por porte na origem e prazo, com o estado de cada uma (conferida,
    provisória ou indisponível), como foi montada (o próprio porte, com os vizinhos ou com portes menores), os casos e a cobertura
    da conferência no tempo (a faixa remontada só com o que já era conhecido em cada origem de teste);
 4. imprime o erro absoluto médio de cada método frente ao M0 (a persistência), por porte e prazo, e o viés em 4 anos;
@@ -61,10 +61,10 @@ def _escolha(base, nivel, retro):
     r = series_brasil.rotulos(base)
     quem = r["unidades"] if nivel == "municipios" else r["grupos"] + " como unidade"
     escolha = retro.escolha
-    print("\n## A escolha do jeito de projetar: " + quem + "\n")
+    print("\n## A escolha da forma de projetar: " + quem + "\n")
     print("Origens:", ", ".join(detector.curta(origem) for origem in retro.origens) or "nenhuma", "·", _br(len(retro.casos)), "casos ·",
           escolha["combinacoes"], "combinações de origem e prazo.\n")
-    print(_linha(["Jeito", "Erro frente a manter o último valor", "Errou menos em", "Casos", "Vale"]))
+    print(_linha(["Forma", "Erro frente a manter o último valor", "Errou menos em", "Casos", "Vale"]))
     print(_linha(["---"] * 5))
     for item in escolha["candidatos"]:
         print(_linha([simulador._nome_do_metodo(base, item["metodo"]) + " (" + item["metodo"] + ")", _razao(item["frente_ao_m0"]),
@@ -89,7 +89,7 @@ def _faixas(base, nivel, retro):
         print("\n## Faixas: " + quem + "\n\nSem faixas: a base não tem retroprojeção bastante neste nível.")
         return
     for em_10, (inferior, superior, minimo, meta) in simulador.FAIXAS_EM_10.items():
-        print("\n## Faixa de " + str(em_10) + " em cada 10 do jeito escolhido: " + quem + "\n")
+        print("\n## Faixa de " + str(em_10) + " em cada 10 da forma escolhida: " + quem + "\n")
         print("Do " + f"{inferior:g}" + "º ao " + f"{superior:g}" + "º percentil de observado ÷ cenário − 1; pede " + str(minimo) +
               " casos por prazo; meta de cobertura de " + str(meta) + "%. \"(p)\" é provisória.\n")
         print(_linha([r["profissionais"].capitalize() + " na origem"] + _prazos()))

@@ -9,7 +9,8 @@ que veio antes de cada data. Três coisas nunca se confundem:
 2. **raridade** — (mudanças anteriores iguais ou piores + 1) ÷ (total de mudanças anteriores + 1), entre as mudanças anteriores à
    data avaliada de territórios do mesmo porte e com o mesmo tempo entre registros, contando os empates (reguas.py);
 3. **nível do alerta** — moderado (1 em cada 20, com pelo menos 19 comparações), elevado (1 em cada 100, com 99) ou crítico
-   (1 em cada 1.000, com 999), sempre com o tipo de critério: "comparado com a base" ou "por convenção". Quando a base não tem
+   (1 em cada 1.000, com 999), sempre com o tipo de critério: "comparado com a base" ou "por convenção" (o valor do campo
+   `criterio` e das exportações; desde 18/11/2026, os textos da tela dizem "limite fixo"). Quando a base não tem
    comparações bastantes para um nível, a resposta diz "sem comparações suficientes", com quantas há e quantas ele pede. "Raro"
    quer dizer incomum nesta base, não comprovadamente pior: o nível não é juízo de desassistência, de suficiência do cuidado nem
    de prioridade de provimento (divergência aprovada da SPEC, CFG-NOR: D-A, com os nomes de 13/11/2026).
@@ -1225,12 +1226,12 @@ def _na_frase(motivo: str) -> str:
 
 def _texto_estrutural(base: Base, av: dict, e: int, p: dict) -> dict:
     s, limites, r = av["estrutural"], p["estrutural"], _rotulos(base)
-    regra = ("Por convenção, pelo número de " + r["profissionais"] + " no último registro: " + str(limites["critico"]) + " ou nenhum, "
+    regra = ("Limite fixo, pelo número de " + r["profissionais"] + " no último registro: " + str(limites["critico"]) + " ou nenhum, "
              "crítico; até " + str(limites["elevado"]) + ", elevado; até " + str(limites["moderado"]) + ", moderado; acima disso, "
              "sem alerta por este sinal. Vale a situação mais grave entre os dois últimos registros: a piora aparece na hora, e a "
              "melhora, depois de dois registros.")
-    entenda = ("Com poucos " + r["profissionais"] + ", a saída de um só muda muito o total do território. Os limites são uma "
-               "convenção, iguais para todos, e não uma comparação com a base.")
+    entenda = ("Com poucos " + r["profissionais"] + ", a saída de um só muda muito o total do território. Os limites são "
+               "fixos, iguais para todos, e não uma comparação com a base.")
     exemplo = ("Com 2 " + r["profissionais"] + ", a saída de um reduz o total em 50%; com 20, em 5%.")
     if s["estado"] == "ausencia_de_dado":
         return _item(None, "sem_dado", POR_CONVENCAO, "Sem registro em " + curta(base.periodos[e]),
@@ -1258,7 +1259,7 @@ def _texto_estrutural(base: Base, av: dict, e: int, p: dict) -> dict:
     if s["estado"] == "nivel_sem_classificacao":
         habitual = SEM_NIVEL_NO_CONJUNTO + " " + impacto
     else:
-        habitual = "Por convenção: o limite é o mesmo para todos os territórios, e não uma comparação com a base. " + impacto
+        habitual = "Limite fixo: o mesmo para todos os territórios, e não uma comparação com a base. " + impacto
         if s.get("mantida_pela_anterior"):
             habitual += " O nível exibido vem do registro anterior: a melhora só vale depois de dois registros seguidos."
     return _item(s.get("classe"), _estado_do_nivel(s), POR_CONVENCAO, frase, observado, regra, habitual,
@@ -1270,7 +1271,7 @@ def _texto_estrutural(base: Base, av: dict, e: int, p: dict) -> dict:
 def _texto_declinio(base: Base, av: dict, p: dict) -> dict:
     s, limites, r = av["declinio"], p["declinio"], _rotulos(base)
     de_a, anuais = _anual(base, "de {mes} a {mes}", "de um ano para o outro"), _anual(base, "registros de {mes}", "registros anuais")
-    regra = ("Por convenção, pelas quedas seguidas na série anual (" + de_a + ") e pela perda acumulada desde o início da "
+    regra = ("Limite fixo, pelas quedas seguidas na série anual (" + de_a + ") e pela perda acumulada desde o início da "
              "sequência: " + str(limites["moderado_quedas"]) + " quedas e perda de " + _pct(limites["moderado_perda"], 0) + " ou mais, "
              "moderado; " + str(limites["elevado_quedas"]) + " quedas e " + _pct(limites["elevado_perda"], 0) + " ou mais, elevado; " +
              str(limites["critico_quedas"]) + " quedas e " + _pct(limites["critico_perda"], 0) + " ou mais, crítico. Registros de pico "
@@ -1289,13 +1290,13 @@ def _texto_declinio(base: Base, av: dict, p: dict) -> dict:
     if not s["reducoes"]:
         return _item(None, _estado_do_nivel(s), POR_CONVENCAO, "Sem queda no último ano",
                      "Até " + curta(s["ate"]) + ", o número não caiu no último ano da série anual (" + de_a + ").", regra,
-                     "Por convenção. Sem quedas seguidas.", significa, nao, entenda, exemplo)
+                     "Limite fixo. Sem quedas seguidas.", significa, nao, entenda, exemplo)
     quedas = str(s["reducoes"]) + (" queda anual" if s["reducoes"] == 1 else " quedas anuais seguidas")
     frase = quedas + ": −" + _pct(s["perda_pct"]) + " desde " + curta(s["de"])
     observado = ("De " + curta(s["de"]) + " a " + curta(s["ate"]) + ", o número de " + r["profissionais"] + " caiu " + str(s["reducoes"]) +
                  (" vez" if s["reducoes"] == 1 else " anos seguidos") + ": de " + _br(s["inicial"]) + " para " + _br(s["final"]) + " (−" +
                  _pct(s["perda_pct"]) + ").")
-    habitual = "Por convenção: os limites são os mesmos para todos os territórios." if av["tipo"] != "conjunto" else SEM_NIVEL_NO_CONJUNTO
+    habitual = "Limite fixo: o mesmo para todos os territórios." if av["tipo"] != "conjunto" else SEM_NIVEL_NO_CONJUNTO
     return _item(s.get("classe"), "sem_nivel" if av["tipo"] == "conjunto" else _estado_do_nivel(s), POR_CONVENCAO, frase, observado, regra,
                  habitual, significa, nao, entenda, exemplo)
 
@@ -1304,7 +1305,7 @@ def _texto_desaceleracao(base: Base, av: dict, p: dict) -> dict:
     s, r = av["desaceleracao"], _rotulos(base)
     anuais = _anual(base, "registros de {mes}", "registros anuais")
     regra = ("A classe \"" + ROTULOS_DA_TENDENCIA["CRESCIMENTO_DESACELERADO"] + "\" da Análise de Tendência do Agente nos 4 " + anuais +
-             " até o último. Moderado, por convenção e exploratório, quando a classe se repete em " + str(p["desaceleracao"]["anos"]) +
+             " até o último. Moderado, por limite fixo e exploratório, quando a classe se repete em " + str(p["desaceleracao"]["anos"]) +
              " anos seguidos.")
     entenda = ("O número ainda cresce, mas cada ano cresce menos que o anterior. Este sinal mostra uma mudança de ritmo; não indica o "
                "que vem depois.")
@@ -1321,10 +1322,10 @@ def _texto_desaceleracao(base: Base, av: dict, p: dict) -> dict:
                  "Tendência classifica essa série como \"" + s["rotulo"] + "\".")
     if not s["desacelera"]:
         return _item(None, "sem_alerta", POR_CONVENCAO, "Sem desaceleração (tendência: " + s["rotulo"].lower() + ")", observado, regra,
-                     "Por convenção. A classe da série não é a de crescimento desacelerado.", significa, nao, entenda, exemplo, True)
+                     "Limite fixo. A classe da série não é a de crescimento desacelerado.", significa, nao, entenda, exemplo, True)
     frase = "O crescimento perde ritmo" + (" há " + str(s["anos"]) + " anos" if s["anos"] >= 2 else "")
-    habitual = ("Por convenção e exploratório: a classe se repete há " + str(s["anos"]) + " anos." if s["anos"] >= 2 else
-                "Por convenção e exploratório: a classe apareceu só no último ano, ainda sem repetição.")
+    habitual = ("Limite fixo e exploratório: a classe se repete há " + str(s["anos"]) + " anos." if s["anos"] >= 2 else
+                "Limite fixo e exploratório: a classe apareceu só no último ano, ainda sem repetição.")
     if av["tipo"] == "conjunto":
         habitual = SEM_NIVEL_NO_CONJUNTO
     return _item(s.get("classe"), "sem_nivel" if av["tipo"] == "conjunto" else _estado_do_nivel(s), POR_CONVENCAO, frase, observado, regra,
@@ -1424,7 +1425,7 @@ def _texto_perda(base: Base, av: dict, p: dict) -> dict:
 def _texto_patamar(base: Base, av: dict, p: dict) -> dict:
     s, limites, r = av["patamar"], p["patamar"], _rotulos(base)
     regra = ("O patamar é a maior média de dois anos completos, antes dos 4 últimos registros (não é o maior registro sozinho). "
-             "Moderado, por convenção: os 2 últimos registros " + _pct(limites["moderado"], 0) + " ou mais abaixo do patamar. Elevado: "
+             "Moderado, por limite fixo: os 2 últimos registros " + _pct(limites["moderado"], 0) + " ou mais abaixo do patamar. Elevado: "
              "isso, e o afastamento raro na base (" + _um_em(limites["elevado_um_em"]) + " afastamentos anteriores de territórios com "
              "patamar do mesmo porte). Crítico: os 4 últimos registros " + _pct(limites["critico"], 0) + " ou mais abaixo, e raro (" +
              _um_em(limites["critico_um_em"]) + "). Só com patamar de pelo menos " + _br(limites["minimo"]) + " " + r["profissionais"] + ".")
@@ -1471,7 +1472,7 @@ def _texto_patamar(base: Base, av: dict, p: dict) -> dict:
                      significa, nao, entenda, exemplo)
     comparado = _comparado_com(base, av, s.get("raridade"), porte_de(math.floor(s["patamar"])), "afastamentos anteriores")
     falta = _falta_historia(s.get("sem_comparacoes"), "este afastamento")
-    habitual = ("Por convenção: os 2 últimos registros estão " + _pct(limites["moderado"], 0) + " ou mais abaixo do patamar. " + comparado +
+    habitual = ("Limite fixo: os 2 últimos registros estão " + _pct(limites["moderado"], 0) + " ou mais abaixo do patamar. " + comparado +
                 (" " + falta if falta else "")).strip()
     if s.get("abaixo_por_4") and s["classe"] != "critico":
         habitual += " Os 4 últimos registros estão " + _pct(limites["critico"], 0) + " ou mais abaixo, mas o afastamento não é raro o " \
@@ -1877,7 +1878,7 @@ def entenda_da_ferramenta(base: Base) -> dict:
                        r["unidades"] + " de 10 a 19 " + r["profissionais"] + ", só 1 em cada 100 foi igual ou pior: alerta elevado."},
         "alerta": {
             "texto": "Um nível por território: o maior entre os seus sinais, sem soma nem índice. \"Comparado com a base\" quer dizer "
-                     "raro entre territórios de tamanho parecido; \"por convenção\", um limite igual para todos. Quando faltam "
+                     "raro entre territórios de tamanho parecido; \"limite fixo\", o mesmo limite para todos os territórios. Quando faltam "
                      "comparações, a tela diz \"sem comparações suficientes\".",
             "exemplo": "Moderado: 1 em cada 20, com pelo menos 19 comparações. Elevado: 1 em cada 100, com 99. Crítico: 1 em cada "
                        "1.000, com 999."},

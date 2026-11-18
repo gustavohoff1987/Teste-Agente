@@ -207,10 +207,10 @@ def perfil(base: Base, cal: detector.Calibracao | None = None) -> dict:
         # em uso é o que a retroprojeção escolher (pode ser manter o último valor), e as linhas do Simulador, mais abaixo, dizem qual.
         itens.append({"chave": "grupo", "titulo": "Grupo de cima", "lido": "A base não tem coluna de grupo.",
                       "falta": "O sinal 10 fica indisponível. No Simulador, o crescimento da base toda é testado no lugar do "
-                               "crescimento do grupo; o jeito de projetar sai da retroprojeção."})
-        nao_da_para.append({"o_que": "O crescimento do grupo de cima como jeito de projetar no Simulador",
+                               "crescimento do grupo; a forma de projetar sai da retroprojeção."})
+        nao_da_para.append({"o_que": "O crescimento do grupo de cima como forma de projetar no Simulador",
                             "motivo": "a base não tem grupo de cima; no lugar dele, o Simulador testa o crescimento da base toda, e o "
-                                      "jeito de projetar sai da retroprojeção."})
+                                      "forma de projetar sai da retroprojeção."})
 
     # População: os trechos comparáveis, lidos da própria base.
     if tem_populacao:
@@ -266,12 +266,12 @@ def perfil(base: Base, cal: detector.Calibracao | None = None) -> dict:
     for nivel, lido in do_simulador.items():
         quem = "" if nivel == "municipios" else " n" + r["os_grupos"] + " como unidade"
         if lido["motivo"] == "escolhido":
-            da_para.append('Cenários do Simulador' + quem + ' com o jeito de projetar que a base escolheu: ' + lido["rotulo"] + ".")
+            da_para.append('Cenários do Simulador' + quem + ' com a forma de projetar que a base escolheu: ' + lido["rotulo"] + ".")
         elif lido["motivo"] == "nenhum_vale":
-            da_para.append("Cenários do Simulador" + quem + " mantendo o último valor: na retroprojeção desta base, nenhum jeito de "
+            da_para.append("Cenários do Simulador" + quem + " mantendo o último valor: na retroprojeção desta base, nenhuma forma de "
                            "projetar errou menos que isso.")
         else:
-            nao_da_para.append({"o_que": "Escolher o jeito de projetar do Simulador" + quem + " pela retroprojeção",
+            nao_da_para.append({"o_que": "Escolher a forma de projetar do Simulador" + quem + " pela retroprojeção",
                                 "motivo": ("a base não tem série anual" if lido["motivo"] == "sem_serie_anual" else
                                            "ela pede 3 origens com 3 anos antes e 1 ano depois, e esta base tem " + _br(lido["origens"])) +
                                           "; o cenário mantém o último valor."})

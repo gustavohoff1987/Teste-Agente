@@ -323,7 +323,8 @@ def main():
         expect(resultado_simples.get_by_test_id("simulador-texto")).to_contain_text("Base: registros até jun/2024.")
         assert [inteiro_da_tela(cenario["parametros"]["n0"]), inteiro_da_tela(cenario["final"]["total"])] == ["22", "25"], cenario["final"]
         tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Diferença"], ["22", "25", "+3 médicos"])
-        expect(resultado_simples).to_contain_text("Jeito de projetar: persistência com o crescimento recente do estado (escolhido pela base)")
+        # AJ-05 (18/11/2026): "forma de projetar", no feminino ("escolhida pela base"); antes, "Jeito de projetar … (escolhido pela base)".
+        expect(resultado_simples).to_contain_text("Forma de projetar: persistência com o crescimento recente do estado (escolhida pela base)")
         expect(resultado_simples.get_by_test_id("simulador-faixa-estado")).to_have_text("Faixa de 8 em cada 10: conferida")
         expect(resultado_simples.get_by_test_id("simulador-faixa-texto")).to_have_text(
             "Faixa de 8 em cada 10 em jun/2026: de 19,0 a 33,2 médicos. No passado da base, em 8 de cada 10 casos de territórios do "
@@ -370,14 +371,14 @@ def main():
         # Os dois "Entenda" abrem pelo clique, com o texto e o exemplo do motor.
         assert cenario["entenda"]["jeito"] == {
             "texto": "O cenário parte do último registro usado (jun/2024) e soma o crescimento recente do estado: +6,21% ao ano nos 3 anos "
-                     "anteriores. Usamos este jeito porque, nesta base, ele errou menos que simplesmente manter o último valor, quando "
-                     "refeito no passado.",
+                     "anteriores. Usamos esta forma porque, nesta base, ela errou menos que simplesmente manter o último valor, quando "
+                     "refeita no passado.",
             "exemplo": "De 22 médicos em jun/2024, a base do cenário vai a 23,4 um ano depois, sem contar intervenções."}, cenario["entenda"]
         assert cenario["entenda"]["faixa"] == {
             "texto": "Refizemos este tipo de projeção em datas passadas, para territórios do mesmo porte. Em 8 de cada 10 vezes, o valor "
                      "real ficou dentro desta faixa. Não é garantia: o passado testado (2017–2024) pode não se repetir.",
             "exemplo": "Entre 19 e 33 médicos na data final."}, cenario["entenda"]
-        entenda("jeito", "O jeito de projetar", cenario["entenda"]["jeito"])
+        entenda("jeito", "A forma de projetar", cenario["entenda"]["jeito"])
         fechar_o_entenda("jeito")
         entenda("faixa", "A faixa de 8 em cada 10", cenario["entenda"]["faixa"])
         page.screenshot(path=str(OUTPUT / "simulador-00-simples-real.png"), full_page=True)
@@ -574,7 +575,7 @@ def main():
         expect(resultado_simples).to_have_attribute("data-conferencia", "")
         expect(resultado_simples.get_by_test_id("simulador-texto")).to_have_text(cenario["texto"])
         tres_numeros(["No último registro (jun/2024)", "Em jun/2026", "Diferença"], ["32.785", "37.486", "+4.701 médicos"])
-        expect(resultado_simples).to_contain_text("Jeito de projetar: taxa composta da janela (escolhido pela base)")
+        expect(resultado_simples).to_contain_text("Forma de projetar: taxa composta da janela (escolhida pela base)")
         expect(resultado_simples.get_by_test_id("simulador-faixa-estado")).to_have_text("Faixa de 8 em cada 10: indisponível")
         expect(resultado_simples.get_by_test_id("simulador-faixa-texto")).to_have_text("Faixa de 8 em cada 10: indisponível. " + SEM_CASOS)
         expect(resultado_simples.locator('[data-testid="simulador-avisos"] li[data-codigo="PADRAO_PROVISORIO_DO_NIVEL"]')).to_have_count(0)
@@ -643,7 +644,7 @@ def main():
         expect(simulador.get_by_test_id("simulador-metodo")).to_have_value("padrao")
         assert simulador.get_by_test_id("simulador-metodo").locator("option").evaluate_all("els => els.map(e => e.value)") == [
             "padrao", "M0", "M0d", "M0g", "M1", "M2", "M3", "manual"], "a média aritmética não é um método"
-        expect(simulador.get_by_test_id("simulador-metodo").locator("option").first).to_have_text("Continuar como vinha (o jeito escolhido pela base)")
+        expect(simulador.get_by_test_id("simulador-metodo").locator("option").first).to_have_text("Continuar como vinha (a forma escolhida pela base)")
         expect(simulador.get_by_test_id("simulador-base")).to_contain_text("5 e 7 meses entre um e outro")
         expect(simulador.get_by_test_id("simulador-estatisticas-depois")).to_contain_text("aparecem aqui depois de calcular")
         # As premissas em frases, com os campos dentro delas (Proposta V3, seção C.5; etapa 7 do comando V23): a janela diz quanto
@@ -654,7 +655,7 @@ def main():
         expect(da_janela).to_have_attribute("data-padrao", "true")
         expect(simulador.get_by_test_id("simulador-janela-inicio").locator("option:checked")).to_have_text("3 anos (desde jun/2021)")
         expect(simulador.get_by_test_id("simulador-janela-fim").locator("option:checked")).to_have_text("jun/2024")
-        expect(simulador.get_by_test_id("simulador-frase-do-jeito")).to_contain_text("Jeito de projetar:")
+        expect(simulador.get_by_test_id("simulador-frase-do-jeito")).to_contain_text("Forma de projetar:")
         expect(simulador.get_by_test_id("simulador-cenario-janela-inicio").locator("option").first).to_have_text("a janela geral")
         # Os atalhos da janela são só atalhos. A volta à janela padrão é pelo "Voltar ao padrão" único (antes, havia um atalho
         # "Janela padrão (3 anos)" aqui): ele liga quando uma premissa sai do padrão e desliga depois de usado.
@@ -748,6 +749,16 @@ def main():
         expect(resultado.get_by_test_id("simulador-hipotetico")).not_to_contain_text("Dependência de poucos médicos")
         expect(simulador.locator('[data-testid="simulador-cenario-resultado"][data-id="m0"] [data-testid="simulador-texto"]')).to_have_text(
             referencia["texto"])
+        # AJ-05 (18/11/2026): a persistência, como referência, não é a forma escolhida pela base: a faixa dela fica indisponível, e o
+        # motivo, escrito pelo motor, diz "forma de projetar" (antes, "jeito"). Nenhum texto à vista no Simulador traz "jeito" nem
+        # "por convenção".
+        assert referencia["faixa"]["motivo"] == (
+            "A faixa de 8 em cada 10 só existe para a forma de projetar e a janela que a própria base escolheu (persistência com o "
+            "crescimento recente do estado, com os 3 anos até a origem). Com outra forma ou outra janela, não há faixa."), referencia["faixa"]
+        expect(simulador.locator('[data-testid="simulador-cenario-resultado"][data-id="m0"] [data-testid="simulador-faixa-texto"]')).to_have_text(
+            "Faixa de 8 em cada 10: indisponível. " + referencia["faixa"]["motivo"])
+        texto_a_vista = simulador.inner_text().lower()
+        assert "jeito" not in texto_a_vista and "convenção" not in texto_a_vista, "jeito ou convenção à vista no Simulador"
         # O gráfico: o observado (22 registros reais), a base de cada cenário, os eventos da intervenção e a faixa de 8 em cada 10.
         expect(grafico.get_by_test_id("simulador-observado")).to_have_count(22)
         expect(grafico.get_by_test_id("simulador-curva")).to_have_count(2)
@@ -820,7 +831,7 @@ def main():
         # porte da régua comum (de "1 a 3" a "10.000 ou mais"), com a conferência de cada faixa.
         simulador.get_by_test_id("simulador-validacao-botao").click()
         faixas = simulador.get_by_test_id("simulador-faixas")
-        expect(faixas.locator("caption")).to_contain_text("Faixas de 8 em cada 10 do jeito de projetar que a base escolheu para os municípios")
+        expect(faixas.locator("caption")).to_contain_text("Faixas de 8 em cada 10 da forma de projetar que a base escolheu para os municípios")
         expect(faixas.locator("tbody tr")).to_have_count(10)
         expect(faixas.locator("tbody tr").first.locator("th")).to_have_text("1 a 3")
         expect(faixas.locator("tbody tr").last.locator("th")).to_have_text("10.000 ou mais")
@@ -1159,7 +1170,7 @@ def main():
         simulador.get_by_test_id("simulador-modo-simples").click()
         expect(simulador).to_have_attribute("data-modo", "simples")
         expect(do_avancado).to_contain_text(
-            "Este cenário usa um jeito de projetar escolhido no modo avançado (taxa composta da janela), e não o que a base escolheu.")
+            "Este cenário usa uma forma de projetar escolhida no modo avançado (taxa composta da janela), e não a que a base escolheu.")
         expect(do_avancado).to_contain_text("“Voltar ao padrão”, no alto, desfaz essa escolha.")
         expect(do_avancado.get_by_role("button")).to_have_count(0)
         expect(voltar_ao_padrao).to_be_enabled()
