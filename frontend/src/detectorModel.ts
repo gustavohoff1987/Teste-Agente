@@ -691,6 +691,53 @@ export function linhasDoTerritorio(linha: LinhaDoDetector, detalhe: DetalheDoDet
 }
 /** Os territórios da página cujo detalhe a lista pede, para ter a frase de cada sinal: só os que têm mais de um sinal com nível. */
 export const precisaDoDetalhe = (linha: LinhaDoDetector): boolean => linha.alerta.estado === "alerta" && linha.alerta.sinais.length > 1;
+
+/** Um detalhe que chegou do motor: o território, ou o erro do pedido. */
+export type DetalheQueChegou = DetalheDoDetector | { erro: string };
+/** Quantos pedidos a memória da tela guarda: as listas e, com cada uma, os detalhes que chegaram certos. */
+export const PEDIDOS_NA_MEMORIA = 6;
+
+/** A memória da tela do Detector (AJ-08, comando de correção das fichas, 18/11/2026): as listas e os detalhes, por pedido. A chave
+ * é a da lista — a versão da base, a planilha, a seleção, a data, a janela e os critérios. Só fica guardado o detalhe que chegou
+ * certo, e só de um pedido cuja lista está guardada; um detalhe com erro não fica e é pedido de novo. O guardado sai junto com a
+ * lista (o mesmo limite de pedidos), para a memória não crescer. Fica só na memória da tela: nada vai para o armazenamento do
+ * navegador, e "Nova sessão" recarrega a página. */
+export class MemoriaDoDetector {
+  private readonly listas = new Map<string, RespostaDoDetector>();
+  private readonly detalhes = new Map<string, Map<string, DetalheDoDetector>>();
+
+  lista(chave: string): RespostaDoDetector | undefined {
+    return this.listas.get(chave);
+  }
+
+  guardarLista(chave: string, lista: RespostaDoDetector): void {
+    this.listas.set(chave, lista);
+    while (this.listas.size > PEDIDOS_NA_MEMORIA) {
+      const antiga = this.listas.keys().next().value as string;
+      this.listas.delete(antiga);
+      this.detalhes.delete(antiga);
+    }
+  }
+
+  guardarDetalhe(chave: string, id: string, detalhe: DetalheQueChegou): void {
+    if ("erro" in detalhe || !this.listas.has(chave)) return;
+    const doPedido = this.detalhes.get(chave) ?? new Map<string, DetalheDoDetector>();
+    doPedido.set(id, detalhe);
+    this.detalhes.set(chave, doPedido);
+  }
+
+  /** Os detalhes guardados de um pedido, para a tela começar com eles ao voltar a ele. */
+  detalhesDe(chave: string): Record<string, DetalheQueChegou> {
+    return Object.fromEntries(this.detalhes.get(chave) ?? []);
+  }
+}
+
+/** Os detalhes do pedido à vista na tela, com a chave dele: os que chegaram, certos ou com erro. */
+export type DetalhesDoPedido = { chave: string; itens: Record<string, DetalheQueChegou> };
+/** Junta um detalhe que chegou aos do pedido à vista. A resposta de outro pedido — atrasada, de uma seleção, data, janela ou
+ * critérios de antes — não entra na lista à vista (AJ-08). */
+export const comODetalhe = (atual: DetalhesDoPedido, chave: string, id: string, detalhe: DetalheQueChegou): DetalhesDoPedido =>
+  atual.chave === chave ? { chave, itens: { ...atual.itens, [id]: detalhe } } : atual;
 /** A dica de um território no mapa e no gráfico (AJ-04): o sinal pintado — o principal do alerta; com o filtro "Sinal", aquele
  * sinal — com o nível ("Poucos médicos · elevado") e quantos outros sinais com nível o território tem. Sem nível no desenho, null. */
 export function dicaDoSinal(linha: LinhaDoDetector, sinal: string, r: RotulosDaBase = ROTULOS_DO_BRASIL): string | null {

@@ -35,6 +35,39 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-18 · AJ-08: a lista do Detector com cada cabeçalho numa linha e as frases já buscadas guardadas por pedido
+- **Classificação (regra 1):** AJ-08 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorre do pedido e
+  não contraria a SPEC nem uma divergência aprovada: as garantias do AJ-04 continuam (o detalhe só para quem tem mais de um sinal,
+  dois de cada vez, só depois que a lista do pedido em uso chegou), e a página não calcula nem redige resultado. **Mudança
+  prevista.** O backend não mudou.
+- **Antes:**
+  - numa tela de 1366 px, o "Entenda" de "Alerta" e o de "Último registro" desciam para a linha de baixo do cabeçalho;
+  - a lista de um pedido já visto voltava da memória da tela, mas os detalhes (as frases dos outros sinais) eram apagados a cada
+    troca de pedido e pedidos de novo ao voltar — por exemplo, em "Voltar ao padrão".
+- **Agora:**
+  - **cada cabeçalho da lista fica numa linha** — o rótulo, a seta de ordenação e o "Entenda" —, sem rolagem horizontal, quando a
+    área da lista tem pelo menos 1.100 px (consulta de contêiner na área da lista, `.detector-rolagem`; numa tela de 1366 px, ela
+    tem cerca de 1.250 px); mais estreita, o cabeçalho quebra como antes. Os botões, os `data-testid` e os nomes acessíveis
+    continuam;
+  - **as frases já buscadas não são pedidas de novo:** os detalhes que chegaram certos ficam guardados por pedido, com a mesma
+    chave da lista guardada (a versão da base, a planilha, a seleção, a data, a janela e os critérios), e saem junto com ela (os
+    seis últimos pedidos). Voltar a um pedido já visto ("Voltar ao padrão", trocar o "Até" e voltar, mudar a seleção e voltar)
+    traz a lista e as frases da memória; abrir um território usa o detalhe guardado; um detalhe com erro não fica guardado e é
+    pedido de novo ao voltar; a resposta atrasada de outro pedido nunca entra na lista à vista. Nada vai para o armazenamento do
+    navegador, e "Nova sessão" recarrega a página e limpa tudo.
+- **Permanece:** a lista, as colunas, os filtros, a ordem e as páginas; os cartões do celular; as regras compartilhadas de
+  `.ferramenta-tabela` (a tabela do Simulador, a do Perfil da base e o histórico de sinais não mudam), o componente "Entenda" e os
+  estilos `.entenda-*`; o limite de seis pedidos na memória; a troca de página, que já não repetia pedidos.
+- **Motivo:** AJ-08 do comando: o cabeçalho numa linha e nenhum pedido repetido ao voltar a uma lista já vista.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md` ("Na tela" e "Testes") e `Docs/PAINEL_INTEGRADO_INTERFACE.md`. Testes no
+  mesmo commit: `frontend/tests/detector.test.mjs` (teste novo do AJ-08: a memória — só o detalhe que chegou certo, só com a
+  lista guardada, por pedido e no mesmo limite; a resposta de outro pedido fora da lista à vista; os trechos da tela que usam a
+  memória; nenhum armazenamento do navegador; o cabeçalho numa linha só na lista do Detector, com as regras compartilhadas iguais);
+  `backend/tests/ui_detector.py` (o cabeçalho numa linha a 1366 px, sem rolagem horizontal; voltar ao padrão sem pedir de novo
+  os detalhes que já chegaram; um detalhe que falhou — o roteiro faz o motor responder com erro — pedido de novo ao voltar ao
+  pedido dele, com as frases da resposta nova). Muda de propósito, pela decisão nova: o comentário de `ui_detector.py` que dizia
+  que as frases eram pedidas de novo ao voltar ao padrão (decisão do AJ-04; agora, as frases vêm da memória).
+
 ### 2026-11-18 · AJ-04: a lista do Detector com um sinal por linha e a coluna "Sinal"; a dica do mapa e do gráfico com o sinal
 - **Classificação (regra 1):** AJ-04 do comando de ajustes pré-publicação do responsável (18/11/2026, versão 6). Decorre do
   pedido e não contraria a SPEC nem uma divergência aprovada: a D-A continua (o nível sempre escrito, com o tipo de critério; um

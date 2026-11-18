@@ -960,6 +960,14 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .ferramenta-ordenar:hover, .ferramenta-ordenar[aria-pressed="true"] { color: var(--cor-tinta); }
 .ferramenta-ordenar[aria-pressed="true"] { text-decoration: underline; text-underline-offset: 3px; }
 .ferramenta-th-com-entenda { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+/* O cabeçalho da lista do Detector numa linha (AJ-08, 18/11/2026): o rótulo, a seta de ordenação e o "Entenda" lado a lado,
+   quando a área da lista é larga o bastante (numa tela de 1366 px, ela tem cerca de 1.250 px). Mais estreita, o cabeçalho quebra
+   como antes, e a lista não ganha rolagem horizontal por causa dele. No celular, a lista vira cartões, e nada muda. */
+.detector-rolagem { container-type: inline-size; }
+@container (min-width: 1100px) {
+  .ferramenta-th-com-entenda { flex-wrap: nowrap; }
+  .ferramenta-th-com-entenda > .ferramenta-th-rotulo, .ferramenta-th-com-entenda > .ferramenta-ordenar { white-space: nowrap; }
+}
 /* Os níveis do alerta (Proposta V3, seção B.1): moderado em amarelo, elevado em laranja e crítico em vermelho, sempre com o nome. */
 .ferramenta-nivel { display: inline-block; padding: 0 9px; border: 1px solid transparent; border-radius: 999px; font-size: 13px;
   font-weight: 650; line-height: 1.6; white-space: nowrap; }

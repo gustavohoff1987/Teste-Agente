@@ -242,7 +242,14 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
     contagem "(+N sinais)"; a de cada outro sinal é a do detalhe do território (`fenomenos[].situacao`), que a página pede ao
     motor só para os territórios à vista com mais de um sinal com nível, dois de cada vez e só depois que a lista do pedido em
     uso chegou (enquanto isso, "Carregando a frase deste sinal…"; se o pedido falha, "A frase deste sinal está nos detalhes do
-    território."). A página não escreve frase de resultado;
+    território."). A página não escreve frase de resultado. Desde 18/11/2026 (AJ-08), **as frases já buscadas não são pedidas
+    de novo**: os detalhes que chegaram certos ficam guardados por pedido, com a mesma chave da lista guardada (a versão da base,
+    a planilha, a seleção, a data, a janela e os critérios), e saem junto com ela (a memória da tela guarda os seis últimos
+    pedidos). Voltar a um pedido já visto — "Voltar ao padrão", trocar o "Até" e voltar, mudar a seleção e voltar — traz a
+    lista e as frases da memória, sem pedir nada ao motor; abrir um território usa o detalhe guardado; um detalhe que falhou
+    não fica guardado e é pedido de novo; a resposta atrasada de um pedido anterior nunca entra na lista à vista. Nada vai
+    para o armazenamento do navegador, e "Nova sessão" recarrega a página e limpa tudo (antes do AJ-08, a lista vinha da
+    memória, mas os detalhes eram apagados a cada troca de pedido e pedidos de novo);
   - **Último registro** (`detector-ultimo`), uma vez para o grupo: "jun/2024 · 5 médicos", com a marca de registro quando há
     (`detector-registro`: "verificar registro" ou "descontinuidade de registro").
 
@@ -250,7 +257,9 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
   mesma queda: contam como um evento."). O resumo, os contadores, os filtros, a ordem e as páginas continuam **por território**
   ("de N territórios"): com o filtro "Sinal", o território aparece com todos os seus sinais. Os cabeçalhos ordenam a lista: pelo
   nome, pelo nível (o padrão: do crítico ao moderado; depois quem a base não pôde comparar, os conjuntos e os sem alerta) ou pelo
-  número do último registro. A ordem não é um índice. Os cabeçalhos **Sinal, Alerta, Por quê e Último registro** têm "Entenda"
+  número do último registro. A ordem não é um índice. Desde o AJ-08, **cada cabeçalho fica numa linha** — o rótulo, a seta de
+  ordenação e o "Entenda" — quando a área da lista tem pelo menos 1.100 px (numa tela de 1366 px, ela tem cerca de 1.250 px),
+  sem rolagem horizontal; mais estreita, o cabeçalho quebra como antes. Os cabeçalhos **Sinal, Alerta, Por quê e Último registro** têm "Entenda"
   (`detector-entenda-sinal`, `-alerta`, `-por-que` e `-ultimo`) **escritos pela página**, com os nomes da base, que explicam só o
   campo, em duas ou três frases (o do alerta, os dois tipos de critério; o do último registro, a contagem da última data com
   registro, com o território e a data da primeira linha à vista, sem dizer que o número sozinho explica o alerta); o "Ver
@@ -647,7 +656,9 @@ o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudan�
   Brasil.
 - Node: `frontend/tests/detector.test.mjs` — a leitura da resposta, a lista de cinco colunas com um sinal por linha (AJ-04: a
   ordem dos sinais, a frase do principal sem "(+N sinais)" e a dos outros do detalhe, a linha única sem sinal, o detalhe pedido
-  só para quem tem mais de um sinal, dois de cada vez, e os cartões do celular), o resumo dos níveis, os filtros, a ordem, os
+  só para quem tem mais de um sinal, dois de cada vez, e os cartões do celular), a memória dos detalhes por pedido (AJ-08: só os
+  que chegaram certos, só com a lista guardada e no mesmo limite dela; a resposta de outro pedido fora da lista à vista) e o
+  cabeçalho numa linha só na lista do Detector, sem mudar as regras das outras tabelas, o resumo dos níveis, os filtros, a ordem, os
   critérios em frases (todos os parâmetros do motor, uma vez cada), a régua da data, o monitoramento e as versões na exportação
   do método (AJ-03; o teste da régua em palavras saiu com a tabela da tela), os "Entenda" dos cabeçalhos e as ressalvas da lista,
   o nome do sinal no detalhe e no histórico, as exportações, o mapa e o gráfico pelos níveis, com a dica do sinal, quem fica fora do mapa,
@@ -668,10 +679,12 @@ o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudan�
   fontes atuais (a impressão digital SHA-256 da fonte e do estilo); as fontes usam "forma de projetar" e "limite fixo", com "por
   convenção" só onde explicam o campo `criterio`.
 - Navegador: `backend/tests/ui_detector.py` (suíte `base-versionada`) — a lista de cinco colunas, o resumo clicável, os filtros
-  e a ordem; ABELARDO LUZ (SC), com quatro sinais de dois níveis, uma linha por sinal, com os nomes do filtro e o nível, o
+  e a ordem; o cabeçalho numa linha a 1366 px, sem rolagem horizontal (AJ-08); ABELARDO LUZ (SC), com quatro sinais de dois
+  níveis, uma linha por sinal, com os nomes do filtro e o nível, o
   critério e a frase de cada um, das respostas reais da lista e do detalhe; o detalhe com os quatro grupos, o nome do sinal no
   alto e no histórico, o "Entenda" por mouse e teclado e a explicação completa; os critérios em frases e a configuração
-  exploratória; a ficha metodológica (o link e o "Ver explicação completa", com o PDF servido pela interface), os "Entenda" dos
+  exploratória, com a memória dos detalhes (AJ-08: voltar ao padrão sem pedir de novo as frases que já chegaram; o detalhe
+  que falhou, pedido de novo ao voltar ao pedido dele, com as frases da resposta nova); a ficha metodológica (o link e o "Ver explicação completa", com o PDF servido pela interface), os "Entenda" dos
   cabeçalhos e as ressalvas; a régua por porte e o monitoramento em "Exportar o método (JSON)", campo a campo com a resposta do
   motor, com a régua usada de fato em cada nível; o estado como unidade, com a régua dos estados na exportação; a dica do mapa e
   do gráfico; o mapa (com os dois

@@ -387,6 +387,67 @@ test('AJ-04: cada sinal com nível numa linha (Sinal · Alerta · Por quê), do 
   assert.match(css, /\.ferramenta-lista tbody tr\.ferramenta-linha-seguinte \{ padding-top: 6px; border-top: 1px dashed var\(--cor-borda-suave\); \}/);
 });
 
+test('AJ-08: os detalhes guardados por pedido (só os que chegaram certos, com a lista e no mesmo limite) e o cabeçalho da lista numa linha', () => {
+  const lista = () => D.normalizarDetector(resposta([linha()]));
+  const certo = id => D.normalizarDetalhe({territorio: {id, rotulo: id}, janela: {}, fenomenos: [{chave: 'perda', situacao: 'Caiu de 12 para 7 (−41,5%)'}]});
+  const memoria = new D.MemoriaDoDetector();
+  // Sem a lista do pedido guardada, o detalhe não fica guardado; com ela, só o que chegou certo (um detalhe com erro é pedido de novo).
+  memoria.guardarDetalhe('a', 'code:1', certo('code:1'));
+  assert.deepEqual(memoria.detalhesDe('a'), {});
+  memoria.guardarLista('a', lista());
+  memoria.guardarDetalhe('a', 'code:1', certo('code:1'));
+  memoria.guardarDetalhe('a', 'code:2', {erro: 'Não foi possível abrir os detalhes.'});
+  assert.deepEqual(Object.keys(memoria.detalhesDe('a')), ['code:1'], 'só o detalhe que chegou certo');
+  assert.equal(memoria.detalhesDe('a')['code:1'].fenomenos[0].situacao, 'Caiu de 12 para 7 (−41,5%)');
+  assert.deepEqual(memoria.detalhesDe('b'), {}, 'os detalhes são do pedido: outra data, janela, seleção ou critérios não os usam');
+  // O guardado sai junto com a lista, no mesmo limite de pedidos (seis): a memória não cresce.
+  assert.equal(D.PEDIDOS_NA_MEMORIA, 6);
+  for (const chave of ['b', 'c', 'd', 'e', 'f']) memoria.guardarLista(chave, lista());
+  assert.ok(memoria.lista('a') && Object.keys(memoria.detalhesDe('a')).length === 1, 'seis pedidos: o primeiro continua');
+  memoria.guardarLista('g', lista());
+  assert.deepEqual([memoria.lista('a'), memoria.detalhesDe('a')], [undefined, {}], 'o sétimo tira o primeiro, com os detalhes dele');
+  // Uma resposta atrasada de outro pedido não entra na lista à vista; a do pedido à vista entra, certa ou com erro.
+  const aVista = {chave: 'b', itens: {}};
+  assert.equal(D.comODetalhe(aVista, 'a', 'code:1', certo('code:1')), aVista);
+  assert.deepEqual(Object.keys(D.comODetalhe(aVista, 'b', 'code:1', certo('code:1')).itens), ['code:1']);
+  assert.deepEqual(D.comODetalhe(aVista, 'b', 'code:2', {erro: 'x'}).itens, {'code:2': {erro: 'x'}});
+  // A tela: ao trocar de pedido, começa com os detalhes guardados dele; a lista e os detalhes vêm da mesma memória; o detalhe que
+  // chega (da lista ou de abrir a linha) é guardado no pedido dele e só entra na tela se o pedido à vista ainda é o mesmo. As
+  // garantias do AJ-04 continuam (o teste do AJ-04 confere os trechos da fila). Nada vai para o armazenamento do navegador.
+  const tela = ler('DetectorDeSinais.tsx');
+  for (const trecho of ['const memoria = useRef(new MemoriaDoDetector());',
+    'const detalhes = detalhesDoPedido.chave === chave ? detalhesDoPedido.itens : SEM_DETALHES;',
+    'setAberto(null); setDetalhesDoPedido({ chave, itens: memoria.current.detalhesDe(chave) }); setPagina(0);',
+    'const guardada = memoria.current.lista(chave);', 'memoria.current.guardarLista(chave, lida);',
+    'memoria.current.guardarDetalhe(chaveDoPedido, id, detalhe);', 'setDetalhesDoPedido(atual => comODetalhe(atual, chaveDoPedido, id, detalhe));',
+    'const controle = new AbortController(), id = aberto, chaveDoPedido = chave;', 'const id = linha.id, chaveDoPedido = chave;'])
+    assert.ok(tela.includes(trecho), trecho);
+  assert.equal(tela.split('.then(bruto => { if (!controle.signal.aborted) chegou(chaveDoPedido, id, normalizarDetalhe(bruto)); })').length - 1, 2,
+    'os dois pedidos de detalhe (a lista e abrir a linha) passam pela memória');
+  assert.ok(!tela.includes('setDetalhes(') && !tela.includes('cache.current'), 'nenhum outro caminho para os detalhes');
+  for (const arquivo of ['DetectorDeSinais.tsx', 'detectorModel.ts']) assert.ok(!/localStorage|sessionStorage|indexedDB/.test(ler(arquivo)), arquivo);
+  // O cabeçalho numa linha, só na lista do Detector e só com a área da lista larga o bastante; as regras compartilhadas não mudam.
+  const css = ler('analise.css');
+  for (const trecho of ['.detector-rolagem { container-type: inline-size; }\n@container (min-width: 1100px) {\n  .ferramenta-th-com-entenda { flex-wrap: nowrap; }\n' +
+      '  .ferramenta-th-com-entenda > .ferramenta-th-rotulo, .ferramenta-th-com-entenda > .ferramenta-ordenar { white-space: nowrap; }\n}',
+    '.ferramenta-th-com-entenda { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }',
+    '.ferramenta-rolagem { min-width: 0; overflow-x: auto; }', '.analise-tabela.ferramenta-tabela { width: 100%; border-collapse: collapse; }',
+    '.analise-tabela.ferramenta-tabela th, .analise-tabela.ferramenta-tabela td { white-space: normal; vertical-align: top; }',
+    '.ferramenta-lista thead tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 6px 0; }',
+    '.analise-tabela.ferramenta-lista thead th { padding: 0; border: 0; }'])
+    assert.ok(css.includes(trecho), trecho);
+  assert.equal(css.split('container-type').length - 1, 1, 'a contenção só na área da lista do Detector');
+  assert.equal(css.split('@container').length - 1, 1);
+  const daLista = tela.indexOf('<table data-testid="detector-tabela"');
+  const cabecalho = tela.slice(tela.indexOf('<thead><tr>', daLista), tela.indexOf('</tr></thead>', daLista));
+  assert.equal(tela.split('ferramenta-th-com-entenda').length - 1, cabecalho.split('ferramenta-th-com-entenda').length - 1, 'a classe só no cabeçalho da lista');
+  assert.equal(cabecalho.split('ferramenta-th-com-entenda').length - 1, 4);
+  assert.ok(tela.includes('{resposta && r && <div className="ferramenta-rolagem detector-rolagem">\n      <table data-testid="detector-tabela"'));
+  assert.equal(tela.split('detector-rolagem').length - 1, 1);
+  for (const rotulo of ['Sinal', 'Por quê'])
+    assert.ok(cabecalho.includes('<span className="ferramenta-th-com-entenda"><span className="ferramenta-th-rotulo">' + rotulo + '</span>'), rotulo);
+});
+
 test('AJ-03: o nome do sinal no detalhe e no histórico de sinais; os "Entenda" da lista, escritos pela página; as ressalvas de leitura junto da lista', () => {
   // O histórico (sinais 1 a 7): o sinal do alerta é o da coluna com o nível dele; no empate, o primeiro na ordem dos sinais.
   const passo = extra => ({competencia: '202406', valor: 5, alerta: null, estrutural: null, perda: null, patamar: {estado: '', classe: null, diferencaPct: null},

@@ -13,8 +13,12 @@ Confere, contra as respostas de POST /api/detector:
   quatro grupos mais Juntos, cada um com o nível, uma frase e o "Entenda" (mouse, teclado e "Ver explicação completa"), a
   explicação completa com os sete campos e o histórico de sinais;
 - a janela entre competências reais: com o fim em jun/2023, o salto de RIO RUFINO ainda é "verificar registro";
+- numa tela de 1366 px, cada cabeçalho da lista numa linha (o rótulo, a seta de ordenação e o "Entenda"), sem rolagem horizontal
+  (AJ-08, 18/11/2026);
 - "Ajustar critérios": os limites em frases, com os campos dentro delas; trocar um valor torna a configuração exploratória, com
-  aviso no alto e "Voltar ao padrão" sempre à vista;
+  aviso no alto e "Voltar ao padrão" sempre à vista. Desde o AJ-08, as frases que já chegaram ficam na memória do pedido: voltar
+  ao padrão não pede de novo os detalhes que já tinham chegado; um detalhe que falhou (o roteiro faz o motor responder com erro)
+  é pedido de novo ao voltar ao pedido dele, e as frases são as da resposta nova;
 - a ficha metodológica (PDF), servida com a interface e aberta numa nova aba pelo link e pelo "Ver explicação completa" dos
   "Entenda" (o da ferramenta e os dos cabeçalhos da lista, escritos pela página), e "Exportar o método (JSON)", com a régua da
   data, o monitoramento e as versões, os mesmos números do motor: desde o AJ-03 (18/11/2026), "Como foi calculado" saiu da tela;
@@ -39,7 +43,7 @@ import re
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, linha_do_estado, offline, options_of
+from ui_support import CORS, URL, linha_do_estado, offline, options_of
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 SC, PR, RIO_RUFINO, ABELARDO_LUZ = "42", "41", "code:421505", "code:420010"
@@ -51,6 +55,10 @@ NA_TELA = {"por convenção": "limite fixo", "comparado com a base": "comparado 
 # AJ-04: na lista, a frase do sinal principal vem sem a contagem dos outros sinais, que têm as linhas deles.
 OUTROS = re.compile(r" \(\+\d+ sina(?:l|is)\)$")
 GRAVIDADE = {"critico": 3, "elevado": 2, "moderado": 1}
+# AJ-08: os territórios à vista com mais de um sinal e todas as frases já na tela (as dos outros sinais vêm do detalhe).
+COM_AS_FRASES = ("els => els.filter(e => Number(e.dataset.linhasDeSinal) > 1 && "
+                 "[...e.querySelectorAll('[data-testid=detector-por-que]')].every(c => c.dataset.carregando === 'false'))"
+                 ".map(e => e.dataset.id)")
 SINAIS = ["estrutural", "declinio", "desaceleracao", "instabilidade", "perda", "patamar", "disponibilidade", "posicao", "defasagem", "contexto",
           "coexistencia"]
 
@@ -225,6 +233,17 @@ def main():
         expect(de_cima.get_by_test_id("detector-por-que")).to_have_text(OUTROS.sub("", do_primeiro["alerta"]["por_que"]))
         assert do_primeiro["alerta"]["criterio"] in ("por convenção", "comparado com a base"), do_primeiro["alerta"]
         page.screenshot(path=str(OUTPUT / "detector-01-lista-real.png"), full_page=True)
+        # AJ-08: numa tela de 1366 px, cada cabeçalho da lista fica numa linha — o rótulo, a seta de ordenação e o "Entenda" —, e a
+        # lista não ganha rolagem horizontal.
+        page.set_viewport_size({"width": 1366, "height": 900})
+        do_cabecalho = tabela.locator("thead th").evaluate_all("""els => els.map(th => {
+            const partes = [...(th.querySelector('.ferramenta-th-com-entenda') || th).children].map(e => e.getBoundingClientRect());
+            const centros = partes.map(r => (r.top + r.bottom) / 2);
+            return [th.textContent.trim(), Math.max(...centros) - Math.min(...centros), Math.max(...partes.map(r => r.height))];
+        })""")
+        assert len(do_cabecalho) == 5 and all(desvio < 4 and altura <= 30 for _, desvio, altura in do_cabecalho), do_cabecalho
+        assert detector.locator(".detector-rolagem").evaluate("e => e.scrollWidth <= e.clientWidth"), "sem rolagem horizontal a 1366 px"
+        page.set_viewport_size({"width": 1440, "height": 1000})
         # O resumo é clicável e funciona como o filtro "Nível".
         resumo.get_by_test_id("detector-resumo-elevado").click()
         expect(detector.get_by_test_id("detector-filtro-nivel")).to_have_value("elevado")
@@ -470,6 +489,23 @@ def main():
         expect(da_queda_em_frases).to_contain_text("Alerta elevado quando a queda for de pelo menos")
         expect(da_queda_em_frases).to_contain_text("mudanças anteriores foi uma queda igual ou maior.")
         assert [criterios.get_by_test_id("detector-parametro-perda-elevado_" + campo).input_value() for campo in ("minimo", "fracao", "um_em")] == ["2", "20", "100"]
+        # AJ-08: as frases que já chegaram ficam na memória do pedido. A primeira linha com mais de um sinal já tem as frases dos
+        # outros sinais; os territórios com as frases completas não serão pedidos de novo ao voltar ao padrão.
+        varios_sinais = detector.locator('[data-testid="detector-linha"]:not([data-linhas-de-sinal="1"])')
+        expect(varios_sinais.first.locator('[data-testid="detector-por-que"][data-carregando="true"]')).to_have_count(0, timeout=180000)
+        com_as_frases = set(detector.get_by_test_id("detector-linha").evaluate_all(COM_AS_FRASES))
+        assert com_as_frases, "a lista do padrão tem territórios com as frases dos outros sinais"
+        # Na configuração exploratória, os detalhes falham desta vez (o motor responde com erro): a lista diz onde está a frase.
+        falharam = []
+
+        def falhar_o_detalhe_exploratorio(rota):
+            opcoes = options_of(rota.request)
+            if rota.request.method == "POST" and opcoes.get("detalhe") and opcoes.get("parametros"):
+                falharam.append(opcoes["detalhe"])
+                rota.fulfill(status=500, headers=CORS, content_type="application/json", body=json.dumps({"detail": "Falha de teste."}))
+            else:
+                rota.fallback()
+        page.route("**/api/detector", falhar_o_detalhe_exploratorio)
         expect(criterios.get_by_test_id("detector-janela-inicio")).to_have_value("201401")
         # AJ-05: o tipo de critério de cada sinal em palavras da tela; o sinal 7 não fica só com "comparado com a base", porque o
         # moderado dele vem de um limite fixo.
@@ -491,15 +527,46 @@ def main():
         expect(detector.get_by_test_id("detector-exploratorio")).to_contain_text("Configuração exploratória.")
         assert corpo_exploratorio["resumo"]["com_nivel"]["estrutural"] > corpo["resumo"]["com_nivel"]["estrutural"]
         page.screenshot(path=str(OUTPUT / "detector-04-criterios-real.png"), full_page=True)
-        # A lista do padrão vem da memória da tela; as frases dos sinais dos territórios à vista são pedidas de novo (AJ-04).
-        pedidos_antes = len(das_listas(pedidos))
+        expect(varios_sinais.first.get_by_test_id("detector-por-que").filter(has_text="A frase deste sinal está nos detalhes do território.")
+               ).not_to_have_count(0, timeout=120000)
+        que_falhou = varios_sinais.first.get_attribute("data-id")
+        assert que_falhou in falharam, (que_falhou, falharam)
+        page.unroute("**/api/detector", falhar_o_detalhe_exploratorio)
+        # A lista do padrão vem da memória da tela, com as frases que já tinham chegado (AJ-08): nenhum detalhe é pedido de novo.
+        pedidos_antes, antes_de_voltar = len(das_listas(pedidos)), len(pedidos)
         voltar.click()
         expect(detector.get_by_test_id("detector-exploratorio")).to_have_count(0)
         expect(detector).to_have_attribute("data-exploratorio", "false")
         expect(criterios.get_by_test_id("detector-parametro-estrutural-moderado")).to_have_value("5")
         expect(voltar).to_be_disabled()
-        page.wait_for_timeout(400)
+        for codigo in com_as_frases:
+            expect(linha(codigo).locator('[data-testid="detector-por-que"][data-carregando="true"]')).to_have_count(0)
+        page.wait_for_timeout(600)
         assert len(das_listas(pedidos)) == pedidos_antes, "o padrão já calculado vem da memória da tela"
+        de_novo = [options_of(pedido)["detalhe"] for pedido in pedidos[antes_de_voltar:]
+                   if options_of(pedido).get("detalhe") in com_as_frases and not options_of(pedido).get("parametros")]
+        assert not de_novo, "as frases que já tinham chegado vêm da memória da tela: " + str(de_novo)
+        # Os mesmos critérios exploratórios de novo: a lista vem da memória, e o detalhe que tinha falhado é pedido de novo, agora com
+        # a resposta certa; as frases na tela são as dessa resposta nova.
+        antes_de_ir, respostas_antes = len(das_listas(pedidos)), len(detalhes_pedidos)
+        campo.fill("9")
+        criterios.get_by_test_id("detector-parametros-aplicar").click()
+        expect(detector).to_have_attribute("data-exploratorio", "true")
+        da_que_falhou = linha(que_falhou)
+        expect(da_que_falhou.locator('[data-testid="detector-por-que"][data-carregando="true"]')).to_have_count(0, timeout=180000)
+        assert len(das_listas(pedidos)) == antes_de_ir, "a lista exploratória já calculada vem da memória da tela"
+        novos = [(opcoes, resposta) for opcoes, resposta in detalhes_pedidos[respostas_antes:]
+                 if opcoes.get("detalhe") == que_falhou and opcoes.get("parametros") == {"estrutural": {"moderado": 9}}]
+        assert novos and novos[-1][1].status == 200, "o detalhe que falhou é pedido de novo ao voltar ao pedido"
+        do_detalhe_novo = {item["chave"]: item["situacao"] for item in novos[-1][1].json()["fenomenos"]}
+        da_lista_exploratoria = next(item for item in corpo_exploratorio["linhas"] if item["id"] == que_falhou)
+        expect(da_que_falhou.get_by_test_id("detector-por-que")).to_have_text(
+            [OUTROS.sub("", da_lista_exploratoria["alerta"]["por_que"])] +
+            [do_detalhe_novo["estrutural" if item["sinal"] == "ausencia" else item["sinal"]] for item in da_lista_exploratoria["alerta"]["sinais"][1:]])
+        voltar.click()
+        expect(detector).to_have_attribute("data-exploratorio", "false")
+        page.wait_for_timeout(400)
+        assert len(das_listas(pedidos)) == antes_de_ir, "o padrão vem da memória da tela de novo"
         detector.get_by_test_id("detector-parametros-botao").click()
         expect(criterios).to_have_count(0)
 

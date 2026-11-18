@@ -286,7 +286,9 @@ as ferramentas avaliam as unidades e os conjuntos: o grupo de cima como unidade 
   filtros numa linha (Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico; os níveis são moderado, elevado e crítico,
   sempre escritos. Desde 18/11/2026 (AJ-04), a lista tem cinco colunas (Território · Sinal · Alerta · Por quê · Último registro),
   com cada sinal com nível numa linha (o território é um `tbody` com uma linha por sinal; o nome e o último registro ocupam as
-  linhas dele), e a dica do mapa e do gráfico nomeia o sinal; desde o AJ-03, "Como foi calculado" saiu da tela (o método está na
+  linhas dele), e a dica do mapa e do gráfico nomeia o sinal; desde o AJ-08, os detalhes que a lista pede para as frases ficam
+  guardados por pedido, com a lista, na memória da tela (voltar a um pedido já visto não os pede de novo), e cada cabeçalho da lista
+  fica numa linha quando a área dela tem pelo menos 1.100 px (consulta de contêiner em `.detector-rolagem`); desde o AJ-03, "Como foi calculado" saiu da tela (o método está na
   ficha metodológica em PDF, `frontend/public/fichas/`, aberta pelo link "Ficha metodológica (PDF)"; os números, em "Exportar o
   método (JSON)"), e os "Entenda" dos cabeçalhos da lista são escritos pela página. O "Ver explicação completa" do `Entenda`
   pode ser um link (`completaHref`), que abre a ficha numa nova aba, na seção certa (`frontend/src/fichas.ts`, com a base da

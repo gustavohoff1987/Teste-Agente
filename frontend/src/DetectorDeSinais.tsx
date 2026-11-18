@@ -8,10 +8,10 @@ import { ErroDoMotor, pedirAoMotor, type FonteDoMotor, type RotulosTerritoriais 
 import {
   ESTADOS_DO_ALERTA, SEM_FILTROS, alvoDoSimulador, rotuloDoCriterio, artigoDaUnidade, competenciaCurta, criteriosEmFrases, csvDoDetector, estadoDoAlerta,
   entendaDaLista, filtrarLinhas, filtrosDeSinal, formatarInteiro, formatarPct, formatarTaxa, linhasDoTerritorio, metodoDoDetector, nomeDoEstado, nomeDoSinal,
-  normalizarDetalhe, metaDaRecuperacao, normalizarDetector, ordenarLinhas, parametrosPersonalizados, patamarARecuperar, precisaDoDetalhe, profissionais,
+  normalizarDetalhe, metaDaRecuperacao, normalizarDetector, comODetalhe, MemoriaDoDetector, ordenarLinhas, parametrosPersonalizados, patamarARecuperar, precisaDoDetalhe, profissionais,
   ressalvasDaLista, rotuloDoCampo, sinalDoAlertaNoHistorico, textoDaContagem, textoDaMesmaQueda, textoDaUltima, textoDoAlerta, textoDoPorQue, textoDoRegistro,
   textoDosTrechos, tipoDoTerritorio, NOMES_DOS_NIVEIS,
-  type AlvoDoSimulador, type DetalheDoDetector, type EstadoDoAlerta, type FenomenoDoDetalhe, type FiltrosDoDetector,
+  type AlvoDoSimulador, type DetalheDoDetector, type DetalheQueChegou, type DetalhesDoPedido, type EstadoDoAlerta, type FenomenoDoDetalhe, type FiltrosDoDetector,
   type LinhaDoDetector, type NivelDoAlerta, type OpcoesDaBase, type OpcoesDoDetector, type OrdemDoDetector, type ParametrosDoDetector,
   type RespostaDoDetector, type SelecaoDasFerramentas,
 } from "./detectorModel";
@@ -36,6 +36,7 @@ import {
 // gráfico ficam desligados, também com o motivo, quando faltam as coordenadas ou a população.
 
 const POR_PAGINA = 50;
+const SEM_DETALHES: DetalhesDoPedido["itens"] = {};
 /** A base da página (ADT_BASE_DA_PAGINA), para o link da ficha metodológica em PDF. */
 const BASE = import.meta.env.BASE_URL || "/";
 type Props = {
@@ -237,11 +238,13 @@ export default function DetectorDeSinais(p: Props) {
   const [ordem, setOrdem] = useState<OrdemDoDetector>("nivel");
   const [pagina, setPagina] = useState(0);
   const [aberto, setAberto] = useState<string | null>(null);
-  const [detalhes, setDetalhes] = useState<Record<string, DetalheDoDetector | { erro: string }>>({});
+  // Os detalhes do pedido à vista, com a chave dele (AJ-08): a resposta atrasada de outro pedido não entra.
+  const [detalhesDoPedido, setDetalhesDoPedido] = useState<DetalhesDoPedido>({ chave: "", itens: {} });
   const [verCriterios, setVerCriterios] = useState(false);
   const [rascunho, setRascunho] = useState<Record<string, Record<string, string>>>({});
   const [vista, setVista] = useState<Vista>("lista");
-  const cache = useRef(new Map<string, RespostaDoDetector>());
+  // A memória da tela (AJ-08): as listas e, com cada uma, os detalhes que chegaram certos, por pedido (os últimos seis).
+  const memoria = useRef(new MemoriaDoDetector());
   // AJ-04: os detalhes que a lista pede para ter a frase de cada sinal (os em curso e o controle do pedido em uso).
   const emCurso = useRef(new Set<string>());
   const doPedido = useRef<AbortController | null>(null);
@@ -256,12 +259,20 @@ export default function DetectorDeSinais(p: Props) {
   const daPlanilha = p.fonte.tipo === "arquivo" ? JSON.stringify([p.fonte.arquivo ? [p.fonte.arquivo.name, p.fonte.arquivo.size, p.fonte.arquivo.lastModified] : null,
     p.fonte.sheet, p.fonte.mapping]) + "::" : "";
   const chave = pedido ? p.fonte.datasetVersion + "::" + daPlanilha + JSON.stringify(pedido) : "";
+  const detalhes = detalhesDoPedido.chave === chave ? detalhesDoPedido.itens : SEM_DETALHES;
+  /** Um detalhe que chegou do motor (AJ-08): o que chegou certo fica na memória do pedido dele; na tela, só entra se o pedido à vista
+   * ainda é o mesmo. */
+  const chegou = (chaveDoPedido: string, id: string, detalhe: DetalheQueChegou) => {
+    memoria.current.guardarDetalhe(chaveDoPedido, id, detalhe);
+    setDetalhesDoPedido(atual => comODetalhe(atual, chaveDoPedido, id, detalhe));
+  };
 
-  // A lista: pedida ao motor a cada mudança da seleção, da janela ou dos critérios; a resposta de um pedido igual vem da memória.
+  // A lista: pedida ao motor a cada mudança da seleção, da janela ou dos critérios; a resposta de um pedido igual vem da memória,
+  // com os detalhes que já tinham chegado certos para ele (AJ-08): as frases já buscadas não são pedidas de novo.
   useEffect(() => {
-    setAberto(null); setDetalhes({}); setPagina(0);
+    setAberto(null); setDetalhesDoPedido({ chave, itens: memoria.current.detalhesDe(chave) }); setPagina(0);
     if (!pedido) { setResposta(null); setChaveDaResposta(""); setErro(null); setCarregando(false); return; }
-    const guardada = cache.current.get(chave);
+    const guardada = memoria.current.lista(chave);
     if (guardada) { setResposta(guardada); setChaveDaResposta(chave); setErro(null); setCarregando(false); return; }
     const controle = new AbortController();
     setCarregando(true); setErro(null);
@@ -269,8 +280,7 @@ export default function DetectorDeSinais(p: Props) {
       .then(bruto => {
         if (controle.signal.aborted) return;
         const lida = normalizarDetector(bruto);
-        cache.current.set(chave, lida);
-        while (cache.current.size > 6) cache.current.delete(cache.current.keys().next().value as string);
+        memoria.current.guardarLista(chave, lida);
         setResposta(lida); setChaveDaResposta(chave);
       })
       .catch((exc: unknown) => {
@@ -284,11 +294,11 @@ export default function DetectorDeSinais(p: Props) {
   // Os detalhes de um território, pedidos ao abrir a linha (a não ser que a lista já os tenha pedido).
   useEffect(() => {
     if (!aberto || !pedido || detalhes[aberto] || emCurso.current.has(aberto)) return;
-    const controle = new AbortController(), id = aberto;
+    const controle = new AbortController(), id = aberto, chaveDoPedido = chave;
     pedirAoMotor(p.fonte, "/api/detector", { ...pedido, detalhe: id }, controle.signal)
-      .then(bruto => { if (!controle.signal.aborted) setDetalhes(atual => ({ ...atual, [id]: normalizarDetalhe(bruto) })); })
-      .catch((exc: unknown) => { if (!controle.signal.aborted) setDetalhes(atual => ({ ...atual,
-        [id]: { erro: exc instanceof Error ? exc.message : "Não foi possível abrir os detalhes." } })); });
+      .then(bruto => { if (!controle.signal.aborted) chegou(chaveDoPedido, id, normalizarDetalhe(bruto)); })
+      .catch((exc: unknown) => { if (!controle.signal.aborted) chegou(chaveDoPedido, id,
+        { erro: exc instanceof Error ? exc.message : "Não foi possível abrir os detalhes." }); });
     return () => controle.abort();
   }, [aberto, chave]);
 
@@ -299,7 +309,8 @@ export default function DetectorDeSinais(p: Props) {
 
   // AJ-04: a frase de cada sinal com nível vem do detalhe do território (`fenomenos[].situacao`). A lista pede o detalhe só dos
   // territórios à vista com mais de um sinal com nível, dois de cada vez, e só depois que a lista do pedido em uso chegou; a resposta
-  // fica com os detalhes que a pessoa abre. Na troca do pedido (a seleção, a janela ou os critérios), os pedidos de antes param.
+  // fica com os detalhes que a pessoa abre. Na troca do pedido (a seleção, a janela ou os critérios), os pedidos de antes param; o
+  // que já tinha chegado certo fica na memória do pedido dele, e voltar a ele não pede de novo (AJ-08).
   useEffect(() => {
     doPedido.current?.abort();
     doPedido.current = new AbortController();
@@ -312,12 +323,12 @@ export default function DetectorDeSinais(p: Props) {
     for (const linha of naPagina) {
       if (emCurso.current.size >= 2) break;
       if (!precisaDoDetalhe(linha) || detalhes[linha.id] || emCurso.current.has(linha.id)) continue;
-      const id = linha.id;
+      const id = linha.id, chaveDoPedido = chave;
       emCurso.current.add(id);
       pedirAoMotor(p.fonte, "/api/detector", { ...pedido, detalhe: id }, controle.signal)
-        .then(bruto => { if (!controle.signal.aborted) setDetalhes(atual => ({ ...atual, [id]: normalizarDetalhe(bruto) })); })
-        .catch((exc: unknown) => { if (!controle.signal.aborted) setDetalhes(atual => ({ ...atual,
-          [id]: { erro: exc instanceof Error ? exc.message : "Não foi possível abrir os detalhes." } })); })
+        .then(bruto => { if (!controle.signal.aborted) chegou(chaveDoPedido, id, normalizarDetalhe(bruto)); })
+        .catch((exc: unknown) => { if (!controle.signal.aborted) chegou(chaveDoPedido, id,
+          { erro: exc instanceof Error ? exc.message : "Não foi possível abrir os detalhes." }); })
         .finally(() => { emCurso.current.delete(id); if (!controle.signal.aborted) setFila(valor => valor + 1); });
     }
   }, [naPagina, detalhes, resposta, chaveDaResposta, fila]);
@@ -499,7 +510,7 @@ export default function DetectorDeSinais(p: Props) {
         rotulosDoPainel={p.rotulosDoPainel}/>}
     </div>}
 
-    {resposta && r && <div className="ferramenta-rolagem">
+    {resposta && r && <div className="ferramenta-rolagem detector-rolagem">
       <table data-testid="detector-tabela" data-linhas={filtradas.length} data-ordem={ordem} className="analise-tabela ferramenta-tabela ferramenta-lista">
         <caption className="ferramenta-apoio">Situação em {competenciaCurta(resposta.janela.fim)}, com os registros desde{" "}
           {competenciaCurta(resposta.janela.inicio)}. Cada sinal com nível tem uma linha; toque no território para ver a série e os 12 sinais.
@@ -519,14 +530,14 @@ export default function DetectorDeSinais(p: Props) {
         </caption>
         <thead><tr>
           <th scope="col" aria-sort={ordem === "nome" ? "ascending" : undefined}>{cabecaDeOrdem("Território", "nome", "detector-ordem-nome")}</th>
-          <th scope="col"><span className="ferramenta-th-com-entenda">Sinal
+          <th scope="col"><span className="ferramenta-th-com-entenda"><span className="ferramenta-th-rotulo">Sinal</span>
             <Entenda sobre="Sinal" texto={daLista.sinal.texto} exemplo={daLista.sinal.exemplo} testid="detector-entenda-sinal"
               completaHref={linkDaFicha(BASE, "detector", SECOES_DAS_FICHAS.detector.sinal)}/></span></th>
           <th scope="col" aria-sort={ordem === "nivel" ? "descending" : undefined}><span className="ferramenta-th-com-entenda">
             {cabecaDeOrdem("Alerta", "nivel", "detector-ordem-nivel")}
             <Entenda sobre="Alerta" texto={daLista.alerta.texto} exemplo={daLista.alerta.exemplo} testid="detector-entenda-alerta"
               completaHref={linkDaFicha(BASE, "detector", SECOES_DAS_FICHAS.detector.alerta)}/></span></th>
-          <th scope="col"><span className="ferramenta-th-com-entenda">Por quê
+          <th scope="col"><span className="ferramenta-th-com-entenda"><span className="ferramenta-th-rotulo">Por quê</span>
             <Entenda sobre="Por quê" texto={daLista.porQue.texto} exemplo={daLista.porQue.exemplo} testid="detector-entenda-por-que"
               completaHref={linkDaFicha(BASE, "detector", SECOES_DAS_FICHAS.detector.porQue)}/></span></th>
           <th scope="col" aria-sort={ordem === "numero" ? "ascending" : undefined}><span className="ferramenta-th-com-entenda">
