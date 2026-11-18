@@ -349,7 +349,9 @@ test('camadas de cor só traduzem o motor: classe de tendência pela família, g
   assert.equal(M.pintar(municipio('code:9', 'X (AM)', {grupo: {indice: 2, rotulo: '2º quartil'}}), p('grupos')).cor, '#3987e5');
   assert.equal(M.pintar(municipio('code:9', 'X (AM)', {grupo: {indice: 7, rotulo: '7º decil'}}), {...p('grupos'), totalGrupos: 10}).cor, M.COR_BOLHA);
   assert.equal(M.pintar(municipio('code:9', 'X (AM)', {grupo: null}), p('grupos')).vazada, true);
-  assert.equal(M.pintar(municipio('code:9', 'X (AM)', {faixa: {indice: 1, rotulo: '0 a 1'}}), p('faixas')).cor, '#86b6ef');
+  // AJ-12 (18/11/2026; muda de propósito): a rampa dos grupos e faixas começa um passo mais longe da superfície (#6da7ec, e não
+  // #86b6ef), porque as bolhas são desenhadas a 88%; com 5 tons, termina no #0d366b.
+  assert.equal(M.pintar(municipio('code:9', 'X (AM)', {faixa: {indice: 1, rotulo: '0 a 1'}}), p('faixas')).cor, '#6da7ec');
   assert.equal(M.pintar(municipio('code:9', 'X (AM)', {faixa: 'fora'}), p('faixas')).cor, M.COR_NEUTRA);
   assert.deepEqual(M.pintar(municipio('code:9', 'X (AM)', {condicoes: {situacao: 'NAO_ATENDE', porCondicao: [], motivo: null}}), p('condicoes')),
     {cor: M.COR_NEUTRA, vazada: false, apagada: true});
@@ -360,8 +362,8 @@ test('camadas de cor só traduzem o motor: classe de tendência pela família, g
   assert.equal(M.familiaDaClasse('DECLINIO_DESACELERADO'), 'DECLINIO');
   assert.deepEqual(M.CLASSES_TENDENCIA.map(item => item.rotulo), ['Crescimento', 'Aceleração do crescimento', 'Desaceleração do crescimento',
     'Declínio', 'Aceleração de declínio', 'Desaceleração de declínio', 'Sem classificação']);
-  assert.equal(M.corOrdinal(1, 5), '#86b6ef');
-  assert.equal(M.corOrdinal(5, 5), '#104281');
+  assert.equal(M.corOrdinal(1, 5), '#6da7ec');
+  assert.equal(M.corOrdinal(5, 5), '#0d366b');
   assert.equal(M.corOrdinal(1, 10), null);
 });
 

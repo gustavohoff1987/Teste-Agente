@@ -234,7 +234,9 @@ impressão. O mapinha e a camada da transição usam as mesmas cores.
 **Rampa contínua no escuro** (`RAMPA_CONTINUA_ESCURA`, por `rampaContinua(esquema)`): a âncora vira, do escuro (menor valor) ao
 claro (maior): `#184f95`, `#256abf`, `#3987e5`, `#6da7ec` e `#9ec5f4` (passos 600 a 200, sem ir além do 600 na ponta junto da
 superfície). Validador (`--ordinal --mode dark --surface "#1a1a19"`): L monótono, passos de pelo menos 0,06, ponta escura a
-2,15:1 da superfície e um só matiz (3°): PASS. É a mesma rampa dos grupos e faixas do gráfico no escuro, com 5 tons. A legenda
+2,15:1 da superfície e um só matiz (3°): PASS. Até 18/11/2026, era também a rampa dos grupos e faixas do gráfico no escuro, com 5
+tons; desde o AJ-12, aqueles começam um passo mais longe da superfície (`#1c5cab`), porque as bolhas do gráfico são desenhadas a
+88% de opacidade. O mapa desenha os pontos sem transparência, e a rampa contínua não muda. A legenda
 contínua mostra a rampa do esquema em uso, com as mesmas marcas.
 
 ## Gancho de teste e seletores

@@ -135,8 +135,9 @@ test('paleta do gráfico por esquema: o claro continua o de antes; o escuro tem 
   assert.equal(escuro.superficie, '#1a1a19');
   assert.equal(escuro.bolha, '#1ba3b5');
   assert.deepEqual(escuro.tendencia, {CRESCIMENTO: '#3987e5', DECLINIO: '#d95926', NENHUMA: '#199e70'});
-  assert.deepEqual(escuro.ordinais[5], ['#184f95', '#256abf', '#3987e5', '#6da7ec', '#9ec5f4']);
-  assert.deepEqual(escuro.ordinais[4], ['#184f95', '#2a78d6', '#5598e7', '#9ec5f4']);
+  // AJ-12 (18/11/2026; muda de propósito): as de 4 e de 5 tons começam no #1c5cab, um passo mais longe da superfície.
+  assert.deepEqual(escuro.ordinais[5], ['#1c5cab', '#2a78d6', '#5598e7', '#86b6ef', '#b7d3f6']);
+  assert.deepEqual(escuro.ordinais[4], ['#1c5cab', '#2a78d6', '#5598e7', '#9ec5f4']);
   assert.deepEqual(escuro.ordinais[3], ['#1c5cab', '#3987e5', '#9ec5f4']);
   assert.deepEqual(escuro.ordinais[2], ['#1c5cab', '#86b6ef']);
   // Marcas: as categóricas a 3:1 ou mais da superfície escura; as tintas de texto a 4,5:1 ou mais.
@@ -165,8 +166,8 @@ test('pintura no escuro: cada camada usa a paleta do esquema; sem paleta, o clar
   const p = (camada, extra = {}) => ({camada, indicador: 'densidade', limiteVariacao: 40, totalGrupos: 5, totalFaixas: 3, primeiros: 2, paleta: P, ...extra});
   assert.deepEqual(M.pintar(item(), p('unica')), {cor: '#1ba3b5', vazada: false, apagada: false});
   assert.equal(M.pintar(item(), {...p('unica'), paleta: undefined}).cor, M.COR_BOLHA, 'sem paleta, o claro');
-  assert.equal(M.pintar(item({grupo: {indice: 1, rotulo: '1º quintil'}}), p('grupos')).cor, '#184f95');
-  assert.equal(M.pintar(item({grupo: {indice: 5, rotulo: '5º quintil'}}), p('grupos')).cor, '#9ec5f4');
+  assert.equal(M.pintar(item({grupo: {indice: 1, rotulo: '1º quintil'}}), p('grupos')).cor, '#1c5cab');
+  assert.equal(M.pintar(item({grupo: {indice: 5, rotulo: '5º quintil'}}), p('grupos')).cor, '#b7d3f6');
   assert.equal(M.pintar(item({grupo: {indice: 7, rotulo: '7º decil'}}), p('grupos', {totalGrupos: 10})).cor, P.bolha, 'decis: só as linhas de corte');
   assert.equal(M.pintar(item({faixa: 'fora'}), p('faixas')).cor, P.neutra);
   assert.deepEqual(M.pintar(item({condicoes: {situacao: 'ATENDE', porCondicao: [], motivo: null}}), p('condicoes')), {cor: P.bolha, vazada: false, apagada: false});
@@ -180,8 +181,8 @@ test('pintura no escuro: cada camada usa a paleta do esquema; sem paleta, o clar
   assert.equal(M.corDaVariacao(-10, 40, P), P.reducao[1]);
   assert.equal(M.corDaVariacao(40, 40, P), '#9ec5f4', 'no escuro, o maior aumento é o mais claro');
   assert.equal(M.corDaVariacao(-80, 40, P), '#f2ad8c');
-  assert.equal(M.corOrdinal(1, 5, P), '#184f95');
-  assert.equal(M.corOrdinal(5, 5, P), '#9ec5f4');
+  assert.equal(M.corOrdinal(1, 5, P), '#1c5cab');
+  assert.equal(M.corOrdinal(5, 5, P), '#b7d3f6');
   assert.equal(M.corOrdinal(1, 10, P), null);
   // A legenda da variação: no claro, a mesma de antes; no escuro, com o zero escuro no meio.
   assert.equal(M.gradienteDaVariacao(), 'linear-gradient(to right, #a8431b, #eb6834, #f2ad8c 48%, #c9c7bf 48% 52%, #9cc2ee 52%, #2a78d6, #184f95)');
@@ -348,6 +349,38 @@ test('AJ-01: o botão de abrir e fechar da árvore fica a 3:1 ou mais do fundo d
   assert.match(tela, /\{aberta \? <ChevronUp [^>]*\/>\s*: <ChevronDown [^>]*\/>\}/);
   for (const testid of ['"analise-raiz-ver"', '"analise-regiao-ver"', '"analise-grupo-ver"', '"analise-busca-grupo-ver"']) assert.ok(tela.includes(testid), testid);
   assert.ok(!/rotate\(90deg\)/.test(ANALISE), 'a seta não gira mais: ela troca de sentido');
+});
+
+test('AJ-12 e AJ-13: a ponta dos grupos e faixas como desenhada (a 88%) a 2:1 ou mais da superfície; o contorno dos rótulos', () => {
+  // As bolhas do gráfico são desenhadas a 88% de opacidade (a opacidade não muda): a cor que se vê é a mistura com a superfície.
+  const grafico = ler('src/PainelChart.tsx');
+  assert.ok(grafico.includes('<circle className="analise-marca" r={bolha.r} fill={bolha.cor} fillOpacity={bolha.vazada ? 1 : 0.88}'), 'as bolhas a 88%');
+  const desenhada = (cor, superficie) => '#' + canais(cor).map((c, i) => Math.round(c * 0.88 + canais(superficie)[i] * 0.12)
+    .toString(16).padStart(2, '0')).join('');
+  for (const paleta of [M.PALETA_CLARA, M.PALETA_ESCURA]) {
+    for (const total of [1, 2, 3, 4, 5]) {
+      const ponta = paleta.ordinais[total][0], razao = contraste(desenhada(ponta, paleta.superficie), paleta.superficie);
+      assert.ok(razao >= 2, paleta.superficie + ', ' + total + ' tons: ' + ponta + ' desenhado a 88% fica a ' + razao.toFixed(2) + ':1');
+    }
+  }
+  // Os valores do comando: no claro, a rampa começa no #6da7ec (2,17:1 desenhado); no escuro, no #1c5cab (2,30:1 desenhado).
+  assert.deepEqual(M.RAMPAS_ORDINAIS, {1: ['#2a78d6'], 2: ['#6da7ec', '#1c5cab'], 3: ['#6da7ec', '#2a78d6', '#104281'],
+    4: ['#6da7ec', '#3987e5', '#256abf', '#104281'], 5: ['#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b']});
+  assert.equal(contraste(desenhada('#6da7ec', '#fcfcfb'), '#fcfcfb').toFixed(2), '2.17');
+  assert.equal(contraste(desenhada('#1c5cab', '#1a1a19'), '#1a1a19').toFixed(2), '2.30');
+  // Fica: a rampa contínua do mapa (os pontos sem transparência), as rampas de aumento e de redução e as cores da tendência.
+  assert.deepEqual([...MP.RAMPA_CONTINUA], ['#86b6ef', '#5598e7', '#2a78d6', '#1c5cab', '#104281']);
+  assert.deepEqual([...MP.RAMPA_CONTINUA_ESCURA], ['#184f95', '#256abf', '#3987e5', '#6da7ec', '#9ec5f4']);
+  assert.deepEqual([M.RAMPA_AUMENTO, M.RAMPA_REDUCAO, M.PALETA_ESCURA.aumento, M.PALETA_ESCURA.reducao],
+    [['#9cc2ee', '#2a78d6', '#184f95'], ['#f2ad8c', '#eb6834', '#a8431b'], ['#1c5cab', '#3987e5', '#9ec5f4'], ['#a8431b', '#d95926', '#f2ad8c']]);
+  // AJ-13: o contorno dos rótulos das bolhas, de 3 px, opaco e na cor da superfície do gráfico, nos dois modos (como os outros
+  // rótulos do desenho); a posição dos rótulos e a regra que evita a sobreposição não mudam.
+  const ANALISE = semComentarios(ler('src/analise.css'));
+  const rotulo = /\.analise-rotulo \{([^}]*)\}/.exec(ANALISE)[1];
+  assert.match(rotulo, /paint-order: stroke; stroke: var\(--grafico-superficie\); stroke-width: 3px;/);
+  assert.ok(!/stroke-opacity/.test(rotulo), 'o contorno opaco');
+  assert.match(ANALISE, /\.analise-linha-texto \{[^}]*stroke: var\(--grafico-superficie\); stroke-width: 3px;/);
+  assert.match(semComentarios(ler('src/styles.css')), /\.painel-rotulo \{[^}]*stroke:var\(--grafico-superficie\); stroke-width:3px;/);
 });
 
 test('AJ-11: o item selecionado no escuro — fundo verde-azulado escuro, texto claro e borda verde-água; no claro, o de antes', () => {

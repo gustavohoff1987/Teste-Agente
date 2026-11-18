@@ -634,7 +634,9 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-camada-leve circle { cursor: pointer; }
 /* O contorno dos rótulos, fino e translúcido nos modos claro e escuro (06/11/2026, item 7.2 do comando de navegação por níveis;
    antes, 3 px opacos, que no escuro apagavam as bolhas). A linha guia liga o nome deslocado à bolha. */
-.analise-rotulo { fill: var(--grafico-tinta); font-size: 12.5px; font-weight: 600; paint-order: stroke; stroke: var(--grafico-superficie); stroke-width: 2px; stroke-opacity: .6; stroke-linejoin: round; pointer-events: none; }
+/* O contorno dos rótulos das bolhas: 3 px, opaco, na cor da superfície do gráfico, como em .painel-rotulo e .analise-linha-texto
+   (AJ-13, 18/11/2026; antes, 2 px a 60%). Sobre uma bolha de tom parecido, a leitura depende dele. */
+.analise-rotulo { fill: var(--grafico-tinta); font-size: 12.5px; font-weight: 600; paint-order: stroke; stroke: var(--grafico-superficie); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
 .analise-rotulo-guia { stroke: var(--grafico-tinta); stroke-opacity: .45; stroke-width: 1px; }
 .analise-rotulo-pequeno { font-size: 12px; }
 .analise-marca-texto { fill: var(--grafico-tinta-2); font-size: 11.5px; font-variant-numeric: tabular-nums; }

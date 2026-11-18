@@ -679,7 +679,9 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   bolhas. Nas bolhas dos estados (no computador e no celular), os nomes ficam só nos destaques: os 3 maiores e os 3 menores pela
   ordem do motor, com os empates no corte (`destaquesDaOrdem`), os marcados e o tocado (antes, as 27 siglas ficavam sempre à
   vista); o nome deslocado para não cobrir outro ganha a linha guia até a bolha (`analise-rotulo-guia`), e o contorno dos rótulos
-  é fino e translúcido nos modos claro e escuro (antes, 3 px opacos).
+  é de 3 px, opaco, na cor da superfície do gráfico, nos modos claro e escuro, como os outros rótulos do desenho (desde
+  18/11/2026, AJ-13: sobre uma bolha de tom parecido, a leitura depende dele; de 06/11/2026 até então, era fino, 2 px, e
+  translúcido, a 60%; antes, 3 px opacos).
 - **O destaque da resposta de valor** (06/11/2026, item 4.2): a pergunta "Quantos médicos tem em Marabá?" não muda a análise; a
   conversa responde com os números do motor e pede o destaque (`destacar`), e a área põe o lugar em destaque no gráfico em uso
   (o anel e o nome, com as demais bolhas esmaecidas; `data-realce` na bolha) e no mapa (o anel e o nome dos marcados), enquanto a
@@ -1076,7 +1078,8 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   cortes dos grupos ou os limites das faixas, os limites da régua e as faixas de distância.
 - **Cores,** uma camada de cada vez (condições, depois ordenação, depois a da família), conferidas com o validador da skill de
   visualização: série única em azul-petróleo `#008b9e`; famílias da tendência `#2a78d6`, `#eb6834` e `#1baf7a` (conferidas em
-  todos os pares); grupos e faixas na rampa ordinal azul (de 2 a 5 tons, `--ordinal`); mudança no divergente azul e laranja com
+  todos os pares); grupos e faixas na rampa ordinal azul (de 2 a 5 tons, `--ordinal`), com a ponta junto da superfície a 2:1 ou
+  mais como desenhada, a 88% de opacidade (desde o AJ-12, 18/11/2026); mudança no divergente azul e laranja com
   o zero cinza. Texto sempre em tinta, nunca na cor da série. O verde-água fica abaixo de 3:1 na superfície clara: a legenda, a
   contagem e a tabela dão o valor por outro caminho. Esses são os valores do modo claro; no escuro, os mesmos matizes em passos
   escolhidos para a superfície escura (seção "Modo escuro").
@@ -1350,7 +1353,7 @@ nos valores, nos pedidos ao motor nem nos textos, e os seletores de teste contin
 | Famílias da tendência | `#2a78d6`, `#eb6834`, `#1baf7a` | `#3987e5`, `#d95926`, `#199e70` | PASS em todos os pares: CVD ΔE 9,4; visão normal 20,9 |
 | Setas do quadro (24/10/2026): alta e queda | `#2a78d6`, `#eb6834` | `#3987e5`, `#d95926` | PASS em todos os pares: CVD ΔE 24,7 (claro) e 26,8 (escuro); visão normal 33,6 e 31,8; ≥ 3:1 |
 | Setas do quadro: pausa | `#898781` | `#898781` | 3,50:1 no claro e 4,85:1 no escuro (a forma da seta também diz a direção) |
-| Grupos e faixas (2 a 5) | do claro (menor) ao escuro (maior) | do escuro (menor) ao claro (maior): 5 tons `#184f95` → `#9ec5f4` | `--ordinal` PASS (ponta escura a 2,15:1) |
+| Grupos e faixas (2 a 5) | do claro (menor) ao escuro (maior), a partir de `#6da7ec`: 5 tons `#6da7ec` → `#0d366b` | do escuro (menor) ao claro (maior), a partir de `#1c5cab`: 5 tons `#1c5cab` → `#b7d3f6` | `--ordinal` PASS; a ponta junto da superfície, desenhada a 88% como as bolhas, a 2,17:1 no claro e 2,30:1 no escuro (desde 18/11/2026, AJ-12; antes, `#86b6ef` e `#184f95`, a 1,88:1 e 1,94:1 desenhados, abaixo dos 2:1) |
 | Mudança: aumento | `#9cc2ee` → `#184f95` | `#1c5cab` → `#3987e5` → `#9ec5f4` | `--ordinal` PASS |
 | Mudança: redução | `#f2ad8c` → `#a8431b` | `#a8431b` → `#d95926` → `#f2ad8c` | `--ordinal` PASS; entre os braços, CVD ΔE 21,8 nos começos e 14,3 nas pontas |
 | Mudança: zero | `#c9c7bf` | `#45443f` (1,78:1; ΔL ≥ 0,09 abaixo dos começos) | — |

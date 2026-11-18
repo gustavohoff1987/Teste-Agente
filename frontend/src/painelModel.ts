@@ -1036,10 +1036,14 @@ export const CLASSES_TENDENCIA: { codigo: string; rotulo: string; familia: Famil
 export function familiaDaClasse(classe: string | null | undefined): FamiliaTendencia | null {
   return CLASSES_TENDENCIA.find(item => item.codigo === classe)?.familia ?? null;
 }
-/** Grupos e faixas: rampa ordinal de um tom (claro ao escuro), conferida (--ordinal) do 2 ao 5; com mais, só as linhas de corte. */
+/** Grupos e faixas: rampa ordinal de um tom (claro ao escuro), conferida (--ordinal) do 2 ao 5; com mais, só as linhas de corte.
+ * Desde o AJ-12 (18/11/2026), a rampa começa um passo mais longe da superfície (#6da7ec, e não #86b6ef): as bolhas são desenhadas
+ * a 88% de opacidade (PainelChart), e o 1º grupo — os territórios com menos profissionais por habitante — ficava a 1,88:1 da
+ * superfície #fcfcfb, abaixo dos 2:1 da regra. Desenhado a 88%, fica a 2,17:1 (cheio, 2,44:1); menor passo de luminosidade
+ * 0,095; um só matiz. Com 5 tons, os passos 300 a 700: #6da7ec, #3987e5, #256abf, #184f95 e #0d366b. */
 export const RAMPAS_ORDINAIS: Record<number, string[]> = {
-  1: ["#2a78d6"], 2: ["#86b6ef", "#1c5cab"], 3: ["#86b6ef", "#2a78d6", "#104281"],
-  4: ["#86b6ef", "#3987e5", "#256abf", "#104281"], 5: ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"],
+  1: ["#2a78d6"], 2: ["#6da7ec", "#1c5cab"], 3: ["#6da7ec", "#2a78d6", "#104281"],
+  4: ["#6da7ec", "#3987e5", "#256abf", "#104281"], 5: ["#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"],
 };
 /** Mudança entre duas competências (CAP-TMP-01): divergente contínuo, aumento em azul, redução em laranja, zero em cinza. */
 export const RAMPA_AUMENTO = ["#9cc2ee", "#2a78d6", "#184f95"];
@@ -1088,7 +1092,10 @@ export const PALETA_CLARA: PaletaDoGrafico = {
  * automática), conferidos no validador da skill (validate_palette.js --mode dark --surface "#1a1a19"):
  * - tendência #3987e5, #d95926 e #199e70: todos os pares (--pairs all), pior CVD ΔE 9,4, visão normal 20,9, todas ≥ 3:1;
  * - série única #1ba3b5: PASS (5,77:1);
- * - grupos e faixas (--ordinal) do escuro (menor) ao claro (maior), sem ir além do passo 600 (#184f95, 2,15:1): PASS de 2 a 5;
+ * - grupos e faixas (--ordinal) do escuro (menor) ao claro (maior), com a ponta junto da superfície no passo 550 (#1c5cab):
+ *   PASS de 2 a 5. Desde o AJ-12 (18/11/2026), as de 4 e de 5 tons também começam nele (antes, #184f95, 2,15:1 cheio e 1,94:1
+ *   desenhado a 88%, abaixo dos 2:1): desenhado a 88%, 2,30:1 (cheio, 2,63:1). Com 5 tons: #1c5cab, #2a78d6, #5598e7, #86b6ef e
+ *   #b7d3f6;
  * - divergente: cada braço (--ordinal) PASS, do perto de zero (#1c5cab, 2,63:1; #a8431b, 2,89:1) ao limite (#9ec5f4, #f2ad8c);
  *   entre os braços, CVD ΔE 21,8 nos começos e 14,3 nas pontas; o zero (#45443f, 1,78:1, como o #c9c7bf no claro, 1,65:1) fica
  *   abaixo dos dois começos em luminosidade (ΔL OKLCH ≥ 0,09);
@@ -1102,7 +1109,7 @@ export const PALETA_ESCURA: PaletaDoGrafico = {
   tendencia: { CRESCIMENTO: "#3987e5", DECLINIO: "#d95926", NENHUMA: "#199e70" },
   ordinais: {
     1: ["#3987e5"], 2: ["#1c5cab", "#86b6ef"], 3: ["#1c5cab", "#3987e5", "#9ec5f4"],
-    4: ["#184f95", "#2a78d6", "#5598e7", "#9ec5f4"], 5: ["#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4"],
+    4: ["#1c5cab", "#2a78d6", "#5598e7", "#9ec5f4"], 5: ["#1c5cab", "#2a78d6", "#5598e7", "#86b6ef", "#b7d3f6"],
   },
   aumento: ["#1c5cab", "#3987e5", "#9ec5f4"],
   reducao: ["#a8431b", "#d95926", "#f2ad8c"],

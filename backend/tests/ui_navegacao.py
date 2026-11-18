@@ -588,6 +588,11 @@ def main():
             rotulados = area_c.locator("g.analise-rotulos .analise-rotulo-grupo")
             assert set(rotulados.evaluate_all("els => els.map(e => e.dataset.id)")) == destaques, (esquema, "só os destaques")
             assert not area_c.locator("g.analise-rotulos").evaluate(SOBREPOSTOS), (esquema, "rótulos sobrepostos")
+            # AJ-13 (18/11/2026): o contorno dos rótulos, de 3 px, opaco e na cor da superfície do gráfico, nos dois modos.
+            contornos = rotulados.locator("text.analise-rotulo").evaluate_all(
+                "els => els.map(e => { const s = getComputedStyle(e); return [s.strokeWidth, s.strokeOpacity, s.stroke]; })")
+            superficie = "rgb(252, 252, 251)" if esquema == "light" else "rgb(26, 26, 25)"
+            assert contornos and all(contorno == ["3px", "1", superficie] for contorno in contornos), (esquema, contornos[:3])
             assert "uf:" + PA in destaques, ("o Pará entre os 3 menores", sorted(destaques))
             perto = celular.evaluate("""(id) => {
               const b = document.querySelector('[data-testid=analise-bolha][data-id="' + id + '"]').getBoundingClientRect();

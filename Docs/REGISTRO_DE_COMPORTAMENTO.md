@@ -35,6 +35,40 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-18 · AJ-12 e AJ-13: os grupos e faixas começam um passo mais longe da superfície, e o contorno dos rótulos das bolhas volta a 3 px opacos
+- **Classificação (regra 1):** AJ-12 e AJ-13 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorrem do
+  pedido e não contrariam a SPEC nem uma divergência aprovada (as regras do gráfico de bolhas do Adendo BOL-20261021 não tratam
+  de cor): só mudam as cores dos grupos e faixas e o contorno dos rótulos. O AJ-13 desfaz a escolha de 06/11/2026 (etapa 6 do
+  comando, item 7: o contorno fino, 2 px, e translúcido), pelo pedido novo do responsável. **Mudança prevista.**
+- **Antes:**
+  - a rampa dos grupos e faixas foi conferida com a cor cheia, mas as bolhas são desenhadas com 88% de opacidade: desenhada, a cor
+    do 1º grupo ficava abaixo dos 2:1 que a rampa segue — 1,88:1 no claro (`#86b6ef`) e 1,94:1 no escuro (`#184f95`) —, e os
+    pontos pequenos desse grupo (os territórios com menos profissionais por habitante) quase sumiam;
+  - o contorno dos rótulos das bolhas era fino e translúcido (2 px, a 60%): sobre uma bolha de tom parecido, a leitura dependia
+    só dele (no escuro, "RS" sobre a bolha de SP ficava a 1,95:1).
+- **Agora:**
+  - **AJ-12:** a rampa começa um passo mais longe da superfície, nos dois modos; a opacidade não muda. Claro: 2 tons `#6da7ec`,
+    `#1c5cab`; 3 tons `#6da7ec`, `#2a78d6`, `#104281`; 4 tons `#6da7ec`, `#3987e5`, `#256abf`, `#104281`; 5 tons `#6da7ec`,
+    `#3987e5`, `#256abf`, `#184f95`, `#0d366b`. Escuro: 2 e 3 tons como antes; 4 tons `#1c5cab`, `#2a78d6`, `#5598e7`,
+    `#9ec5f4`; 5 tons `#1c5cab`, `#2a78d6`, `#5598e7`, `#86b6ef`, `#b7d3f6`. Desenhado a 88%, o 1º grupo fica a 2,17:1 no claro e
+    a 2,30:1 no escuro; as rampas passam nas regras de rampa ordinal (luminosidade em ordem, passos de pelo menos 0,06, um só
+    matiz). O gráfico, as legendas e os grupos no mapa tiram a cor de `corOrdinal` e mudam juntos;
+  - **AJ-13:** o contorno dos rótulos das bolhas é de 3 px, opaco, na cor da superfície do gráfico, nos dois modos, como os
+    outros rótulos do desenho.
+- **Permanece:** a rampa contínua do mapa (os pontos são desenhados sem transparência), as rampas de aumento e de redução e as
+  cores da tendência; a opacidade das bolhas (88%; no modo leve, com muitas bolhas, 62%); a posição dos rótulos e a regra que
+  evita a sobreposição.
+- **Motivo:** AJ-12 e AJ-13 do comando, das capturas do modo escuro.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (a tabela das paletas, as cores e os rótulos das bolhas) e
+  `Docs/MAPA_DA_PAGINA_UNICA.md` (a rampa contínua deixou de ser a dos grupos do escuro). Testes no mesmo commit:
+  `frontend/tests/modoEscuro.test.mjs` (teste novo: a ponta de cada rampa ordinal, de 1 a 5 tons, desenhada a 88% sobre a
+  superfície, a 2:1 ou mais nos dois modos, com a opacidade conferida no componente; os valores do comando; a rampa contínua do
+  mapa, as de aumento e de redução iguais; o contorno dos rótulos de 3 px e opaco); `backend/tests/ui_navegacao.py` (o contorno
+  calculado dos rótulos, de 3 px, opaco e na cor da superfície, nos dois modos, além da conferência de que não se sobrepõem).
+  Mudam de propósito, pela decisão nova: em `frontend/tests/painel.test.mjs`, a cor da faixa 1 e de `corOrdinal` do 1º e do 5º
+  grupo no claro (`#86b6ef` e `#104281` viram `#6da7ec` e `#0d366b`); em `frontend/tests/modoEscuro.test.mjs`, as rampas de 4 e
+  de 5 tons do escuro e as cores do 1º e do 5º grupo (`#184f95` e `#9ec5f4` viram `#1c5cab` e `#b7d3f6`).
+
 ### 2026-11-18 · AJ-11: no modo escuro, o item selecionado com fundo verde-azulado escuro, texto claro e borda verde-água
 - **Classificação (regra 1):** AJ-11 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorre do pedido e
   não contraria a SPEC nem uma divergência aprovada: a decisão do modo escuro de 23/10/2026 continua (a página segue o aparelho,

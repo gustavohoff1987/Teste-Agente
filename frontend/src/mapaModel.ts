@@ -89,11 +89,15 @@ export const coresDoMapa = (esquema: EsquemaDeCor): CoresDoMapa => esquema === "
 
 /** Rampa sequencial de um tom (azul, claro → escuro; passos 250, 350, 450, 550 e 650 da paleta), conferida pelo validador da
  * skill (`--ordinal`, modo claro: L monótono, passos ≥ 0,06, ponta clara a 2,06:1 da superfície, um só matiz). Com pontos
- * pequenos sobre a superfície, a ponta clara não pode sumir. É a mesma família dos grupos e faixas do gráfico. */
+ * pequenos sobre a superfície, a ponta clara não pode sumir. É da mesma família dos grupos e faixas do gráfico, que, desde o
+ * AJ-12 (18/11/2026), começam um passo mais longe da superfície, porque as bolhas são desenhadas a 88% de opacidade; o mapa
+ * desenha os pontos sem transparência, e esta rampa não muda. */
 export const RAMPA_CONTINUA = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"] as const;
 /** No escuro, a âncora vira: do escuro (menor valor) ao claro (maior), passos 600, 500, 400, 300 e 200, sem ir além do 600 na
  * ponta junto da superfície. Validador (`--ordinal --mode dark --surface "#1a1a19"`): L monótono, passos ≥ 0,06, ponta escura a
- * 2,15:1 da superfície e um só matiz (3°): PASS. É a rampa dos grupos e faixas do escuro, com 5 tons. */
+ * 2,15:1 da superfície e um só matiz (3°): PASS. Até o AJ-12 (18/11/2026), era também a rampa dos grupos e faixas do escuro com 5
+ * tons; desde então, aqueles começam no passo 550, porque as bolhas são desenhadas a 88%. O mapa desenha os pontos sem
+ * transparência, e esta rampa não muda. */
 export const RAMPA_CONTINUA_ESCURA = ["#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4"] as const;
 /** A rampa contínua no esquema de cor em uso. */
 export const rampaContinua = (esquema: EsquemaDeCor): readonly string[] => esquema === "escuro" ? RAMPA_CONTINUA_ESCURA : RAMPA_CONTINUA;
