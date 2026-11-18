@@ -110,6 +110,9 @@ type Props = {
    * ligação e a distância exata), e as demais ligações esmaecem, sem sumir. */
   foco?: string | null;
   onFocar?: (id: string) => void;
+  /** Notas que vão no alto da dica de uma bolha (Detector de Sinais, AJ-04 de 18/11/2026: o sinal pintado, com o nível, e quantos
+   * outros sinais têm nível). Sem ela, a dica é a de sempre. */
+  notasDaDica?: (item: PainelItem) => string[];
 } & GraficoComMapaProps;
 
 const siglaDe = (item: PainelItem) => item.uf || (/\(([^()]+)\)\s*$/.exec(item.rotulo) || [])[1] || item.rotulo;
@@ -233,10 +236,13 @@ export default function PainelChart(p: Props) {
   const abreUnidade = !!p.onAbrirUnidade && !p.marcando;
   // Na Análise Espacial, tocar numa base foca a ligação dela (comando V22, seção 7): a dica diz isso, no lugar de "Abrir".
   const focaNaBase = !!p.onFocar && !p.marcando && !!bolhaAtiva && idsDasBases.has(bolhaAtiva.id);
-  const dicaDaBolha = bolhaAtiva ? montarDica(bolhaAtiva.item, { indicador: p.indicador, competencia: p.resposta.competencia,
+  const montada = bolhaAtiva ? montarDica(bolhaAtiva.item, { indicador: p.indicador, competencia: p.resposta.competencia,
     competenciaInicial, distancia: p.distancia, variacao: p.cometa && !!competenciaInicial, tendencia: !!bolhaAtiva.item.tendencia,
     nomes: p.nomes, limiares: p.limiares, rotulos: p.rotulos, unidadesDoGrupo: p.unidadesDoGrupo, porItem: !!p.porItem,
-    trajetoria: !!p.trajetoria, abrirUnidade: abreUnidade && !focaNaBase }) : contextoAtivo ? dicaDaReferenciaDeContexto(contextoAtivo) : null;
+    trajetoria: !!p.trajetoria, abrirUnidade: abreUnidade && !focaNaBase }) : null;
+  const notasDoChamador = bolhaAtiva && p.notasDaDica ? p.notasDaDica(bolhaAtiva.item) : [];
+  const dicaDaBolha = montada ? (notasDoChamador.length ? { ...montada, notas: [...notasDoChamador, ...montada.notas] } : montada)
+    : contextoAtivo ? dicaDaReferenciaDeContexto(contextoAtivo) : null;
   const dica = dicaDaBolha && focaNaBase ? { ...dicaDaBolha, acao: "Destacar a referência e a distância" } : dicaDaBolha;
   const alvoDaDica = bolhaAtiva ?? contextoAtivo ?? null;
 

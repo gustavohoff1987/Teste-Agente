@@ -35,6 +35,123 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-18 · AJ-04: a lista do Detector com um sinal por linha e a coluna "Sinal"; a dica do mapa e do gráfico com o sinal
+- **Classificação (regra 1):** AJ-04 do comando de ajustes pré-publicação do responsável (18/11/2026, versão 6). Decorre do
+  pedido e não contraria a SPEC nem uma divergência aprovada: a D-A continua (o nível sempre escrito, com o tipo de critério; um
+  nível por território, o maior entre os sinais, sem soma nem índice), e a página não calcula nem redige resultado — as frases são
+  as do motor, da lista e do detalhe. **Mudança prevista.** O backend não mudou.
+- **Antes:** a lista tinha quatro colunas (Território · Alerta · Por quê · Último registro), uma linha por território: "Alerta"
+  trazia o nível do sinal principal, e "Por quê", a frase dele com a contagem dos outros ("Só 1 médico (+1 sinal)"); o nome do
+  sinal não aparecia na lista. A dica dos pontos do mapa dizia só o nível ("nível elevado"), e a das bolhas, os números.
+- **Agora:**
+  - **Cinco colunas — Território · Sinal · Alerta · Por quê · Último registro — e cada sinal com nível numa linha**, do mais grave
+    ao menos grave (no empate, na ordem dos sinais, como o motor ordena). Cada território é um grupo de linhas, com o nome e o
+    último registro uma vez para o grupo. "Sinal" traz o nome do sinal, o mesmo do filtro "Sinal"; "Alerta", o nível dele e o tipo
+    de critério ("limite fixo" ou "comparado com a base"); "Por quê", a frase do motor sobre ele: a do principal é a da lista, sem
+    "(+N sinais)", e a de cada outro é a do detalhe do território (`fenomenos[].situacao`). Sem sinal com nível, uma linha só,
+    como antes ("Sem alerta", "Sem comparações suficientes" ou "Sem nível (conjunto)", com o motivo), com "Sinal" vazio.
+  - A página **pede o detalhe só dos territórios à vista com mais de um sinal com nível**, dois de cada vez, e só depois que a
+    lista do pedido em uso chegou; enquanto a frase não chega, a linha diz "Carregando a frase deste sinal…" e, se o pedido
+    falha, "A frase deste sinal está nos detalhes do território.". Abrir a linha usa o detalhe já pedido. Voltar a um pedido já
+    calculado (por exemplo, "Voltar ao padrão") traz a lista da memória da tela e pede de novo as frases dos territórios à vista.
+  - "Vêm da mesma queda: contam como um evento" aparece também numa linha a mais do território, na lista.
+  - **No celular**, cada território é um cartão: o nome e o último registro no alto; em cada sinal, o nome e o alerta numa linha e
+    o porquê abaixo.
+  - **A dica do mapa e do gráfico** nomeia o sinal pintado (o principal do alerta; com o filtro "Sinal", aquele sinal), com o
+    nível, e diz quantos outros sinais com nível o território tem: "ABELARDO LUZ (SC) · Menos médicos por habitante · elevado; mais
+    3 sinais com nível".
+- **Permanece:** o alerta do território (o maior nível) e o sinal principal; o resumo, os contadores ("de N territórios"), os
+  filtros, a ordem e as páginas por território (com o filtro "Sinal", o território vem com todos os seus sinais); a cor e o
+  tamanho no mapa e no gráfico pelo maior nível; o CSV da lista (uma linha por território, com os sinais com nível numa coluna); a
+  resposta e os números do motor; os identificadores `detector-linha` (agora o grupo de linhas do território), `detector-abrir`,
+  `detector-alerta`, `detector-nivel`, `detector-criterio`, `detector-por-que`, `detector-ultimo` e `detector-registro`.
+- **Motivo:** AJ-04 do comando: "nenhum resultado do Detector aparece sem o nome do sinal", e cada sinal com nível com o seu
+  nível e a sua frase.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md` ("Na tela" e "Testes"), `Docs/PAINEL_INTEGRADO_INTERFACE.md` e
+  `README.md`. Testes no mesmo commit: `frontend/tests/detector.test.mjs` (teste novo do AJ-04: a ordem dos sinais, as frases da
+  lista e do detalhe, o caso de "Nenhum médico registrado", a linha única sem sinal, os cabeçalhos, os grupos de linhas, o detalhe
+  pedido só para quem tem mais de um sinal e dois de cada vez, os cartões do celular; e a dica do mapa e do gráfico);
+  `backend/tests/ui_detector.py` (ABELARDO LUZ/SC, real, com quatro sinais de dois níveis: as linhas, os nomes do filtro, os
+  níveis, os critérios e as frases das respostas reais da lista e do detalhe, a linha da mesma queda e o nome e o último registro
+  uma vez; a dica do ponto do mapa, com e sem o filtro "Sinal", e a da bolha). Mudam de propósito, pela estrutura nova: em
+  `ui_detector.py`, a primeira linha conferida é a de cima do território; com o filtro "Elevado", a linha de cima de cada
+  território diz "Elevado", e as outras, "Elevado" ou "Moderado" (antes, todo nível à vista era "Elevado"); "o padrão já
+  calculado vem da memória da tela" conta só os pedidos da lista; os detalhes são lidos das respostas pedidas pela tela, ao abrir
+  a linha ou antes; o cartão do celular tem o nome e o último registro no alto. Em `ui_simulador.py`, o detalhe de MANAUS é
+  esperado pelo pedido dele, e o de ABELARDO LUZ (que a lista já pode ter pedido) pela tela.
+
+### 2026-11-18 · AJ-03: as fichas metodológicas em PDF; "Como foi calculado", "Como os métodos se saíram no passado" e a linha de versões saem da tela
+- **Classificação (regra 1):** AJ-03 do comando de ajustes pré-publicação do responsável (18/11/2026, versão 6). Decorre do
+  pedido e não contraria a SPEC nem uma divergência aprovada: nenhum resultado e nenhuma funcionalidade saem da página — só a
+  informação de método e técnica, que vai para as fichas —, e os números de calibração continuam nas exportações. A Proposta V3
+  descrevia "Como os métodos se saíram no passado" no modo avançado (C.8) e o "Ver explicação completa" dos "Entenda" (A.4); o
+  comando do responsável, que aprovou a V3, troca essas seções pela ficha e pela exportação, e a explicação inteira continua em
+  "Ver explicação completa". **Mudança prevista.** O backend não mudou. Nada vai ao provedor de IA.
+- **Antes:**
+  - **Detector:** "Ver explicação completa", no "Entenda" da ferramenta, abria **"Como foi calculado"** (`detector-metodo`: as
+    notas, os três níveis, a régua da data por porte, a régua dos estados e o monitoramento) e a linha das versões; os "Entenda"
+    dos cabeçalhos "Alerta" e "Por quê" vinham do motor e explicavam o método (porte, patamar, percentil e "1 em cada N"); o alto
+    do detalhe e o histórico de sinais mostravam o nível sem o nome do sinal;
+  - **Simulador:** "Ver explicação completa" (da ferramenta, depois de um cálculo, e dos "Entenda" da forma de projetar e da
+    faixa) abria **"Como os métodos se saíram no passado"** (`simulador-validacao`: a escolha de cada nível, as faixas por porte e
+    prazo e o erro de cada método), nos dois modos, e a tela tinha a linha das versões (`simulador-versoes`: o método, a base, a
+    versão da base, a janela e o último registro).
+- **Agora:**
+  - **Duas fichas metodológicas em PDF**, independentes, para não especialistas e com a precisão técnica: a **Ficha A —
+    Detector de Sinais Territoriais** e a **Ficha B — Simulador de Cenários Territoriais** (fontes em `Docs/fichas/`, HTML com
+    `ficha.css`; PDFs em `frontend/public/fichas/`, gerados por `scripts/gerar_fichas.py` com o Chromium do Playwright, sem
+    dependência nova). Os PDFs têm título, idioma pt-BR, sumário navegável, texto selecionável, marcação de acessibilidade (PDF com
+    tags), os destinos nomeados das seções e a impressão digital SHA-256 da fonte e da folha de estilo. Os números são os da
+    documentação e os que `scripts/calibrar_detector.py` (com a opção nova `--regua-da-data`) e `scripts/calibrar_simulador.py`
+    reproduzem com a base versionada, sempre com a versão da base, a do método e a data de referência. Usam "forma de projetar"
+    e "limite fixo"; "por convenção" só explica o valor do campo `criterio` das exportações. São documentos de leitura: não
+    alteram nem substituem as fichas de método de `backend/definicoes.py`.
+  - **Na tela, um link visível "Ficha metodológica (PDF)"** nas duas ferramentas (`detector-ficha`, `simulador-ficha`), que abre a
+    ficha numa nova aba, com a base da página (`ADT_BASE_DA_PAGINA`); os PDFs saem com os arquivos estáticos da interface.
+  - **"Ver explicação completa"** do "Entenda" da ferramenta (nas duas) e dos "Entenda" da forma de projetar e da faixa
+    (Simulador) é um link para a seção certa da ficha (`#nameddest=<seção>`), numa nova aba.
+  - **Detector:** sem "Como foi calculado" e sem a linha das versões. A régua da data, a régua dos estados, o monitoramento, os
+    níveis, as notas e as versões continuam em "Exportar o método (JSON)", como antes, com os números do motor. Os cabeçalhos
+    **Sinal, Alerta, Por quê e Último registro** têm "Entenda" escritos pela página, com os nomes da base, que explicam só o campo
+    (o do último registro cita o território e a data da primeira linha à vista e diz que o número, sozinho, não explica o alerta);
+    o "Ver explicação completa" deles leva à seção da ficha. Junto da lista, as **ressalvas de leitura**: "raro" quer dizer
+    incomum nesta base, não comprovadamente pior, e o que o nível não é; a distância só como contexto (quando a base tem o sinal
+    11); o estado como unidade, com régua própria; e os conjuntos, sem nível (os dois últimos, quando há). O alto do detalhe e o
+    histórico de sinais nomeiam o sinal do alerta.
+  - **Simulador:** sem "Como os métodos se saíram no passado" e sem a linha das versões, nos dois modos. **"Exportar a avaliação
+    dos métodos (JSON)"** (`simulador-exportar-avaliacao`, no alto, desligado até haver um cálculo) leva a retroprojeção da base
+    em uso tal como o motor a manda (a escolha de cada nível, com os candidatos, as faixas por porte e prazo e a tabela dos erros),
+    com as versões do método e da base, o último registro, a janela, as notas e as limitações, e diz que é a avaliação dos métodos
+    no histórico da base, e não uma análise do território escolhido. No modo avançado, a linha **"Janela deste cálculo: de … a …
+    (a janela padrão). Cada cenário parte do último registro usável do território nessa janela."** fica no lugar da janela que
+    estava na linha das versões. As ressalvas de interpretação do Simulador já estavam na tela (o cenário hipotético, a contagem,
+    os avisos e a faixa) e não foram repetidas.
+- **Permanece:** todos os resultados e funcionalidades das duas ferramentas; "Exportar o método (JSON)" e "Exportar a lista
+  (CSV)" do Detector e as exportações do Simulador, com os mesmos campos (a avaliação dos métodos é uma exportação nova); os
+  "Entenda" dos sinais e os sete campos da explicação completa, do motor; a Área de Análise (o "Ver explicação completa" dela não
+  muda); a resposta e os números do motor; o último registro da base, no aviso do alto da página.
+- **Motivo:** AJ-03 do comando: a informação de método e técnica sai da tela e vai para as fichas em PDF, sem que nada essencial
+  à interpretação de um resultado fique só no PDF.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md`, `Docs/SIMULADOR_DE_CENARIOS.md`, `Docs/PAINEL_INTEGRADO_INTERFACE.md`,
+  `README.md`, a nota de 18/11/2026 em `Docs/DETECTOR_E_SIMULADOR_V3.md` e o mapa do `AGENTS.md` (`scripts/gerar_fichas.py`).
+  Testes no mesmo commit: `backend/tests/test_fichas_metodologicas.py` (novo: os dois PDFs válidos, com título, idioma, tags,
+  sumário, texto selecionável e os destinos de todas as seções, inclusive as que a página abre, e a correspondência com a fonte e
+  o estilo atuais; o vocabulário das fontes); `frontend/tests/fichas.test.mjs` (novo: os endereços na base da página, com a
+  seção, os PDFs nos arquivos estáticos e os links numa nova aba); `frontend/tests/detector.test.mjs` (a régua, o monitoramento e
+  as versões na exportação do método, com os números do motor; a tela sem "Como foi calculado"; os "Entenda" da página e as
+  ressalvas; o nome do sinal no detalhe e no histórico; o link do "Entenda"); `frontend/tests/simulador.test.mjs` (a avaliação
+  exportada com a retroprojeção do motor, a janela do cálculo, a ficha e a tela sem a validação e as versões);
+  `backend/tests/ui_detector.py`, `ui_simulador.py`, `ui_planilha_de_teste.py` e `ui_hospedagem.py` (os PDFs servidos com a
+  interface, em `/` e em `/Teste-Agente/`; o "Ver explicação completa" na seção certa; as exportações campo a campo com a
+  resposta do motor). **Teste apagado e onde fica a cobertura:** o teste Node "a régua da data em palavras" conferia as frases da
+  tabela de "Como foi calculado", que saiu da tela; a régua continua conferida com o motor, território a território, em
+  `backend/tests/test_detector.py`, e na exportação, em `frontend/tests/detector.test.mjs` (teste do AJ-03) e em
+  `backend/tests/ui_detector.py` (passo 7: as faixas vizinhas, "sem comparações suficientes" e o corte de 100%). Mudam de
+  propósito: os passos de `ui_detector.py` e `ui_simulador.py` que abriam "Como foi calculado", "Como os métodos se saíram no
+  passado" e a linha das versões passam a conferir a ficha e as exportações com os mesmos números; em `ui_planilha_de_teste.py`,
+  as paradas desses painéis dão lugar às dos quatro "Entenda" da lista (de 47 para 49 paradas). `scripts/capturar_telas.py` deixa
+  de abrir os painéis que saíram (a captura 24 passa a ser "24-simulador-estado-sem-faixa").
+
 ### 2026-11-18 · AJ-05: os termos na tela do Detector e do Simulador — "limite fixo" no lugar de "por convenção" e "forma" no lugar de "jeito"
 - **Classificação (regra 1):** AJ-05 do comando de ajustes pré-publicação do responsável (18/11/2026, versão 6). A troca de "jeito"
   por "forma" decorre do pedido e não contraria a SPEC nem uma divergência aprovada: **mudança prevista**. A retirada de "por

@@ -7,7 +7,7 @@ import type { PainelResposta, RotulosTerritoriais } from "./painelApi";
 import { ROTULOS_BRASIL, paletaDoGrafico } from "./painelModel";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import {
-  CORES_DOS_NIVEIS, NIVEIS, NOMES_DOS_NIVEIS, artigoDaUnidade, camadasDoMapa, competenciaCurta, criterioDoContexto, dominiosDoContexto, formatarInteiro,
+  CORES_DOS_NIVEIS, NIVEIS, NOMES_DOS_NIVEIS, artigoDaUnidade, camadasDoMapa, competenciaCurta, criterioDoContexto, dicaDoSinal, dominiosDoContexto, formatarInteiro,
   foraDoMapa, formatarTaxa, itensDoContexto, maisProximo, nivelNoDesenho, nomeDoSinal, seriesDoComparativo, textoDasCoordenadasOficiais,
   textoDeForaDoMapa, textoDosTrechos,
   type DetalheDoDetector, type LinhaDoDetector, type NivelDoAlerta, type RespostaDoDetector,
@@ -25,7 +25,9 @@ import {
 // - BolhasDoContexto: o gráfico de bolhas do Agente (PainelChart), com X = a distância até o território mais próximo que atende
 //   ao critério (sinal 11), Y = a taxa por 1.000 habitantes (sinal 8), o tamanho pela população e a cor pelo nível.
 // - SerieDaTaxa: a Série temporal do Agente (PainelSeries), com a taxa do território e a da referência dele (sinais 8 e 10).
-// O nível vem sempre escrito também (legenda, dica e lista), nunca só pela cor. Os nomes ("município", "estado") são os da base
+// O nível vem sempre escrito também (legenda, dica e lista), nunca só pela cor; desde o AJ-04 (18/11/2026), a dica de um território
+// nomeia o sinal pintado — o principal do alerta ou, com o filtro "Sinal", aquele sinal —, com o nível, e diz quantos outros sinais
+// com nível ele tem ("Poucos médicos · elevado; mais 1 sinal com nível"). Os nomes ("município", "estado") são os da base
 // (`fonte.rotulos`); numa planilha enviada, o gráfico e a série usam os nomes do painel "Colunas" (`rotulosDoPainel`).
 
 type DoDetector = { resposta: RespostaDoDetector; linhas: LinhaDoDetector[]; sinal: string };
@@ -49,11 +51,15 @@ export function MapaDosNiveis({ resposta, linhas, sinal, onAbrir }: DoDetector &
   const nomes = useMemo(() => new Map(resposta.linhas.map(linha => [linha.id, linha.rotulo])), [resposta.linhas]);
   const naLista = useMemo(() => new Set(resposta.linhas.map(linha => linha.id)), [resposta.linhas]);
   const pintura = useMemo(() => {
+    const porId = new Map(linhas.map(linha => [linha.id, linha]));
     const mapa = new Map<string, PinturaDoPonto>();
-    for (const nivel of NIVEIS) for (const id of camadas.porNivel[nivel])
-      mapa.set(id, { cor: CORES_DOS_NIVEIS[nivel], raio: RAIOS[nivel], chave: nivel, rotulo: "nível " + NOMES_DOS_NIVEIS[nivel].toLowerCase() });
+    for (const nivel of NIVEIS) for (const id of camadas.porNivel[nivel]) {
+      const daLinha = porId.get(id);
+      mapa.set(id, { cor: CORES_DOS_NIVEIS[nivel], raio: RAIOS[nivel], chave: nivel,
+        rotulo: (daLinha && dicaDoSinal(daLinha, sinal, r)) || "nível " + NOMES_DOS_NIVEIS[nivel].toLowerCase() });
+    }
     return mapa;
-  }, [camadas]);
+  }, [camadas, linhas, sinal, r]);
   const contagens = { critico: camadas.porNivel.critico.length, elevado: camadas.porNivel.elevado.length, moderado: camadas.porNivel.moderado.length };
   const fora = useMemo(() => foraDoMapa(resposta, linhas, sinal), [resposta, linhas, sinal]);
   const textoDeFora = textoDeForaDoMapa(fora, r, resposta.janela.fim);
@@ -127,6 +133,7 @@ export function BolhasDoContexto({ resposta, linhas, sinal, onAbrir, rotulosDoPa
     dominios: dominiosDoContexto(itens) }) as unknown as PainelResposta, [resposta.janela.fim, itens]);
   const nomes = useMemo(() => new Map(itens.map(item => [item.id, item.rotulo])), [itens]);
   const niveis = useMemo(() => new Map(linhas.map(linha => [linha.id, nivelNoDesenho(linha, sinal)])), [linhas, sinal]);
+  const dicas = useMemo(() => new Map(linhas.map(linha => [linha.id, dicaDoSinal(linha, sinal, r)])), [linhas, sinal, r]);
   const criterio = resposta.comparacao.contexto;
   if (!itens.length) return <p data-testid="detector-bolhas-vazio" role="status" className="ferramenta-apoio">Nenhum território à vista tem distância a
     mostrar: os que atendem ao critério não têm distância{resposta.fonte.tem.grupo ? ", e " + (r.oGrupo ?? "o " + r.grupo) + " como unidade não tem um ponto único" : ""}.</p>;
@@ -141,7 +148,7 @@ export function BolhasDoContexto({ resposta, linhas, sinal, onAbrir, rotulosDoPa
       carregando={false} rotuloDistancia={"Distância até " + artigoDaUnidade(r) + " " + maisProximo(r) + " que atende ao critério (km)"} rotulos={rotulosDoPainel}
       contextoBrasil={criterio.taxaMinima !== null ? { valor: criterio.taxaMinima, rotulo: "Critério " + formatarTaxa(criterio.taxaMinima) } : null}
       cortes={[]} corte={null} faixasDistancia={[]} unidadesDoGrupo={() => null} legendaCor={null} notas={[]} onAlternar={() => undefined}
-      onAbrirGrupo={() => undefined} onAbrirUnidade={onAbrir}/>
+      onAbrirGrupo={() => undefined} onAbrirUnidade={onAbrir} notasDaDica={item => { const dica = dicas.get(item.id); return dica ? [dica] : []; }}/>
     <LegendaDosNiveis contagens={contagens} semNivel={semNivel}/>
     <figcaption className="ferramenta-apoio">Cada bolha é um território à vista com distância a mostrar ({formatarInteiro(itens.length)}), pintado pelo
       nível. Na horizontal, a distância em linha reta até {artigoDaUnidade(r)} {criterioDoContexto(criterio.taxaMinima, r) ?? maisProximo(r) + " que atende ao critério"};

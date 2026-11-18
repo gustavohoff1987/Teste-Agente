@@ -1,5 +1,8 @@
 // Modelo puro do Detector de Sinais (comando V23, Proposta V3, Parte B; Docs/DETECTOR_DE_SINAIS.md): a leitura da resposta de
 // POST /api/detector para os tipos da tela, os textos curtos da lista, os filtros, a ordem, os critérios em frases e as exportações.
+// Desde os ajustes pré-publicação (18/11/2026): a lista mostra cada sinal com nível numa linha, com o nome do sinal em coluna
+// própria (AJ-04); a dica do mapa e do gráfico nomeia o sinal; e os "Entenda" da lista e as ressalvas de leitura são escritos pela
+// página, com os nomes da base, enquanto o método vai para a ficha metodológica em PDF (AJ-03).
 // Nada é calculado aqui: a contagem, a mudança, a comparação com territórios do mesmo porte, o nível de cada sinal e o alerta do
 // território (um nível só, o maior entre os sinais) vêm do motor (backend/detector.py). Os níveis são moderado, elevado e
 // crítico, sempre com o tipo de critério: na tela, "comparado com a base" ou "limite fixo" (desde 18/11/2026; no campo `criterio`
@@ -653,25 +656,106 @@ export function parametrosPersonalizados(padrao: ParametrosDoDetector, emEdicao:
   return Object.keys(saida).length ? saida : null;
 }
 
-// ------------------------------------------------------------------------------------------------ a régua da data
-const DA_ORIGEM: Record<OrigemDaRegua, string> = { porte: "", vizinhas: "com as faixas vizinhas", todas: "com todas as faixas" };
-/** O que a régua diz de um nível numa faixa de porte, com a régua que o motor usa de fato: "queda maior que 17,1%", "qualquer
- * queda", "nenhuma queda chega a esse nível" (o corte é de 100% ou mais) ou "sem comparações suficientes (864 de 999, com as
- * faixas vizinhas)". Quando as comparações não são só as do porte, a célula diz de onde vieram e quantas são. `o_que`: "queda"
- * (sinal 6) ou "afastamento" (sinal 7). */
-export function textoDoCorte(faixa: FaixaDaRegua, nivel: NivelDoAlerta, o_que = "queda"): string {
-  const corte = faixa.niveis[nivel];
-  if (!corte) return "—";
-  const quantas = inteiro.format(corte.comparacoes ?? faixa.comparacoes), origem = DA_ORIGEM[corte.origem];
-  if (corte.cortePct === null) return "sem comparações suficientes (" + quantas + " de " + inteiro.format(corte.pede) + (origem ? ", " + origem : "") + ")";
-  const limite = (pct: number): string => pct >= 100 ? (o_que === "queda" ? "nenhuma queda chega" : "nenhum afastamento chega") + " a esse nível"
-    : pct <= 0 ? "qualquer " + o_que : o_que + " maior que " + formatarPct(pct);
-  // Com todas as faixas, a mudança é comparada já dividida pelo tamanho: o corte em percentual muda dentro da faixa.
-  const menores = limite(corte.cortePct), maiores = corte.corteAtePct === null ? null : limite(corte.corteAtePct);
-  const frase = corte.origem !== "todas" || maiores === menores ? menores
-    : maiores === null ? menores + " no menor tamanho da faixa (o limite cai nos maiores)"
-    : menores + " nos menores da faixa; " + maiores + " nos maiores";
-  return frase + (origem ? " (" + origem + ": " + quantas + " comparações)" : "");
+// ------------------------------------------------------------------------------------------------ a lista sinal a sinal (AJ-04)
+/** A ordem dos sinais no catálogo (tabela B.2), para o empate de nível: os sinais 1 e 2 (um item só), depois 3 a 10. */
+export const ORDEM_DOS_SINAIS = ["estrutural", "ausencia", "declinio", "desaceleracao", "instabilidade", "perda", "patamar", "disponibilidade",
+  "posicao", "defasagem"];
+const posicaoNoCatalogo = (sinal: string): number => { const i = ORDEM_DOS_SINAIS.indexOf(sinal); return i < 0 ? ORDEM_DOS_SINAIS.length : i; };
+/** Os sinais com nível de um território, do mais grave ao menos grave; no empate, a ordem dos sinais (a mesma do motor). */
+export const sinaisComNivel = (linha: LinhaDoDetector): SinalComNivel[] =>
+  [...linha.alerta.sinais].sort((a, b) => GRAVIDADE[b.nivel] - GRAVIDADE[a.nivel] || posicaoNoCatalogo(a.sinal) - posicaoNoCatalogo(b.sinal));
+/** O porquê do sinal principal sem o "(+N sinais)" do motor: na lista, os outros sinais com nível já estão à vista, cada um na sua
+ * linha. A frase do motor não muda; só a contagem do fim sai. */
+export const semOsOutrosSinais = (porQue: string): string => porQue.replace(/ \(\+\d+ sina(?:l|is)\)$/, "");
+/** O item do detalhe que tem a frase de um sinal com nível: os sinais 1 e 2 formam um item só ("estrutural"). */
+export const chaveNoDetalhe = (sinal: string): string => sinal === "ausencia" ? "estrutural" : sinal;
+/** Uma linha de um território na lista: o sinal (com o nome do filtro "Sinal"), o nível, o tipo de critério pelo nome da tela e
+ * a frase do motor; sem sinal com nível, o estado do alerta e o porquê de antes. `porQue` null: a frase ainda não chegou. */
+export type LinhaDoSinal = { sinal: string | null; nome: string | null; nivel: NivelDoAlerta | null; criterio: string | null;
+  estado: EstadoDoAlerta; texto: string; porQue: string | null };
+/** As linhas de um território (AJ-04): cada sinal com nível numa linha — Sinal · Alerta (o nível e o tipo de critério) · Por quê
+ * (a frase do motor) —, do mais grave ao menos grave; no empate, a ordem dos sinais. A frase do sinal principal é o porquê da
+ * lista (`alerta.por_que`); a dos outros vem do detalhe do território (`fenomenos[].situacao`), quando ele já chegou. Sem sinal
+ * com nível, uma linha só, como antes: o estado do alerta e o motivo. A página não monta frases: só escolhe a do motor. */
+export function linhasDoTerritorio(linha: LinhaDoDetector, detalhe: DetalheDoDetector | null, r: RotulosDaBase = ROTULOS_DO_BRASIL): LinhaDoSinal[] {
+  const a = linha.alerta;
+  if (a.estado !== "alerta" || !a.sinais.length) {
+    const estado = estadoDoAlerta(linha);
+    return [{ sinal: null, nome: null, nivel: null, criterio: null, estado, texto: nomeDoEstado(estado), porQue: textoDoPorQue(linha, r) }];
+  }
+  return sinaisComNivel(linha).map(item => {
+    const doDetalhe = detalhe?.fenomenos.find(sinal => sinal.chave === chaveNoDetalhe(item.sinal))?.situacao || null;
+    return { sinal: item.sinal, nome: nomeDoSinal(item.sinal, r), nivel: item.nivel, criterio: rotuloDoCriterio(item.criterio), estado: item.nivel,
+      texto: NOMES_DOS_NIVEIS[item.nivel], porQue: item.sinal === a.sinal && a.porQue ? semOsOutrosSinais(a.porQue) : doDetalhe };
+  });
+}
+/** Os territórios da página cujo detalhe a lista pede, para ter a frase de cada sinal: só os que têm mais de um sinal com nível. */
+export const precisaDoDetalhe = (linha: LinhaDoDetector): boolean => linha.alerta.estado === "alerta" && linha.alerta.sinais.length > 1;
+/** A dica de um território no mapa e no gráfico (AJ-04): o sinal pintado — o principal do alerta; com o filtro "Sinal", aquele
+ * sinal — com o nível ("Poucos médicos · elevado") e quantos outros sinais com nível o território tem. Sem nível no desenho, null. */
+export function dicaDoSinal(linha: LinhaDoDetector, sinal: string, r: RotulosDaBase = ROTULOS_DO_BRASIL): string | null {
+  const doFiltro = !(sinal === "todos" || sinal === "juntos" || sinal === "registro");
+  const item = doFiltro ? linha.alerta.sinais.find(s => s.sinal === sinal) : sinaisComNivel(linha)[0];
+  if (!item) return null;
+  const outros = linha.alerta.sinais.length - 1;
+  return nomeDoSinal(item.sinal, r) + " · " + NOMES_DOS_NIVEIS[item.nivel].toLowerCase() +
+    (outros > 0 ? "; mais " + outros + (outros === 1 ? " sinal" : " sinais") + " com nível" : "");
+}
+/** O sinal do alerta numa data do histórico (sinais 1 a 7): o das colunas que o motor mandou com o nível do alerta; no empate, o
+ * primeiro na ordem dos sinais. Na data em zero, os sinais 1 e 2 dizem "Nenhum … registrado". Sem alerta, null. */
+export function sinalDoAlertaNoHistorico(passo: PassoDoHistorico, r: RotulosDaBase = ROTULOS_DO_BRASIL): string | null {
+  if (!passo.alerta) return null;
+  const colunas: [string, NivelDoAlerta | null][] = [[passo.valor === 0 ? "ausencia" : "estrutural", passo.estrutural],
+    ["declinio", passo.declinio?.classe ?? null], ["desaceleracao", passo.desaceleracao?.classe ?? null], ["instabilidade", passo.instabilidade],
+    ["perda", passo.perda?.classe ?? null], ["patamar", passo.patamar.classe]];
+  const achada = colunas.find(([, nivel]) => nivel === passo.alerta);
+  return achada ? nomeDoSinal(achada[0], r) : null;
+}
+
+// ------------------------------------------------------------------------------------------------ "Entenda" e ressalvas (AJ-03)
+/** Os "Entenda" dos cabeçalhos da lista, escritos pela página com os nomes da base: cada um explica só o campo ao lado, em duas ou
+ * três frases; o método fica na ficha metodológica em PDF ("Ver explicação completa"). O do "Último registro" cita o território
+ * e a data da primeira linha à vista, sem calcular nada. */
+export function entendaDaLista(r: RotulosDaBase, exemplo: LinhaDoDetector | null, fim: string): Record<"sinal" | "alerta" | "porQue" | "ultimo", TextoDoEntenda> {
+  const ultima = exemplo?.ultima ?? null;
+  return {
+    sinal: { texto: "O nome do sinal que tem nível no território, o mesmo do filtro “Sinal”. Cada sinal com nível fica numa linha, do mais " +
+      "grave ao menos grave; o alerta do território é o maior nível entre eles.",
+      exemplo: "“" + nomeDoSinal("estrutural", r) + "” olha o número de " + r.profissionais + " no último registro; “" + nomeDoSinal("perda", r) +
+        "”, a queda de um registro para o seguinte." },
+    alerta: { texto: "O nível do sinal nesta data: moderado, elevado ou crítico, sempre escrito. Ao lado, o tipo de critério: “comparado " +
+      "com a base” quer dizer raro entre territórios de tamanho parecido nesta base; “limite fixo”, um limite igual para todos os territórios. " +
+      "Sem história bastante para comparar, a linha diz “sem comparações suficientes”.",
+      exemplo: "“Moderado · comparado com a base” em “" + nomeDoSinal("perda", r) + "”: a queda foi rara entre as mudanças anteriores de " +
+        "territórios de tamanho parecido." },
+    porQue: { texto: "O que foi observado no sinal daquela linha, numa frase, com os números da data. A frase descreve o registro; não " +
+      "diz se o atendimento é suficiente nem onde prover.",
+      exemplo: "Em “" + nomeDoSinal("declinio", r) + "”, a frase diz quantas quedas anuais seguidas houve e quanto se perdeu desde a primeira." },
+    ultimo: { texto: "A contagem de " + r.profissionais + " na última data com registro do território, até a data escolhida em “Até”. Sozinho, " +
+      "esse número não explica o alerta: o nível vem do sinal de cada linha.",
+      exemplo: exemplo && ultima ? "“" + textoDaUltima(exemplo, fim, r) + "” em " + exemplo.rotulo + ": em " + competenciaCurta(ultima.competencia) +
+        ", a base registrou " + profissionais(ultima.valor, r) + " nesse território." : "" },
+  };
+}
+/** As ressalvas de leitura que ficam junto da lista (AJ-03, item 3.4.3): "raro" não quer dizer pior e o que o nível não é; a
+ * distância só como contexto, quando a base tem o sinal 11; os grupos de cima como unidade e os conjuntos, quando estão na lista.
+ * As demais já estão na tela: a data do registro mais recente, a configuração exploratória, o aviso da base e "um nível por
+ * território". */
+export function ressalvasDaLista(resposta: RespostaDoDetector): { chave: string; texto: string }[] {
+  const r = resposta.fonte.rotulos;
+  const oGrupo = r.oGrupo ?? "o " + r.grupo;
+  const saida = [{ chave: "raro", texto: "“Raro” quer dizer incomum nesta base, não comprovadamente pior: por construção, com os critérios " +
+    "padrão, cerca de 1 em cada 20 territórios recebe moderado em cada sinal comparado com a base. O nível não é juízo de desassistência, " +
+    "de suficiência do atendimento nem de prioridade de provimento." }];
+  if (!resposta.indisponiveis.contexto) saida.push({ chave: "distancia", texto: "A distância (sinal 11) é só contexto: em linha reta, não é " +
+    "distância por estrada, tempo de viagem nem acesso, e nunca vira alerta." });
+  if (resposta.linhas.some(linha => linha.tipo === "estado")) saida.push({ chave: "grupos", texto: maiuscula(oGrupo) + " como unidade tem " +
+    "régua própria, com a base " + (oGrupo.startsWith("a ") ? "das " : "dos ") + r.grupos + ": é uma base pequena, e os níveis mais graves " +
+    "podem ficar sem comparações suficientes." });
+  if (resposta.linhas.some(linha => linha.tipo === "conjunto")) saida.push({ chave: "conjuntos", texto: "Um conjunto não tem nível: não há " +
+    "outros iguais para comparar. A lista mostra os fatos; o valor do conjunto é a soma das contagens dos componentes, não o número de " +
+    r.profissionais + " diferentes." });
+  return saida;
 }
 
 // ------------------------------------------------------------------------------------------------ exportações

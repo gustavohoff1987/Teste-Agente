@@ -1103,7 +1103,8 @@ def test_num_porte_em_que_o_escolhido_erra_mais_vale_o_ultimo_valor_e_o_aviso_da
                                           for porte in (2, 5, 6)]
     assert all(celula("M0d", 2, prazo) > 1 for prazo in prazos) and all(celula("M0d", porte, prazo) < 1 for porte in (5, 6) for prazo in prazos)
     assert retro.escolha["excecoes"] == [2]
-    # "Como os métodos se saíram no passado": a tabela traz o mesmo erro, por método, porte e prazo.
+    # A avaliação dos métodos (até 18/11/2026, "Como os métodos se saíram no passado"; desde o AJ-03, na exportação e na ficha): a
+    # tabela traz o mesmo erro, por método, porte e prazo.
     tabela = {(linha["metodo"], linha["porte"], linha["anos"]): linha for linha in retro.tabela}
     for metodo in ("M0d", "M0g", "M1"):
         for porte in (2, 5, 6):

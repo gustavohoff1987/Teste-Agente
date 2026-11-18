@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type RefObject } from "react";
-import { ChevronRight, Download, LoaderCircle, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { ChevronRight, Download, FileText, LoaderCircle, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import Entenda from "./Entenda";
+import { SECOES_DAS_FICHAS, linkDaFicha } from "./fichas";
 import { tamanhoDoGrafico, useLargura } from "./PainelChart";
 import { ErroDoMotor, pedirAoMotor, type FonteDoMotor } from "./painelApi";
 import type { GrupoInfo, UnidadeDoCatalogo } from "./painelModel";
@@ -8,12 +9,13 @@ import { comNomesAnteriores } from "./painelModel";
 import {
   ID_DA_REFERENCIA, ID_DO_BRASIL, MAX_CENARIOS, MAX_INTERVENCOES, MAX_REFERENCIAS, MAX_TERRITORIOS, METODOS_DA_TELA, NOME_CURTO_DO_METODO, acrescentarTerritorio,
   anosDepois, cenariosEmUso, comOBrasil, comOPlanoComoIntervencao, competenciaCurta, configInicial, contasDoFinal, hipotesePertinente, metodoNaTabela, tempoDesde,
-  copiarSelecao, csvDasComparacoes, csvDoSimulador, doCampoDeMes, exportarCenario, formatarMedicos, formatarPercentualInteiro, formatarTaxa, importarCenario, janelaPadrao,
+  copiarSelecao, csvDasComparacoes, csvDoSimulador, doCampoDeMes, exportarCenario, formatarMedicos, formatarTaxa, importarCenario, janelaPadrao,
   comoConjunto, mesDe, normalizarSimulador, novaIntervencao, novaReferencia, novoCenario, novoPlano, paraCampoDeMes, pedidoDoSimulador, pendenciaDoPedido, referenciasValidas,
   textoDaFaixa, textoDaHipotese, textoDoFinal, tirarTerritorio, totalDaSelecaoLocal, aoTrocarDeTerritorio, metaNoCampo, textoDaMetaDoPatamar, nomeNoNumero,
   NOMES_DO_BRASIL, TESTES, comOTeste, nomeCurtoDoMetodo, nomesDaPlanilha, primeiroDaSelecao, territoriosDaSelecaoLocal, testeDoCenario, tresNumeros,
   FORMAS_DO_BRASIL, comMaiuscula, ehAnual, formasDaPlanilha, janelaDeAnos, type FormasDaBase,
   MAX_CRESCIMENTO_DA_POPULACAO, comAComparacao, comAsPremissasPadrao, entendaDoSimulador, janelaOuPadrao, modoDaComparacao, premissasNoPadrao, tempoEntre,
+  avaliacaoDosMetodos, textoDaJanelaDoCalculo,
   type ModoDaComparacao,
   type CenarioCalculado, type CenarioDaTela, type ConfigDoSimulador, type IntervencaoDaTela, type MetodoDoCenario, type NomesDaBase, type PlanejamentoDoCenario, type PlanoDaTela,
   type ReferenciaDaTela, type RespostaDoSimulador, type SelecaoDasFerramentas, type SelecaoLocal, type TerritorioSimulado,
@@ -34,6 +36,13 @@ import {
 // os "Entenda" da forma de projetar e da faixa. "Continuar como vinha" usa a forma de projetar que a própria base escolheu, e a
 // faixa (8 em cada 10, por padrão) é conferida, provisória ou indisponível, com o motivo. As quatro etapas ficam em "Avançado".
 // Vale para qualquer base: com uma planilha enviada, o pedido leva o que a descreve, e os nomes vêm dela.
+// Desde o AJ-03 (18/11/2026), a informação de método e técnica ("Como os métodos se saíram no passado", nos dois modos, e a linha de
+// versões) saiu da tela e está na ficha metodológica em PDF (o link "Ficha metodológica (PDF)" e o "Ver explicação completa" dos
+// "Entenda"); os números da avaliação dos métodos saem em "Exportar a avaliação dos métodos (JSON)", e a janela de cada cálculo
+// continua à vista no modo avançado. O resultado e as funcionalidades são os de antes.
+
+/** A base da página (ADT_BASE_DA_PAGINA), para o link da ficha metodológica em PDF. */
+const BASE = import.meta.env.BASE_URL || "/";
 
 type Props = {
   fonte: FonteDoMotor;
@@ -280,7 +289,6 @@ export default function SimuladorDeCenarios(props: Props) {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [foco, setFoco] = useState<string | null>(null);
-  const [verValidacao, setVerValidacao] = useState(false);
   const [verComposicao, setVerComposicao] = useState(false);
   // Os nomes da base em uso (a contagem, a unidade, o grupo de cima e o todo): os da resposta do motor; antes dela, os que o pedido
   // diz da planilha enviada ou, sem planilha, os da base do Brasil.
@@ -290,7 +298,6 @@ export default function SimuladorDeCenarios(props: Props) {
   const daPlanilha = !!props.daBase, anual = ehAnual(ultimoRegistro);
   const controle = useRef<AbortController | null>(null);
   const arquivo = useRef<HTMLInputElement>(null);
-  const validacao = useRef<HTMLDivElement>(null);
   useEffect(() => () => controle.current?.abort(), []);
 
   const pendencia = config ? pendenciaDoPedido(config) : "Preparando o Simulador…";
@@ -315,13 +322,13 @@ export default function SimuladorDeCenarios(props: Props) {
   }
 
   // O "(Entenda)" geral fica no título, como no Detector de Sinais (Proposta V3, seções A.4 e C.7): três frases e um exemplo, com o
-  // nome que a base dá à contagem; depois de um cálculo, "Ver explicação completa" abre "Como os métodos se saíram no passado".
+  // nome que a base dá à contagem; "Ver explicação completa" abre a ficha metodológica em PDF (AJ-03).
   const doSimulador = entendaDoSimulador(nomesDaBase);
   const cabecalho = <header className="ferramenta-cabecalho">
     <div className="ferramenta-titulo-linha">
       <h2 id="simulador-titulo" data-testid="simulador-titulo" tabIndex={-1} className="analise-titulo">Simulador de Cenários Territoriais</h2>
       <Entenda sobre="Simulador de Cenários" texto={doSimulador.texto} exemplo={doSimulador.exemplo} testid="simulador-entenda-ferramenta"
-        onCompleta={resposta ? abrirAValidacao : undefined}/>
+        completaHref={linkDaFicha(BASE, "simulador", SECOES_DAS_FICHAS.simulador.ferramenta)}/>
     </div>
     <p className="analise-subtitulo">Cenários hipotéticos, condicionais ao método e às hipóteses que você escolher. Não são previsão, observação atual nem
       recomendação de provimento.</p>
@@ -404,13 +411,6 @@ export default function SimuladorDeCenarios(props: Props) {
   // O mês da série anual da base, por extenso ("junho" na base do Brasil); numa base só com anos ou sem série anual, nenhum.
   const ancora = resposta?.fonte.ancora ?? (daPlanilha ? null : "06");
   const mesDaSerieAnual = ancora && ancora !== "00" ? MESES_POR_EXTENSO[Number(ancora) - 1] ?? null : null;
-  // Os métodos da tabela de erros: os que a retroprojeção desta base tem (sem grupo de cima, não há o crescimento do grupo).
-  const metodosDaTabela = ["M0d", "M0g", "M1", "M2", "M3"].filter(metodo => !resposta || resposta.retroprojecao.tabela.some(linha => linha.metodo === metodo));
-  /** "Ver explicação completa" dos "Entenda" do resultado: abre "Como os métodos se saíram no passado" e leva a pessoa até lá. */
-  function abrirAValidacao() {
-    setVerValidacao(true);
-    requestAnimationFrame(() => validacao.current?.scrollIntoView({ block: "start" }));
-  }
 
   function importar(event: ChangeEvent<HTMLInputElement>) {
     const escolhido = event.target.files?.[0];
@@ -590,6 +590,13 @@ export default function SimuladorDeCenarios(props: Props) {
         "application/json")}><Download size={14} aria-hidden="true"/>Exportar o cenário (JSON)</button>
       <button type="button" data-testid="simulador-importar-cenario" className="analise-botao-secundario" onClick={() => arquivo.current?.click()}>
         <Upload size={14} aria-hidden="true"/>Importar cenário (JSON)</button>
+      <button type="button" data-testid="simulador-exportar-avaliacao" className="analise-botao-secundario" disabled={!resposta}
+        title={resposta ? "Como cada forma de projetar se saiu no passado da base em uso, com os números do cálculo" : "Calcule um cenário para exportar a avaliação dos métodos da base em uso"}
+        onClick={() => resposta && baixar("simulador_avaliacao_dos_metodos_" + resposta.ultimoRegistro + ".json",
+          avaliacaoDosMetodos(resposta, new Date().toISOString()), "application/json")}>
+        <Download size={14} aria-hidden="true"/>Exportar a avaliação dos métodos (JSON)</button>
+      <a data-testid="simulador-ficha" className="analise-botao-secundario" href={linkDaFicha(BASE, "simulador")} target="_blank" rel="noopener">
+        <FileText size={14} aria-hidden="true"/>Ficha metodológica (PDF)<span className="sr-only"> (abre numa nova aba)</span></a>
       <input ref={arquivo} type="file" accept="application/json,.json" data-testid="simulador-arquivo" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={importar}/>
     </div>
 
@@ -664,11 +671,12 @@ export default function SimuladorDeCenarios(props: Props) {
           {resultadoDoSimples.entenda && <p className="ferramenta-entendas">
             <span>Forma de projetar: {resultadoDoSimples.metodo.rotulo}{resultadoDoSimples.metodo.eOEscolhido ? " (escolhida pela base)" : ""}</span>
             <Entenda sobre="A forma de projetar" texto={resultadoDoSimples.entenda.jeito.texto} exemplo={resultadoDoSimples.entenda.jeito.exemplo}
-              testid="simulador-entenda-jeito" onCompleta={abrirAValidacao}/>
+              testid="simulador-entenda-jeito" completaHref={linkDaFicha(BASE, "simulador", SECOES_DAS_FICHAS.simulador.forma)}/>
             <span data-testid="simulador-faixa-estado">Faixa de {resultadoDoSimples.faixa.em10} em cada 10: {!resultadoDoSimples.final?.faixa ? "indisponível"
               : resultadoDoSimples.final.faixa.estado === "conferida" ? "conferida" : "provisória"}</span>
             <Entenda sobre={"A faixa de " + resultadoDoSimples.faixa.em10 + " em cada 10"} texto={resultadoDoSimples.entenda.faixa.texto}
-              exemplo={resultadoDoSimples.entenda.faixa.exemplo} testid="simulador-entenda-faixa" onCompleta={abrirAValidacao}/>
+              exemplo={resultadoDoSimples.entenda.faixa.exemplo} testid="simulador-entenda-faixa"
+              completaHref={linkDaFicha(BASE, "simulador", SECOES_DAS_FICHAS.simulador.faixa)}/>
           </p>}
           <p data-testid="simulador-faixa-texto" className="ferramenta-apoio">{textoDaFaixa(resultadoDoSimples, territorioEmFoco.tipo === "conjunto", r)}</p>
           {resultadoDoSimples.planejamento && <div data-testid="simulador-planejamento" data-estado={resultadoDoSimples.planejamento.estado}
@@ -686,21 +694,6 @@ export default function SimuladorDeCenarios(props: Props) {
             {resultadoDoSimples.avisos.map(aviso => <li key={aviso.codigo} data-codigo={aviso.codigo}>{aviso.texto}</li>)}</ul>}
         </> : <p data-testid="simulador-motivo" role="status" className="analise-motivo">{resultadoDoSimples.estado === "retirada_acima_do_estoque" ? "Retirada acima do estoque: "
           : resultadoDoSimples.estado === "nao_aplicavel" ? "Não se aplica: " : "Não calculável: "}{resultadoDoSimples.motivo}</p>}
-        <div ref={validacao} className="ferramenta-metodo">
-          <button type="button" data-testid="simulador-validacao-botao" className="analise-link" aria-expanded={verValidacao} onClick={() => setVerValidacao(valor => !valor)}>
-            {verValidacao ? "Fechar “Como os métodos se saíram no passado”" : "Como os métodos se saíram no passado"}</button>
-          {verValidacao && <div data-testid="simulador-validacao" className="ferramenta-metodo-corpo">
-            <ul data-testid="simulador-escolhas" className="ferramenta-notas">
-              {Object.entries(resposta.retroprojecao.escolhas).map(([nivel, escolha]) => <li key={nivel} data-nivel={nivel} data-metodo={escolha.metodo}>{escolha.texto}
-                {escolha.candidatos.length > 0 && <span className="ferramenta-apoio block">Erro frente a manter o último valor (1,00 = igual; abaixo de 1, erra menos):{" "}
-                  {escolha.candidatos.map(item => item.rotulo + ", " + (item.frenteAoM0 === null ? "—" : item.frenteAoM0.toLocaleString("pt-BR",
-                    { minimumFractionDigits: 3, maximumFractionDigits: 3 })) + " (menos erro em " + item.menosErroEm + " de " + item.combinacoes + ")").join("; ")}.</span>}</li>)}
-            </ul>
-            <ul className="ferramenta-notas">{resposta.notas.map(nota => <li key={nota}>{nota}</li>)}</ul>
-          </div>}
-        </div>
-        <p data-testid="simulador-versoes" className="ferramenta-apoio">Método {resposta.versao} · base {resposta.fonte.base} ({resposta.fonte.categoria.toLowerCase()}), versão{" "}
-          {resposta.fonte.versao.slice(0, 12)} · último registro da base: {competenciaCurta(resposta.ultimoRegistro)}.</p>
       </div>}
       {carregando && !resposta && <p role="status" className="analise-vazio"><LoaderCircle size={18} className="animate-spin" aria-hidden="true"/>Calculando o cenário…</p>}
       <p className="ferramenta-apoio analise-nao-imprimir">
@@ -1045,34 +1038,7 @@ export default function SimuladorDeCenarios(props: Props) {
           </tr>;
         })}</tbody>
       </table></div>
-      <div className="ferramenta-metodo">
-        <button type="button" data-testid="simulador-validacao-botao" className="analise-link" aria-expanded={verValidacao} onClick={() => setVerValidacao(valor => !valor)}>
-          {verValidacao ? "Fechar “Como os métodos se saíram no passado”" : "Como os métodos se saíram no passado"}</button>
-        {verValidacao && <div data-testid="simulador-validacao" className="ferramenta-metodo-corpo">
-          <ul className="ferramenta-notas">{resposta.notas.map(nota => <li key={nota}>{nota}</li>)}</ul>
-          <div className="ferramenta-rolagem"><table data-testid="simulador-faixas" className="analise-tabela ferramenta-tabela">
-            <caption className="ferramenta-apoio">Faixas de {resposta.retroprojecao.em10} em cada 10 da forma de projetar que a base escolheu para {formas.osUnidades}, medidas no
-              passado da própria base (retroprojeção com origens em{" "}{resposta.retroprojecao.origens.map(competenciaCurta).join(", ")}): quanto o observado ficou acima ou
-              abaixo do cenário, em {resposta.retroprojecao.em10} de cada 10 casos.</caption>
-            <thead><tr><th scope="col">{comMaiuscula(r.profissionais)} na origem</th>{[1, 2, 3, 4].map(anos => <th key={anos} scope="col">{anos === 1 ? "1 ano" : anos + " anos"}</th>)}</tr></thead>
-            <tbody>{[...new Set(resposta.retroprojecao.faixas.map(faixa => faixa.porte))].map(porte => <tr key={porte}><th scope="row">{porte}</th>
-              {[1, 2, 3, 4].map(anos => { const faixa = resposta.retroprojecao.faixas.find(item => item.porte === porte && item.anos === anos);
-                return <td key={anos}>{faixa ? formatarPercentualInteiro(faixa.inferiorPct) + " a " + formatarPercentualInteiro(faixa.superiorPct) : "indisponível"}
-                  {faixa && <span className="ferramenta-apoio block">{faixa.rotulo}; {faixa.origens} origens, {faixa.casos.toLocaleString("pt-BR")} casos</span>}</td>; })}</tr>)}</tbody>
-          </table></div>
-          <div className="ferramenta-rolagem"><table data-testid="simulador-erros" className="analise-tabela ferramenta-tabela">
-            <caption className="ferramenta-apoio">Erro de cada método frente à persistência (M0), em 4 anos: abaixo de 1, o método errou menos que a persistência; acima, errou mais.</caption>
-            <thead><tr><th scope="col">{comMaiuscula(r.profissionais)} na origem</th>{metodosDaTabela.map(metodo => <th key={metodo} scope="col">
-              {nomeCurtoDoMetodo(metodo, r)} ({metodo})</th>)}</tr></thead>
-            <tbody>{[...new Set(resposta.retroprojecao.tabela.map(linha => linha.porte))].map(porte => <tr key={porte}><th scope="row">{porte}</th>
-              {metodosDaTabela.map(metodo => { const linha = resposta.retroprojecao.tabela.find(item => item.porte === porte && item.metodo === metodo && item.anos === 4);
-                return <td key={metodo}>{linha?.frenteAoM0 === null || linha?.frenteAoM0 === undefined ? "—" : linha.frenteAoM0.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>; })}</tr>)}</tbody>
-          </table></div>
-        </div>}
-      </div>
-      <p data-testid="simulador-versoes" className="ferramenta-apoio">Método {resposta.versao} · base {resposta.fonte.base} ({resposta.fonte.categoria.toLowerCase()}), versão{" "}
-        {resposta.fonte.versao.slice(0, 12)} · janela de {competenciaCurta(resposta.janela.inicio)} a {competenciaCurta(resposta.janela.fim)}{resposta.janela.padrao ? " (padrão)" : ""} ·
-        origem de cada cenário: o último registro usável do território na janela · último registro da base: {competenciaCurta(resposta.ultimoRegistro)}.</p>
+      <p data-testid="simulador-janela-do-calculo" className="ferramenta-apoio">{textoDaJanelaDoCalculo(resposta)}</p>
     </div>}
     {config.modo === "avancado" && carregando && !resposta && <p role="status" className="analise-vazio"><LoaderCircle size={18} className="animate-spin" aria-hidden="true"/>Calculando os cenários…</p>}
   </section>;

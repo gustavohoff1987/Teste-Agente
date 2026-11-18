@@ -9,8 +9,9 @@ async function source(name) {
 }
 const ler = caminho => readFileSync(new URL('../src/' + caminho, import.meta.url), 'utf8');
 // Detector de Sinais Territoriais (comando V23, Proposta V3, Parte B): o modelo puro da tela (detectorModel.ts) — a leitura da
-// resposta de POST /api/detector (o alerta de cada território, os níveis, a régua da data e os "Entenda"), os textos da lista de
-// quatro colunas, o resumo dos níveis, os filtros (Nível, Sinal e Buscar), a ordem, os critérios em frases com os campos dentro
+// resposta de POST /api/detector (o alerta de cada território, os níveis, a régua da data e os "Entenda"), os textos da lista
+// (desde o AJ-04, de 18/11/2026, cada sinal com nível numa linha, com o nome do sinal em coluna própria; antes, quatro colunas), o
+// resumo dos níveis, os filtros (Nível, Sinal e Buscar), a ordem, os critérios em frases com os campos dentro
 // delas, o mapa e o gráfico pelos níveis, as exportações e o que o Detector leva ao Simulador —, a seleção no contrato das
 // ferramentas (painelModel.selecaoDasFerramentas) e o componente "Entenda". Nada é calculado na tela.
 const D = await source('detectorModel');
@@ -279,58 +280,164 @@ test('"Ajustar critérios": os limites em frases, com os campos dentro delas, pa
   assert.match(tela, /data-testid="detector-exploratorio"[\s\S]{0,200}Configuração exploratória\./);
 });
 
-test('a régua da data em palavras: a partir de que mudança ela é rara, ou "sem comparações suficientes", com os números', () => {
-  const lida = D.normalizarDetector(resposta([]));
-  const [pequenos, grandes] = lida.calibracao.perda;
-  // Um corte de 100% ou mais não é alcançado por queda nenhuma: a tabela diz isso, em vez de "queda maior que 100,0%".
-  assert.deepEqual(['moderado', 'elevado', 'critico'].map(nivel => D.textoDoCorte(pequenos, nivel)),
-    ['queda maior que 33,3%', 'queda maior que 50,0%', 'nenhuma queda chega a esse nível']);
-  // De 3.000 para cima, a base não tem 999 comparações de tamanho parecido: o crítico fica "sem comparações suficientes".
-  assert.deepEqual(['moderado', 'elevado', 'critico'].map(nivel => D.textoDoCorte(grandes, nivel)),
-    ['qualquer queda', 'queda maior que 7,6%', 'sem comparações suficientes (203 de 999)']);
-  assert.deepEqual(['moderado', 'elevado', 'critico'].map(nivel => D.textoDoCorte(lida.calibracao.patamar[0], nivel, 'afastamento')),
-    ['—', 'afastamento maior que 39,5%', 'afastamento maior que 62,2%']);
-  // A régua usada de fato (revisão das capturas, 14/11/2026): cada nível diz de onde vêm as comparações e quantas são, quando não
-  // são só as do porte — as faixas vizinhas ou, só no moderado, todas as faixas (o corte muda com o tamanho dentro da faixa).
+test('AJ-03: "Como foi calculado" saiu da tela; a régua da data, o monitoramento e as versões vão em "Exportar o método (JSON)", com os números do motor', () => {
+  // A régua usada de fato em cada nível (o corte, de onde vêm as comparações e quantas são), como o motor a manda: a exportação leva
+  // os mesmos números, e a régua dos estados como unidade quando a seleção tem algum.
   const nivel = (um_em, valor, origem, comparacoes, extra = {}) => ({...corte(um_em, valor), avaliado: valor !== null, origem, comparacoes, ...extra});
-  const usada = D.normalizarDetector(resposta([], {calibracao: {competencia: '202406', intervalo_meses: 5, perda: [
+  const regua = {competencia: '202406', intervalo_meses: 5, perda: [
     {porte: '1.000 a 2.999', comparacoes: 616, critico: nivel(1000, 44.385, 'vizinhas', 2720), elevado: nivel(100, 11.333, 'porte', 616), moderado: nivel(20, 2.511, 'porte', 616)},
-    {porte: '3.000 a 9.999', comparacoes: 203, critico: nivel(1000, null, 'vizinhas', 864), elevado: nivel(100, 7.605, 'porte', 203), moderado: nivel(20, 2.208, 'porte', 203)},
     {porte: '10.000 ou mais', comparacoes: 45, critico: nivel(1000, null, 'vizinhas', 248), elevado: nivel(100, 7.605, 'vizinhas', 248), moderado: nivel(20, 1.292, 'porte', 45)},
     {porte: '300 a 999', comparacoes: 3, critico: nivel(1000, null, 'vizinhas', 5), elevado: nivel(100, null, 'vizinhas', 5),
-      moderado: nivel(20, 0.71, 'todas', 27, {queda_pct_ate: 0.389})},
-    {porte: '10.000 ou mais', comparacoes: 3, critico: nivel(1000, null, 'vizinhas', 15), elevado: nivel(100, null, 'vizinhas', 15),
-      moderado: nivel(20, 1.1, 'todas', 5565, {queda_pct_ate: null})},
-    {porte: '1 a 3', comparacoes: 0, critico: nivel(1000, null, 'vizinhas', 0), elevado: nivel(100, null, 'vizinhas', 0),
-      moderado: nivel(20, 200, 'todas', 360, {queda_pct_ate: 66.667})},
-    {porte: '4 a 9', comparacoes: 0, critico: nivel(1000, null, 'vizinhas', 9), elevado: nivel(100, null, 'vizinhas', 9),
-      moderado: nivel(20, 0, 'todas', 34, {queda_pct_ate: 0})},
-    {porte: '20 a 49', comparacoes: 2, critico: nivel(1000, null, 'vizinhas', 12), elevado: nivel(100, null, 'vizinhas', 12), moderado: nivel(20, null, 'todas', 12)}],
+      moderado: nivel(20, 0.71, 'todas', 27, {queda_pct_ate: 0.389})}],
     patamar: [{porte: '10.000 ou mais', comparacoes: 54, critico: {...corte(1000, null, 'afastamento_pct'), avaliado: false, origem: 'vizinhas', comparacoes: 310},
       elevado: {...corte(100, 9.893, 'afastamento_pct'), avaliado: true, origem: 'vizinhas', comparacoes: 310}}],
-    monitoramento: {avaliadas: 0, raras: 0}}})).calibracao;
-  const dos = faixa => ['moderado', 'elevado', 'critico'].map(chave => D.textoDoCorte(faixa, chave));
-  assert.deepEqual(usada.perda[0].niveis.critico, {umEm: 1000, pede: 999, cortePct: 44.385, origem: 'vizinhas', comparacoes: 2720, corteAtePct: null});
-  assert.deepEqual(dos(usada.perda[0]), ['queda maior que 2,5%', 'queda maior que 11,3%', 'queda maior que 44,4% (com as faixas vizinhas: 2.720 comparações)']);
-  assert.deepEqual(dos(usada.perda[1]), ['queda maior que 2,2%', 'queda maior que 7,6%', 'sem comparações suficientes (864 de 999, com as faixas vizinhas)']);
-  assert.deepEqual(dos(usada.perda[2]), ['queda maior que 1,3%', 'queda maior que 7,6% (com as faixas vizinhas: 248 comparações)',
-    'sem comparações suficientes (248 de 999, com as faixas vizinhas)']);
-  // Com todas as faixas: os dois extremos do corte na faixa; na faixa aberta, só o do menor tamanho; e os casos sem número.
-  assert.equal(dos(usada.perda[3])[0], 'queda maior que 0,7% nos menores da faixa; queda maior que 0,4% nos maiores (com todas as faixas: 27 comparações)');
-  assert.equal(dos(usada.perda[4])[0], 'queda maior que 1,1% no menor tamanho da faixa (o limite cai nos maiores) (com todas as faixas: 5.565 comparações)');
-  assert.equal(dos(usada.perda[5])[0], 'nenhuma queda chega a esse nível nos menores da faixa; queda maior que 66,7% nos maiores (com todas as faixas: 360 comparações)');
-  assert.equal(dos(usada.perda[6])[0], 'qualquer queda (com todas as faixas: 34 comparações)');
-  assert.deepEqual(dos(usada.perda[7]), ['sem comparações suficientes (12 de 19, com todas as faixas)', 'sem comparações suficientes (12 de 99, com as faixas vizinhas)',
-    'sem comparações suficientes (12 de 999, com as faixas vizinhas)']);
-  assert.deepEqual(['elevado', 'critico'].map(chave => D.textoDoCorte(usada.patamar[0], chave, 'afastamento')),
-    ['afastamento maior que 9,9% (com as faixas vizinhas: 310 comparações)', 'sem comparações suficientes (310 de 999, com as faixas vizinhas)']);
-  assert.equal(D.textoDoCorte({porte: 'x', comparacoes: 1, niveis: {elevado: {umEm: 100, pede: 99, cortePct: 100, origem: 'porte', comparacoes: 150, corteAtePct: null}}},
-    'elevado', 'afastamento'), 'nenhum afastamento chega a esse nível');
-  // Na tela, a tabela diz que cada nível mostra a régua usada, e a coluna do porte é a das comparações do próprio porte.
+    monitoramento: {avaliadas: 5570, raras: 161, taxa_pct: 2.89048473967684, esperado_pct: 5, aviso_da_base: false}};
+  const dosEstados = {...regua, perda: [{porte: '10.000 ou mais', comparacoes: 101, critico: nivel(1000, null, 'vizinhas', 223),
+    elevado: nivel(100, 1.5, 'porte', 101), moderado: nivel(20, 0, 'porte', 101)}], patamar: [], monitoramento: {avaliadas: 27, raras: 1}};
+  const lida = D.normalizarDetector(resposta([], {calibracao: regua, calibracao_dos_estados: dosEstados}));
+  const metodo = JSON.parse(D.metodoDoDetector(lida));
+  assert.deepEqual(metodo.regua_na_data, lida.calibracao);
+  assert.deepEqual(metodo.regua_dos_estados_na_data, lida.calibracaoDosEstados);
+  assert.deepEqual(metodo.regua_na_data.perda[0].niveis.critico, {umEm: 1000, pede: 999, cortePct: 44.385, origem: 'vizinhas', comparacoes: 2720, corteAtePct: null});
+  assert.deepEqual(metodo.regua_na_data.perda[2].niveis.moderado, {umEm: 20, pede: 19, cortePct: 0.71, origem: 'todas', comparacoes: 27, corteAtePct: 0.389});
+  assert.deepEqual(metodo.regua_na_data.patamar[0].niveis.critico, {umEm: 1000, pede: 999, cortePct: null, origem: 'vizinhas', comparacoes: 310, corteAtePct: null});
+  assert.deepEqual(metodo.regua_na_data.monitoramento, {avaliadas: 5570, raras: 161, taxaPct: 2.89048473967684, esperadoPct: 5, avisoDaBase: false});
+  assert.deepEqual([metodo.regua_dos_estados_na_data.perda[0].niveis.critico.comparacoes, metodo.regua_dos_estados_na_data.monitoramento.avaliadas], [223, 27]);
+  assert.deepEqual([metodo.versao_do_metodo, metodo.fonte.versao, metodo.niveis.map(item => [item.chave, item.umEm, item.pede])],
+    ['DETECTOR-SINAIS/V3/1', 'abc', [['moderado', 20, 19], ['elevado', 100, 99], ['critico', 1000, 999]]]);
+  // Na tela: nem "Como foi calculado", nem a régua por porte, nem a linha de versões; o link da ficha metodológica (PDF), que abre
+  // numa nova aba na base da página, e o "Ver explicação completa" do "Entenda" da ferramenta, que leva à ficha.
+  const tela = ler('DetectorDeSinais.tsx').replace(/\/\/.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+  for (const fora of ['detector-metodo', 'detector-niveis', 'detector-calibracao', 'TabelaDaRegua', 'textoDoCorte', '“Como foi calculado”', 'Como foi calculado',
+    'Método {resposta.versao}', 'monitoramento.raras', 'abrirOMetodo'])
+    assert.ok(!tela.includes(fora), fora);
+  assert.ok(!('textoDoCorte' in D), 'a régua em palavras saiu do modelo com a tabela da tela');
+  assert.ok(tela.includes('<a data-testid="detector-ficha" className="analise-botao-secundario" href={linkDaFicha(BASE, "detector")} target="_blank" rel="noopener">'));
+  assert.ok(tela.includes('const BASE = import.meta.env.BASE_URL || "/";'));
+  assert.match(tela, /testid="detector-entenda-ferramenta"\s+completaHref=\{linkDaFicha\(BASE, "detector", SECOES_DAS_FICHAS\.detector\.ferramenta\)\}/);
+  assert.ok(tela.includes('onClick={() => baixar("detector_de_sinais_metodo_" + resposta.janela.fim + ".json", metodoDoDetector(resposta), "application/json")}>'),
+    'a exportação do método continua como antes');
+});
+
+test('AJ-04: cada sinal com nível numa linha (Sinal · Alerta · Por quê), do mais grave ao menos grave, com as frases do motor', () => {
+  const lida = comparada();
+  const [barra, manaus, para, par, alta] = lida.linhas;
+  // Os sinais com nível, do mais grave ao menos grave; no empate, a ordem dos sinais (perda de posição, o sinal 9, antes de mais
+  // longe da referência, o 10), mesmo que a resposta os traga noutra ordem. Só quem tem mais de um sinal precisa do detalhe.
+  assert.deepEqual(D.sinaisComNivel(barra).map(item => item.sinal + ':' + item.nivel), ['disponibilidade:elevado', 'posicao:moderado', 'defasagem:moderado']);
+  assert.deepEqual([barra, manaus, para, par, alta].map(D.precisaDoDetalhe), [true, false, false, false, false]);
+  // Sem o detalhe: a frase do sinal principal é o porquê da lista, sem o "(+2 sinais)"; as dos outros ainda não chegaram.
+  assert.deepEqual(D.linhasDoTerritorio(barra, null), [
+    {sinal: 'disponibilidade', nome: 'Menos médicos por habitante', nivel: 'elevado', criterio: 'comparado com a base', estado: 'elevado', texto: 'Elevado',
+      porQue: '−36,2% de médicos por habitante em 2 anos'},
+    {sinal: 'posicao', nome: 'Perda de posição', nivel: 'moderado', criterio: 'comparado com a base', estado: 'moderado', texto: 'Moderado', porQue: null},
+    {sinal: 'defasagem', nome: 'Mais longe da referência', nivel: 'moderado', criterio: 'comparado com a base', estado: 'moderado', texto: 'Moderado', porQue: null}]);
+  // Com o detalhe do território: a frase de cada outro sinal é a do motor (`fenomenos[].situacao`); a do principal continua a da lista.
+  const detalhe = D.normalizarDetalhe({territorio: {id: 'code:350530', rotulo: 'BARRA BONITA (SP)'}, janela: {}, fenomenos: [
+    {chave: 'disponibilidade', situacao: 'outra frase'}, {chave: 'posicao', situacao: 'Caiu 11,5 pontos de percentil em 2 anos'},
+    {chave: 'defasagem', situacao: 'A taxa passou de 1,27 para 0,72 vezes a dos demais municípios de São Paulo em 2 anos'}]});
+  assert.deepEqual(D.linhasDoTerritorio(barra, detalhe).map(item => item.porQue), ['−36,2% de médicos por habitante em 2 anos',
+    'Caiu 11,5 pontos de percentil em 2 anos', 'A taxa passou de 1,27 para 0,72 vezes a dos demais municípios de São Paulo em 2 anos']);
+  // Um sinal só: uma linha, com o tipo de critério pelo nome da tela.
+  assert.deepEqual(D.linhasDoTerritorio(manaus, null), [{sinal: 'patamar', nome: 'Abaixo do que já teve', nivel: 'moderado', criterio: 'limite fixo',
+    estado: 'moderado', texto: 'Moderado', porQue: '18% abaixo do que já teve (patamar de 15)'}]);
+  // Sem sinal com nível: uma linha, como antes (o estado e o motivo), com "Sinal" vazio.
+  assert.deepEqual(D.linhasDoTerritorio(para, null), [{sinal: null, nome: null, nivel: null, criterio: null, estado: 'sem_comparacoes',
+    texto: 'Sem comparações suficientes', porQue: 'A base ainda não tem história para comparar: queda recente.'}]);
+  assert.deepEqual(D.linhasDoTerritorio(par, null).map(item => [item.sinal, item.estado, item.texto, item.porQue]), [[null, 'sem_nivel', 'Sem nível (conjunto)',
+    'Um conjunto não tem outros iguais para comparar: a tela mostra os fatos, sem nível.']]);
+  assert.deepEqual(D.linhasDoTerritorio(alta, null).map(item => [item.sinal, item.texto, item.porQue]), [[null, 'Sem alerta', 'Nenhum sinal com nível.']]);
+  // Os sinais 1 e 2 formam um item só no detalhe: a frase de "Nenhum médico registrado" é a do item "estrutural".
+  const zero = lerLinha({alerta: alerta('critico', 'ausencia', 'por convenção', 'Nenhum médico registrado há 2 registros, desde jan/2024 (+1 sinal)', {outros: 1,
+    sinais: [{sinal: 'perda', nivel: 'elevado', criterio: 'comparado com a base'}, {sinal: 'ausencia', nivel: 'critico', criterio: 'por convenção'}]})});
+  const doZero = D.normalizarDetalhe({territorio: {id: 'code:130260'}, janela: {}, fenomenos: [
+    {chave: 'estrutural', situacao: 'Nenhum médico registrado há 2 registros, desde jan/2024'}, {chave: 'perda', situacao: 'Caiu de 12 para 0 (−100,0%)'}]});
+  assert.deepEqual(D.linhasDoTerritorio(zero, doZero).map(item => [item.nome, item.texto, item.criterio, item.porQue]), [
+    ['Nenhum médico registrado', 'Crítico', 'limite fixo', 'Nenhum médico registrado há 2 registros, desde jan/2024'],
+    ['Queda recente', 'Elevado', 'comparado com a base', 'Caiu de 12 para 0 (−100,0%)']]);
+  assert.equal(D.chaveNoDetalhe('ausencia'), 'estrutural');
+  // Só a contagem "(+N sinal)" ou "(+N sinais)" do fim da frase sai; a frase do motor fica como veio.
+  assert.deepEqual(['2 médicos (+1 sinal)', 'Só 1 médico (+12 sinais)', '−3 (+1) médicos', 'Sem sinal'].map(D.semOsOutrosSinais),
+    ['2 médicos', 'Só 1 médico', '−3 (+1) médicos', 'Sem sinal']);
+  // Os contadores, os filtros, a ordem e as páginas continuam por território: com o filtro "Sinal", o território vem com todos os
+  // seus sinais (as linhas dele saem de linhasDoTerritorio, que não olha o filtro).
+  assert.deepEqual(D.filtrarLinhas(lida.linhas, {...D.SEM_FILTROS, sinal: 'posicao'}).map(item => item.id), ['code:350530']);
+  // A tela: cinco colunas, com "Sinal" antes de "Alerta"; cada território num grupo de linhas, com o nome e o último registro uma
+  // vez; o detalhe pedido só para quem tem mais de um sinal, dois de cada vez, e só depois que a lista do pedido em uso chegou
+  // (enquanto a de antes continua à vista, nada é pedido com o pedido novo); "vêm da mesma queda" na linha do território.
   const tela = ler('DetectorDeSinais.tsx');
-  assert.ok(tela.includes('<th scope="col">Comparações do porte</th>'));
-  assert.ok(tela.includes('Cada nível mostra a régua usada de fato: quando o porte'));
-  assert.ok(tela.includes('{niveis.map(nivel => <td key={nivel} data-nivel={nivel}>{textoDoCorte(faixa, nivel, o_que)}</td>)}'));
+  const cabecalho = tela.slice(tela.indexOf('<thead><tr>'), tela.indexOf('</tr></thead>'));
+  const posicoes = ['cabecaDeOrdem("Território"', '>Sinal', 'cabecaDeOrdem("Alerta"', '>Por quê', 'cabecaDeOrdem("Último registro"'].map(trecho => cabecalho.indexOf(trecho));
+  assert.ok(posicoes.every((posicao, i) => posicao >= 0 && (i === 0 || posicao > posicoes[i - 1])), 'Território · Sinal · Alerta · Por quê · Último registro');
+  for (const trecho of ['<tbody key={linha.id} data-testid="detector-linha" data-id={linha.id}', '{indice === 0 && <th scope="rowgroup" rowSpan={altura} data-rotulo="Território"',
+    '<td data-rotulo="Sinal" data-testid="detector-sinal" className="ferramenta-coluna-sinal">{item.nome ?? ""}</td>',
+    '{indice === 0 && <td rowSpan={altura} data-rotulo="Último registro" data-testid="detector-ultimo"',
+    'const sinais = linhasDoTerritorio(linha, detalhe && !("erro" in detalhe) ? detalhe : null, r);',
+    'if (!precisaDoDetalhe(linha) || detalhes[linha.id] || emCurso.current.has(linha.id)) continue;', 'if (emCurso.current.size >= 2) break;',
+    'if (!pedido || !resposta || chaveDaResposta !== chave || !controle) return;', 'setResposta(lida); setChaveDaResposta(chave);',
+    '{mesmaQueda && <tr data-testid="detector-linha-nota" className="ferramenta-linha-seguinte"><td colSpan={3} className="ferramenta-apoio">',
+    '{expandida && <tr className="ferramenta-linha-detalhe"><td colSpan={5}>'])
+    assert.ok(tela.includes(trecho), trecho);
+  // No celular, cada território vira um cartão: o nome e o último registro no alto; em cada sinal, o nome dele antes do alerta.
+  const css = ler('analise.css');
+  assert.match(css, /\.ferramenta-lista tbody th\[data-rotulo="Território"\] \{ grid-column: 1 \/ -1; order: -2; \}/);
+  assert.match(css, /\.ferramenta-lista tbody td\[data-rotulo="Último registro"\] \{ order: -1; \}/);
+  assert.match(css, /\.ferramenta-lista tbody tr\.ferramenta-linha-seguinte \{ padding-top: 6px; border-top: 1px dashed var\(--cor-borda-suave\); \}/);
+});
+
+test('AJ-03: o nome do sinal no detalhe e no histórico de sinais; os "Entenda" da lista, escritos pela página; as ressalvas de leitura junto da lista', () => {
+  // O histórico (sinais 1 a 7): o sinal do alerta é o da coluna com o nível dele; no empate, o primeiro na ordem dos sinais.
+  const passo = extra => ({competencia: '202406', valor: 5, alerta: null, estrutural: null, perda: null, patamar: {estado: '', classe: null, diferencaPct: null},
+    instabilidade: null, declinio: null, desaceleracao: null, ...extra});
+  assert.equal(D.sinalDoAlertaNoHistorico(passo({})), null);
+  assert.equal(D.sinalDoAlertaNoHistorico(passo({alerta: 'elevado', estrutural: 'moderado', perda: {delta: -3, pct: -30, estado: 'alerta', classe: 'elevado'}})),
+    'Queda recente');
+  assert.equal(D.sinalDoAlertaNoHistorico(passo({alerta: 'critico', valor: 0, estrutural: 'critico'})), 'Nenhum médico registrado');
+  assert.equal(D.sinalDoAlertaNoHistorico(passo({alerta: 'moderado', estrutural: 'moderado', patamar: {estado: 'classificado', classe: 'moderado', diferencaPct: -20}})),
+    'Poucos médicos', 'no empate, a ordem dos sinais');
+  assert.equal(D.sinalDoAlertaNoHistorico(passo({alerta: 'moderado', declinio: {reducoes: 2, classe: 'moderado'}}), ENF), 'Declínio persistente');
+  const tela = ler('DetectorDeSinais.tsx');
+  assert.ok(tela.includes('<span data-testid="detector-detalhe-sinal">{nomeDoSinal(linha.alerta.sinal ?? "", r)}</span>'));
+  assert.ok(tela.includes('{sinalDoAlertaNoHistorico(passo, r)}'));
+  // Os "Entenda" dos cabeçalhos: duas ou três frases sobre o campo, sem a explicação do método (ela fica na ficha), com os nomes da
+  // base; o do último registro cita o território e a data da primeira linha à vista.
+  const lida = comparada();
+  const [, manaus] = lida.linhas;
+  const entenda = D.entendaDaLista(ROTULOS, manaus, '202106');
+  assert.deepEqual(Object.keys(entenda), ['sinal', 'alerta', 'porQue', 'ultimo']);
+  for (const [campo, {texto}] of Object.entries(entenda)) {
+    const frases = texto.split(/(?<=\.) /).length;
+    assert.ok(frases >= 2 && frases <= 3, campo + ': duas ou três frases (' + frases + ')');
+    for (const doMetodo of ['raridade', '(k + 1)', 'θ', 'retaguarda', 'percentil', '1 em cada', 'régua', 'convenção', 'jeito'])
+      assert.ok(!texto.includes(doMetodo), campo + ': ' + doMetodo);
+  }
+  assert.ok(entenda.alerta.texto.includes('“comparado com a base” quer dizer raro entre territórios de tamanho parecido nesta base; “limite fixo”, um limite ' +
+    'igual para todos os territórios'));
+  assert.equal(entenda.ultimo.exemplo, '“jun/2024 · 12 médicos” em MANAUS (AM): em jun/2024, a base registrou 12 médicos nesse território.');
+  assert.equal(D.entendaDaLista(ROTULOS, null, '202406').ultimo.exemplo, '');
+  assert.ok(D.entendaDaLista(ENF, null, '202406').sinal.exemplo.startsWith('“Poucos enfermeiros” olha o número de enfermeiros no último registro'));
+  for (const [testid, secao] of [['detector-entenda-sinal', 'sinal'], ['detector-entenda-alerta', 'alerta'], ['detector-entenda-por-que', 'porQue'],
+    ['detector-entenda-ultimo', 'ultimo']])
+    assert.match(tela, new RegExp('testid="' + testid + '"\\s+completaHref=\\{linkDaFicha\\(BASE, "detector", SECOES_DAS_FICHAS\\.detector\\.' + secao + '\\)\\}'), testid);
+  assert.ok(!tela.includes('resposta.entenda.alerta') && !tela.includes('resposta.entenda.termos'), 'os "Entenda" da lista não são mais os do motor');
+  // As ressalvas de leitura, junto da lista: "raro" e o que o nível não é; a distância só como contexto (com o sinal 11 na base);
+  // os grupos de cima como unidade e os conjuntos, quando estão na lista.
+  assert.deepEqual(D.ressalvasDaLista(lida).map(item => item.chave), ['raro', 'distancia', 'grupos', 'conjuntos']);
+  const [raro, distancia, grupos, conjuntos] = D.ressalvasDaLista(lida).map(item => item.texto);
+  assert.equal(raro, '“Raro” quer dizer incomum nesta base, não comprovadamente pior: por construção, com os critérios padrão, cerca de 1 em cada 20 ' +
+    'territórios recebe moderado em cada sinal comparado com a base. O nível não é juízo de desassistência, de suficiência do atendimento nem de prioridade ' +
+    'de provimento.');
+  assert.equal(distancia, 'A distância (sinal 11) é só contexto: em linha reta, não é distância por estrada, tempo de viagem nem acesso, e nunca vira alerta.');
+  assert.equal(grupos, 'O estado como unidade tem régua própria, com a base dos estados: é uma base pequena, e os níveis mais graves podem ficar sem ' +
+    'comparações suficientes.');
+  assert.equal(conjuntos, 'Um conjunto não tem nível: não há outros iguais para comparar. A lista mostra os fatos; o valor do conjunto é a soma das contagens ' +
+    'dos componentes, não o número de médicos diferentes.');
+  const semDistancia = D.normalizarDetector(resposta([linha()], {indisponiveis: {contexto: 'A base não tem coordenadas com o referencial informado.'}}));
+  assert.deepEqual(D.ressalvasDaLista(semDistancia).map(item => item.chave), ['raro']);
+  const dasRegioes = D.normalizarDetector(resposta([linha({id: 'uf:1', tipo: 'estado', rotulo: 'Norte'})],
+    {fonte: {...resposta([]).fonte, rotulos: ENF, formas: {o_unidade: 'o distrito', o_grupo: 'a região'}}}));
+  assert.ok(D.ressalvasDaLista(dasRegioes).some(item => item.texto.startsWith('A região como unidade tem régua própria, com a base das regiões:')));
+  assert.ok(tela.includes('{ressalvasDaLista(resposta).map(item => <li key={item.chave} data-chave={item.chave}>{item.texto}</li>)}'));
 });
 
 test('exportações: o CSV da lista e o método em JSON levam o alerta, a janela, as versões e a configuração', () => {
@@ -504,6 +611,17 @@ test('mapa e gráfico pelos níveis: só os valores, os níveis e as coordenadas
   assert.deepEqual(D.CORES_DOS_NIVEIS, {moderado: '#fab219', elevado: '#ec835a', critico: '#d03b3b'});
   const graficos = ler('DetectorGraficos.tsx');
   assert.match(graficos, /data-testid="detector-legenda-niveis"/);
+  // AJ-04: a dica do mapa e do gráfico nomeia o sinal pintado (o principal do alerta; com o filtro "Sinal", aquele sinal), com o
+  // nível, e diz quantos outros sinais com nível o território tem. A cor e o tamanho continuam pelo maior nível.
+  const [, manausDaDica, , , altaDaDica] = lida.linhas;
+  assert.deepEqual([D.dicaDoSinal(barra, 'todos'), D.dicaDoSinal(barra, 'posicao'), D.dicaDoSinal(barra, 'juntos'), D.dicaDoSinal(barra, 'patamar'),
+    D.dicaDoSinal(manausDaDica, 'todos'), D.dicaDoSinal(altaDaDica, 'todos')],
+    ['Menos médicos por habitante · elevado; mais 2 sinais com nível', 'Perda de posição · moderado; mais 2 sinais com nível',
+      'Menos médicos por habitante · elevado; mais 2 sinais com nível', null, 'Abaixo do que já teve · moderado', null]);
+  assert.equal(D.dicaDoSinal(barra, 'todos', ENF), 'Menos enfermeiros por habitante · elevado; mais 2 sinais com nível');
+  assert.ok(graficos.includes('rotulo: (daLinha && dicaDoSinal(daLinha, sinal, r)) || "nível " + NOMES_DOS_NIVEIS[nivel].toLowerCase() });'));
+  assert.ok(graficos.includes('notasDaDica={item => { const dica = dicas.get(item.id); return dica ? [dica] : []; }}'));
+  assert.ok(ler('PainelChart.tsx').includes('const dicaDaBolha = montada ? (notasDoChamador.length ? { ...montada, notas: [...notasDoChamador, ...montada.notas] } : montada)'));
   assert.match(graficos, /\{NOMES_DOS_NIVEIS\[nivel\]\}: \{formatarInteiro\(contagens\[nivel\]\)\}/, 'a legenda diz o nível por extenso');
   // As bolhas do Agente: X = a distância até o mais próximo que atende ao critério; Y = a taxa; o tamanho, a população.
   const itens = D.itensDoContexto(lida.linhas);
@@ -562,11 +680,18 @@ test('"Entenda": abre com o mouse, com um toque e pelo teclado; fecha ao sair; a
   assert.match(codigo, /role="note"/);
   assert.match(codigo, /<strong>Exemplo:<\/strong> \{exemplo\}/);
   assert.match(codigo, /onClick=\{\(\) => \{ fechar\(\); onCompleta\(\); \}\}>Ver explicação completa<\/button>/);
+  // AJ-03: com `completaHref`, "Ver explicação completa" é um link para a ficha metodológica em PDF, numa nova aba; sem ele, a ação
+  // de antes (na Área de Análise, nada muda).
+  assert.match(codigo, /\{completaHref \? <a data-testid=\{testid \+ "-completa"\} className="analise-link entenda-completa" href=\{completaHref\} target="_blank"\s+rel="noopener"/);
+  assert.match(codigo, /: onCompleta && <button type="button" data-testid=\{testid \+ "-completa"\}/);
   assert.match(ler('analise.css'), /\.entenda-caixa \{ position: fixed;[^}]*width: min\(360px, calc\(100vw - 24px\)\)/, 'cabe na largura do celular');
-  // Na tela do Detector: o "Entenda" da ferramenta, o do alerta, o dos termos da lista e o de cada sinal, com os textos do motor.
+  // Na tela do Detector: o "Entenda" da ferramenta (do motor), os dos cabeçalhos da lista (da página, desde o AJ-03: o do sinal, o
+  // do alerta, o do porquê e o do último registro) e o de cada sinal, com os textos do motor.
   const tela = ler('DetectorDeSinais.tsx');
-  for (const testid of ['detector-entenda-ferramenta', 'detector-entenda-alerta', 'detector-entenda-termos', 'detector-entenda'])
+  for (const testid of ['detector-entenda-ferramenta', 'detector-entenda-sinal', 'detector-entenda-alerta', 'detector-entenda-por-que', 'detector-entenda-ultimo',
+    'detector-entenda'])
     assert.ok(tela.includes('testid="' + testid + '"'), testid);
+  assert.ok(!tela.includes('detector-entenda-termos'), 'o "Entenda" dos termos do método deu lugar ao do porquê');
   assert.match(tela, /<Entenda sobre=\{sinal\.nome\} texto=\{sinal\.entenda\.texto\} exemplo=\{sinal\.entenda\.exemplo\}/);
 });
 

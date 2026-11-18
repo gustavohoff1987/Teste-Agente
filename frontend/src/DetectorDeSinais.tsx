@@ -1,21 +1,25 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { ArrowDownUp, ChartScatter, ChevronDown, ChevronRight, Download, List, LoaderCircle, Map as IconeDoMapa, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { ArrowDownUp, ChartScatter, ChevronDown, ChevronRight, Download, FileText, List, LoaderCircle, Map as IconeDoMapa, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { BolhasDoContexto, MapaDosNiveis, SerieDaTaxa } from "./DetectorGraficos";
 import Entenda from "./Entenda";
+import { SECOES_DAS_FICHAS, linkDaFicha } from "./fichas";
 import { tamanhoDoGrafico, useLargura } from "./PainelChart";
 import { ErroDoMotor, pedirAoMotor, type FonteDoMotor, type RotulosTerritoriais } from "./painelApi";
 import {
-  ESTADOS_DO_ALERTA, NIVEIS, NOMES_DOS_NIVEIS, SEM_FILTROS, alvoDoSimulador, rotuloDoCriterio, artigoDaUnidade, competenciaCurta, criteriosEmFrases, csvDoDetector, estadoDoAlerta,
-  filtrarLinhas, filtrosDeSinal, formatarInteiro, formatarPct, formatarTaxa, metodoDoDetector, nomeDoEstado, nomeDoSinal, normalizarDetalhe,
-  metaDaRecuperacao, normalizarDetector, ordenarLinhas, parametrosPersonalizados, patamarARecuperar, profissionais, rotuloDoCampo, textoDaContagem, textoDaMesmaQueda,
-  textoDaUltima, textoDoAlerta, textoDoCorte, textoDoPorQue, textoDoRegistro, textoDosTrechos, tipoDoTerritorio,
-  type AlvoDoSimulador, type DetalheDoDetector, type EstadoDoAlerta, type FaixaDaRegua, type FenomenoDoDetalhe, type FiltrosDoDetector,
-  type LinhaDoDetector, type NivelDoAlerta, type OpcoesDaBase, type OpcoesDoDetector, type OrdemDoDetector, type ParametrosDoDetector, type ReguaDaData,
-  type RespostaDoDetector, type RotulosDaBase, type SelecaoDasFerramentas,
+  ESTADOS_DO_ALERTA, SEM_FILTROS, alvoDoSimulador, rotuloDoCriterio, artigoDaUnidade, competenciaCurta, criteriosEmFrases, csvDoDetector, estadoDoAlerta,
+  entendaDaLista, filtrarLinhas, filtrosDeSinal, formatarInteiro, formatarPct, formatarTaxa, linhasDoTerritorio, metodoDoDetector, nomeDoEstado, nomeDoSinal,
+  normalizarDetalhe, metaDaRecuperacao, normalizarDetector, ordenarLinhas, parametrosPersonalizados, patamarARecuperar, precisaDoDetalhe, profissionais,
+  ressalvasDaLista, rotuloDoCampo, sinalDoAlertaNoHistorico, textoDaContagem, textoDaMesmaQueda, textoDaUltima, textoDoAlerta, textoDoPorQue, textoDoRegistro,
+  textoDosTrechos, tipoDoTerritorio, NOMES_DOS_NIVEIS,
+  type AlvoDoSimulador, type DetalheDoDetector, type EstadoDoAlerta, type FenomenoDoDetalhe, type FiltrosDoDetector,
+  type LinhaDoDetector, type NivelDoAlerta, type OpcoesDaBase, type OpcoesDoDetector, type OrdemDoDetector, type ParametrosDoDetector,
+  type RespostaDoDetector, type SelecaoDasFerramentas,
 } from "./detectorModel";
 
 // Detector de Sinais Territoriais (comando V23, Proposta V3, Parte B; Docs/DETECTOR_DE_SINAIS.md). A primeira tela é uma lista de
-// quatro colunas (Território · Alerta · Por quê · Último registro), com o resumo dos níveis no alto, clicável como filtro, os
+// cinco colunas (Território · Sinal · Alerta · Por quê · Último registro; desde o AJ-04, de 18/11/2026, cada sinal com nível numa
+// linha, com o nome do sinal em coluna própria, e o território e o último registro uma vez para o conjunto das linhas; antes, quatro
+// colunas, com o sinal principal e "(+N sinais)"), com o resumo dos níveis no alto, clicável como filtro, os
 // filtros numa linha (Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico. Cada território tem um nível só — moderado,
 // elevado ou crítico, o maior entre os seus sinais, sem soma nem índice —, sempre escrito e com o tipo de critério ("comparado
 // com a base" ou "limite fixo"); quando a base não tem comparações bastantes, a tela diz "sem comparações suficientes", com
@@ -23,12 +27,17 @@ import {
 // exploratória, com aviso no alto, e "Voltar ao padrão" fica sempre à vista. O detalhe de um território traz a série e os 12
 // sinais em quatro grupos (Quantos há, Como mudou, Comparado com outros, Onde fica), mais Juntos; em cada sinal, o nível, uma
 // frase e o "Entenda" (Entenda.tsx), com a explicação inteira em "Ver explicação completa". Todo número e todo texto de resultado
-// vêm do motor (POST /api/detector), que calcula sem o provedor de IA. A tela só filtra, ordena e desenha.
+// vêm do motor (POST /api/detector), que calcula sem o provedor de IA. A tela só filtra, ordena e desenha. Desde o AJ-03 (18/11/2026),
+// a informação de método e técnica ("Como foi calculado": as notas, os níveis, a régua da data e a linha de versões) saiu da tela e
+// está na ficha metodológica em PDF (o link "Ficha metodológica (PDF)" e o "Ver explicação completa" dos "Entenda" da lista); os
+// números da régua e do monitoramento da data continuam em "Exportar o método (JSON)". Junto da lista, ficam as ressalvas de leitura.
 // Vale para qualquer base (seção A.3): com uma planilha enviada, o pedido leva o que descreve a planilha (os nomes, as premissas e
 // a categoria, como no painel); o que a base não sustenta aparece como "Indisponível nesta base", com o motivo, e o mapa e o
 // gráfico ficam desligados, também com o motivo, quando faltam as coordenadas ou a população.
 
 const POR_PAGINA = 50;
+/** A base da página (ADT_BASE_DA_PAGINA), para o link da ficha metodológica em PDF. */
+const BASE = import.meta.env.BASE_URL || "/";
 type Props = {
   fonte: FonteDoMotor;
   /** A seleção em uso (a da Seleção de Territórios); null sem territórios. */
@@ -159,8 +168,8 @@ function DetalheDoTerritorio({ detalhe, linha, resposta, patamar, rotulosDoPaine
   const alerta = textoDoAlerta(linha), mesmaQueda = textoDaMesmaQueda(linha, r);
   return <div data-testid="detector-detalhe" data-id={detalhe.id} className="ferramenta-detalhe">
     <p data-testid="detector-detalhe-alerta" data-estado={alerta.estado} className="ferramenta-detalhe-alerta">
-      {alerta.nivel ? <><Nivel nivel={alerta.nivel}/><span className="ferramenta-apoio">{alerta.criterio}</span></>
-        : <span className="ferramenta-sem-nivel">{alerta.texto}</span>}
+      {alerta.nivel ? <><span data-testid="detector-detalhe-sinal">{nomeDoSinal(linha.alerta.sinal ?? "", r)}</span><Nivel nivel={alerta.nivel}/>
+        <span className="ferramenta-apoio">{alerta.criterio}</span></> : <span className="ferramenta-sem-nivel">{alerta.texto}</span>}
       <span>{textoDoPorQue(linha, r)}</span>
       {mesmaQueda && <span data-testid="detector-mesma-queda" className="ferramenta-apoio">{mesmaQueda}</span>}
     </p>
@@ -200,7 +209,8 @@ function DetalheDoTerritorio({ detalhe, linha, resposta, patamar, rotulosDoPaine
       <tbody>{detalhe.historico.map(passo => <tr key={passo.competencia} data-competencia={passo.competencia} data-alerta={passo.alerta ?? ""}>
         <th scope="row">{competenciaCurta(passo.competencia)}</th>
         <td>{passo.valor === null ? "sem registro" : formatarInteiro(passo.valor)}</td>
-        <td>{passo.alerta ? <Nivel nivel={passo.alerta}/> : "—"}</td>
+        <td data-testid="detector-historico-alerta">{passo.alerta ? <><Nivel nivel={passo.alerta}/><span className="ferramenta-apoio block">
+          {sinalDoAlertaNoHistorico(passo, r)}</span></> : "—"}</td>
         <td>{passo.estrutural ? <Nivel nivel={passo.estrutural}/> : "—"}</td>
         <td>{passo.perda ? <>{"−" + formatarInteiro(Math.abs(passo.perda.delta)) + (passo.perda.pct !== null ? " (−" + formatarPct(passo.perda.pct) + ")" : "")}{" "}
           {passo.perda.classe ? <Nivel nivel={passo.perda.classe}/> : <span className="ferramenta-apoio">
@@ -214,24 +224,6 @@ function DetalheDoTerritorio({ detalhe, linha, resposta, patamar, rotulosDoPaine
       </tr>)}</tbody>
     </table></div>}
   </div>;
-}
-
-/** A régua da data, por faixa de porte: quantas comparações há e a partir de que mudança ela é rara em cada nível. */
-function TabelaDaRegua({ regua, faixas, titulo, o_que, testid, r }: { regua: ReguaDaData; faixas: FaixaDaRegua[]; titulo: string; o_que: string;
-  testid: string; r: RotulosDaBase }) {
-  const niveis = [...NIVEIS].reverse().filter(nivel => faixas.some(faixa => faixa.niveis[nivel]));
-  if (!faixas.length) return null;
-  return <div className="ferramenta-rolagem"><table data-testid={testid} className="analise-tabela ferramenta-tabela">
-    <caption className="ferramenta-apoio">{titulo} Régua de {competenciaCurta(regua.competencia)}{regua.intervaloMeses ? ", com as mudanças anteriores de " +
-      regua.intervaloMeses + " meses entre registros" : ""}: só o que veio antes da data. Cada nível mostra a régua usada de fato: quando o porte
-      não tem comparações bastantes, ela junta as faixas vizinhas (uma de cada lado) e, só no moderado, todas as faixas — a célula diz de onde
-      vieram as comparações e quantas são.</caption>
-    <thead><tr><th scope="col">Porte ({r.profissionais})</th><th scope="col">Comparações do porte</th>
-      {niveis.map(nivel => <th key={nivel} scope="col">{NOMES_DOS_NIVEIS[nivel]} (1 em cada {formatarInteiro(faixas[0].niveis[nivel]?.umEm ?? 0)})</th>)}</tr></thead>
-    <tbody>{faixas.map(faixa => <tr key={faixa.porte} data-porte={faixa.porte}>
-      <th scope="row">{faixa.porte}</th><td>{formatarInteiro(faixa.comparacoes)}</td>
-      {niveis.map(nivel => <td key={nivel} data-nivel={nivel}>{textoDoCorte(faixa, nivel, o_que)}</td>)}</tr>)}</tbody>
-  </table></div>;
 }
 
 export default function DetectorDeSinais(p: Props) {
@@ -248,10 +240,15 @@ export default function DetectorDeSinais(p: Props) {
   const [detalhes, setDetalhes] = useState<Record<string, DetalheDoDetector | { erro: string }>>({});
   const [verCriterios, setVerCriterios] = useState(false);
   const [rascunho, setRascunho] = useState<Record<string, Record<string, string>>>({});
-  const [verMetodo, setVerMetodo] = useState(false);
   const [vista, setVista] = useState<Vista>("lista");
   const cache = useRef(new Map<string, RespostaDoDetector>());
-  const metodo = useRef<HTMLDivElement>(null);
+  // AJ-04: os detalhes que a lista pede para ter a frase de cada sinal (os em curso e o controle do pedido em uso).
+  const emCurso = useRef(new Set<string>());
+  const doPedido = useRef<AbortController | null>(null);
+  const [fila, setFila] = useState(0);
+  // O pedido a que a lista na tela responde: enquanto a lista de um pedido novo não chega, a de antes continua à vista, e a página não
+  // pede detalhes para ela com o pedido novo.
+  const [chaveDaResposta, setChaveDaResposta] = useState("");
 
   const pedido: OpcoesDoDetector | null = useMemo(() => p.selecao ? { ...p.selecao, ...(p.daBase ?? {}), ...(janela.inicio || janela.fim ? { janela } : {}),
     ...(parametros ? { parametros } : {}) } : null, [p.selecao, p.daBase, janela, parametros]);
@@ -263,9 +260,9 @@ export default function DetectorDeSinais(p: Props) {
   // A lista: pedida ao motor a cada mudança da seleção, da janela ou dos critérios; a resposta de um pedido igual vem da memória.
   useEffect(() => {
     setAberto(null); setDetalhes({}); setPagina(0);
-    if (!pedido) { setResposta(null); setErro(null); setCarregando(false); return; }
+    if (!pedido) { setResposta(null); setChaveDaResposta(""); setErro(null); setCarregando(false); return; }
     const guardada = cache.current.get(chave);
-    if (guardada) { setResposta(guardada); setErro(null); setCarregando(false); return; }
+    if (guardada) { setResposta(guardada); setChaveDaResposta(chave); setErro(null); setCarregando(false); return; }
     const controle = new AbortController();
     setCarregando(true); setErro(null);
     pedirAoMotor(p.fonte, "/api/detector", pedido, controle.signal)
@@ -274,7 +271,7 @@ export default function DetectorDeSinais(p: Props) {
         const lida = normalizarDetector(bruto);
         cache.current.set(chave, lida);
         while (cache.current.size > 6) cache.current.delete(cache.current.keys().next().value as string);
-        setResposta(lida);
+        setResposta(lida); setChaveDaResposta(chave);
       })
       .catch((exc: unknown) => {
         if (controle.signal.aborted) return;
@@ -284,9 +281,9 @@ export default function DetectorDeSinais(p: Props) {
     return () => controle.abort();
   }, [chave, tentativa]);
 
-  // Os detalhes de um território, pedidos ao abrir a linha.
+  // Os detalhes de um território, pedidos ao abrir a linha (a não ser que a lista já os tenha pedido).
   useEffect(() => {
-    if (!aberto || !pedido || detalhes[aberto]) return;
+    if (!aberto || !pedido || detalhes[aberto] || emCurso.current.has(aberto)) return;
     const controle = new AbortController(), id = aberto;
     pedirAoMotor(p.fonte, "/api/detector", { ...pedido, detalhe: id }, controle.signal)
       .then(bruto => { if (!controle.signal.aborted) setDetalhes(atual => ({ ...atual, [id]: normalizarDetalhe(bruto) })); })
@@ -298,10 +295,37 @@ export default function DetectorDeSinais(p: Props) {
   const filtradas = useMemo(() => resposta ? ordenarLinhas(filtrarLinhas(resposta.linhas, filtros), ordem) : [], [resposta, filtros, ordem]);
   const paginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA));
   const paginaAtual = Math.min(pagina, paginas - 1);
-  const naPagina = filtradas.slice(paginaAtual * POR_PAGINA, (paginaAtual + 1) * POR_PAGINA);
+  const naPagina = useMemo(() => filtradas.slice(paginaAtual * POR_PAGINA, (paginaAtual + 1) * POR_PAGINA), [filtradas, paginaAtual]);
+
+  // AJ-04: a frase de cada sinal com nível vem do detalhe do território (`fenomenos[].situacao`). A lista pede o detalhe só dos
+  // territórios à vista com mais de um sinal com nível, dois de cada vez, e só depois que a lista do pedido em uso chegou; a resposta
+  // fica com os detalhes que a pessoa abre. Na troca do pedido (a seleção, a janela ou os critérios), os pedidos de antes param.
+  useEffect(() => {
+    doPedido.current?.abort();
+    doPedido.current = new AbortController();
+    emCurso.current.clear();
+    return () => doPedido.current?.abort();
+  }, [chave]);
+  useEffect(() => {
+    const controle = doPedido.current;
+    if (!pedido || !resposta || chaveDaResposta !== chave || !controle) return;
+    for (const linha of naPagina) {
+      if (emCurso.current.size >= 2) break;
+      if (!precisaDoDetalhe(linha) || detalhes[linha.id] || emCurso.current.has(linha.id)) continue;
+      const id = linha.id;
+      emCurso.current.add(id);
+      pedirAoMotor(p.fonte, "/api/detector", { ...pedido, detalhe: id }, controle.signal)
+        .then(bruto => { if (!controle.signal.aborted) setDetalhes(atual => ({ ...atual, [id]: normalizarDetalhe(bruto) })); })
+        .catch((exc: unknown) => { if (!controle.signal.aborted) setDetalhes(atual => ({ ...atual,
+          [id]: { erro: exc instanceof Error ? exc.message : "Não foi possível abrir os detalhes." } })); })
+        .finally(() => { emCurso.current.delete(id); if (!controle.signal.aborted) setFila(valor => valor + 1); });
+    }
+  }, [naPagina, detalhes, resposta, chaveDaResposta, fila]);
   const competencias = resposta?.competencias ?? [];
   const inicioEmUso = janela.inicio ?? resposta?.janela.inicio ?? "", fimEmUso = janela.fim ?? resposta?.janela.fim ?? "";
   const r = resposta?.fonte.rotulos;
+  const daLista = entendaDaLista(r ?? { profissional: "", profissionais: "", unidade: "", unidades: "", grupo: "", grupos: "", todo: "" },
+    naPagina.find(linha => linha.ultima) ?? null, resposta?.janela.fim ?? "");
   const mudarFiltros = (parte: Partial<FiltrosDoDetector>) => { setFiltros(atual => ({ ...atual, ...parte })); setPagina(0); };
   const voltarAoPadrao = () => { setParametros(null); setRascunho({}); };
   const comRascunho = Object.values(rascunho).some(campos => Object.keys(campos).length > 0);
@@ -313,12 +337,6 @@ export default function DetectorDeSinais(p: Props) {
     setAberto(id);
     requestAnimationFrame(() => document.querySelector('[data-testid="detector-linha"][data-id="' + id + '"]')?.scrollIntoView({ block: "center" }));
   }
-  /** "Ver explicação completa" do "Entenda" da primeira tela: abre "Como foi calculado" e leva a pessoa até lá. */
-  function abrirOMetodo() {
-    setVerMetodo(true);
-    requestAnimationFrame(() => metodo.current?.scrollIntoView({ block: "start" }));
-  }
-
   function aplicarCriterios() {
     if (!resposta) return;
     const emEdicao: ParametrosDoDetector = {};
@@ -335,7 +353,8 @@ export default function DetectorDeSinais(p: Props) {
     <div className="ferramenta-titulo-linha">
       <h2 id="detector-titulo" data-testid="detector-titulo" tabIndex={-1} className="analise-titulo">Detector de Sinais Territoriais</h2>
       {resposta?.entenda.ferramenta && <Entenda sobre="Detector de Sinais" texto={resposta.entenda.ferramenta.texto}
-        exemplo={resposta.entenda.ferramenta.exemplo} testid="detector-entenda-ferramenta" onCompleta={abrirOMetodo}/>}
+        exemplo={resposta.entenda.ferramenta.exemplo} testid="detector-entenda-ferramenta"
+        completaHref={linkDaFicha(BASE, "detector", SECOES_DAS_FICHAS.detector.ferramenta)}/>}
     </div>
     <p className="analise-subtitulo">Compara cada território com o que é comum na própria base. Descreve os registros; não diz se o atendimento é
       suficiente nem onde prover.</p>
@@ -466,6 +485,8 @@ export default function DetectorDeSinais(p: Props) {
       <button type="button" data-testid="detector-exportar-metodo" className="analise-botao-secundario"
         onClick={() => baixar("detector_de_sinais_metodo_" + resposta.janela.fim + ".json", metodoDoDetector(resposta), "application/json")}>
         <Download size={14} aria-hidden="true"/>Exportar o método (JSON)</button>
+      <a data-testid="detector-ficha" className="analise-botao-secundario" href={linkDaFicha(BASE, "detector")} target="_blank" rel="noopener">
+        <FileText size={14} aria-hidden="true"/>Ficha metodológica (PDF)<span className="sr-only"> (abre numa nova aba)</span></a>
       <span className="ferramenta-apoio">Territórios: {p.resumoDaSelecao}{" "}
         <button type="button" data-testid="detector-alterar-selecao" className="analise-link" onClick={p.onAlterarSelecao}>Alterar a seleção</button></span>
     </div>}
@@ -481,7 +502,7 @@ export default function DetectorDeSinais(p: Props) {
     {resposta && r && <div className="ferramenta-rolagem">
       <table data-testid="detector-tabela" data-linhas={filtradas.length} data-ordem={ordem} className="analise-tabela ferramenta-tabela ferramenta-lista">
         <caption className="ferramenta-apoio">Situação em {competenciaCurta(resposta.janela.fim)}, com os registros desde{" "}
-          {competenciaCurta(resposta.janela.inicio)}. Toque no território para ver a série e os 12 sinais.
+          {competenciaCurta(resposta.janela.inicio)}. Cada sinal com nível tem uma linha; toque no território para ver a série e os 12 sinais.
           {resposta.comparacao.estado === "comparacao_nao_habilitada" && <span data-testid="detector-comparacao" data-estado={resposta.comparacao.estado}>
             {" "}Os sinais comparados em 2 anos (8 a 10) não são avaliados de {competenciaCurta(resposta.comparacao.de)} a{" "}
             {competenciaCurta(resposta.comparacao.ate)}: {resposta.comparacao.motivo ?? "a população da base não é comparável de um ano para o outro nesta janela"}.
@@ -498,52 +519,71 @@ export default function DetectorDeSinais(p: Props) {
         </caption>
         <thead><tr>
           <th scope="col" aria-sort={ordem === "nome" ? "ascending" : undefined}>{cabecaDeOrdem("Território", "nome", "detector-ordem-nome")}</th>
+          <th scope="col"><span className="ferramenta-th-com-entenda">Sinal
+            <Entenda sobre="Sinal" texto={daLista.sinal.texto} exemplo={daLista.sinal.exemplo} testid="detector-entenda-sinal"
+              completaHref={linkDaFicha(BASE, "detector", SECOES_DAS_FICHAS.detector.sinal)}/></span></th>
           <th scope="col" aria-sort={ordem === "nivel" ? "descending" : undefined}><span className="ferramenta-th-com-entenda">
             {cabecaDeOrdem("Alerta", "nivel", "detector-ordem-nivel")}
-            {resposta.entenda.alerta && <Entenda sobre="Alerta" texto={resposta.entenda.alerta.texto} exemplo={resposta.entenda.alerta.exemplo}
-              testid="detector-entenda-alerta" onCompleta={abrirOMetodo}/>}</span></th>
+            <Entenda sobre="Alerta" texto={daLista.alerta.texto} exemplo={daLista.alerta.exemplo} testid="detector-entenda-alerta"
+              completaHref={linkDaFicha(BASE, "detector", SECOES_DAS_FICHAS.detector.alerta)}/></span></th>
           <th scope="col"><span className="ferramenta-th-com-entenda">Por quê
-            {resposta.entenda.termos && <Entenda sobre="Termos da lista" texto={resposta.entenda.termos.texto} exemplo={resposta.entenda.termos.exemplo}
-              testid="detector-entenda-termos" onCompleta={abrirOMetodo}/>}</span></th>
-          <th scope="col" aria-sort={ordem === "numero" ? "ascending" : undefined}>{cabecaDeOrdem("Último registro", "numero", "detector-ordem-numero")}</th>
+            <Entenda sobre="Por quê" texto={daLista.porQue.texto} exemplo={daLista.porQue.exemplo} testid="detector-entenda-por-que"
+              completaHref={linkDaFicha(BASE, "detector", SECOES_DAS_FICHAS.detector.porQue)}/></span></th>
+          <th scope="col" aria-sort={ordem === "numero" ? "ascending" : undefined}><span className="ferramenta-th-com-entenda">
+            {cabecaDeOrdem("Último registro", "numero", "detector-ordem-numero")}
+            <Entenda sobre="Último registro" texto={daLista.ultimo.texto} exemplo={daLista.ultimo.exemplo || null} testid="detector-entenda-ultimo"
+              completaHref={linkDaFicha(BASE, "detector", SECOES_DAS_FICHAS.detector.ultimo)}/></span></th>
         </tr></thead>
-        <tbody>
-          {naPagina.map(linha => {
-            const registro = textoDoRegistro(linha), tipo = tipoDoTerritorio(linha, r), alerta = textoDoAlerta(linha);
-            const detalhe = detalhes[linha.id], expandida = aberto === linha.id;
-            return <Fragment key={linha.id}>
-              <tr data-testid="detector-linha" data-id={linha.id} data-tipo={linha.tipo} data-alerta={estadoDoAlerta(linha)}
-                data-sinais={linha.alerta.sinais.map(item => item.sinal).join(" ")} data-registro={registro.marca}>
-                <th scope="row" data-rotulo="Território" className="ferramenta-territorio">
-                  <button type="button" data-testid="detector-abrir" className="ferramenta-abrir" aria-expanded={expandida}
-                    aria-label={(expandida ? "Fechar os detalhes de " : "Ver os detalhes de ") + linha.rotulo}
-                    onClick={() => setAberto(atual => atual === linha.id ? null : linha.id)}>
-                    {expandida ? <ChevronDown size={15} aria-hidden="true"/> : <ChevronRight size={15} aria-hidden="true"/>}
-                    <span>{linha.rotulo}</span></button>
-                  {tipo && <span className="ferramenta-apoio">{tipo}</span>}
-                </th>
-                <td data-rotulo="Alerta" data-testid="detector-alerta" data-estado={alerta.estado}>
-                  {alerta.nivel ? <><Nivel nivel={alerta.nivel}/><span data-testid="detector-criterio" className="ferramenta-apoio ferramenta-criterio-tipo">
-                    {alerta.criterio}</span></> : <span className="ferramenta-sem-nivel">{alerta.texto}</span>}
-                </td>
-                <td data-rotulo="Por quê" data-testid="detector-por-que" className="ferramenta-coluna-larga">{textoDoPorQue(linha, r)}</td>
-                <td data-rotulo="Último registro" data-testid="detector-ultimo">{textoDaUltima(linha, resposta.janela.fim, r)}
-                  {registro.marca !== "normal" && <span data-testid="detector-registro" data-marca={registro.marca}
-                    className={"ferramenta-registro ferramenta-registro-" + registro.marca}>{registro.texto}</span>}</td>
-              </tr>
-              {expandida && <tr className="ferramenta-linha-detalhe"><td colSpan={4}>
-                {!detalhe ? <p role="status" className="ferramenta-apoio"><LoaderCircle size={14} className="animate-spin inline" aria-hidden="true"/> Abrindo os detalhes…</p>
-                  : "erro" in detalhe ? <p role="alert" className="analise-motivo">{detalhe.erro}</p>
-                    : <DetalheDoTerritorio detalhe={detalhe} linha={linha} resposta={resposta} patamar={patamarARecuperar(linha)}
-                      rotulosDoPainel={p.rotulosDoPainel}
-                      onAbrirNoSimulador={p.onAbrirNoSimulador ? () => p.onAbrirNoSimulador!(alvoDoSimulador(linha, resposta)) : undefined}
-                      onSimularRecuperacao={p.onSimularRecuperacao && patamarARecuperar(linha) !== null
-                        ? () => p.onSimularRecuperacao!(alvoDoSimulador(linha, resposta), patamarARecuperar(linha)!) : undefined}/>}
-              </td></tr>}
-            </Fragment>;
-          })}
-          {!filtradas.length && <tr><td colSpan={4} data-testid="detector-sem-linhas" className="ferramenta-apoio">Nenhum território da seleção passa nos filtros.</td></tr>}
-        </tbody>
+        {naPagina.map(linha => {
+          const registro = textoDoRegistro(linha), tipo = tipoDoTerritorio(linha, r);
+          const detalhe = detalhes[linha.id], expandida = aberto === linha.id;
+          const sinais = linhasDoTerritorio(linha, detalhe && !("erro" in detalhe) ? detalhe : null, r);
+          const mesmaQueda = textoDaMesmaQueda(linha, r);
+          const altura = sinais.length + (mesmaQueda ? 1 : 0);
+          // O território: um grupo de linhas, uma por sinal com nível, do mais grave ao menos grave (AJ-04). O nome, o tipo e o
+          // último registro aparecem uma vez para o conjunto das linhas; os contadores, os filtros, a ordem e as páginas são por
+          // território.
+          return <tbody key={linha.id} data-testid="detector-linha" data-id={linha.id} data-tipo={linha.tipo} data-alerta={estadoDoAlerta(linha)}
+            data-sinais={linha.alerta.sinais.map(item => item.sinal).join(" ")} data-registro={registro.marca} data-linhas-de-sinal={sinais.length}
+            className="ferramenta-territorio-grupo">
+            {sinais.map((item, indice) => <tr key={item.sinal ?? "sem-sinal"} data-testid="detector-sinal-linha" data-sinal={item.sinal ?? ""}
+              data-nivel={item.nivel ?? ""} className={indice ? "ferramenta-linha-seguinte" : undefined}>
+              {indice === 0 && <th scope="rowgroup" rowSpan={altura} data-rotulo="Território" className="ferramenta-territorio">
+                <button type="button" data-testid="detector-abrir" className="ferramenta-abrir" aria-expanded={expandida}
+                  aria-label={(expandida ? "Fechar os detalhes de " : "Ver os detalhes de ") + linha.rotulo}
+                  onClick={() => setAberto(atual => atual === linha.id ? null : linha.id)}>
+                  {expandida ? <ChevronDown size={15} aria-hidden="true"/> : <ChevronRight size={15} aria-hidden="true"/>}
+                  <span>{linha.rotulo}</span></button>
+                {tipo && <span className="ferramenta-apoio">{tipo}</span>}
+              </th>}
+              <td data-rotulo="Sinal" data-testid="detector-sinal" className="ferramenta-coluna-sinal">{item.nome ?? ""}</td>
+              <td data-rotulo="Alerta" data-testid="detector-alerta" data-estado={item.estado}>
+                {item.nivel ? <><Nivel nivel={item.nivel}/><span data-testid="detector-criterio" className="ferramenta-apoio ferramenta-criterio-tipo">
+                  {item.criterio}</span></> : <span className="ferramenta-sem-nivel">{item.texto}</span>}
+              </td>
+              <td data-rotulo="Por quê" data-testid="detector-por-que" data-carregando={item.porQue === null ? "true" : "false"}
+                className="ferramenta-coluna-larga">{item.porQue ?? <span className="ferramenta-apoio">{detalhe && "erro" in detalhe
+                  ? "A frase deste sinal está nos detalhes do território." : "Carregando a frase deste sinal…"}</span>}</td>
+              {indice === 0 && <td rowSpan={altura} data-rotulo="Último registro" data-testid="detector-ultimo" className="ferramenta-coluna-ultimo">
+                {textoDaUltima(linha, resposta.janela.fim, r)}
+                {registro.marca !== "normal" && <span data-testid="detector-registro" data-marca={registro.marca}
+                  className={"ferramenta-registro ferramenta-registro-" + registro.marca}>{registro.texto}</span>}</td>}
+            </tr>)}
+            {mesmaQueda && <tr data-testid="detector-linha-nota" className="ferramenta-linha-seguinte"><td colSpan={3} className="ferramenta-apoio">
+              {mesmaQueda}</td></tr>}
+            {expandida && <tr className="ferramenta-linha-detalhe"><td colSpan={5}>
+              {!detalhe ? <p role="status" className="ferramenta-apoio"><LoaderCircle size={14} className="animate-spin inline" aria-hidden="true"/> Abrindo os detalhes…</p>
+                : "erro" in detalhe ? <p role="alert" className="analise-motivo">{detalhe.erro}</p>
+                  : <DetalheDoTerritorio detalhe={detalhe} linha={linha} resposta={resposta} patamar={patamarARecuperar(linha)}
+                    rotulosDoPainel={p.rotulosDoPainel}
+                    onAbrirNoSimulador={p.onAbrirNoSimulador ? () => p.onAbrirNoSimulador!(alvoDoSimulador(linha, resposta)) : undefined}
+                    onSimularRecuperacao={p.onSimularRecuperacao && patamarARecuperar(linha) !== null
+                      ? () => p.onSimularRecuperacao!(alvoDoSimulador(linha, resposta), patamarARecuperar(linha)!) : undefined}/>}
+            </td></tr>}
+          </tbody>;
+        })}
+        {!filtradas.length && <tbody><tr><td colSpan={5} data-testid="detector-sem-linhas" className="ferramenta-apoio">
+          Nenhum território da seleção passa nos filtros.</td></tr></tbody>}
       </table>
     </div>}
     {resposta && paginas > 1 && <nav data-testid="detector-paginas" className="ferramenta-paginas analise-nao-imprimir" aria-label="Páginas da lista">
@@ -552,30 +592,9 @@ export default function DetectorDeSinais(p: Props) {
       <button type="button" className="analise-botao-secundario" disabled={paginaAtual >= paginas - 1} onClick={() => setPagina(paginaAtual + 1)}>Próxima</button>
     </nav>}
 
-    {resposta && r && <div ref={metodo} className="ferramenta-metodo">
-      <button type="button" data-testid="detector-metodo-botao" className="analise-link" aria-expanded={verMetodo}
-        onClick={() => setVerMetodo(valor => !valor)}>{verMetodo ? "Fechar “Como foi calculado”" : "Como foi calculado"}</button>
-      {verMetodo && <div data-testid="detector-metodo" className="ferramenta-metodo-corpo">
-        <ul className="ferramenta-notas">{resposta.notas.map(nota => <li key={nota}>{nota}</li>)}</ul>
-        <table data-testid="detector-niveis" className="analise-tabela ferramenta-tabela">
-          <caption className="ferramenta-apoio">Os três níveis: raridade = (mudanças anteriores iguais ou piores + 1) ÷ (total de mudanças anteriores + 1).</caption>
-          <thead><tr><th scope="col">Nível</th><th scope="col">Raridade padrão</th><th scope="col">Comparações anteriores necessárias</th></tr></thead>
-          <tbody>{resposta.niveis.map(item => <tr key={item.chave}><th scope="row"><Nivel nivel={item.chave}/></th>
-            <td>1 em cada {formatarInteiro(item.umEm)}</td><td>pelo menos {formatarInteiro(item.pede)}</td></tr>)}</tbody>
-        </table>
-        <TabelaDaRegua regua={resposta.calibracao} faixas={resposta.calibracao.perda} o_que="queda" testid="detector-calibracao" r={r}
-          titulo={"Queda recente (sinal 6), " + r.unidades + ": a partir de que queda ela é rara, por porte (o número de " + r.profissionais + " antes)."}/>
-        <TabelaDaRegua regua={resposta.calibracao} faixas={resposta.calibracao.patamar} o_que="afastamento" testid="detector-calibracao-patamar" r={r}
-          titulo={"Abaixo do que já teve (sinal 7), " + r.unidades + ": a partir de que afastamento do patamar ele é raro, por porte do patamar."}/>
-        {resposta.calibracaoDosEstados && <TabelaDaRegua regua={resposta.calibracaoDosEstados} faixas={resposta.calibracaoDosEstados.perda.filter(faixa => faixa.comparacoes > 0)}
-          o_que="queda" testid="detector-calibracao-estados" r={r}
-          titulo={"Queda recente (sinal 6), " + r.grupos + " como unidade: a régua própria, com a base dos " + r.grupos + "."}/>}
-        <p className="ferramenta-apoio">Método {resposta.versao} · base {resposta.fonte.base} ({resposta.fonte.categoria.toLowerCase()}), versão{" "}
-          {resposta.fonte.versao.slice(0, 12)} · nesta data, {formatarInteiro(resposta.calibracao.monitoramento.raras)} de{" "}
-          {formatarInteiro(resposta.calibracao.monitoramento.avaliadas)} {r.unidades} tiveram uma mudança rara (1 em cada 20) no último registro
-          {resposta.calibracao.monitoramento.taxaPct !== null ? ": " + formatarPct(resposta.calibracao.monitoramento.taxaPct) + ", para um esperado de cerca de " +
-            formatarPct(resposta.calibracao.monitoramento.esperadoPct ?? 5).replace(",0%", "%") : ""}.</p>
-      </div>}
-    </div>}
+    {/* As ressalvas de leitura (AJ-03): "raro" não quer dizer pior e o que o nível não é; a distância só como contexto; os grupos de
+        cima como unidade e os conjuntos, quando estão na lista. O método está na ficha metodológica em PDF. */}
+    {resposta && <ul data-testid="detector-ressalvas" className="ferramenta-notas ferramenta-ressalvas">
+      {ressalvasDaLista(resposta).map(item => <li key={item.chave} data-chave={item.chave}>{item.texto}</li>)}</ul>}
   </section>;
 }

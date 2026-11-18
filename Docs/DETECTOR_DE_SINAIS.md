@@ -175,6 +175,11 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
   ferramenta abre no lugar do painel da aba e usa a **seleção em uso**: os municípios, os estados como unidade e os conjuntos.
   Sem territórios, diz "Nenhum território selecionado" e não pede nada ao motor.
 - **Título e "Entenda"** (`detector-entenda-ferramenta`): "Compara cada território com o que é comum na própria base."
+- **Ficha metodológica (PDF)** (`detector-ficha`, ao lado das exportações; desde 18/11/2026, AJ-03): abre numa nova aba a
+  **Ficha A** (fonte em [`Docs/fichas/ficha_detector.html`](fichas/ficha_detector.html); o PDF,
+  `frontend/public/fichas/ficha-detector.pdf`, sai com os arquivos estáticos da interface, e o link respeita a base da página,
+  `ADT_BASE_DA_PAGINA`). Ela explica o método e a técnica: os 12 sinais, os níveis e a régua, as condições, os parâmetros, a
+  régua da data e o monitoramento, as exportações e os limites, com os números da base do Brasil em jun/2024.
 - **Aviso da data** (`detector-data`): "Registro mais recente da base: jun/2024. Os sinais descrevem a situação até jun/2024, não
   a de hoje." Quando há, o **aviso da base** (`detector-aviso-da-base`).
 - **Filtros, numa linha** (`ferramenta-filtros`): **Até** (`detector-janela-fim`, a data avaliada, entre as competências reais),
@@ -219,20 +224,46 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
   - **Gráfico** (`detector-bolhas`): o gráfico de bolhas do Agente, com uma bolha por território à vista que tem distância a
     mostrar. Na horizontal, a distância do sinal 11; na vertical, a taxa por 1.000 habitantes; o tamanho, a população; a cor, o
     nível. Tocar numa bolha ou num ponto abre os detalhes do território.
-- **Lista** (`detector-tabela`, 50 linhas por página, `detector-linha`), com quatro colunas:
-  - **Território** (com o tipo, quando é estado como unidade ou conjunto);
-  - **Alerta** (`detector-alerta`): o nível (`detector-nivel`: Moderado, Elevado ou Crítico) e o tipo de critério
-    (`detector-criterio`); ou "Sem alerta", "Sem comparações suficientes" ou "Sem nível (conjunto)";
-  - **Por quê** (`detector-por-que`): a frase do sinal principal, do motor, com quantos outros sinais têm nível ("Só 1 médico
-    (+1 sinal)", "18% abaixo do que já teve (patamar de 130)");
-  - **Último registro** (`detector-ultimo`): "jun/2024 · 5 médicos", com a marca de registro quando há (`detector-registro`:
-    "verificar registro" ou "descontinuidade de registro").
 
-  Os cabeçalhos ordenam a lista: pelo nome, pelo nível (o padrão: do crítico ao moderado; depois quem a base não pôde comparar,
-  os conjuntos e os sem alerta) ou pelo número do último registro. A ordem não é um índice. Os cabeçalhos "Alerta" e "Por quê"
-  têm "Entenda" (os níveis e os termos: porte, patamar, percentil e "1 em cada N"). No celular, a lista vira cartões.
-- **Detalhe** (a seta de cada linha, `detector-detalhe`): o alerta do território, com o porquê e, quando há, "vêm da mesma
-  queda: contam como um evento" (`detector-mesma-queda`); a série observada (`detector-serie`), só com os registros reais e as
+  Nas duas visões, a cor e o tamanho seguem o maior nível do território, e **a dica** de cada ponto e de cada bolha nomeia o
+  sinal pintado (o principal do alerta; com o filtro "Sinal", aquele sinal), com o nível, e diz quantos outros sinais com nível
+  o território tem: "ABELARDO LUZ (SC) · Menos médicos por habitante · elevado; mais 3 sinais com nível" (desde 18/11/2026,
+  AJ-04; antes, só "nível elevado").
+- **Lista** (`detector-tabela`, 50 territórios por página), com **cinco colunas** e **cada sinal com nível numa linha**, do mais
+  grave ao menos grave (no empate, na ordem dos sinais), desde 18/11/2026 (AJ-04; antes, quatro colunas, uma linha por território
+  e só o sinal principal no "Por quê", com "(+N sinais)"). Cada território é um grupo de linhas (`detector-linha`, com
+  `data-linhas-de-sinal`), uma por sinal com nível (`detector-sinal-linha`, com `data-sinal` e `data-nivel`):
+  - **Território** (com o tipo, quando é estado como unidade ou conjunto), uma vez para o grupo;
+  - **Sinal** (`detector-sinal`): o nome do sinal, o mesmo do filtro "Sinal";
+  - **Alerta** (`detector-alerta`): o nível do sinal (`detector-nivel`: Moderado, Elevado ou Crítico) e o tipo de critério
+    (`detector-criterio`: "limite fixo" ou "comparado com a base"). Sem sinal com nível, o território tem uma linha só, com
+    "Sem alerta", "Sem comparações suficientes" ou "Sem nível (conjunto)" e a coluna "Sinal" vazia;
+  - **Por quê** (`detector-por-que`): a frase do motor sobre o sinal daquela linha. A do sinal principal é a da lista, sem a
+    contagem "(+N sinais)"; a de cada outro sinal é a do detalhe do território (`fenomenos[].situacao`), que a página pede ao
+    motor só para os territórios à vista com mais de um sinal com nível, dois de cada vez e só depois que a lista do pedido em
+    uso chegou (enquanto isso, "Carregando a frase deste sinal…"; se o pedido falha, "A frase deste sinal está nos detalhes do
+    território."). A página não escreve frase de resultado;
+  - **Último registro** (`detector-ultimo`), uma vez para o grupo: "jun/2024 · 5 médicos", com a marca de registro quando há
+    (`detector-registro`: "verificar registro" ou "descontinuidade de registro").
+
+  Quando dois ou mais sinais vêm da mesma queda, uma linha a mais do território diz isso (`detector-linha-nota`: "… vêm da
+  mesma queda: contam como um evento."). O resumo, os contadores, os filtros, a ordem e as páginas continuam **por território**
+  ("de N territórios"): com o filtro "Sinal", o território aparece com todos os seus sinais. Os cabeçalhos ordenam a lista: pelo
+  nome, pelo nível (o padrão: do crítico ao moderado; depois quem a base não pôde comparar, os conjuntos e os sem alerta) ou pelo
+  número do último registro. A ordem não é um índice. Os cabeçalhos **Sinal, Alerta, Por quê e Último registro** têm "Entenda"
+  (`detector-entenda-sinal`, `-alerta`, `-por-que` e `-ultimo`) **escritos pela página**, com os nomes da base, que explicam só o
+  campo, em duas ou três frases (o do alerta, os dois tipos de critério; o do último registro, a contagem da última data com
+  registro, com o território e a data da primeira linha à vista, sem dizer que o número sozinho explica o alerta); o "Ver
+  explicação completa" deles abre a seção da ficha (desde o AJ-03; antes, os "Entenda" do alerta e dos termos vinham do motor e
+  explicavam o método: porte, patamar, percentil e "1 em cada N"). No celular, cada território vira um cartão: o nome e o último
+  registro no alto e, em cada sinal, o nome e o alerta numa linha e o porquê abaixo.
+- **Ressalvas de leitura** (`detector-ressalvas`, logo abaixo da lista; desde o AJ-03): "raro" quer dizer incomum nesta base,
+  não comprovadamente pior, e o que o nível não é; a distância (sinal 11) só como contexto, quando a base tem o sinal; o estado
+  como unidade, com régua própria, quando há algum na lista; e os conjuntos, sem nível, quando há algum. As demais ressalvas já
+  estão na tela (a data do registro mais recente, a configuração exploratória, o aviso da base e "um nível por território").
+- **Detalhe** (a seta de cada linha, `detector-detalhe`): o alerta do território, com o nome do sinal principal
+  (`detector-detalhe-sinal`, desde o AJ-03), o porquê e, quando há, "vêm da mesma queda: contam como um evento"
+  (`detector-mesma-queda`); a série observada (`detector-serie`), só com os registros reais e as
   marcas de registro; a **série da taxa** (`detector-serie-da-taxa`), com a da referência tracejada e as datas escritas como nos
   outros gráficos do Detector ("jun/2021"); e os 12 sinais em quatro grupos
   (`detector-grupo`) — **Quantos há** (1–2), **Como mudou** (3 a 7), **Comparado com outros** (8 a 10) e **Onde fica** (11) —,
@@ -241,15 +272,18 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
   ainda não sustenta ("Sem comparações suficientes para o crítico: há 864, e ele pede 999.") e o **"Entenda"**. A **explicação
   completa** (`detector-fenomeno-explicacao`) traz os sete campos: o que foi observado, qual critério, comparado com o comum, o
   que significa, o que não significa, limitações do dado e qualidade do registro. Há também o **histórico de sinais**
-  (`detector-historico`, sinais 1 a 7), em que cada data é avaliada só com o que era conhecido nela.
+  (`detector-historico`, sinais 1 a 7), em que cada data é avaliada só com o que era conhecido nela; em cada data com alerta, o
+  nível e o nome do sinal dele (`detector-historico-alerta`: a coluna com aquele nível; no empate, a primeira na ordem dos
+  sinais; desde o AJ-03, nenhum resultado aparece sem o nome do sinal).
 - **Gráficos na largura da tela** (desde 15/11/2026): a série observada é desenhada na largura que tem na tela (`data-largura`),
   em vez de ser encolhida: o texto dos eixos mantém 12 px também no celular, onde o gráfico fica mais alto (220 px, em vez de
   170) e mostra menos datas no eixo (um ano a cada quatro).
 - **"Entenda"** (`frontend/src/Entenda.tsx`, igual no Detector e no Simulador): fica escondido e abre com o mouse (ao passar por
   cima), com um toque ou pelo teclado (ao receber o foco; Enter ou Espaço fixam); fecha ao sair (o mouse deixa o botão e a
   caixa, o foco sai deles, Esc ou um toque fora). Traz duas ou três frases simples e um exemplo com números; a explicação
-  inteira fica em "Ver explicação completa" (no sinal, os sete campos; na primeira tela, "Como foi calculado"). Os textos vêm do
-  motor.
+  inteira fica em "Ver explicação completa": no sinal, os sete campos; no "Entenda" da ferramenta e nos dos cabeçalhos da lista,
+  a ficha metodológica em PDF, numa nova aba, na seção certa (`#nameddest=<seção>`; até 18/11/2026, "Como foi calculado"). Os
+  textos vêm do motor, menos os dos cabeçalhos da lista, escritos pela página.
 - **Ajustar critérios** (`detector-parametros`): os limites de cada sinal **em frases, com os campos dentro delas**
   (`detector-parametro-<grupo>-<campo>`), por exemplo: "Alerta elevado quando a queda for de pelo menos [2] médicos e [20]% do
   que havia, e for rara: em territórios do mesmo porte, só 1 em cada [100] mudanças anteriores foi uma queda igual ou maior."
@@ -257,13 +291,18 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
   torna a configuração **exploratória**: aviso no alto (`detector-exploratorio`), nos textos (uma nota) e nas exportações (a
   coluna "Configuração"). **"Voltar ao padrão"** (`detector-voltar-ao-padrao`) fica sempre à vista, desligado enquanto os
   critérios são os do padrão; os padrões nunca são trocados em silêncio.
-- **Como foi calculado** (`detector-metodo`): as notas, os três níveis e a **régua da data** por porte — as comparações do
-  próprio porte e, em cada nível, **a régua usada de fato**: a partir de que queda (sinal 6) ou afastamento (sinal 7) ela é rara
-  e, quando as comparações não são só as do porte, de onde vieram e quantas são ("queda maior que 44,4% (com as faixas vizinhas:
-  2.720 comparações)"; só no moderado, também "com todas as faixas", com o corte nos dois extremos da faixa, porque ali a mudança
-  é comparada já dividida pelo tamanho); ou "sem comparações suficientes (864 de 999, com as faixas vizinhas)", com o que há
-  depois de juntar as vizinhas — o mesmo número que o detalhe do território diz ("há 864, e ele pede 999"). Quando o corte é de
-  100% ou mais, a célula diz "nenhuma queda chega a esse nível". Com estados como unidade na seleção, também a régua dos estados.
+- **A régua da data nas exportações e na ficha** (desde 18/11/2026, AJ-03): **"Como foi calculado" saiu da tela**
+  (`detector-metodo`: as notas, os três níveis, a régua da data por porte e o monitoramento, com a linha de versões). A
+  explicação e os números da base do Brasil em jun/2024 estão na Ficha A (seção 13: "queda maior que 44,4% (com as faixas
+  vizinhas: 2.720 comparações)", "sem comparações suficientes (864 de 999, com as faixas vizinhas)", "nenhuma queda chega a esse
+  nível", com a leitura de cada célula). Os números da data e da base em uso continuam em **"Exportar o método (JSON)"**
+  (`detector-exportar-metodo`, como antes): `regua_na_data` — por faixa de porte, na queda recente (`perda`) e no sinal 7
+  (`patamar`), as comparações do porte e, em cada nível, a régua usada de fato (`umEm`, `pede`, `origem`: `porte`, `vizinhas` ou
+  `todas`, `comparacoes`, `cortePct` e, com todas as faixas, `corteAtePct`), mais o `monitoramento` —, `regua_dos_estados_na_data`
+  (com estados como unidade na seleção), os níveis, os critérios em uso, as notas, as limitações e as versões do método e da
+  base. O teste da tela da régua em palavras saiu com ela; a régua continua conferida com o motor em
+  `backend/tests/test_detector.py` (território a território) e, na exportação, em `frontend/tests/detector.test.mjs` e
+  `backend/tests/ui_detector.py`.
 - **Ligação com o Simulador de Cenários** (nos detalhes de cada território):
   - **"Abrir no Simulador"** (`detector-abrir-no-simulador`) abre o [Simulador](SIMULADOR_DE_CENARIOS.md) só com aquele
     território, com o contexto: a data avaliada, os sinais com nível ("Queda recente (elevado)") e, quando a pessoa escolheu uma
@@ -606,22 +645,36 @@ o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudan�
   sinais indisponíveis com todos os motivos, iguais no detalhe e no perfil; e o nome dos trabalhadores informado no envio, com
   os nomes que valem e os que ficam com "profissionais"), a rota com o arquivo e, no job `dados-reais`, o perfil da base do
   Brasil.
-- Node: `frontend/tests/detector.test.mjs` — a leitura da resposta, a lista de quatro colunas, o resumo dos níveis, os filtros,
-  a ordem, os critérios em frases (todos os parâmetros do motor, uma vez cada), a régua em palavras (com a origem das
-  comparações e "nenhuma queda chega a esse nível"), as exportações, o mapa e o gráfico pelos níveis, quem fica fora do mapa,
+- Node: `frontend/tests/detector.test.mjs` — a leitura da resposta, a lista de cinco colunas com um sinal por linha (AJ-04: a
+  ordem dos sinais, a frase do principal sem "(+N sinais)" e a dos outros do detalhe, a linha única sem sinal, o detalhe pedido
+  só para quem tem mais de um sinal, dois de cada vez, e os cartões do celular), o resumo dos níveis, os filtros, a ordem, os
+  critérios em frases (todos os parâmetros do motor, uma vez cada), a régua da data, o monitoramento e as versões na exportação
+  do método (AJ-03; o teste da régua em palavras saiu com a tabela da tela), os "Entenda" dos cabeçalhos e as ressalvas da lista,
+  o nome do sinal no detalhe e no histórico, as exportações, o mapa e o gráfico pelos níveis, com a dica do sinal, quem fica fora do mapa,
   quem está nele com a coordenada da camada oficial, o
   que o Detector leva ao Simulador, o "Entenda" (mouse, toque e teclado), qualquer base (o que a base
   tem, os sinais indisponíveis, as datas só com ano, a concordância e o perfil da base) e a série do território na largura da
   tela, com as datas da série da taxa como nos outros gráficos;
+  `frontend/tests/fichas.test.mjs` — o endereço das fichas na base da página, com a seção pelo destino nomeado, os dois PDFs nos
+  arquivos estáticos e o link das duas ferramentas, numa nova aba;
   `frontend/tests/modoEscuro.test.mjs` — o contraste dos níveis no modo escuro;
   `frontend/tests/malha.test.mjs` — a malha das divisas: a leitura do TopoJSON (com uma malha pequena feita à mão), as divisas a
   desenhar (as áreas com a cor do nível, as dos estados sempre, as dos municípios ao aproximar ou com um estado só), o pedido
   único do arquivo, o arquivo versionado (o tamanho, o SHA-256 e os 5.570 municípios) e a tela.
 - pytest, no job `dados-reais`: `backend/tests/test_detector.py` confere que cada município da base tem divisa na malha
   versionada e que a malha não tem geometria além deles.
-- Navegador: `backend/tests/ui_detector.py` (suíte `base-versionada`) — a lista, o resumo clicável, os filtros e a ordem; o
-  detalhe com os quatro grupos, o "Entenda" por mouse e teclado e a explicação completa; os critérios em frases e a configuração
-  exploratória; a régua por porte, com a régua usada de fato em cada nível; o estado como unidade; o mapa (com os dois
+- pytest: `backend/tests/test_fichas_metodologicas.py` — os dois PDFs das fichas são válidos, com título, idioma pt-BR, tags,
+  sumário, texto selecionável e os destinos nomeados de todas as seções (inclusive as que a página abre), e correspondem às
+  fontes atuais (a impressão digital SHA-256 da fonte e do estilo); as fontes usam "forma de projetar" e "limite fixo", com "por
+  convenção" só onde explicam o campo `criterio`.
+- Navegador: `backend/tests/ui_detector.py` (suíte `base-versionada`) — a lista de cinco colunas, o resumo clicável, os filtros
+  e a ordem; ABELARDO LUZ (SC), com quatro sinais de dois níveis, uma linha por sinal, com os nomes do filtro e o nível, o
+  critério e a frase de cada um, das respostas reais da lista e do detalhe; o detalhe com os quatro grupos, o nome do sinal no
+  alto e no histórico, o "Entenda" por mouse e teclado e a explicação completa; os critérios em frases e a configuração
+  exploratória; a ficha metodológica (o link e o "Ver explicação completa", com o PDF servido pela interface), os "Entenda" dos
+  cabeçalhos e as ressalvas; a régua por porte e o monitoramento em "Exportar o método (JSON)", campo a campo com a resposta do
+  motor, com a régua usada de fato em cada nível; o estado como unidade, com a régua dos estados na exportação; a dica do mapa e
+  do gráfico; o mapa (com os dois
   municípios de Santa Catarina fora dele, ditos na legenda) e o gráfico; os sinais comparados em jun/2021; "Simular
   recuperação"; a tela de celular, com o "Entenda" pelo toque, a lista em cartões, a série do território desenhada na largura
   da tela (texto de 12 px) e o mapa na largura da tela, com as divisas; o mapa com as divisas dos estados, as dos municípios de
@@ -632,7 +685,8 @@ o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudan�
   Desde a revisão final do V23, o mesmo roteiro confere o Brasil inteiro: os 5.570 pontos, a nota das seis coordenadas da camada
   oficial e as siglas dos 27 estados sem sobreposição (`frontend/tests/mapa.test.mjs` confere a função que as afasta).
   `backend/tests/ui_planilha_de_teste.py` (suíte `bloco1`, desde a revisão final do V23) — os nomes da base, com a planilha de
-  teste: 47 paradas no Detector e no Simulador (o modo simples, as quatro etapas do avançado e os "Entenda") sem "junho",
+  teste: 49 paradas no Detector e no Simulador (o modo simples, as quatro etapas do avançado, os "Entenda" e, desde o AJ-03,
+  os "Entenda" dos cabeçalhos da lista no lugar de "Como foi calculado") sem "junho",
   "médicos" nem as outras palavras da base do Brasil, e com "julho" e "enfermeiros" nos mesmos lugares.
   `backend/tests/ui_planilha_ficticia.py` (suíte `bloco1`) — o mapa com a comuna sem coordenada fora dele, e o Detector com uma planilha enviada: o perfil aberto
   antes da ferramenta, a lista e o detalhe com os nomes da planilha e o Simulador desligado, com o motivo.

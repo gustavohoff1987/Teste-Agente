@@ -19,8 +19,10 @@ Confere, contra as respostas de POST /api/simulador:
   com o observado, a base do cenário, a intervenção e a faixa (só no jeito escolhido pela base), o aviso do pico fora do ajuste,
   o estado sem faixa (com o motivo) e a persistência como referência;
 - um segundo cenário; a retirada acima do estoque, devolvida para revisão; as estatísticas históricas, com a média aritmética só
-  descritiva; a validação dos métodos (as dez faixas de porte); as exportações (CSV dos resultados e JSON do cenário) e a
-  importação do cenário;
+  descritiva; a avaliação dos métodos (as dez faixas de porte), que desde o AJ-03 (18/11/2026) sai da tela e vai em "Exportar a
+  avaliação dos métodos (JSON)", com os números do motor; a ficha metodológica (PDF), servida com a interface e aberta numa nova
+  aba pelo link e pelo "Ver explicação completa" dos "Entenda"; a janela do cálculo no modo avançado; as exportações (CSV dos
+  resultados e JSON do cenário) e a importação do cenário;
 - da etapa 5: "Abrir no Simulador", no Detector de Sinais, que traz MANAUS (AM) com o contexto analítico, no modo simples, sem
   mudar a seleção principal; o Brasil como território, só no Simulador (o único com o método padrão provisório); as referências
   de comparação (FLORIANOPOLIS dinâmica, o Brasil fixo e um valor informado), com as curvas no gráfico, os textos do motor, "não
@@ -58,6 +60,11 @@ PROVISORIA = ("Faixa provisória: ainda não deu para conferi-la com dados que v
 SEM_CASOS = ("A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem 189 em 1 ano para o porte deste território, mesmo "
              "juntando os portes vizinhos e os menores.")
 MEIO_DA_FAIXA = ", o número observado ficou dentro dessa margem; ela acompanha a intervenção."
+
+
+def curta(competencia):
+    """A data como a tela a escreve: "jun/2024"."""
+    return ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")[int(competencia[4:]) - 1] + "/" + competencia[:4]
 
 
 def so_o_municipio(codigo):
@@ -143,6 +150,12 @@ def main():
             """Fecha o "Entenda" com Esc, para a caixa não ficar por cima do que vem depois."""
             page.keyboard.press("Escape")
             expect(simulador.get_by_test_id("simulador-entenda-" + nome + "-caixa")).to_have_count(0)
+
+        def da_avaliacao():
+            """A avaliação dos métodos exportada (AJ-03): o nome do arquivo e o conteúdo."""
+            with page.expect_download() as evento:
+                simulador.get_by_test_id("simulador-exportar-avaliacao").click()
+            return evento.value.suggested_filename, json.loads(Path(evento.value.path()).read_text(encoding="utf-8"))
 
         chat = page.get_by_test_id("painel-chat")
         if chat.count() and chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
@@ -344,8 +357,18 @@ def main():
         expect(grafico).to_contain_text("banda: faixa de 8 em cada 10")
         expect(grafico.get_by_test_id("simulador-grafico-fonte")).to_have_text(
             "Fonte: base do Brasil (medicina), registros de janeiro e junho até jun/2024.")
-        expect(simulador.get_by_test_id("simulador-versoes")).to_contain_text("Método " + VERSAO)
-        expect(simulador.get_by_test_id("simulador-versoes")).to_contain_text("último registro da base: jun/2024")
+        # AJ-03 (18/11/2026): a linha das versões saiu da tela (as versões vão nas exportações). No alto, o link da ficha
+        # metodológica (PDF), servida com a interface, numa nova aba.
+        assert corpo["versao"] == VERSAO, corpo["versao"]
+        expect(simulador.get_by_test_id("simulador-versoes")).to_have_count(0)
+        ficha = simulador.get_by_test_id("simulador-ficha")
+        expect(ficha).to_contain_text("Ficha metodológica (PDF)")
+        expect(ficha).to_have_attribute("target", "_blank")
+        endereco_da_ficha = ficha.evaluate("e => e.href")
+        assert endereco_da_ficha.endswith("/fichas/ficha-simulador.pdf"), endereco_da_ficha
+        do_pdf = page.request.get(endereco_da_ficha)
+        assert do_pdf.status == 200 and do_pdf.body()[:5] == b"%PDF-", (do_pdf.status, do_pdf.body()[:20])
+        assert do_pdf.headers.get("content-type", "").startswith("application/pdf"), do_pdf.headers
         # O gráfico é desenhado na largura que tem na tela (revisão das capturas de 15/11/2026: no celular, o desenho era encolhido,
         # e o texto dos eixos ficava pequeno demais). No computador, até 860 px; numa tela de celular, na largura dela, mais alto
         # (340 em vez de 300), com o texto em 12 px de verdade e sem passar da largura da janela.
@@ -382,26 +405,36 @@ def main():
         fechar_o_entenda("jeito")
         entenda("faixa", "A faixa de 8 em cada 10", cenario["entenda"]["faixa"])
         page.screenshot(path=str(OUTPUT / "simulador-00-simples-real.png"), full_page=True)
-        # "Ver explicação completa" abre "Como os métodos se saíram no passado": o jeito que a base escolheu para cada nível, com a
-        # frase do motor e o erro de cada jeito comparado com manter o último valor.
-        simulador.get_by_test_id("simulador-entenda-faixa-completa").click()
-        expect(simulador.get_by_test_id("simulador-entenda-faixa-caixa")).to_have_count(0)
+        # AJ-03 (18/11/2026): "Como os métodos se saíram no passado" saiu da tela. O "Ver explicação completa" de cada "Entenda" leva
+        # à seção da ficha metodológica (PDF), numa nova aba; a forma que a base escolheu para cada nível, com a frase do motor e o
+        # erro de cada forma comparado com manter o último valor, vai em "Exportar a avaliação dos métodos (JSON)", como o motor
+        # mandou.
+        completa = simulador.get_by_test_id("simulador-entenda-faixa-completa")
+        expect(completa).to_have_attribute("target", "_blank")
+        assert completa.evaluate("e => e.href") == endereco_da_ficha + "#nameddest=faixa"
+        fechar_o_entenda("faixa")
+        for nome, secao in (("jeito", "forma-escolhida"), ("ferramenta", "o-que-e")):
+            simulador.get_by_test_id("simulador-entenda-" + nome + "-botao").click()
+            expect(simulador.get_by_test_id("simulador-entenda-" + nome + "-caixa")).to_be_visible()
+            assert simulador.get_by_test_id("simulador-entenda-" + nome + "-completa").evaluate("e => e.href") == endereco_da_ficha + "#nameddest=" + secao, nome
+            fechar_o_entenda(nome)
+        expect(simulador.get_by_test_id("simulador-validacao")).to_have_count(0)
+        expect(simulador.get_by_test_id("simulador-validacao-botao")).to_have_count(0)
         escolhas = corpo["retroprojecao"]["niveis"]
         assert escolhas["municipios"]["escolha"]["texto"] == (
             "Para os municípios, a base escolheu a persistência com o crescimento recente do estado: na retroprojeção, ela errou 29% menos "
             "que manter o último valor, e menos em 22 de 22 combinações de origem e prazo."), escolhas["municipios"]["escolha"]
         assert (escolhas["municipios"]["escolha"]["metodo"], escolhas["estados"]["escolha"]["metodo"]) == ("M0d", "M1"), escolhas
-        validacao = simulador.get_by_test_id("simulador-validacao")
-        dos_municipios = simulador.locator('[data-testid="simulador-escolhas"] li[data-nivel="municipios"]')
-        expect(dos_municipios).to_have_attribute("data-metodo", "M0d")
-        expect(dos_municipios).to_contain_text(escolhas["municipios"]["escolha"]["texto"])
-        expect(dos_municipios).to_contain_text("persistência com o crescimento recente do estado, 0,714 (menos erro em 22 de 22)")
-        dos_estados = simulador.locator('[data-testid="simulador-escolhas"] li[data-nivel="estados"]')
-        expect(dos_estados).to_have_attribute("data-metodo", "M1")
-        expect(dos_estados).to_contain_text(escolhas["estados"]["escolha"]["texto"])
-        expect(validacao).to_contain_text("não são previsão")
-        simulador.get_by_test_id("simulador-validacao-botao").click()
-        expect(validacao).to_have_count(0)
+        do_m0d = next(item for item in escolhas["municipios"]["escolha"]["candidatos"] if item["metodo"] == "M0d")
+        assert (round(do_m0d["frente_ao_m0"], 3), do_m0d["menos_erro_em"], do_m0d["combinacoes"]) == (0.714, 22, 22), do_m0d
+        nome_da_avaliacao, avaliacao = da_avaliacao()
+        assert nome_da_avaliacao == "simulador_avaliacao_dos_metodos_202406.json", nome_da_avaliacao
+        assert avaliacao["retroprojecao"] == corpo["retroprojecao"], "a avaliação exportada leva os números do motor, sem leitura"
+        assert (avaliacao["versao_do_metodo"], avaliacao["fonte"]["versao"], avaliacao["ultimo_registro"]) == (
+            corpo["versao"], corpo["fonte"]["versao"], "202406"), (avaliacao["versao_do_metodo"], avaliacao["fonte"])
+        assert avaliacao["limitacoes"] == corpo["limitacoes"] and "não é uma análise do território escolhido" in avaliacao["conteudo"], avaliacao["conteudo"]
+        texto_da_avaliacao = json.dumps(avaliacao, ensure_ascii=False)
+        assert escolhas["municipios"]["escolha"]["texto"] in texto_da_avaliacao and escolhas["estados"]["escolha"]["texto"] in texto_da_avaliacao
 
         # 3d. Com 4 anos, a faixa é provisória: ainda não deu para conferi-la com o que veio depois. Nesta base, as faixas de 1 e
         # 2 anos são conferidas, e as de 3 e 4 anos, provisórias.
@@ -768,8 +801,13 @@ def main():
         expect(grafico).to_contain_text("observado (registros reais)")
         expect(grafico).to_contain_text("banda: faixa de 8 em cada 10")
         expect(grafico).to_contain_text("Fonte: base do Brasil (medicina), registros de janeiro e junho até jun/2024.")
-        expect(simulador.get_by_test_id("simulador-versoes")).to_contain_text("Método " + corpo["versao"])
-        expect(simulador.get_by_test_id("simulador-versoes")).to_contain_text("último registro da base: jun/2024")
+        # AJ-03: no lugar da linha das versões, a janela deste cálculo, como o motor a mandou.
+        expect(simulador.get_by_test_id("simulador-versoes")).to_have_count(0)
+        janela = corpo["janela"]
+        assert (janela["inicio"], janela["fim"], janela["padrao"]) == ("202106", "202406", True), janela
+        expect(simulador.get_by_test_id("simulador-janela-do-calculo")).to_have_text(
+            "Janela deste cálculo: de " + curta(janela["inicio"]) + " a " + curta(janela["fim"]) + (" (a janela padrão)" if janela["padrao"] else "") +
+            ". Cada cenário parte do último registro usável do território nessa janela.")
         expect(grafico.locator("svg").first).to_contain_text("simulado (hipótese)")
         linha = simulador.locator('[data-testid="simulador-linha"][data-id="' + RIO_RUFINO + '"]')
         expect(linha.locator('[data-testid="simulador-final"][data-cenario="c1"]')).to_contain_text("último valor com o crescimento do estado")
@@ -827,25 +865,31 @@ def main():
         expect(grafico.locator('[data-testid="simulador-curva"][data-cenario="c2"]')).to_have_attribute("data-metodo", "M1")
         page.screenshot(path=str(OUTPUT / "simulador-02-avancado-real.png"), full_page=True)
 
-        # 12. "Como os métodos se saíram no passado": as faixas de 8 em cada 10 e os erros da retroprojeção, pelas dez faixas de
-        # porte da régua comum (de "1 a 3" a "10.000 ou mais"), com a conferência de cada faixa.
-        simulador.get_by_test_id("simulador-validacao-botao").click()
-        faixas = simulador.get_by_test_id("simulador-faixas")
-        expect(faixas.locator("caption")).to_contain_text("Faixas de 8 em cada 10 da forma de projetar que a base escolheu para os municípios")
-        expect(faixas.locator("tbody tr")).to_have_count(10)
-        expect(faixas.locator("tbody tr").first.locator("th")).to_have_text("1 a 3")
-        expect(faixas.locator("tbody tr").last.locator("th")).to_have_text("10.000 ou mais")
-        expect(faixas.locator("tbody tr").first.locator("td").first).to_contain_text("−9% a +87%")
-        expect(faixas.locator("tbody tr").first.locator("td").first).to_contain_text("conferida com o que veio depois; 7 origens, 4.039 casos")
-        expect(faixas.locator("tbody tr").first.locator("td").last).to_contain_text("provisória; 4 origens, 2.715 casos")
+        # 12. A avaliação dos métodos (AJ-03, 18/11/2026: na exportação, não mais na tela): as faixas de 8 em cada 10 e os erros da
+        # retroprojeção, pelas dez faixas de porte da régua comum (de "1 a 3" a "10.000 ou mais"), com a conferência de cada faixa,
+        # os mesmos números do motor que a tela mostrava até então.
+        nome_da_avaliacao, avaliacao = da_avaliacao()
+        assert nome_da_avaliacao == "simulador_avaliacao_dos_metodos_202406.json", nome_da_avaliacao
+        assert avaliacao["retroprojecao"] == corpo["retroprojecao"], "a avaliação exportada leva os números do motor, sem leitura"
+        assert avaliacao["janela"]["inicio"] == corpo["janela"]["inicio"] and avaliacao["janela"]["fim"] == corpo["janela"]["fim"], avaliacao["janela"]
+        # As faixas e a tabela de erros que a tela mostrava são as do nível dos municípios, no alto da retroprojeção.
+        retro = avaliacao["retroprojecao"]
+        das_faixas = [item for item in retro["faixas"] if item.get("em_10", 8) == 8]
+        portes = list(dict.fromkeys(item["porte"] for item in das_faixas))
+        assert portes == ["1 a 3", "4 a 9", "10 a 19", "20 a 49", "50 a 99", "100 a 299", "300 a 999", "1.000 a 2.999", "3.000 a 9.999",
+                          "10.000 ou mais"], portes
+        um_ano = next(item for item in das_faixas if item["porte"] == "1 a 3" and item["anos"] == 1)
+        assert (round(um_ano["inferior_pct"]), round(um_ano["superior_pct"]), um_ano["estado"], um_ano["origens"], um_ano["casos"]) == (
+            -9, 87, "conferida", 7, 4039), um_ano
+        quatro_anos = next(item for item in das_faixas if item["porte"] == "1 a 3" and item["anos"] == 4)
+        assert (quatro_anos["estado"], quatro_anos["origens"], quatro_anos["casos"]) == ("provisoria", 4, 2715), quatro_anos
         # A tabela de erros traz os métodos que a retroprojeção da base tem: na do Brasil, cinco, com o crescimento da base toda (M0g).
-        erros = simulador.get_by_test_id("simulador-erros")
-        expect(erros.locator("thead th")).to_have_text([
-            "Médicos na origem", "último valor com o crescimento do estado (M0d)", "último valor com o crescimento da base toda (M0g)",
-            "taxa composta da janela (M1)", "tendência linear (M2)", "tendência log-linear (M3)"])
-        expect(erros.locator("tbody tr")).to_have_count(10)
-        expect(erros.locator("tbody tr").first.locator("td")).to_have_text(["0,90", "0,90", "1,29", "1,16", "1,26"])
-        expect(simulador.get_by_test_id("simulador-validacao")).to_contain_text("não são previsão")
+        da_tabela = {(item["metodo"], item["porte"], item["anos"]): item for item in retro["tabela"]}
+        assert {metodo for metodo, _, _ in da_tabela} >= {"M0", "M0d", "M0g", "M1", "M2", "M3"}, sorted({metodo for metodo, _, _ in da_tabela})
+        frente = [da_tabela[(metodo, "1 a 3", 4)]["frente_ao_m0"] for metodo in ("M0d", "M0g", "M1", "M2", "M3")]
+        assert all(abs(valor - esperado) < 0.005 for valor, esperado in zip(frente, (0.90, 0.90, 1.29, 1.16, 1.26))), frente
+        expect(simulador.get_by_test_id("simulador-faixas")).to_have_count(0)
+        expect(simulador.get_by_test_id("simulador-erros")).to_have_count(0)
 
         # 13. As exportações: o CSV dos resultados e o JSON do cenário (com a versão do método e da base).
         with page.expect_download() as baixado:
@@ -928,7 +972,10 @@ def main():
         area.get_by_test_id("analise-ferramenta-detector").click()
         detector = area.get_by_test_id("detector")
         expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
-        with page.expect_response(lambda r: r.url.endswith("/api/detector") and r.request.method == "POST", timeout=180000):
+        # O detalhe pedido ao abrir a linha (desde o AJ-04, a lista pede sozinha o detalhe dos territórios à vista com mais de um
+        # sinal com nível; Manaus tem um).
+        with page.expect_response(lambda r: r.url.endswith("/api/detector") and r.request.method == "POST" and
+                                  options_of(r.request).get("detalhe") == MANAUS, timeout=180000):
             detector.locator('[data-testid="detector-linha"][data-id="' + MANAUS + '"]').get_by_test_id("detector-abrir").click()
         expect(detector.get_by_test_id("detector-detalhe")).to_have_attribute("data-id", MANAUS)
         expect(detector.get_by_test_id("detector-simular-recuperacao")).to_have_count(0)
@@ -1283,9 +1330,10 @@ def main():
         assert com_abelardo != principal, com_abelardo
         area.get_by_test_id("analise-ferramenta-detector").click()
         expect(detector).to_have_attribute("data-estado", "pronto", timeout=180000)
-        with page.expect_response(lambda r: r.url.endswith("/api/detector") and r.request.method == "POST", timeout=180000):
-            detector.locator('[data-testid="detector-linha"][data-id="' + ABELARDO_LUZ + '"]').get_by_test_id("detector-abrir").click()
-        expect(detector.get_by_test_id("detector-detalhe")).to_have_attribute("data-id", ABELARDO_LUZ)
+        # ABELARDO LUZ tem quatro sinais com nível: desde o AJ-04, a lista já pode ter pedido o detalhe dele (para as frases dos
+        # sinais), e abrir a linha só o mostra.
+        detector.locator('[data-testid="detector-linha"][data-id="' + ABELARDO_LUZ + '"]').get_by_test_id("detector-abrir").click()
+        expect(detector.get_by_test_id("detector-detalhe")).to_have_attribute("data-id", ABELARDO_LUZ, timeout=180000)
         expect(detector.get_by_test_id("detector-recuperacao-apoio")).to_contain_text("meta hipotética")
         antes_da_recuperacao = len(pedidos)
         detector.get_by_test_id("detector-simular-recuperacao").click()

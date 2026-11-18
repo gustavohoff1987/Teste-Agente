@@ -223,8 +223,9 @@ def test_retaguarda_da_queda_recente_as_faixas_vizinhas_e_so_no_moderado_todas_a
 
 
 def _confere_a_regua_da_data(b, cal, e):
-    """A régua da data (a tabela de "Como foi calculado") diz, para cada território avaliado em `e`, o mesmo que o motor: em cada
-    nível, se foi avaliado, de onde vieram as comparações, quantas são e o corte. Devolve quantas conferências fez, por origem."""
+    """A régua da data (`calibracao` da resposta: até 18/11/2026, a tabela de "Como foi calculado"; desde o AJ-03, em "Exportar o
+    método (JSON)" e na ficha metodológica) diz, para cada território avaliado em `e`, o mesmo que o motor: em cada nível, se foi
+    avaliado, de onde vieram as comparações, quantas são e o corte. Devolve quantas conferências fez, por origem."""
     regua = detector.limiares(b, cal, e, P)
     feitas = {"porte": 0, "vizinhas": 0, "todas": 0, "sem": 0}
     for linha in np.flatnonzero(cal.regular[:, e] & (cal.porte[:, e] >= 0)):
@@ -267,7 +268,8 @@ def _confere_a_regua_da_data(b, cal, e):
 
 def test_regua_da_data_mostra_a_regua_usada_de_fato_com_as_vizinhas_e_com_todas_as_faixas():
     """Revisão das capturas (14/11/2026): a tabela de "Como foi calculado" mostrava só as comparações do próprio porte, e o motor
-    junta as faixas vizinhas (e, no moderado, todas as faixas). A tabela passa a dizer, em cada nível, a régua usada de fato."""
+    junta as faixas vizinhas (e, no moderado, todas as faixas). A régua da data passa a dizer, em cada nível, a régua usada de fato
+    (desde o AJ-03, de 18/11/2026, na exportação do método e na ficha metodológica, e não mais na tela)."""
     def niveis_de(celula, campo="queda_pct"):
         return {nivel: (celula[nivel]["avaliado"], celula[nivel]["origem"], celula[nivel]["comparacoes"], celula[nivel]["pede"],
                         celula[nivel][campo]) for nivel in ("moderado", "elevado", "critico") if nivel in celula}

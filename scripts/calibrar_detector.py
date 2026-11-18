@@ -1,7 +1,7 @@
 """Estudo de calibração do Detector de Sinais Territoriais com a base versionada (somente leitura), fora do produto e do CI.
 
 Uso, da raiz do repositório:
-    python scripts/calibrar_detector.py [--so-regua] [--so-contexto]
+    python scripts/calibrar_detector.py [--so-regua] [--so-contexto] [--regua-da-data [AAAAMM]]
 
 O que faz (Docs/DETECTOR_E_SIMULADOR_V3.md, Partes A, B e F; os resultados ficam em Docs/DETECTOR_DE_SINAIS.md):
 
@@ -16,7 +16,10 @@ O que faz (Docs/DETECTOR_E_SIMULADOR_V3.md, Partes A, B e F; os resultados ficam
    habitante cada nível é raro;
 5. **o contexto geográfico (sinal 11)** em cada registro anual: o critério e as distâncias.
 
-`--so-regua` imprime só a parte 2 (segundos); `--so-contexto`, só a parte 5.
+`--so-regua` imprime só a parte 2 (segundos); `--so-contexto`, só a parte 5. `--regua-da-data [AAAAMM]` imprime só **a régua de
+uma data** (sem a data, a do último registro), pelo mesmo cálculo da resposta do Detector (`detector.limiares`): a queda recente
+(sinal 6) e o afastamento do patamar (sinal 7) dos municípios, a queda recente dos estados como unidade e o monitoramento da data.
+São os números da ficha metodológica do Detector (Docs/fichas/ficha_detector.html) na data de referência.
 
 Nada é gravado: o estudo só imprime as tabelas (Markdown). Nenhum dado é alterado, e nada vai ao provedor de IA.
 """
@@ -259,10 +262,81 @@ def _contexto(base):
                       f"{distancias.max():.1f}".replace(".", ",")]))
 
 
+_DA_ORIGEM = {"porte": "", "vizinhas": "com as faixas vizinhas", "todas": "com todas as faixas"}
+
+
+def _uma_casa(valor):
+    """Uma casa decimal, com o empate arredondado para longe do zero, como a tela (Intl.NumberFormat): 31,25 → "31,3"."""
+    from decimal import ROUND_HALF_UP, Decimal
+    return str(Decimal(abs(valor)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)).replace(".", ",")
+
+
+def _corte(celula, nivel, o_que, campo):
+    """Uma célula da régua da data, como a tela a escrevia até 18/11/2026 ("Como foi calculado") e como a ficha metodológica a
+    reproduz: o corte da régua usada de fato, de onde vieram as comparações e quantas são."""
+    corte = celula.get(nivel)
+    if not corte:
+        return "—"
+    quantas = _numero(corte["comparacoes"] if corte.get("comparacoes") is not None else celula["comparacoes"])
+    origem = _DA_ORIGEM[corte.get("origem") or "porte"]
+    if corte.get(campo) is None:
+        return "sem comparações suficientes (" + quantas + " de " + _numero(corte["pede"]) + (", " + origem if origem else "") + ")"
+
+    def limite(valor):
+        if valor >= 100:
+            return ("nenhuma queda chega" if o_que == "queda" else "nenhum afastamento chega") + " a esse nível"
+        return "qualquer " + o_que if valor <= 0 else o_que + " maior que " + _uma_casa(valor) + "%"
+    menores = limite(corte[campo])
+    maiores = None if corte.get(campo + "_ate") is None else limite(corte[campo + "_ate"])
+    frase = (menores if corte.get("origem") != "todas" or maiores == menores else
+             menores + " no menor tamanho da faixa (o limite cai nos maiores)" if maiores is None else
+             menores + " nos menores da faixa; " + maiores + " nos maiores")
+    return frase + (" (" + origem + ": " + quantas + " comparações)" if origem else "")
+
+
+def _regua_da_data(base, cal, cal_dos_estados, competencia):
+    """A régua de uma data, com os critérios padrão, pelo mesmo cálculo da resposta de POST /api/detector (`detector.limiares`):
+    a queda recente (sinal 6) e o afastamento do patamar (sinal 7) dos municípios, a queda recente dos estados como unidade e o
+    monitoramento da data. São os números que a tela mostrava em "Como foi calculado" até 18/11/2026 e que a ficha metodológica
+    do Detector traz para a data de referência; com outra data ou outra base, a régua é outra, e sai em "Exportar o método (JSON)"."""
+    e = base.periodos.index(competencia) if competencia else len(base.periodos) - 1
+    p = detector.parametros(None)[0]
+    regua = detector.limiares(base, cal, e, p)
+    meses = regua["intervalo_meses"]
+    print(f"\n## Régua de {detector.curta(regua['competencia'])}" + (f", com as mudanças anteriores de {meses} meses entre registros"
+                                                                       if meses else "") + " (critérios padrão)\n")
+    print("Cada nível mostra a régua usada de fato: quando o porte não tem comparações bastantes, ela junta as faixas vizinhas (uma de "
+          "cada lado) e, só no moderado, todas as faixas — a célula diz de onde vieram as comparações e quantas são.\n")
+
+    def tabela(titulo, faixas, niveis, o_que, campo):
+        print(f"### {titulo}\n")
+        print(_linha(["Porte (médicos)", "Comparações do porte"] + [detector.NOMES_DAS_CLASSES[nivel].capitalize() + " (1 em cada " +
+                                                                   _numero(faixas[0][nivel]["um_em"]) + ")" for nivel in niveis]))
+        print(_linha(["---"] * (2 + len(niveis))))
+        for celula in faixas:
+            print(_linha([celula["porte"], _numero(celula["comparacoes"])] + [_corte(celula, nivel, o_que, campo) for nivel in niveis]))
+        print()
+    tabela("Queda recente (sinal 6), municípios: a partir de que queda ela é rara, por porte (o número de médicos antes)", regua["perda"],
+           ("moderado", "elevado", "critico"), "queda", "queda_pct")
+    tabela("Abaixo do que já teve (sinal 7), municípios: a partir de que afastamento do patamar ele é raro, por porte do patamar",
+           regua["patamar"], ("elevado", "critico"), "afastamento", "afastamento_pct")
+    if cal_dos_estados is not None:
+        dos_estados = detector.limiares(detector.base_dos_estados(base), cal_dos_estados, e, p)
+        tabela("Queda recente (sinal 6), estados como unidade: a régua própria, com a base dos estados",
+               [celula for celula in dos_estados["perda"] if celula["comparacoes"] > 0], ("moderado", "elevado", "critico"), "queda", "queda_pct")
+    m = regua["monitoramento"]
+    print(f"Monitoramento: nesta data, {_numero(m['raras'])} de {_numero(m['avaliadas'])} municípios tiveram uma mudança rara (1 em cada 20) "
+          f"no último registro" + (": " + _uma_casa(m["taxa_pct"]) + "%, para um esperado de cerca de " +
+                                   f"{m['esperado_pct']:.0f}%" if m["taxa_pct"] is not None else "") +
+          ("; aviso da base." if m["aviso_da_base"] else "; sem aviso da base (ele vale acima do triplo do esperado, com 100 avaliações ou mais)."))
+
+
 def main():
     argumentos = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     argumentos.add_argument("--so-regua", action="store_true", help="imprime só a régua da queda recente (municípios e estados)")
     argumentos.add_argument("--so-contexto", action="store_true", help="imprime só o contexto geográfico (sinal 11)")
+    argumentos.add_argument("--regua-da-data", nargs="?", const="", metavar="AAAAMM",
+                            help="imprime só a régua de uma data (sem a data: a do último registro) e o monitoramento dela")
     opcoes = argumentos.parse_args()
 
     fontes = _Fontes()
@@ -273,6 +347,10 @@ def main():
           "comparações")
     if opcoes.so_contexto:
         _contexto(base)
+        return
+    if opcoes.regua_da_data is not None:
+        cal = detector.calibrar(base, guardar=False)
+        _regua_da_data(base, cal, detector.calibrar_estados(base), opcoes.regua_da_data)
         return
     cal = detector.calibrar(base, guardar=False)
     cal_dos_estados = detector.calibrar_estados(base)

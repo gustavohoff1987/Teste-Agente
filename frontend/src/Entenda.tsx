@@ -5,7 +5,10 @@ import { CircleHelp } from "lucide-react";
 // com o mouse (ao passar por cima), com um toque ou pelo teclado (ao receber o foco; Enter ou Espaço fixam a caixa); fecha ao
 // sair: o mouse deixa o botão e a caixa, o foco sai deles, Esc ou um toque fora. Traz duas ou três frases simples e um exemplo com
 // números; a explicação inteira fica em "Ver explicação completa". A caixa é desenhada por cima da página, na posição do botão
-// (a rolagem das tabelas não a corta), e cabe na largura do celular. Os textos vêm de quem usa o componente (do motor).
+// (a rolagem das tabelas não a corta), e cabe na largura do celular. Os textos vêm de quem usa o componente (do motor ou da
+// página). Desde o AJ-03 (18/11/2026), "Ver explicação completa" pode ser um link (`completaHref`) para a seção certa da ficha
+// metodológica em PDF, que abre numa nova aba; sem ele, continua sendo a ação de quem usa (`onCompleta`). Na Área de Análise,
+// nada muda: ela não usa o link.
 
 type Props = {
   /** Do que trata ("Queda recente"): o título da caixa e o nome do botão para o leitor de tela ("Entenda: Queda recente"). */
@@ -14,6 +17,8 @@ type Props = {
   exemplo?: string | null;
   /** "Ver explicação completa": abre a explicação inteira, que fica fora da caixa. */
   onCompleta?: () => void;
+  /** "Ver explicação completa" como link (a ficha metodológica em PDF, na seção certa), numa nova aba; vale no lugar de `onCompleta`. */
+  completaHref?: string;
   /** O prefixo dos data-testid: `<testid>`, `<testid>-botao`, `<testid>-caixa` e `<testid>-completa`. */
   testid?: string;
 };
@@ -21,7 +26,7 @@ type Lugar = { left: number; width: number; top?: number; bottom?: number };
 
 const LARGURA = 360, MARGEM = 12, FOLGA = 6, ESPERA_AO_SAIR = 160;
 
-export default function Entenda({ sobre, texto, exemplo, onCompleta, testid = "entenda" }: Props) {
+export default function Entenda({ sobre, texto, exemplo, onCompleta, completaHref, testid = "entenda" }: Props) {
   const [aberto, setAberto] = useState(false);
   /** Fixado por um clique, um toque, Enter ou Espaço: continua aberto quando o mouse sai, até um toque fora, Esc ou a saída do foco. */
   const [fixo, setFixo] = useState(false);
@@ -84,8 +89,10 @@ export default function Entenda({ sobre, texto, exemplo, onCompleta, testid = "e
       <strong className="entenda-titulo">{sobre}</strong>
       <span className="entenda-texto">{texto}</span>
       {exemplo && <span data-testid={testid + "-exemplo"} className="entenda-exemplo"><strong>Exemplo:</strong> {exemplo}</span>}
-      {onCompleta && <button type="button" data-testid={testid + "-completa"} className="analise-link entenda-completa"
-        onClick={() => { fechar(); onCompleta(); }}>Ver explicação completa</button>}
+      {completaHref ? <a data-testid={testid + "-completa"} className="analise-link entenda-completa" href={completaHref} target="_blank"
+        rel="noopener" onClick={() => fechar()}>Ver explicação completa<span className="sr-only"> (ficha metodológica em PDF, abre numa nova aba)</span></a>
+        : onCompleta && <button type="button" data-testid={testid + "-completa"} className="analise-link entenda-completa"
+          onClick={() => { fechar(); onCompleta(); }}>Ver explicação completa</button>}
     </span>}
   </span>;
 }

@@ -929,9 +929,12 @@ que a contagem conta e os nomes) e resume **"com esta base, dá para… / não d
 população, por exemplo, os sinais por habitante ficam "Indisponível nesta base", e numa base curta o crítico fica "sem
 comparações suficientes", com os números. Com uma planilha, nenhum texto usa "médicos", "município", "estado", "junho" ou
 "Brasil" que não venha dela, a contagem leva o nome dos trabalhadores informado no envio (por exemplo, "enfermeiros"; desde
-15/11/2026) e o grupo de cima entra como unidade pela soma das unidades dele (desde 15/11/2026). A primeira tela é uma lista de quatro
-colunas (Território · Alerta · Por quê · Último registro), com o resumo dos níveis no alto, clicável, os filtros numa linha
-(Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico. Na base do Brasil, o Mapa tem as divisas da malha municipal do
+15/11/2026) e o grupo de cima entra como unidade pela soma das unidades dele (desde 15/11/2026). A primeira tela é uma lista de cinco
+colunas (Território · Sinal · Alerta · Por quê · Último registro), em que **cada sinal com nível tem uma linha**, do mais grave
+ao menos grave, com o nome do sinal, o nível, o tipo de critério e a frase do motor (desde 18/11/2026; antes, quatro colunas e
+só o sinal principal); o resumo dos níveis no alto, clicável, os contadores e as páginas contam territórios; os filtros numa
+linha (Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico, em que a dica nomeia o sinal e diz quantos outros sinais
+com nível o território tem. Na base do Brasil, o Mapa tem as divisas da malha municipal do
 IBGE (um arquivo versionado da interface, pedido só quando o mapa abre): as dos estados sempre, e as dos municípios ao aproximar
 o mapa num estado (desde 15/11/2026). As duas ferramentas leem as coordenadas como as análises (desde 15/11/2026): nos seis
 municípios em que a fonte traz o ponto fora do intervalo válido, vale a sede municipal da camada oficial do IBGE, e o mapa tem
@@ -944,7 +947,11 @@ comprovadamente pior: o nível não é juízo de desassistência nem de priorida
 ferramenta). O detalhe de um território traz a série e os 12 sinais em quatro grupos (Quantos há, Como mudou, Comparado com
 outros, Onde fica), mais Juntos; em cada sinal, o nível, uma frase e o **"Entenda"** (duas ou três frases e um exemplo com
 números; abre com o mouse, com um toque ou pelo teclado). "Ajustar critérios" mostra os limites em frases, com os campos dentro
-delas: trocar um valor torna a configuração exploratória, e "Voltar ao padrão" fica sempre à vista. Os sinais comparados em 2
+delas: trocar um valor torna a configuração exploratória, e "Voltar ao padrão" fica sempre à vista. O método e a técnica (os
+12 sinais, a régua, os parâmetros, a régua da data e o monitoramento) estão na **ficha metodológica em PDF** ("Ficha
+metodológica (PDF)", numa nova aba; desde 18/11/2026, no lugar de "Como foi calculado"), e os números da data e da base em uso,
+em "Exportar o método (JSON)"; junto da lista ficam as ressalvas de leitura ("raro" não quer dizer pior, a distância só como
+contexto, os estados como unidade e os conjuntos). Os sinais comparados em 2
 anos só calculam a variação em trechos com população comparável, lidos da própria base (com a população do Ministério da Saúde,
 desde 13/11/2026, a base inteira é um trecho só). Nos detalhes, "Abrir no Simulador" e "Simular recuperação" levam o território
 ao Simulador de Cenários (também com uma planilha). Os cálculos são do motor (`POST /api/detector`), sem o provedor de IA. Regras, rota, estudo de
@@ -965,7 +972,10 @@ aconteceu depois e fica com a forma que errou menos que manter o último valor (
 estado, nos municípios, e a taxa composta, nos estados; sem história bastante, mantém o último valor). A **faixa de 8 em cada
 10** (ou de 5, ou de 9) vem da mesma retroprojeção e é conferida no tempo: "conferida", "provisória" ou "indisponível", com o
 motivo. No título, um **"(Entenda)"** geral explica a ferramenta, e um **"Voltar ao padrão"** só, sempre à vista, devolve as
-premissas ao padrão (desde 15/11/2026). Em **"Avançado"** ficam as quatro etapas de antes, com **as premissas em frases, com os
+premissas ao padrão (desde 15/11/2026). A avaliação dos métodos no histórico da base (como cada forma de projetar se saiu no
+passado) e o método estão na **ficha metodológica em PDF** ("Ficha metodológica (PDF)", numa nova aba), e os números da base em
+uso, em "Exportar a avaliação dos métodos (JSON)" (desde 18/11/2026, no lugar de "Como os métodos se saíram no passado" e da
+linha de versões). Em **"Avançado"** ficam as quatro etapas de antes, com **as premissas em frases, com os
 campos dentro delas**: os territórios, a janela histórica e o método da base do cenário (a
 persistência, a persistência com o crescimento recente do estado ou da base toda, a taxa composta, a tendência linear robusta, a
 tendência log-linear ou uma taxa informada pela pessoa), as intervenções (acréscimos e retiradas de médicos, com a permanência

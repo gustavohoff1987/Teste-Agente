@@ -3,6 +3,7 @@
 A página vem de /Teste-Agente/ (o build com ADT_BASE_DA_PAGINA) e chama o serviço noutro endereço (VITE_API_BASE_URL), com
 CORS, como em https://gustavohoff1987.github.io/Teste-Agente/ e o Cloud Run. Confere:
 - os recursos estáticos (scripts, estilos e a fonte embutida) sob /Teste-Agente/, sem nenhum recurso de fora e sem falhas;
+- as fichas metodológicas em PDF do Detector e do Simulador (AJ-03, 18/11/2026), servidas com a página, sob o mesmo caminho;
 - o título com o nome oficial completo e a separação imperceptível: os pedidos ao serviço respondem, inclusive os que levam
   o cabeçalho da sessão (com a pré-verificação do CORS);
 - a base do Brasil, o gráfico dos estados (JSON do motor) e o CSV da análise em exibição;
@@ -55,6 +56,11 @@ def main():
         assert page.evaluate("[...document.scripts].every(s => !s.src || new URL(s.src).pathname.startsWith('%s'))" % BASE)
         assert fonte_embutida_carregada(page), "a Inter embutida, servida pelo próprio Pages"
         assert all(urlparse(url).hostname in ("127.0.0.1", "localhost") for url, _ in respostas), "nenhum recurso de fora"
+        # As fichas metodológicas (AJ-03): arquivos da página, sob o caminho dela (os links das ferramentas usam a base da página).
+        for arquivo in ("ficha-detector.pdf", "ficha-simulador.pdf"):
+            ficha = context.request.get(ORIGEM + BASE + "fichas/" + arquivo)
+            assert ficha.status == 200 and ficha.body()[:5] == b"%PDF-", (arquivo, ficha.status)
+            assert ficha.headers.get("content-type", "").startswith("application/pdf"), (arquivo, ficha.headers)
 
         # O serviço noutro endereço: a saúde respondeu na abertura, sem aviso de conexão.
         assert any(url == API + "api/health" and status == 200 for url, status in respostas), respostas[-10:]
@@ -113,7 +119,7 @@ def main():
         assert not recusados, recusados
         assert not falhas, falhas
         browser.close()
-    print(f"HOSPEDAGEM PASS: recursos sob {BASE}, fonte embutida, nome oficial no título, serviço noutro endereço com "
+    print(f"HOSPEDAGEM PASS: recursos e fichas metodológicas sob {BASE}, fonte embutida, nome oficial no título, serviço noutro endereço com "
           "CORS (base, gráfico com a sessão, CSV e o modelo XLSX), documentação da API desligada e CORS só da origem da página.")
 
 

@@ -945,6 +945,13 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-tabela.ferramenta-tabela tbody th { color: var(--cor-tinta); font-size: 14px; font-weight: 650; letter-spacing: 0; text-transform: none; }
 .ferramenta-territorio { min-width: 190px; }
 .ferramenta-coluna-larga { min-width: 220px; }
+/* A lista sinal a sinal (AJ-04, 18/11/2026): cada território é um grupo de linhas (tbody), uma por sinal com nível; o nome e o
+   último registro ocupam as linhas do grupo, e a divisa entre os sinais do mesmo território é mais leve que a entre territórios. */
+.ferramenta-coluna-sinal { min-width: 150px; color: var(--cor-tinta); font-weight: 650; }
+.analise-tabela.ferramenta-lista tbody tr:has(+ tr.ferramenta-linha-seguinte) > td { border-bottom-style: dashed; }
+.analise-tabela.ferramenta-lista tbody.ferramenta-territorio-grupo + tbody.ferramenta-territorio-grupo > tr:first-child > * {
+  border-top: 1px solid var(--cor-borda); }
+.ferramenta-ressalvas { margin-top: 4px; color: var(--cor-texto-2); }
 .ferramenta-territorio .ferramenta-apoio { display: block; margin-left: 21px; font-weight: 400; }
 .ferramenta-tabela th .ferramenta-apoio { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; }
 .ferramenta-abrir { display: inline-flex; align-items: flex-start; gap: 6px; min-height: 28px; color: var(--cor-tinta); font-weight: 650; text-align: left; }
@@ -1086,13 +1093,19 @@ select.ferramenta-campo-da-frase { max-width: min(100%, 30em); text-align: left;
   .ferramenta-sinal-frase, .ferramenta-sinal-acoes { grid-column: 1 / -1; }
   .ferramenta-sinal-acoes { justify-content: flex-start; }
   .ferramenta-detalhe { padding: 10px 8px; }
-  /* A lista de quatro colunas vira cartões: o território e o alerta na primeira linha, o porquê e o último registro abaixo. */
+  /* A lista vira cartões, um por território (AJ-04, 18/11/2026): no alto, o território e o último registro; depois, cada sinal com
+     nível, com o nome do sinal antes do alerta, na mesma linha, e a frase abaixo. Entre os sinais, a divisa é tracejada. */
   .analise-tabela.ferramenta-lista, .ferramenta-lista thead, .ferramenta-lista tbody, .ferramenta-lista caption { display: block; }
   .ferramenta-lista thead tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 6px 0; }
   .analise-tabela.ferramenta-lista thead th { padding: 0; border: 0; }
-  .ferramenta-lista tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; padding: 10px 0;
-    border-top: 1px solid var(--cor-borda-suave); }
+  .ferramenta-lista tbody.ferramenta-territorio-grupo { border-top: 1px solid var(--cor-borda-suave); }
+  .ferramenta-lista tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; padding: 10px 0; }
+  .ferramenta-lista tbody tr.ferramenta-linha-seguinte { padding-top: 6px; border-top: 1px dashed var(--cor-borda-suave); }
   .analise-tabela.ferramenta-lista tbody th, .analise-tabela.ferramenta-lista tbody td { min-width: 0; padding: 0; border: 0; }
+  .analise-tabela.ferramenta-lista tbody.ferramenta-territorio-grupo + tbody.ferramenta-territorio-grupo > tr:first-child > * { border-top: 0; }
+  .ferramenta-lista tbody th[data-rotulo="Território"] { grid-column: 1 / -1; order: -2; }
+  .ferramenta-lista tbody td[data-rotulo="Último registro"] { order: -1; }
+  .ferramenta-lista tbody td[data-rotulo="Sinal"]:empty { display: none; }
   .ferramenta-lista tbody td[data-rotulo="Alerta"] { text-align: right; }
   .ferramenta-lista tbody td[data-rotulo="Por quê"], .ferramenta-lista tbody td[data-rotulo="Último registro"],
   .ferramenta-lista tbody td[colspan] { grid-column: 1 / -1; }

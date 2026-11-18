@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ficha metodológica A — Detector de Sinais Territoriais</title>
+<link rel="stylesheet" href="ficha.css">
+</head>
+<body>
+
+<header class="capa">
+<p class="sobretitulo">Ficha metodológica A · Agente Diagnóstico Territorial da Força de Trabalho na Saúde</p>
+<h1>Detector de Sinais Territoriais</h1>
+<p class="subtitulo">Como o Detector produz os sinais e os níveis de alerta: os 12 sinais, a régua da própria base, as condições de aplicação, os parâmetros, a régua da data e as exportações.</p>
+<dl class="identificacao">
+<dt>Versão do método</dt><dd><code>DETECTOR-SINAIS/V3/1</code></dd>
+<dt>Base</dt><dd>Brasil, médicos: registros de janeiro e junho, de jan/2014 a jun/2024 (22 registros; 5.570 municípios e 27 unidades da federação)</dd>
+<dt>Versão da base</dt><dd><code>faa54169c5b6</code> (por extenso, em <code>dados/brasil/manifesto.json</code>: <code>faa54169c5b6f31bfc5d669964f49c93cc8abce386816fa57191a5566de93cb1</code>)</dd>
+<dt>Data de referência dos números</dt><dd>jun/2024, o registro mais recente da base</dd>
+<dt>Data da ficha</dt><dd>18/11/2026</dd>
+</dl>
+</header>
+
+<p class="legenda-das-marcas">Três marcas dizem o estado de cada afirmação: <span class="marca marca-implementado">Implementado</span> é o que o código faz; <span class="marca marca-limitacao">Hipótese ou limitação</span> é uma hipótese do método ou um limite do que o resultado pode dizer; <span class="marca marca-nao">Não implementado</span> é o que o Detector não faz. Os números são da base do Brasil, versão <code>faa54169c5b6</code>, método <code>DETECTOR-SINAIS/V3/1</code>; cada tabela diz a data e a origem.</p>
+
+<nav class="sumario" aria-labelledby="sumario-titulo"><h2 id="sumario-titulo">Sumário</h2><ol>
+<li><a href="#o-que-e">1. O que o Detector é e o que não é</a></li>
+<li><a href="#dados">2. A base e os registros</a></li>
+<li><a href="#niveis">3. Os três níveis e os tipos de critério</a></li>
+<li><a href="#regua">4. A régua: raridade, porte e retaguarda</a></li>
+<li><a href="#sinais">5. Os 12 sinais</a></li>
+<li><a href="#condicoes">6. Condições de aplicação</a></li>
+<li><a href="#parametros">7. Parâmetros e limiares padrão</a></li>
+<li><a href="#ajustar-criterios">8. Ajustar critérios e a configuração exploratória</a></li>
+<li><a href="#estados-e-conjuntos">9. Estados como unidade e conjuntos</a></li>
+<li><a href="#mesma-queda">10. Um nível por território e os sinais da mesma queda</a></li>
+<li><a href="#aviso-da-base">11. O aviso da base</a></li>
+<li><a href="#historico">12. O histórico de sinais</a></li>
+<li><a href="#regua-da-data">13. A régua da data e o monitoramento</a></li>
+<li><a href="#exportacoes">14. As exportações</a></li>
+<li><a href="#simulador">15. As ligações com o Simulador de Cenários</a></li>
+<li><a href="#limites">16. Limitações, hipóteses e o que não está implementado</a></li>
+<li><a href="#versoes">17. Versões, reprodutibilidade e documentos</a></li>
+</ol></nav>
+
+<main>
+
+<section id="o-que-e" aria-labelledby="o-que-e-titulo">
+<h2 id="o-que-e-titulo">1. O que o Detector é e o que não é</h2>
+<p>O Detector de Sinais Territoriais compara cada território com o que é comum na própria base: com territórios de tamanho parecido e só com o que veio antes de cada data. O tamanho de um território, chamado de <strong>porte</strong>, é o número de profissionais registrados nele. O Detector descreve os registros; não diz se o atendimento é suficiente nem onde prover. Ele trabalha com a seleção em uso (municípios, estados como unidade e conjuntos) e mostra a situação de cada território na data avaliada e, à parte, o histórico de sinais.</p>
+<p>Três coisas nunca se confundem: o <strong>fato observado</strong>, a contagem e a mudança entre registros, com as datas reais ("caiu de 18 para 11, −38,9%"), que aparece sempre; a <strong>raridade</strong>, se a mudança é incomum entre as mudanças anteriores de territórios do mesmo porte (seção 4); e o <strong>nível do alerta</strong> (moderado, elevado ou crítico), sempre escrito, nunca só pela cor, e sempre com o tipo de critério (seção 3). <span class="marca marca-implementado">Implementado</span> Cada território tem um nível só: o maior entre os seus sinais, sem soma nem índice. "Alerta" vale para os três níveis.</p>
+<div class="quadro quadro-atencao">
+<p class="quadro-titulo">O que o nível quer dizer</p>
+<p>"Raro" quer dizer incomum nesta base, não comprovadamente pior: por construção, cerca de 1 em cada 20 territórios recebe moderado em cada sinal comparado com a base. O nível descreve o sinal na base. O nível não é juízo de desassistência, de suficiência do atendimento nem de prioridade de provimento.</p>
+<p>O nível do alerta é uma divergência aprovada da SPEC (CFG-NOR, 4.4.19: nenhum critério normativo pré-configurado), válida só no Detector (decisão D-A do responsável, de 10/11/2026, com os nomes de 13/11/2026). Fora do Detector, o assistente continua recusando "crítico" sem critério.</p>
+</div>
+<p><span class="marca marca-implementado">Implementado</span> Todo número e toda frase de resultado vêm do motor (<code>backend/detector.py</code>, <code>backend/comparativos.py</code>, <code>backend/reguas.py</code> e <code>backend/series_brasil.py</code>, pela rota <code>POST /api/detector</code>); a página só escolhe o que mostrar, filtra, ordena e desenha. O Detector calcula sem o provedor de IA e não envia nada a ele. <span class="marca marca-nao">Não implementado</span> Ele não infere rotatividade de pessoas, desassistência, isolamento assistencial, suficiência do cuidado nem causa; não forma índice geral nem ranking (a ordem da lista não é um índice); e não projeta o futuro, o que é do Simulador de Cenários (seção 15).</p>
+<div class="quadro">
+<p class="quadro-titulo">Na tela</p>
+<p>No alto, o aviso da data ("Registro mais recente da base: jun/2024. Os sinais descrevem a situação até jun/2024, não a de hoje."). Os filtros <strong>Até</strong> (a data avaliada), <strong>Nível</strong>, <strong>Sinal</strong> e <strong>Buscar território</strong>; o resumo dos níveis, que conta territórios e funciona como filtro; as visões <strong>Lista</strong>, <strong>Mapa</strong> (os pontos pelo nível) e <strong>Gráfico</strong> (distância, taxa e população, com a cor do nível); e, no detalhe de cada território, a série observada, os 12 sinais, o histórico de sinais e as ligações com o Simulador.</p>
+</div>
+</section>
+
+<section id="dados" aria-labelledby="dados-titulo">
+<h2 id="dados-titulo">2. A base e os registros</h2>
+<h3>A base do Brasil</h3>
+<p>Na base do Brasil, a categoria é a de médicos, com 22 registros, em janeiro e junho de cada ano, de jan/2014 a jun/2024. Cada nível tem a sua fonte, e cada fonte conta uma coisa (<code>backend/series_brasil.py</code>): no <strong>município</strong>, os médicos registrados nele (quem atua em mais de um município conta em cada um); no <strong>estado como unidade</strong>, os médicos únicos no estado; no <strong>Brasil</strong>, os médicos únicos no país (no Detector, só no critério da distância, sinal 11); num <strong>conjunto</strong>, a soma das contagens dos componentes, que não é o número de médicos diferentes. A população é a série do Ministério da Saúde ("Estudo de Estimativas Populacionais por Município, Idade e Sexo 2000-2025"), em uso desde 13/11/2026; as coordenadas são as da base, no referencial SIRGAS 2000. O motor só usa a base quando os arquivos conferem com o manifesto (tamanho e SHA-256).</p>
+
+<h3>Datas, zero, ausência de dado e o último registro</h3>
+<p><span class="marca marca-implementado">Implementado</span> As datas são as dos registros reais, e a posição de cada uma é o mês real (ano × 12 + mês − 1): na base do Brasil, de janeiro a junho passam 5 meses, e de junho a janeiro, 7. Nenhuma data é inventada, e nada é estimado entre os registros. Zero é um registro observado, o <strong>zero confirmado</strong>; uma data sem registro é <strong>ausência de dado</strong>, nunca zero (na série do detalhe, "×"). Num conjunto, a soma só existe nas datas em que todos os componentes têm registro. Na base do Brasil, 6 pares município × data não têm linha na fonte municipal, e nenhum município está em zero em jun/2024 (<code>Docs/PERFIL_DA_BASE_DETECTOR_SIMULADOR.md</code>, leitura de 9/11/2026; a troca da população não mudou as contagens).</p>
+<p>A coluna "Último registro" da lista traz a contagem da última data com registro do território até a data avaliada ("jun/2024 · 5 médicos"); sem registro na data, ela diz de quando é o último ("… (sem registro em jun/2024)"). É um fato: sozinho, esse número não explica o alerta, que vem dos sinais. Os sinais descrevem a situação até a data avaliada (o filtro "Até"), nunca a de hoje.</p>
+
+<h3>As marcas de registro</h3>
+<p>Algumas mudanças podem vir do registro, e não do território. O motor marca três casos, com o que era conhecido na data avaliada:</p>
+<table>
+<caption>As marcas de registro e o que elas mudam no cálculo (<code>backend/detector.py</code>, <code>calibrar</code> e <code>_registro</code>)</caption>
+<thead><tr><th scope="col">Marca</th><th scope="col">Quando o motor marca</th><th scope="col">O que muda</th></tr></thead>
+<tbody>
+<tr><th scope="row">Descontinuidade de registro: pico que volta</th><td>Salto de 10 ou mais profissionais que ao menos dobra a contagem e volta, em até dois registros, a até 125% do valor anterior ao salto. Só é pico depois que a volta é observada.</td><td>A volta não gera alerta. Os registros do pico ficam fora do patamar (sinal 7), da sequência do declínio (3), da janela da instabilidade (5), das pontas da janela dos sinais 8 a 10 e das comparações.</td></tr>
+<tr><th scope="row">Descontinuidade de registro: quebra de fonte</th><td>A soma municipal de um estado fica abaixo da contagem estadual de médicos únicos, nas datas em que todos os municípios dele têm registro.</td><td>O trecho sai das comparações e do patamar; a janela do município começa depois dele; a janela dos sinais 8 a 10 que começa ou termina nele não é avaliada.</td></tr>
+<tr><th scope="row">Verificar registro</th><td>Salto sem volta observada, ou queda de 10 ou mais que leva a contagem à metade ou menos.</td><td>Nada sai do cálculo: a queda grande que persiste continua alertável.</td></tr>
+</tbody>
+</table>
+<div class="exemplo"><p>Base do Brasil (documentação do projeto): Rio Rufino (SC) teve 4 → 87 → 5 médicos de jan/2023 a jan/2024, um pico que volta. No Distrito Federal, a soma municipal (Brasília) ficou entre 4.070 e 5.044 médicos até jun/2017, contra 7.764 a 8.385 únicos na fonte estadual: é a única quebra de fonte da base.</p></div>
+<p><span class="marca marca-limitacao">Hipótese ou limitação</span> Os critérios das marcas são limites fixos do método, não ajustáveis. A desaceleração (sinal 4) usa os valores como foram registrados, como a Análise de Tendência.</p>
+
+<h3>Qualquer base</h3>
+<p><span class="marca marca-implementado">Implementado</span> O Detector vale também para uma planilha enviada, lida com o mesmo mapeamento de colunas das análises; nada dela é gravado, e nada vai ao provedor de IA. O que era fixo da base do Brasil é lido da própria base: as datas (AAAAMM, AAAA-MM, AAAA-MM-DD ou só o ano), a série anual, o grupo de cima, a população, as coordenadas e os nomes. Os textos dizem "território", "profissionais", "grupo de cima" e "a base toda"; na base do Brasil, "município", "médicos", "estado" e "Brasil". Antes das ferramentas, o Agente mostra o <strong>perfil da base</strong> ("com esta base, dá para… / não dá para… (motivo)"), tirado da mesma régua.</p>
+</section>
+
+<section id="niveis" aria-labelledby="niveis-titulo">
+<h2 id="niveis-titulo">3. Os três níveis e os tipos de critério</h2>
+<table>
+<caption>Os três níveis padrão (<code>backend/reguas.py</code>, <code>NIVEIS</code>)</caption>
+<thead><tr><th scope="col">Nível</th><th scope="col">Raridade padrão</th><th scope="col">Comparações anteriores necessárias</th><th scope="col">Cor no mapa e no gráfico</th></tr></thead>
+<tbody>
+<tr><th scope="row">Moderado</th><td>1 em cada 20</td><td>pelo menos 19</td><td>amarelo</td></tr>
+<tr><th scope="row">Elevado</th><td>1 em cada 100</td><td>pelo menos 99</td><td>laranja</td></tr>
+<tr><th scope="row">Crítico</th><td>1 em cada 1.000</td><td>pelo menos 999</td><td>vermelho</td></tr>
+</tbody>
+</table>
+<h3>Os dois tipos de critério</h3>
+<ul>
+<li><strong>Limite fixo:</strong> um limite igual para todos os territórios, definido pelo método e não tirado da base. Por exemplo, "Poucos profissionais" é crítico com 1 profissional ou nenhum, em qualquer território. Vale nos sinais 1 e 2, 3, 4 (exploratório) e no moderado do sinal 7.</li>
+<li><strong>Comparado com a base:</strong> o nível vem da raridade: a mudança do território é comparada com as mudanças anteriores de territórios do mesmo porte na própria base (seção 4). Vale nos sinais 5, 6, 8, 9 e 10 e no elevado e no crítico do sinal 7.</li>
+</ul>
+<p>Na queda recente (sinal 6), a queda precisa ser rara e ter um tamanho mínimo, que é um limite fixo; em "Abaixo do que já teve" (sinal 7), o moderado vem de um limite fixo, e o elevado e o crítico pedem, além do limite, a raridade.</p>
+<div class="quadro">
+<p class="quadro-titulo">Na tela e nas exportações</p>
+<p>Na tela, ao lado do nível, o tipo de critério aparece como "limite fixo" ou "comparado com a base". Nas exportações e no campo <code>criterio</code> da API, o limite fixo continua escrito "por convenção" (o campo não muda); a comparação com a base é "comparado com a base".</p>
+</div>
+<h3>Quando o território não tem nível</h3>
+<p><strong>Sem alerta:</strong> nenhum sinal chegou a um nível (não quer dizer que o atendimento esteja bom). <strong>Sem comparações suficientes:</strong> nenhum sinal tem nível, algum sinal comparado com a base ficou sem comparações bastantes, e nenhum deles pôde ser avaliado; se algum pôde, o território fica sem alerta, e o que falta aparece no detalhe. <strong>Sem nível (conjunto):</strong> um conjunto não tem outros iguais para comparar (seção 9). Num sinal, o nível que a base ainda não sustenta aparece com os números; no detalhe, há ainda "Sem dado para avaliar", "Não avaliado" (abaixo do mínimo, com descontinuidade, com a comparação não habilitada ou sem referência), "Só contexto" (sinal 11) e "Indisponível nesta base" (seção 6), sempre com o motivo na frase.</p>
+<div class="exemplo"><p>Base do Brasil, jun/2024: num município de 3.000 a 9.999 médicos, a queda recente diz "Sem comparações suficientes para o crítico: há 864, e ele pede 999." É o número da régua da data (seção 13): com as faixas vizinhas, há 864 comparações.</p></div>
+<p>Em jun/2024, entre os 5.570 municípios, há 40 críticos, 436 elevados, 978 moderados e 4.116 sem alerta: 26,1% com algum alerta, e 9,9% contando só os alertas comparados com a base; o restante vem dos sinais de limite fixo, sobretudo "Poucos médicos" (<code>Docs/DETECTOR_DE_SINAIS.md</code>, "Calibração"). <span class="marca marca-limitacao">Hipótese ou limitação</span> A Proposta V3 (Parte F) põe cerca de 20% de territórios com algum alerta como sinal para rever o padrão; por decisão do responsável (15/11/2026, Pausa 2), o limite vale para os alertas comparados com a base, e o padrão de 1 em cada 20 continua.</p>
+</section>
+
+<section id="regua" aria-labelledby="regua-titulo">
+<h2 id="regua-titulo">4. A régua: raridade, porte e retaguarda</h2>
+<p>A régua é a parte comum do Detector e do Simulador de Cenários (<code>backend/reguas.py</code>): esta mudança é comum ou rara entre territórios do mesmo porte, olhando só o passado?</p>
+<p class="formula">raridade = (k + 1) ÷ (n + 1)</p>
+<p><strong>n</strong> é o número de comparações (as mudanças anteriores que entram na régua) e <strong>k</strong>, quantas foram iguais ou piores que a do território; os empates contam como iguais ou piores. A mudança é rara no nível "1 em cada N" quando a raridade fica em 1 ÷ N ou menos. O "+1" é a própria mudança: evita dizer "nunca aconteceu" com uma história curta e fixa o mínimo de comparações em N − 1 (19, 99 e 999 nos padrões).</p>
+<div class="exemplo"><p>Exemplo ilustrativo, só com a fórmula: com 19 comparações e nenhuma igual ou pior, a raridade é (0 + 1) ÷ (19 + 1) = 1 ÷ 20, e a mudança chega ao moderado. Com 18, nem a pior mudança possível chega a 1 ÷ 20.</p></div>
+<p>O que entra na comparação depende do sinal (seção 5): as mudanças anteriores com o mesmo tempo entre registros (sinal 6: aumentos, estabilidade e quedas), os índices (5), os afastamentos (7) ou as variações de janelas anteriores (8 a 10), sempre de territórios do mesmo porte e do mesmo nível (municípios com municípios, estados com estados).</p>
+<h3>O porte e a retaguarda</h3>
+<p>O porte tem dez faixas: 1 a 3, 4 a 9, 10 a 19, 20 a 49, 50 a 99, 100 a 299, 300 a 999, 1.000 a 2.999, 3.000 a 9.999 e 10.000 ou mais profissionais. Um valor com casas decimais (uma média, como o patamar) fica na faixa da parte inteira; zero não tem faixa. As quatro faixas acima de 300 substituíram o antigo "300 ou mais", que dava alertas demais aos municípios de 300 a 999 médicos e quase nenhum aos maiores (Proposta V3, seção A.5).</p>
+<p><span class="marca marca-implementado">Implementado</span> Quando faltam comparações, vale a <strong>retaguarda</strong>: para cada nível, o motor usa a primeira origem com o mínimo pedido — a faixa do porte; a faixa com as vizinhas, uma de cada lado; e, só no moderado, todas as faixas, com a mudança padronizada pelo tamanho:</p>
+<p class="formula">mudança padronizada = Δ ÷ tamanho<sup>θ/2</sup></p>
+<p>Δ é a mudança em número de profissionais, e o tamanho, o número antes dela. θ vem só do passado da data: é o dobro da inclinação da reta entre o logaritmo da dispersão das mudanças (o MAD, desvio absoluto mediano) e o do tamanho mediano, nas faixas com pelo menos 30 mudanças, entre 0 e 2 (sem duas faixas assim, θ = 1). Nos sinais 5 e 8 a 10, a medida já é relativa e é comparada como está. Se nada bastar, o nível fica "sem comparações suficientes", com as comparações da origem mais larga e quantas o nível pede. Cada nível escolhe a sua origem: em jun/2024, a queda recente de um município de 10.000 médicos ou mais usa as 45 comparações da faixa no moderado e as 248 das vizinhas no elevado; o crítico fica sem comparações suficientes.</p>
+<p><span class="marca marca-limitacao">Hipótese ou limitação</span> Só o moderado junta todas as faixas porque, nos testes da Proposta V3 (tabela B.1; base do Brasil, municípios, 2014–2024), juntar os portes padronizando pelo tamanho deu o moderado entre 3,4% e 6,4% por porte (meta 5%), mas o elevado entre 0,35% e 2,5% (meta 1%) e o crítico entre 0% e 0,71% (meta 0,1%).</p>
+<p><span class="marca marca-implementado">Implementado</span> <strong>Só o passado:</strong> cada data é comparada só com o que veio antes dela (as "origens móveis"). As descontinuidades de registro já conhecidas na data ficam fora do passado dela, e um pico só conta como pico depois que a volta foi observada. As comparações de uma data nunca usam mudanças posteriores a ela.</p>
+<table>
+<caption>O que a calibração mostrou: a queda recente (sinal 6) só pela raridade, sem o tamanho mínimo; municípios, 105.786 mudanças avaliadas, todas as datas (versão da base <code>faa54169c5b6</code>; <code>scripts/calibrar_detector.py</code>, em <code>Docs/DETECTOR_DE_SINAIS.md</code>)</caption>
+<thead><tr><th scope="col">Porte (médicos)</th><th scope="col" class="numero">Moderado (meta 5%)</th><th scope="col" class="numero">Elevado (meta 1%)</th><th scope="col" class="numero">Crítico (meta 0,1%)</th></tr></thead>
+<tbody>
+<tr><th scope="row">1 a 3</th><td class="numero">2,53%</td><td class="numero">0,55%</td><td class="numero">0,00%</td></tr>
+<tr><th scope="row">4 a 9</th><td class="numero">4,14%</td><td class="numero">0,78%</td><td class="numero">0,05%</td></tr>
+<tr><th scope="row">10 a 19</th><td class="numero">4,67%</td><td class="numero">0,77%</td><td class="numero">0,09%</td></tr>
+<tr><th scope="row">20 a 49</th><td class="numero">4,97%</td><td class="numero">1,06%</td><td class="numero">0,11%</td></tr>
+<tr><th scope="row">50 a 99</th><td class="numero">5,95%</td><td class="numero">1,35%</td><td class="numero">0,20%</td></tr>
+<tr><th scope="row">100 a 299</th><td class="numero">5,45%</td><td class="numero">1,09%</td><td class="numero">0,14%</td></tr>
+<tr><th scope="row">300 a 999</th><td class="numero">5,13%</td><td class="numero">1,08%</td><td class="numero">0,12%</td></tr>
+<tr><th scope="row">1.000 a 2.999</th><td class="numero">4,40%</td><td class="numero">0,90%</td><td class="numero">0,00%</td></tr>
+<tr><th scope="row">3.000 a 9.999</th><td class="numero">4,88%</td><td class="numero">0,75%</td><td>sem comparações suficientes</td></tr>
+<tr><th scope="row">10.000 ou mais</th><td class="numero">3,19% (94 avaliações)</td><td class="numero">0,00% (64 avaliações)</td><td>sem comparações suficientes</td></tr>
+<tr><th scope="row">Todos</th><td class="numero">4,50%</td><td class="numero">0,88%</td><td class="numero">0,08%</td></tr>
+</tbody>
+</table>
+<p>De 3.000 médicos para cima, a base não tem 999 comparações de tamanho parecido: no último registro, 43 de 5.570 municípios ficam sem comparações suficientes para o crítico, como diz o perfil da base.</p>
+</section>
+
+<section id="sinais" aria-labelledby="sinais-titulo">
+<h2 id="sinais-titulo">5. Os 12 sinais</h2>
+<p>O detalhe de cada território mostra os sinais em quatro grupos — <strong>Quantos há</strong> (sinais 1 e 2, que formam um item só), <strong>Como mudou</strong> (3 a 7), <strong>Comparado com outros</strong> (8 a 10) e <strong>Onde fica</strong> (11) —, mais <strong>Juntos</strong> (12). Os nomes são os do filtro "Sinal", com os nomes da base: onde se lê "profissionais", a base do Brasil diz "médicos". Todos os limites são padrões e podem ser trocados (seção 8).</p>
+<div class="quadro">
+<p class="quadro-titulo">Na tela</p>
+<p>Na lista, cada sinal com nível tem uma linha, do mais grave ao menos grave (no empate, na ordem dos sinais): o nome dele na coluna "Sinal", o nível e o tipo de critério em "Alerta" e a frase do motor em "Por quê"; o nome do território e o último registro aparecem uma vez, e os contadores, os filtros e as páginas contam territórios. Um território sem sinal com nível tem uma linha só, com o estado e o motivo. No mapa e no gráfico, a cor e o tamanho seguem o maior nível, e a dica nomeia o sinal pintado, com o nível, e diz quantos outros sinais com nível o território tem.</p>
+<p>No detalhe, em cada sinal: o nome, o nível com o tipo de critério (ou o estado sem nível), uma frase do motor, o que a base ainda não sustenta e o "Entenda". A explicação completa traz sete campos: o que foi observado, qual critério, comparado com o comum, o que significa, o que não significa, limitações do dado e qualidade do registro.</p>
+</div>
+
+<h3>Sinais 1 e 2 — Poucos profissionais e Nenhum profissional registrado</h3>
+<dl class="identificacao">
+<dt>O que mede</dt><dd>O número de profissionais no registro da data e, em zero, há quanto tempo. O efeito da saída de um é de 100 ÷ N por cento.</dd>
+<dt>Como se calcula</dt><dd>Vale o nível mais grave entre o do registro da data e o do anterior: a piora aparece na hora, e a melhora, depois de dois registros. Em zero confirmado, o sinal é o 2, com a duração.</dd>
+<dt>Níveis e critério</dt><dd>Limite fixo: crítico com 1 profissional ou nenhum; elevado com 2 ou 3; moderado com 4 ou 5.</dd>
+<dt>Condições</dt><dd>O registro da data. Num conjunto, sem nível.</dd>
+<dt>A frase da tela</dt><dd>"Só 1 médico", "5 médicos"; com o nível do registro anterior, "6 médicos (3 no registro anterior)"; em zero, "Nenhum médico registrado há [n] registros, desde [data]".</dd>
+<dt>O que não quer dizer</dt><dd>Não diz que falta atendimento nem que há prioridade de provimento; mais profissionais que o limite não querem dizer atendimento suficiente.</dd>
+</dl>
+
+<h3>Sinal 3 — Declínio persistente</h3>
+<dl class="identificacao">
+<dt>O que mede</dt><dd>As quedas anuais seguidas e a perda acumulada, na série anual (na base do Brasil, junho).</dd>
+<dt>Como se calcula</dt><dd>O motor conta as quedas de um ano para o seguinte, em anos consecutivos, até o último registro anual da janela (desde "Considerar os registros desde"); a perda é 1 − último ÷ primeiro valor da sequência. Um registro de pico que volta interrompe a sequência.</dd>
+<dt>Níveis e critério</dt><dd>Limite fixo: moderado com 2 quedas e perda de 10% ou mais; elevado, 3 quedas e 20%; crítico, 4 quedas e 30%.</dd>
+<dt>Condições</dt><dd>A série anual e pelo menos 2 registros anuais na janela, o último com valor.</dd>
+<dt>A frase da tela</dt><dd>"3 quedas anuais seguidas: −24,0% desde …"; sem queda, "Sem queda no último ano"; sem a série, o motivo.</dd>
+<dt>O que não quer dizer</dt><dd>Não diz por que o número caiu nem que vai continuar caindo.</dd>
+</dl>
+<div class="exemplo"><p>Exemplo do "Entenda" (ilustrativo): de 50 para 46, depois 42 e depois 38 profissionais: três quedas seguidas e perda de 24%, nível elevado. <span class="marca marca-nao">Não implementado</span> O declínio "por tendência", que toleraria pequenas recuperações (Proposta V2.2, seção 4.1): o motor só conta quedas seguidas.</p></div>
+
+<h3>Sinal 4 — Desaceleração</h3>
+<dl class="identificacao">
+<dt>O que mede</dt><dd>Se o crescimento perde ritmo: a classe "Desaceleração do crescimento" da Análise de Tendência, nos 4 últimos registros anuais.</dd>
+<dt>Como se calcula</dt><dd>As velocidades entre os registros anuais (a mudança dividida pelo tempo real) passam pela mesma função da Análise de Tendência (<code>trend.classify_pairs</code>), em aritmética exata: todas positivas, nenhuma maior que a anterior e ao menos uma menor. Usa a série anual desde o início da base.</dd>
+<dt>Níveis e critério</dt><dd>Limite fixo: moderado quando a classe se repete em 2 anos seguidos, sempre com a marca "exploratório" (por decisão de método; não é a configuração exploratória da seção 8).</dd>
+<dt>Condições</dt><dd>A série anual e 4 registros anuais seguidos com valor.</dd>
+<dt>A frase da tela</dt><dd>"O crescimento perde ritmo há 2 anos"; no "Entenda", de 40 para 50, 56 e 59: aumentos de 10, 6 e 3.</dd>
+<dt>O que não quer dizer</dt><dd>Não é queda nem previsão: na base do Brasil, a repetição da classe não antecipou o crescimento seguinte.</dd>
+</dl>
+
+<h3>Sinal 5 — Instabilidade</h3>
+<dl class="identificacao">
+<dt>O que mede</dt><dd>O sobe e desce dos 7 últimos registros, comparado com o típico para o tamanho do território: índice 1 é o típico; 2,5, duas vezes e meia.</dd>
+<dt>Como se calcula</dt><dd>Cada uma das 6 mudanças da janela é dividida pela oscilação típica do seu tipo de intervalo (1,4826 × MAD das mudanças anteriores padronizadas, com pelo menos 100 delas) e pela média da janela elevada a θ/2; o índice é o desvio-padrão desses valores.
+<p class="formula">índice = desvio-padrão de Δ<sub>i</sub> ÷ (c × média<sup>θ/2</sup>), com c = 1,4826 × MAD e θ = 1,35</p></dd>
+<dt>Níveis e critério</dt><dd>Comparado com a base: moderado quando o índice é raro (1 em cada 20) entre os de datas anteriores de territórios do mesmo porte.</dd>
+<dt>Condições</dt><dd>7 registros seguidos com valor, média de pelo menos 6 e nenhuma descontinuidade na janela.</dd>
+<dt>A frase da tela</dt><dd>"Oscila 2,5 vezes o comum para o porte"; ou "Oscilação não calculável: média abaixo de 6 médicos na janela".</dd>
+<dt>O que não quer dizer</dt><dd>Não diz se o número sobe ou cai, nem o motivo, nem rotatividade de pessoas.</dd>
+</dl>
+<p><span class="marca marca-limitacao">Hipótese ou limitação</span> θ = 1,35 é fixo: é a lei de Taylor estimada na base do Brasil (Proposta V2.2, seção 4.2), em que a variação típica de uma contagem cresce com o tamanho elevado a θ/2; numa planilha, vale o mesmo valor.</p>
+
+<h3>Sinal 6 — Queda recente</h3>
+<dl class="identificacao">
+<dt>O que mede</dt><dd>A queda de um registro para o seguinte; o fato sempre aparece.</dd>
+<dt>Como se calcula</dt><dd>A variação (atual − anterior) ÷ anterior é comparada com as mudanças anteriores de territórios do mesmo porte (o número anterior), com o mesmo tempo entre registros: na base do Brasil, uma data de junho com as mudanças de 5 meses, e uma de janeiro, com as de 7.
+<p class="formula">tamanho mínimo do nível = o maior entre o mínimo em profissionais e ⌈fração × número anterior⌉</p></dd>
+<dt>Níveis e critério</dt><dd>Comparado com a base, com tamanho mínimo: moderado, 1 em cada 20, e pelo menos 2 profissionais e 10% do que havia; elevado, 1 em cada 100, 2 e 20%; crítico, 1 em cada 1.000, 3 e 30%. Vale o mais grave em que a queda é rara e tem o tamanho daquele nível.</dd>
+<dt>Condições</dt><dd>O registro da data e o imediatamente anterior, com pelo menos 1 no anterior. A volta de um pico e a transição de uma quebra de fonte não são avaliadas; a queda grande que persiste continua alertável.</dd>
+<dt>A frase da tela</dt><dd>"Caiu de 18 para 11 (−38,9%)"; "Sem queda no último registro"; "Sem registro para comparar: …"; "… com descontinuidade de registro (pico que volta)".</dd>
+<dt>O que não quer dizer</dt><dd>Não diz o motivo nem se a queda vai continuar; uma queda rara também pode ser falha do registro.</dd>
+</dl>
+<div class="exemplo"><p>Exemplo do "Entenda" (ilustrativo): uma queda de 2 para 1 profissional não vira alerta de queda, porque é só 1: ela aparece como crítico em "Poucos profissionais".</p></div>
+
+<h3>Sinal 7 — Abaixo do que já teve</h3>
+<dl class="identificacao">
+<dt>O que mede</dt><dd>A distância ao <strong>patamar</strong>, o melhor período que o território já teve.</dd>
+<dt>Como se calcula</dt><dd>O patamar é a maior média de dois anos completos (na base do Brasil, os 4 registros de janeiro e junho de dois anos seguidos), entre os blocos que terminam antes dos registros dos dois últimos anos, sem blocos com pico ou quebra de fonte. Não é o maior registro sozinho, para não tomar um pico como referência.
+<p class="formula">afastamento = 1 − (o maior dos 2 últimos registros) ÷ patamar</p></dd>
+<dt>Níveis e critério</dt><dd>Moderado, por limite fixo: os 2 últimos registros 15% ou mais abaixo. Elevado: isso, e o afastamento raro (1 em cada 100) entre territórios com patamar do mesmo porte. Crítico: os 4 últimos registros 30% ou mais abaixo, e raro (1 em cada 1.000). A retaguarda junta só as faixas vizinhas.</dd>
+<dt>Condições</dt><dd>Patamar de pelo menos 20 profissionais (abaixo, só descritivo: com poucos, o patamar é fácil de perder); sem quebra de fonte nos 4 últimos registros nem pico nos 2 últimos.</dd>
+<dt>A frase da tela</dt><dd>"18% abaixo do que já teve (patamar de 130)"; sem avaliação, o motivo ("43% abaixo do que já teve (patamar de 1,75, abaixo do mínimo de 20)"); abaixo de 100, o patamar vai com as casas.</dd>
+<dt>O que não quer dizer</dt><dd>O patamar não é uma meta nem o número certo para o território.</dd>
+</dl>
+<div class="exemplo"><p>Exemplo do "Entenda" (ilustrativo): patamar de 80 profissionais e os dois últimos registros com 66 e 64: 1 − 66 ÷ 80 = 17,5% abaixo, nível moderado.</p></div>
+<p><span class="marca marca-limitacao">Hipótese ou limitação</span> A raridade do crítico é a do mesmo afastamento; os 4 últimos registros entram só pelo limite de 30%. Contando só as avaliações em que o nível podia sair (municípios, todas as datas, versão <code>faa54169c5b6</code>; <code>Docs/DETECTOR_DE_SINAIS.md</code>), o elevado, com o crítico, saiu em 310 de 28.507 (1,09%, meta 1%), e o crítico, em 11 de 27.570 (0,04%, meta 0,1%); por decisão do responsável (15/11/2026, Pausa 2), o crítico continua.</p>
+
+<h3>Sinal 8 — Menos profissionais por habitante</h3>
+<dl class="identificacao">
+<dt>O que mede</dt><dd>A variação da taxa de profissionais por 1.000 habitantes em 2 anos.</dd>
+<dt>Como se calcula</dt><dd>A taxa é profissionais ÷ população × 1.000, na janela de 2 anos da série anual (na base do Brasil, de junho a junho), com a decomposição (profissionais e população). A variação é comparada com as de janelas anteriores de territórios do mesmo porte (o número no início).
+<p class="formula">variação = 100 × (taxa final ÷ taxa inicial − 1)</p></dd>
+<dt>Níveis e critério</dt><dd>Comparado com a base: moderado, 1 em cada 20; elevado, 1 em cada 100; crítico, 1 em cada 1.000.</dd>
+<dt>Condições</dt><dd>A série anual; a janela num trecho de população comparável (seção 6); pelo menos 20 profissionais no início (abaixo, só descritivo); taxa inicial acima de zero; nenhuma ponta da janela num registro de pico ou de quebra de fonte.</dd>
+<dt>A frase da tela</dt><dd>"−20,0% de médicos por habitante em 2 anos"; sem a variação, a taxa da data com o motivo ("… · só descritivo: …", "… · comparação não habilitada: …").</dd>
+<dt>O que não quer dizer</dt><dd>Não mede acesso, cobertura nem qualidade; a queda pode vir de menos profissionais ou de mais habitantes; a população é uma estimativa.</dd>
+</dl>
+<div class="exemplo"><p>Documentação (base do Brasil): Brochier (RS) teve 7, 31, 11 e 8 médicos de jan/2022 a jun/2023, um pico que voltou. A variação de jun/2022 a jun/2024, de −74,4% na taxa, partia do registro do pico e deixou de ser alerta crítico: aparece com "descontinuidade de registro", sem nível. Em jun/2024, nos municípios de 20 a 49 médicos no início da janela, a raridade dá queda da taxa maior que 25,4% no moderado, 40,9% no elevado e 73,5% no crítico (<code>Docs/DETECTOR_DE_SINAIS.md</code>, "Calibração").</p></div>
+
+<h3>Sinal 9 — Perda de posição</h3>
+<dl class="identificacao">
+<dt>O que mede</dt><dd>Quantas posições em 100 o território perdeu em 2 anos, na fila pela taxa por habitante.</dd>
+<dt>Como se calcula</dt><dd>O <strong>percentil</strong> (a posição numa fila de 100) é calculado no universo fixo da janela: os territórios do mesmo tipo com taxa nas duas datas, com os empates no posto médio. A variação é o percentil final menos o inicial, em pontos.
+<p class="formula">percentil = (posto médio − 0,5) ÷ n × 100</p></dd>
+<dt>Níveis e critério</dt><dd>Comparado com a base: 1 em cada 20, 100 e 1.000.</dd>
+<dt>Condições</dt><dd>As do sinal 8; conjuntos não entram em universos de percentis ("Não se aplica").</dd>
+<dt>A frase da tela</dt><dd>"−15 pontos de percentil em 2 anos" ou "Percentil 45 em jun/2024"; no "Entenda", do percentil 60 para o 45.</dd>
+<dt>O que não quer dizer</dt><dd>Compara territórios, não mede suficiência; o território pode perder posição sem cair, se os outros cresceram mais.</dd>
+</dl>
+
+<h3>Sinal 10 — Mais longe da referência</h3>
+<dl class="identificacao">
+<dt>O que mede</dt><dd>O afastamento, para baixo, da taxa da referência em 2 anos.</dd>
+<dt>Como se calcula</dt><dd>A referência é o grupo de cima sem o território, na mesma unidade: os demais municípios do estado (soma das contagens ÷ soma das populações); para um estado como unidade, os demais estados; para um conjunto, os demais municípios dos estados dele. A variação do índice é medida em pontos.
+<p class="formula">índice = 100 × taxa do território ÷ taxa da referência</p></dd>
+<dt>Níveis e critério</dt><dd>Comparado com a base: 1 em cada 20, 100 e 1.000.</dd>
+<dt>Condições</dt><dd>As do sinal 8, mais o grupo de cima e uma referência com outros territórios (sem ela, "Sem referência: …", como Brasília). A população comparável vale aqui por decisão conservadora desta implementação.</dd>
+<dt>A frase da tela</dt><dd>"A taxa passou de 1,27 para 0,72 vezes a dos demais municípios de São Paulo em 2 anos" (exemplo da documentação); o índice fica na explicação completa.</dd>
+<dt>O que não quer dizer</dt><dd>A referência é uma comparação, não uma meta nem um padrão de suficiência.</dd>
+</dl>
+
+<h3>Sinal 11 — Distância</h3>
+<dl class="identificacao">
+<dt>O que mede</dt><dd>A distância em linha reta até o território mais próximo com taxa de pelo menos X% da taxa da base toda (padrão de 100%) e a posição dessa distância entre os territórios abaixo do critério.</dd>
+<dt>Como se calcula</dt><dd>Distância geodésica (sobre o elipsoide do SIRGAS 2000) até o mais próximo que atende, na data; num empate exato, o de menor código. A posição é o percentil da distância entre os que têm distância. Na base do Brasil, a taxa da base toda é a contagem nacional de médicos únicos ÷ a soma das populações municipais.</dd>
+<dt>Nível</dt><dd><span class="marca marca-nao">Não implementado</span> Nunca vira alerta: é só contexto, e nunca usa as palavras "isolamento" ou "desassistência".</dd>
+<dt>Condições</dt><dd>População e coordenadas válidas; não se aplica ao estado como unidade (sem ponto único); num conjunto, vale o componente mais próximo, sem a posição.</dd>
+<dt>A frase da tela</dt><dd>Rio Rufino (SC), jun/2024 (documentação): "A 21,3 km, em linha reta, de BOCAINA DO SUL (SC): o município mais próximo com taxa igual ou maior que a do Brasil (2,36 médicos por 1.000 habitantes). De cada 100 municípios abaixo desse critério, 40 ficam mais perto de um município assim".</dd>
+<dt>O que não quer dizer</dt><dd>Não é distância por estrada, tempo de viagem nem acesso; não indica falta de atendimento nem a organização da rede.</dd>
+</dl>
+<div class="exemplo"><p>Base do Brasil, jun/2024 (versão <code>faa54169c5b6</code>; <code>Docs/DETECTOR_DE_SINAIS.md</code>): taxa do Brasil de 2,36 médicos por 1.000 habitantes; 2.002 municípios acima do critério e 3.568 com distância (mediana de 27,1 km; percentil 90, 112,1 km; maior, 838,6 km). <span class="marca marca-limitacao">Hipótese ou limitação</span> Seis municípios trazem a coordenada fora do intervalo válido; para eles, vale a sede municipal da camada oficial do IBGE (<code>dados/brasil/complemento_coordenadas.json</code>), fixa nas 22 datas, por premissa do responsável.</p></div>
+
+<h3>Sinal 12 — Sinais juntos</h3>
+<dl class="identificacao">
+<dt>O que mede</dt><dd>Quais sinais com nível coincidem no território, na mesma data.</dd>
+<dt>Como se calcula</dt><dd>Lista os sinais com nível; o alerta é o maior deles, sem soma, e os da mesma queda contam como um evento (seção 10). A explicação traz as combinações descritivas que o motor reconhece (por exemplo, poucos profissionais com queda no último registro).</dd>
+<dt>Nível</dt><dd>Nenhum próprio. A frase: "2 sinais com nível: …", com os nomes e os níveis.</dd>
+<dt>O que não quer dizer</dt><dd>Não é nota nem índice geral; sinais da mesma queda não são evidências independentes.</dd>
+</dl>
+
+<h3>A marca "Registro a verificar ou com descontinuidade"</h3>
+<p>Não é um sinal: é uma opção do filtro "Sinal", ao lado de "Mais de um sinal com nível", e uma marca na coluna "Último registro" ("Verificar registro (salto)"), quando a janela tem um pico que volta, uma quebra de fonte, um salto sem volta observada ou uma queda grande (seção 2).</p>
+
+<table>
+<caption>Com que frequência cada sinal tem nível: municípios, todas as datas, critérios padrão (versão da base <code>faa54169c5b6</code>; <code>Docs/DETECTOR_DE_SINAIS.md</code>, "Calibração")</caption>
+<thead><tr><th scope="col">Sinal</th><th scope="col" class="numero">Avaliações</th><th scope="col" class="numero">Moderado</th><th scope="col" class="numero">Elevado</th><th scope="col" class="numero">Crítico</th><th scope="col" class="numero">Algum nível</th></tr></thead>
+<tbody>
+<tr><th scope="row">1–2 Poucos médicos ou nenhum</th><td class="numero">116.964</td><td class="numero">12,07%</td><td class="numero">10,78%</td><td class="numero">1,81%</td><td class="numero">24,67%</td></tr>
+<tr><th scope="row">3 Declínio persistente</th><td class="numero">105.822</td><td class="numero">3,97%</td><td class="numero">0,59%</td><td class="numero">0,10%</td><td class="numero">4,66%</td></tr>
+<tr><th scope="row">4 Desaceleração</th><td class="numero">83.546</td><td class="numero">0,21%</td><td class="numero">—</td><td class="numero">—</td><td class="numero">0,21%</td></tr>
+<tr><th scope="row">5 Instabilidade</th><td class="numero">63.085</td><td class="numero">5,58%</td><td class="numero">—</td><td class="numero">—</td><td class="numero">5,58%</td></tr>
+<tr><th scope="row">6 Queda recente</th><td class="numero">114.293</td><td class="numero">2,95%</td><td class="numero">0,71%</td><td class="numero">0,07%</td><td class="numero">3,73%</td></tr>
+<tr><th scope="row">7 Abaixo do que já teve</th><td class="numero">30.358</td><td class="numero">5,90%</td><td class="numero">0,98%</td><td class="numero">0,04%</td><td class="numero">6,92%</td></tr>
+<tr><th scope="row">8 Menos médicos por habitante</th><td class="numero">30.276</td><td class="numero">2,63%</td><td class="numero">0,73%</td><td class="numero">0,09%</td><td class="numero">3,45%</td></tr>
+<tr><th scope="row">9 Perda de posição</th><td class="numero">30.276</td><td class="numero">5,09%</td><td class="numero">1,11%</td><td class="numero">0,08%</td><td class="numero">6,28%</td></tr>
+<tr><th scope="row">10 Mais longe da referência</th><td class="numero">30.267</td><td class="numero">3,56%</td><td class="numero">0,80%</td><td class="numero">0,09%</td><td class="numero">4,45%</td></tr>
+</tbody>
+</table>
+<p>Os sinais comparados com a base ficam perto das metas (5%, 1% e 0,1%). Nos sinais 1 e 2, de limite fixo, um quarto das avaliações municipais tem 5 médicos ou menos.</p>
+</section>
+
+<section id="condicoes" aria-labelledby="condicoes-titulo">
+<h2 id="condicoes-titulo">6. Condições de aplicação</h2>
+<p>Um sinal só é calculado quando a base e o território têm o que ele precisa; quando falta algo, a frase do sinal diz o motivo, em todas as bases.</p>
+<ul>
+<li><span class="marca marca-implementado">Implementado</span> <strong>Série anual (sinais 3, 4 e 8 a 10):</strong> usa o <strong>mês âncora</strong>, o mês presente em todos os anos. Vale o mês do último registro, quando ele aparece em todos os anos desde a primeira vez, sem falha, e cobre a base inteira ou falta só num ano das pontas; senão, entre os meses que cumprem isso, o mais próximo do último registro. Na base do Brasil, é junho; numa planilha só com anos, é cada ano.</li>
+<li><strong>Dois anos completos (sinal 7):</strong> os meses de registro que se repetem em todos os anos do meio da base (na base do Brasil, janeiro e junho) e blocos de dois anos completos com eles.</li>
+<li><strong>Grupo de cima (sinal 10):</strong> o estado, na base do Brasil; numa planilha, a coluna de grupo.</li>
+<li><strong>População comparável (sinais 8 a 10):</strong> a janela precisa caber inteira num trecho de população comparável, lido da própria base (<code>comparativos.populacao_comparavel</code>). Em cada passagem de ano, a base inteira é olhada, e o trecho termina quando a população é <strong>repetida</strong> (metade da base ou mais repete o valor do ano anterior, o que não é o comum nas outras passagens) ou <strong>salta</strong> (5% da base ou mais, e pelo menos 3 territórios, varia mais de 5%, 3 vezes ou mais o comum). Fora de um trecho, o estado é "comparação não habilitada", com o motivo, e o valor da data continua à vista. Na base do Brasil, com a população do Ministério da Saúde, a base inteira é um trecho só (2014–2024).</li>
+<li><span class="marca marca-limitacao">Hipótese ou limitação</span> <strong>Mínimos de tamanho</strong> (limites fixos): 20 profissionais no início da janela nos sinais 8 a 10 (abaixo, "só descritivo", e fora das comparações), patamar de 20 no sinal 7, média de 6 no sinal 5 e o tamanho mínimo de cada nível no sinal 6; abaixo deles, o fato continua à vista, sem nível.</li>
+<li><strong>Coordenadas (sinal 11):</strong> com o referencial informado (na base do Brasil, SIRGAS 2000), as da data avaliada.</li>
+</ul>
+<h3>"Indisponível nesta base"</h3>
+<p><span class="marca marca-implementado">Implementado</span> Quando a base não tem o que um sinal precisa, ele fica "Indisponível nesta base", com todos os motivos dele (<code>detector.motivos_da_falta</code>); o perfil da base e o detalhe dizem o mesmo. O filtro "Sinal" e "Ajustar critérios" ficam só com os sinais que existem na base; o Mapa fica desligado sem coordenadas, e o Gráfico, sem a distância. Na base do Brasil, nenhum sinal fica indisponível.</p>
+<table>
+<caption>O que falta e os sinais que ficam indisponíveis (<code>backend/detector.py</code>, <code>MOTIVOS_DA_FALTA</code>)</caption>
+<thead><tr><th scope="col">O que falta</th><th scope="col">Sinais</th><th scope="col">O motivo, como a tela diz</th></tr></thead>
+<tbody>
+<tr><th scope="row">Série anual</th><td>3, 4, 8, 9 e 10</td><td>"A base não tem série anual: nenhum mês se repete em todos os anos."</td></tr>
+<tr><th scope="row">Dois anos completos</th><td>7</td><td>"A base não tem dois anos completos de registros, nos mesmos meses, para o patamar."</td></tr>
+<tr><th scope="row">População</th><td>8, 9, 10 e 11</td><td>"A base não tem população: sem ela, não há taxa por habitante."</td></tr>
+<tr><th scope="row">Grupo de cima</th><td>10</td><td>"A base não tem grupo de cima: não há referência para comparar."</td></tr>
+<tr><th scope="row">Coordenadas</th><td>11</td><td>"A base não tem coordenadas com o referencial informado: a distância não pode ser medida."</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="parametros" aria-labelledby="parametros-titulo">
+<h2 id="parametros-titulo">7. Parâmetros e limiares padrão</h2>
+<p><span class="marca marca-implementado">Implementado</span> Os padrões estão em <code>PADRAO</code>, e os intervalos aceitos, em <code>EDITAVEIS</code> (<code>backend/detector.py</code> e, para os sinais 8 a 11, <code>backend/comparativos.py</code>). Um valor fora do intervalo, ou que deixe o nível mais grave mais fácil que o menos grave, é recusado com a explicação. O mínimo de comparações acompanha o "1 em cada N": um nível de 1 em cada 50 pede 49.</p>
+<table>
+<caption>Os parâmetros que a pessoa pode trocar em "Ajustar critérios": padrões e intervalos aceitos</caption>
+<thead><tr><th scope="col">Sinal</th><th scope="col">O que o parâmetro diz (campo)</th><th scope="col">Padrão</th><th scope="col">Intervalo aceito</th></tr></thead>
+<tbody>
+<tr><th scope="row">1–2</th><td>Até quantos profissionais é crítico, elevado e moderado (<code>estrutural.critico</code>, <code>elevado</code>, <code>moderado</code>)</td><td>1, 3 e 5</td><td>inteiro de 0 a 50; crítico ≤ elevado ≤ moderado (zero é sempre crítico)</td></tr>
+<tr><th scope="row">3</th><td>Quedas anuais seguidas (<code>declinio.&lt;nível&gt;_quedas</code>) e perda mínima, em % (<code>declinio.&lt;nível&gt;_perda</code>)</td><td>2, 3 e 4; 10, 20 e 30</td><td>inteiro de 1 a 10; número de 1 a 90; do moderado ao crítico, sem diminuir</td></tr>
+<tr><th scope="row">4</th><td>Anos seguidos com a classe (<code>desaceleracao.anos</code>)</td><td>2</td><td>inteiro de 1 a 5</td></tr>
+<tr><th scope="row">5</th><td>"1 em cada N" do moderado (<code>instabilidade.moderado_um_em</code>)</td><td>20</td><td>inteiro de 2 a 100.000</td></tr>
+<tr><th scope="row">6</th><td>"1 em cada N" de cada nível (<code>perda.&lt;nível&gt;_um_em</code>)</td><td>20, 100 e 1.000</td><td>inteiro de 2 a 100.000; moderado ≤ elevado ≤ crítico</td></tr>
+<tr><th scope="row">6</th><td>Tamanho mínimo em profissionais (<code>perda.&lt;nível&gt;_minimo</code>) e em % do que havia (<code>perda.&lt;nível&gt;_fracao</code>)</td><td>2, 2 e 3; 10, 20 e 30</td><td>inteiro de 1 a 50; número de 1 a 90; sem diminuir</td></tr>
+<tr><th scope="row">7</th><td>Afastamento do moderado e do crítico, em % (<code>patamar.moderado</code>, <code>critico</code>)</td><td>15 e 30</td><td>número de 1 a 90; o do crítico não menor</td></tr>
+<tr><th scope="row">7</th><td>Patamar mínimo (<code>patamar.minimo</code>)</td><td>20</td><td>inteiro de 1 a 1.000</td></tr>
+<tr><th scope="row">7</th><td>"1 em cada N" do elevado e do crítico (<code>patamar.elevado_um_em</code>, <code>critico_um_em</code>)</td><td>100 e 1.000</td><td>inteiro de 2 a 100.000; o do crítico não menor</td></tr>
+<tr><th scope="row">8, 9 e 10</th><td>"1 em cada N" de cada nível (<code>disponibilidade</code>, <code>posicao</code>, <code>defasagem</code>: <code>&lt;nível&gt;_um_em</code>)</td><td>20, 100 e 1.000</td><td>inteiro de 2 a 100.000; moderado ≤ elevado ≤ crítico</td></tr>
+<tr><th scope="row">11</th><td>Critério da distância, em % da taxa da base toda (<code>contexto.taxa_do_brasil_pct</code>)</td><td>100</td><td>número de 10 a 500</td></tr>
+</tbody>
+</table>
+<p><strong>Limites fixos, que não se ajustam na tela</strong> (<code>backend/detector.py</code>, <code>backend/comparativos.py</code> e <code>backend/reguas.py</code>): as marcas de registro (salto de 10 ou mais que ao menos dobra, com volta em até 2 registros a até 125% do valor anterior; queda de 10 ou mais à metade ou menos); a instabilidade (7 registros, média de pelo menos 6, θ = 1,35 e pelo menos 100 mudanças por tipo de intervalo); os sinais 8 a 11 (janela de 2 anos, 20 profissionais no início, taxa por 1.000 habitantes e as regras da população comparável); a régua comum (10 faixas de porte; θ da retaguarda só do passado, nas faixas com 30 mudanças ou mais, entre 0 e 2; durações com até 1 mês de diferença juntas); e o monitoramento (1 em cada 20, com 19 comparações; aviso acima de 3 vezes 5%, com 100 avaliações ou mais).</p>
+</section>
+
+<section id="ajustar-criterios" aria-labelledby="ajustar-criterios-titulo">
+<h2 id="ajustar-criterios-titulo">8. Ajustar critérios e a configuração exploratória</h2>
+<p><span class="marca marca-implementado">Implementado</span> "Ajustar critérios" mostra os limites de cada sinal <strong>em frases, com os campos dentro delas</strong> (<code>criteriosEmFrases</code>, em <code>frontend/src/detectorModel.ts</code>); passar o mouse num campo mostra o padrão e o intervalo aceito. Na queda recente: "Alerta elevado quando a queda for de pelo menos [2] médicos e [20]% do que havia, e for rara: em territórios do mesmo porte, só 1 em cada [100] mudanças anteriores foi uma queda igual ou maior." No sinal 7, as frases separam o limite fixo da raridade; o sinal 12 não tem limite a ajustar.</p>
+<p>Trocar um valor e aplicar ("Aplicar como configuração exploratória") torna a configuração <strong>exploratória</strong>: o motor recalcula tudo com os valores em uso, e só os diferentes do padrão vão no pedido; os padrões nunca são trocados em silêncio. A configuração exploratória aparece no alto da tela ("Configuração exploratória. Os critérios em uso são diferentes do padrão, e estes resultados não substituem os da configuração padrão."), nas notas e na limitação <code>CONFIGURACAO_EXPLORATORIA</code> da resposta, nas exportações (a coluna "Configuração" do CSV e o campo <code>configuracao</code> do JSON) e no Simulador, quando o território é aberto a partir do Detector.</p>
+<div class="quadro quadro-atencao">
+<p class="quadro-titulo">Atenção</p>
+<p>Os números de calibração desta ficha valem para os critérios padrão. Com outros critérios, as taxas de alerta mudam, e os resultados não substituem os da configuração padrão.</p>
+</div>
+<p><strong>"Voltar ao padrão"</strong> fica sempre à vista (desligado enquanto os critérios são os do padrão) e volta a todos de uma vez. <strong>"Considerar os registros desde"</strong> é o início da janela (o fim é o filtro "Até") e não é um critério: trocá-lo não torna a configuração exploratória. Ele muda o declínio persistente, as marcas de registro mostradas e as datas do histórico; a régua continua usando todo o passado da base antes de cada data, e os demais sinais não mudam. A janela vai nas exportações e, quando escolhida pela pessoa, ao Simulador.</p>
+</section>
+
+<section id="estados-e-conjuntos" aria-labelledby="estados-e-conjuntos-titulo">
+<h2 id="estados-e-conjuntos-titulo">9. Estados como unidade e conjuntos</h2>
+<p><span class="marca marca-implementado">Implementado</span> <strong>Estado como unidade.</strong> Na base do Brasil, a série é a contagem estadual (médicos únicos no estado); numa planilha com a coluna de grupo, é a soma das unidades do grupo, nas datas em que todas têm registro (nas outras, ausência de dado). O estado e os municípios dele não entram juntos na seleção. O estado tem <strong>régua própria</strong>: a mesma calibração, feita com a base dos estados (as contagens estaduais como linhas, sem população, coordenadas nem grupo de cima). Nos sinais 8 a 10, estados são comparados com estados (a fila dos estados; no sinal 10, os demais estados); o sinal 11 não se aplica.</p>
+<p><span class="marca marca-limitacao">Hipótese ou limitação</span> É uma base pequena: os níveis mais graves podem ficar sem comparações suficientes. Na base do Brasil (27 unidades da federação, 567 mudanças; versão <code>faa54169c5b6</code>), o moderado existe desde jun/2015 e saiu em 7,2% de 513 avaliações (meta de 5%); o elevado, desde jun/2019, sem alerta em 275 avaliações; o crítico nunca: em jun/2024, os estados têm 270 comparações, e o crítico pede 999. Em jun/2024, 3 dos 27 estados têm moderado. Por decisão do responsável (15/11/2026, Pausa 2), o moderado dos estados continua em 1 em cada 20, e os 7,2% ficam registrados para acompanhamento.</p>
+<p><span class="marca marca-implementado">Implementado</span> <strong>Conjuntos.</strong> Um conjunto reúne de 2 a 6.000 territórios do mesmo nível (até 60 conjuntos por seleção). A série é a soma das contagens dos componentes, só nas datas em que todos têm registro, e a taxa é a soma das contagens ÷ a soma das populações. <strong>O conjunto não tem nível</strong>: não há outros iguais para comparar; a tela mostra os fatos e o motivo ("Sem nível (conjunto)"), e os níveis ficam com os componentes. O conjunto não entra no universo de percentis (sinal 9), e, no sinal 11, vale o componente mais próximo. <span class="marca marca-nao">Não implementado</span> O todo da base (na base do Brasil, o país) não é avaliado como território: entra só no critério da distância.</p>
+</section>
+
+<section id="mesma-queda" aria-labelledby="mesma-queda-titulo">
+<h2 id="mesma-queda-titulo">10. Um nível por território e os sinais da mesma queda</h2>
+<p><span class="marca marca-implementado">Implementado</span> O alerta do território é <strong>o maior nível entre os seus sinais</strong>, sem soma nem índice; o sinal principal é o de maior nível (no empate, o primeiro na ordem dos sinais). O resumo dos níveis, a cor no mapa e no gráfico e a ordem da lista usam esse nível, e os contadores contam territórios. Uma mesma queda pode aparecer em seis sinais: a queda recente, o declínio persistente, o afastamento do patamar e os três comparados com outros. Quando dois ou mais deles têm nível, a tela diz que vêm da mesma queda: contam como um evento ("Queda recente e abaixo do que já teve vêm da mesma queda: contam como um evento.").</p>
+<p><span class="marca marca-limitacao">Hipótese ou limitação</span> O agrupamento é feito pelo tipo de sinal: todo sinal desses seis com nível na mesma data entra no mesmo evento, sem que o motor confira, data a data, se as quedas são a mesma. É uma hipótese prudente, para não contar o mesmo evento como várias evidências independentes.</p>
+<table>
+<caption>Municípios com alerta em jun/2024, por sinal e por nível (versão da base <code>faa54169c5b6</code>, critérios padrão; <code>Docs/DETECTOR_DE_SINAIS.md</code>, "Calibração"). Um município pode ter nível em mais de um sinal: as linhas não se somam.</caption>
+<thead><tr><th scope="col">Sinal</th><th scope="col" class="numero">Moderado</th><th scope="col" class="numero">Elevado</th><th scope="col" class="numero">Crítico</th><th scope="col" class="numero">Com nível no sinal</th><th scope="col" class="numero">É o sinal principal</th></tr></thead>
+<tbody>
+<tr><th scope="row">1–2 Poucos médicos ou nenhum</th><td class="numero">446</td><td class="numero">332</td><td class="numero">23</td><td class="numero">801 (14,4%)</td><td class="numero">799 (14,3%)</td></tr>
+<tr><th scope="row">3 Declínio persistente</th><td class="numero">131</td><td class="numero">21</td><td class="numero">3</td><td class="numero">155 (2,8%)</td><td class="numero">115 (2,1%)</td></tr>
+<tr><th scope="row">4 Desaceleração</th><td class="numero">16</td><td class="numero">0</td><td class="numero">0</td><td class="numero">16 (0,3%)</td><td class="numero">16 (0,3%)</td></tr>
+<tr><th scope="row">5 Instabilidade</th><td class="numero">260</td><td class="numero">0</td><td class="numero">0</td><td class="numero">260 (4,7%)</td><td class="numero">196 (3,5%)</td></tr>
+<tr><th scope="row">6 Queda recente</th><td class="numero">129</td><td class="numero">23</td><td class="numero">3</td><td class="numero">155 (2,8%)</td><td class="numero">99 (1,8%)</td></tr>
+<tr><th scope="row">7 Abaixo do que já teve</th><td class="numero">105</td><td class="numero">28</td><td class="numero">3</td><td class="numero">136 (2,4%)</td><td class="numero">92 (1,7%)</td></tr>
+<tr><th scope="row">8 Menos médicos por habitante</th><td class="numero">74</td><td class="numero">30</td><td class="numero">3</td><td class="numero">107 (1,9%)</td><td class="numero">22 (0,4%)</td></tr>
+<tr><th scope="row">9 Perda de posição</th><td class="numero">134</td><td class="numero">41</td><td class="numero">5</td><td class="numero">180 (3,2%)</td><td class="numero">72 (1,3%)</td></tr>
+<tr><th scope="row">10 Mais longe da referência</th><td class="numero">99</td><td class="numero">31</td><td class="numero">4</td><td class="numero">134 (2,4%)</td><td class="numero">43 (0,8%)</td></tr>
+<tr><th scope="row">Território: o maior nível</th><td class="numero">978</td><td class="numero">436</td><td class="numero">40</td><td class="numero">1.454 de 5.570 (26,1%)</td><td class="numero">—</td></tr>
+</tbody>
+</table>
+<p>Mais da metade dos municípios com alerta em jun/2024 (799 de 1.454) tem como sinal principal "Poucos médicos ou nenhum", um limite fixo sobre o número de profissionais, e não uma comparação com a base.</p>
+</section>
+
+<section id="aviso-da-base" aria-labelledby="aviso-da-base-titulo">
+<h2 id="aviso-da-base-titulo">11. O aviso da base</h2>
+<p><span class="marca marca-implementado">Implementado</span> Em cada data, o motor conta quantos territórios da base toda (não só os da seleção) tiveram, no último registro, uma mudança rara pela régua da queda recente (1 em cada 20, com 19 comparações e a retaguarda do moderado, sem o tamanho mínimo): é o <strong>monitoramento</strong> da data, e o esperado, por construção, é cerca de 5%. Acima do triplo (mais de 15%), com 100 avaliações ou mais, a tela mostra o aviso da base: "Em [data], [x]% dos territórios tiveram uma queda rara ao mesmo tempo (o esperado é cerca de 5%). Quando muitos caem juntos, pode ter havido mudança no registro da base, e não nos territórios."</p>
+<div class="quadro quadro-atencao">
+<p class="quadro-titulo">Como ler o aviso</p>
+<p>O aviso não diz que algo aconteceu nos territórios: tantas quedas raras numa só data combinam mais com uma mudança na forma de registrar a base. Os alertas continuam na lista; o aviso pede cautela antes de lê-los como mudança real.</p>
+</div>
+<p><span class="marca marca-limitacao">Hipótese ou limitação</span> O monitoramento usa sempre a régua padrão do moderado (1 em cada 20), mesmo numa configuração exploratória, e só a régua dos territórios da base, não a dos estados. Na base do Brasil, em jun/2024, não há aviso (seção 13).</p>
+</section>
+
+<section id="historico" aria-labelledby="historico-titulo">
+<h2 id="historico-titulo">12. O histórico de sinais</h2>
+<p><span class="marca marca-implementado">Implementado</span> No detalhe de cada território, "Ver o histórico de sinais" abre uma tabela com cada data da janela, do início (num município com quebra de fonte, depois dela) até a data avaliada. <strong>Cada data é avaliada só com o que era conhecido nela</strong>: a régua, o patamar e as marcas de registro de cada linha são os daquela data. Um salto aparece como aumento na data em que aconteceu e só passa a pico que volta quando a volta é observada. As colunas: a data, o número, o alerta (o maior nível entre os sinais 1 a 7 naquela data), "Poucos profissionais", a queda desde o registro anterior, a distância ao patamar e, nas datas da série anual, as quedas anuais seguidas e a perda de ritmo do crescimento.</p>
+<p><span class="marca marca-nao">Não implementado</span> O histórico cobre só os sinais 1 a 7: na data avaliada, o alerta do histórico pode ser menor que o da lista, que inclui os sinais 8 a 10.</p>
+</section>
+
+<section id="regua-da-data" aria-labelledby="regua-da-data-titulo">
+<h2 id="regua-da-data-titulo">13. A régua da data e o monitoramento</h2>
+<p>A <strong>régua da data</strong> mostra, para a data avaliada e cada faixa de porte, a partir de que mudança ela é rara em cada nível, com a régua que o motor usa de fato para um território daquele porte (<code>detector.limiares</code>). Até 18/11/2026, a tela a mostrava; agora, ela está nesta ficha (na data de referência) e na exportação do método (na data e na base em uso).</p>
+<p><strong>Como se calcula.</strong> Para cada faixa e nível "1 em cada N", o motor escolhe a origem das comparações como faz para um território. Com as n comparações em ordem, da pior para a melhor, a raridade chega a 1 ÷ N quando no máximo ⌊(n + 1) ÷ N⌋ − 1 delas são iguais ou piores; o <strong>corte</strong> é a mudança na posição seguinte, e uma mudança nova é rara quando é pior que ele (com todas as faixas, a célula diz o corte nos dois extremos da faixa). Na queda recente, entram as mudanças anteriores com o mesmo tempo entre registros (em jun/2024, as de 5 meses); no sinal 7, os afastamentos anteriores de todas as datas, para patamares de 20 ou mais (o moderado dele é um limite fixo e não tem coluna).</p>
+<p><strong>Como se lê.</strong> "Queda maior que X%": uma queda maior que X% é rara naquele nível para um território daquele porte (o número antes; no sinal 7, o patamar), nessa data; o alerta da queda recente pede também o tamanho mínimo. "Com as faixas vizinhas: N comparações": o porte não bastava. "Sem comparações suficientes (N de M, …)": nem com a retaguarda há o mínimo; N é o que há, e M, o que o nível pede, o mesmo número que o detalhe do território diz. "Qualquer queda": o corte fica em zero ou acima. "Nenhuma queda chega a esse nível": o corte é de 100% ou mais.</p>
+<div class="exemplo"><p>Leitura ilustrativa, com o exemplo do "Entenda" da ferramenta: uma queda de 18 para 11 médicos (−38,9%) num município de 10 a 19 médicos, em jun/2024, passa do corte do elevado (36,8%) e não chega ao do crítico (58,8%); o tamanho mínimo do elevado é o maior entre 2 e 20% de 18 arredondado para cima (4), e a queda é de 7. O nível seria elevado.</p></div>
+<table>
+<caption>Queda recente (sinal 6), municípios: a partir de que queda ela é rara, por porte (o número de médicos antes). Base do Brasil, versão <code>faa54169c5b6</code>, método <code>DETECTOR-SINAIS/V3/1</code>, régua de jun/2024, com as mudanças anteriores de 5 meses entre registros, critérios padrão (<code>python scripts/calibrar_detector.py --regua-da-data</code>)</caption>
+<thead><tr><th scope="col">Porte (médicos)</th><th scope="col" class="numero">Comparações do porte</th><th scope="col">Moderado (1 em cada 20)</th><th scope="col">Elevado (1 em cada 100)</th><th scope="col">Crítico (1 em cada 1.000)</th></tr></thead>
+<tbody>
+<tr><th scope="row">1 a 3</th><td class="numero">6.572</td><td>queda maior que 33,3%</td><td>queda maior que 50,0%</td><td>nenhuma queda chega a esse nível</td></tr>
+<tr><th scope="row">4 a 9</th><td class="numero">16.650</td><td>queda maior que 25,0%</td><td>queda maior que 42,9%</td><td>queda maior que 75,0%</td></tr>
+<tr><th scope="row">10 a 19</th><td class="numero">12.035</td><td>queda maior que 21,4%</td><td>queda maior que 36,8%</td><td>queda maior que 58,8%</td></tr>
+<tr><th scope="row">20 a 49</th><td class="numero">9.958</td><td>queda maior que 17,1%</td><td>queda maior que 31,3%</td><td>queda maior que 56,4%</td></tr>
+<tr><th scope="row">50 a 99</th><td class="numero">3.969</td><td>queda maior que 13,6%</td><td>queda maior que 29,4%</td><td>queda maior que 64,8%</td></tr>
+<tr><th scope="row">100 a 299</th><td class="numero">3.708</td><td>queda maior que 10,0%</td><td>queda maior que 26,3%</td><td>queda maior que 52,4%</td></tr>
+<tr><th scope="row">300 a 999</th><td class="numero">1.901</td><td>queda maior que 5,9%</td><td>queda maior que 17,3%</td><td>queda maior que 45,4%</td></tr>
+<tr><th scope="row">1.000 a 2.999</th><td class="numero">616</td><td>queda maior que 2,5%</td><td>queda maior que 11,3%</td><td>queda maior que 44,4% (com as faixas vizinhas: 2.720 comparações)</td></tr>
+<tr><th scope="row">3.000 a 9.999</th><td class="numero">203</td><td>queda maior que 2,2%</td><td>queda maior que 7,6%</td><td>sem comparações suficientes (864 de 999, com as faixas vizinhas)</td></tr>
+<tr><th scope="row">10.000 ou mais</th><td class="numero">45</td><td>queda maior que 1,3%</td><td>queda maior que 7,6% (com as faixas vizinhas: 248 comparações)</td><td>sem comparações suficientes (248 de 999, com as faixas vizinhas)</td></tr>
+</tbody>
+</table>
+<p>Nas faixas maiores, o tamanho mínimo pesa mais que a raridade: na faixa de 1.000 a 2.999, uma queda já é rara no moderado acima de 2,5%, mas o alerta moderado pede também pelo menos 10% do que havia.</p>
+<table>
+<caption>Abaixo do que já teve (sinal 7), municípios: a partir de que afastamento do patamar ele é raro, por porte do patamar. Mesma base, método, data e critérios; os afastamentos anteriores de todas as datas</caption>
+<thead><tr><th scope="col">Porte (médicos)</th><th scope="col" class="numero">Comparações do porte</th><th scope="col">Elevado (1 em cada 100)</th><th scope="col">Crítico (1 em cada 1.000)</th></tr></thead>
+<tbody>
+<tr><th scope="row">20 a 49</th><td class="numero">13.942</td><td>afastamento maior que 39,5%</td><td>afastamento maior que 62,2%</td></tr>
+<tr><th scope="row">50 a 99</th><td class="numero">5.321</td><td>afastamento maior que 37,8%</td><td>afastamento maior que 68,2%</td></tr>
+<tr><th scope="row">100 a 299</th><td class="numero">5.109</td><td>afastamento maior que 31,3%</td><td>afastamento maior que 76,1%</td></tr>
+<tr><th scope="row">300 a 999</th><td class="numero">2.552</td><td>afastamento maior que 20,9%</td><td>afastamento maior que 34,9%</td></tr>
+<tr><th scope="row">1.000 a 2.999</th><td class="numero">806</td><td>afastamento maior que 3,8%</td><td>afastamento maior que 31,3% (com as faixas vizinhas: 3.614 comparações)</td></tr>
+<tr><th scope="row">3.000 a 9.999</th><td class="numero">256</td><td>afastamento maior que 17,5%</td><td>afastamento maior que 19,6% (com as faixas vizinhas: 1.116 comparações)</td></tr>
+<tr><th scope="row">10.000 ou mais</th><td class="numero">54</td><td>afastamento maior que 9,9% (com as faixas vizinhas: 310 comparações)</td><td>sem comparações suficientes (310 de 999, com as faixas vizinhas)</td></tr>
+</tbody>
+</table>
+<p>O elevado e o crítico do sinal 7 também pedem o limite fixo (os 2 últimos registros 15% ou mais abaixo; no crítico, os 4 últimos 30% ou mais). Onde o corte fica abaixo do limite, vale o limite: na faixa de 1.000 a 2.999, em jun/2024, todo afastamento que chega ao moderado (15%) já é raro para o elevado (3,8%).</p>
+<table>
+<caption>Queda recente (sinal 6), estados como unidade: a régua própria, com a base dos estados. Mesma base, método, data e critérios; só as faixas com comparações</caption>
+<thead><tr><th scope="col">Porte (médicos)</th><th scope="col" class="numero">Comparações do porte</th><th scope="col">Moderado (1 em cada 20)</th><th scope="col">Elevado (1 em cada 100)</th><th scope="col">Crítico (1 em cada 1.000)</th></tr></thead>
+<tbody>
+<tr><th scope="row">300 a 999</th><td class="numero">25</td><td>queda maior que 9,6%</td><td>sem comparações suficientes (47 de 99, com as faixas vizinhas)</td><td>sem comparações suficientes (47 de 999, com as faixas vizinhas)</td></tr>
+<tr><th scope="row">1.000 a 2.999</th><td class="numero">22</td><td>qualquer queda</td><td>queda maior que 9,6% (com as faixas vizinhas: 169 comparações)</td><td>sem comparações suficientes (169 de 999, com as faixas vizinhas)</td></tr>
+<tr><th scope="row">3.000 a 9.999</th><td class="numero">122</td><td>qualquer queda</td><td>queda maior que 7,4%</td><td>sem comparações suficientes (245 de 999, com as faixas vizinhas)</td></tr>
+<tr><th scope="row">10.000 ou mais</th><td class="numero">101</td><td>qualquer queda</td><td>queda maior que 1,5%</td><td>sem comparações suficientes (223 de 999, com as faixas vizinhas)</td></tr>
+</tbody>
+</table>
+<p><strong>O monitoramento da data.</strong> Base do Brasil, jun/2024 (versão <code>faa54169c5b6</code>, método <code>DETECTOR-SINAIS/V3/1</code>, critérios padrão): 161 de 5.570 municípios tiveram uma mudança rara (1 em cada 20) no último registro, 2,9%, para um esperado de cerca de 5%; sem aviso da base (ele vale acima do triplo do esperado, com 100 avaliações ou mais; seção 11).</p>
+<div class="quadro quadro-atencao">
+<p class="quadro-titulo">Outra data ou outra base</p>
+<p>Estes números são os da base do Brasil em jun/2024. Com outra data ("Até") ou outra base (uma planilha enviada), o motor calcula outra régua e outro monitoramento, com o mesmo método. Eles saem em "Exportar o método (JSON)": nos campos <code>regua_na_data</code> (a régua dos territórios da base e o monitoramento) e <code>regua_dos_estados_na_data</code> (a dos estados como unidade, quando a seleção tem algum).</p>
+</div>
+</section>
+
+<section id="exportacoes" aria-labelledby="exportacoes-titulo">
+<h2 id="exportacoes-titulo">14. As exportações</h2>
+<p><span class="marca marca-implementado">Implementado</span> <strong>"Exportar a lista (CSV)"</strong> gera <code>detector_de_sinais_&lt;data&gt;.csv</code> (separador ";", decimal com vírgula, como as outras exportações), com <strong>uma linha por território</strong> que passa nos filtros, de todas as páginas (<code>csvDoDetector</code>). As colunas trazem: o território (identificador, nome, tipo, grupo de cima e a janela); o alerta (o nível, o "Tipo de critério" do sinal principal, o "Por quê", os sinais com nível — "Queda recente: Elevado | Abaixo do que já teve: Moderado" —, os da mesma queda e os sem comparações suficientes); o último registro e o porte; o nível, os valores e o estado de cada sinal; e a rastreabilidade: "Configuração" ("padrão" ou "exploratória (critérios diferentes do padrão)"), a versão do método e a versão da base, por extenso.</p>
+<div class="quadro">
+<p class="quadro-titulo">O tipo de critério no CSV</p>
+<p>Na coluna "Tipo de critério", o limite fixo aparece como "por convenção", o valor do campo <code>criterio</code> da API, que não mudou; a comparação com a base aparece como "comparado com a base".</p>
+</div>
+<p><strong>"Exportar o método (JSON)"</strong> gera <code>detector_de_sinais_metodo_&lt;data&gt;.json</code> (<code>metodoDoDetector</code>), com <code>ferramenta</code>, <code>versao_do_metodo</code>, <code>fonte</code> (a base, a versão, os registros, os nomes e o que a base tem), <code>janela</code>, <code>configuracao</code>, <code>parametros</code> (<code>padrao</code>, <code>emUso</code>, <code>personalizados</code> e <code>editaveis</code>) e <code>niveis</code>; <code>regua_na_data</code> e, com estados como unidade, <code>regua_dos_estados_na_data</code> — por faixa (<code>perda</code> e <code>patamar</code>), as comparações e, em cada nível, <code>umEm</code>, <code>pede</code>, <code>origem</code> (<code>porte</code>, <code>vizinhas</code> ou <code>todas</code>), <code>comparacoes</code> e <code>cortePct</code> (a queda ou o afastamento, em %, a partir do qual a mudança é rara; <code>null</code> sem comparações suficientes; com todas as faixas, também <code>corteAtePct</code>), mais o <code>monitoramento</code> (<code>avaliadas</code>, <code>raras</code>, <code>taxaPct</code>, <code>esperadoPct</code> e <code>avisoDaBase</code>); e <code>aviso_da_base</code>, <code>comparacao_em_2_anos</code>, <code>notas</code>, <code>limitacoes</code> e <code>referencia</code>. As duas exportações levam a mesma rastreabilidade (a versão do método, a da base, a janela e a configuração): com elas, um resultado pode ser refeito e conferido.</p>
+</section>
+
+<section id="simulador" aria-labelledby="simulador-titulo">
+<h2 id="simulador-titulo">15. As ligações com o Simulador de Cenários</h2>
+<p><span class="marca marca-implementado">Implementado</span> No detalhe de cada território, duas ações levam ao Simulador de Cenários (Ficha B). O Simulador abre só com aquele território, numa seleção própria: a seleção principal não muda, e nada é calculado na página.</p>
+<ul>
+<li><strong>"Abrir no Simulador"</strong> leva o contexto: a data avaliada, os sinais com nível ("Queda recente (elevado)"), a janela escolhida pela pessoa e o aviso de configuração exploratória, quando há. O Simulador lembra que o que vem depois do último registro é cenário hipotético.</li>
+<li><strong>"Simular recuperação"</strong> aparece quando o último registro está abaixo do patamar (o sinal 7 não precisa ter nível). Abre um cenário de planejamento inverso (quantos profissionais faltariam para chegar à meta numa data), com a <strong>meta igual ao patamar arredondado para cima</strong>, um número inteiro, e a frase diz de onde ela vem: "voltar ao patamar, 79 médicos (o patamar é de 78,25, a maior média de dois anos seguidos antes dos registros mais recentes, arredondado para cima)" (exemplo da documentação).</li>
+</ul>
+<div class="quadro quadro-atencao">
+<p class="quadro-titulo">A meta é uma hipótese</p>
+<p>A meta é uma hipótese editável, nunca uma recomendação: a pessoa pode trocá-la, o resultado é um cenário, não uma previsão, e nenhum texto diz que é preciso prover (decisão D-B do responsável, de 10/11/2026). O patamar não é o número certo para o território.</p>
+</div>
+<p><span class="marca marca-limitacao">Hipótese ou limitação</span> No Simulador, só os sinais 1 e 2 (limite fixo) podem ser aplicados a um valor simulado, como "hipótese do cenário", com os limites padrão e só em municípios; os sinais comparados com a base e os de evento observado nunca são aplicados a valores simulados.</p>
+</section>
+
+<section id="limites" aria-labelledby="limites-titulo">
+<h2 id="limites-titulo">16. Limitações, hipóteses e o que não está implementado</h2>
+<p><span class="marca marca-limitacao">Hipótese ou limitação</span></p>
+<ul>
+<li>O registro mais recente da base do Brasil é jun/2024: nenhum sinal descreve a situação de hoje.</li>
+<li>"Raro" quer dizer incomum nesta base, não comprovadamente pior: a régua mede o que é incomum no passado da própria base, e não um padrão externo.</li>
+<li>A contagem municipal conta quem atua em mais de um município em cada um; um conjunto é a soma das contagens dos componentes, nunca "médicos únicos".</li>
+<li>Os limites fixos (sinais 1 a 4, o tamanho mínimo do 6, os 15% e 30% do 7, o mínimo de 20 e o critério do pico que volta) são escolhas do método; o moderado da desaceleração é exploratório.</li>
+<li>A base dos estados é pequena (crítico nunca; elevado desde jun/2019; moderado em 7,2% para a meta de 5%); de 3.000 médicos para cima, os municípios não têm comparações para o crítico, nem com as faixas vizinhas.</li>
+<li>A variação em 2 anos só existe em trechos de população comparável; a população é uma estimativa, e a taxa de um estado usa a contagem estadual sobre a soma das populações municipais.</li>
+<li>A distância é em linha reta; seis municípios usam a sede da camada oficial do IBGE; as divisas do mapa são só desenho.</li>
+<li>Os sinais da mesma queda são agrupados pelo tipo de sinal; o índice de instabilidade usa θ = 1,35, estimado na base do Brasil, também numa planilha; numa planilha, o grupo de cima como unidade é a soma das unidades dele.</li>
+<li>Os números desta ficha são da base do Brasil, versão <code>faa54169c5b6</code>, critérios padrão; as metas (5%, 1% e 0,1%) valem por avaliação, não para a parcela de territórios que recebe alerta alguma vez.</li>
+</ul>
+<p><span class="marca marca-nao">Não implementado</span></p>
+<ul>
+<li>O sinal 11 nunca vira alerta e não tem nível. Nada vai ao provedor de IA: o Detector calcula no motor e funciona sem ele.</li>
+<li>Soma de pontos, índice geral de criticidade ou ranking assistencial; juízo de desassistência, de suficiência do atendimento, de prioridade de provimento, de isolamento assistencial, de rotatividade de pessoas ou de causa.</li>
+<li>Nível para conjuntos; o todo da base como território; o sinal 11 para o estado como unidade; o histórico dos sinais 8 a 12; o declínio "por tendência".</li>
+<li>Distância por estrada, tempo de viagem ou acesso; gravar resultados ou planilhas (o Detector só lê e calcula).</li>
+</ul>
+</section>
+
+<section id="versoes" aria-labelledby="versoes-titulo">
+<h2 id="versoes-titulo">17. Versões, reprodutibilidade e documentos</h2>
+<p><strong>Versões.</strong> Método <code>DETECTOR-SINAIS/V3/1</code> (Proposta V3, comando V23, de 13/11/2026), na resposta da rota (<code>versao</code>) e nas exportações. Base do Brasil na versão <code>faa54169c5b6f31bfc5d669964f49c93cc8abce386816fa57191a5566de93cb1</code>, a de <code>dados/brasil/manifesto.json</code>, com a população do Ministério da Saúde desde 13/11/2026; a integridade se confere com <code>python backend/brazil_data.py diagnostico</code>, que deve mostrar <code>"integridade": "verificada"</code>.</p>
+<p><span class="marca marca-implementado">Implementado</span> <strong>Reprodutibilidade.</strong> O motor é determinístico: a mesma versão da base, a mesma seleção, a mesma janela e os mesmos critérios dão os mesmos números e as mesmas frases. A calibração é montada uma vez por versão da base, e cada data usa só o passado dela. O estudo de calibração (<code>scripts/calibrar_detector.py</code>) roda fora do produto e do CI, da raiz do repositório, somente leitura: não grava nada, não altera nenhum dado e não envia nada ao provedor de IA.</p>
+<ul>
+<li>Sem opções: o estudo completo — a régua da queda recente só pela raridade (municípios e estados), os alertas de cada sinal em todas as datas, a parcela de territórios com algum alerta, os limites do sinal 8 e o contexto do sinal 11 (as tabelas de <code>Docs/DETECTOR_DE_SINAIS.md</code>, "Calibração").</li>
+<li><code>--so-regua</code>: só a régua da queda recente; <code>--so-contexto</code>: só o contexto geográfico (sinal 11).</li>
+<li><code>--regua-da-data [AAAAMM]</code>: só a régua de uma data e o monitoramento dela, pelo mesmo cálculo da resposta do Detector (<code>detector.limiares</code>); sem a data, a do último registro. São as tabelas da seção 13.</li>
+</ul>
+<p><strong>Documentos.</strong> <code>Docs/DETECTOR_DE_SINAIS.md</code> (o que o Detector faz, a calibração, as limitações e os testes); <code>Docs/DETECTOR_E_SIMULADOR_V3.md</code> (a Proposta V3, Partes A, B e F); <code>Docs/DETECTOR_E_SIMULADOR_V2_2.md</code> (a Proposta V2.2, no que a V3 não muda); <code>Docs/PERFIL_DA_BASE_DETECTOR_SIMULADOR.md</code> (o perfil da base); e <code>Docs/REGISTRO_DE_COMPORTAMENTO.md</code>.</p>
+</section>
+
+</main>
+
+<footer class="colofao">
+<p><strong>Fonte:</strong> <code>Docs/fichas/ficha_detector.html</code>, com a folha de estilo <code>Docs/fichas/ficha.css</code>. O PDF é gerado por <code>scripts/gerar_fichas.py</code> e guarda a impressão digital SHA-256 da fonte (e a da folha de estilo).</p>
+<p><strong>Comandos que reproduzem os números</strong> (da raiz do repositório, somente leitura): <code>python scripts/calibrar_detector.py --regua-da-data 202406</code> (a régua e o monitoramento de jun/2024, seção 13); <code>python scripts/calibrar_detector.py</code> (as demais tabelas de calibração); <code>python backend/brazil_data.py diagnostico</code> (a integridade da base).</p>
+<p>Esta "ficha metodológica (PDF)" é um documento de leitura: não altera nem substitui as "fichas de método" de <code>backend/definicoes.py</code> (Adendo PAR-20261026 da SPEC), usadas pela conversa.</p>
+</footer>
+
+</body>
+</html>

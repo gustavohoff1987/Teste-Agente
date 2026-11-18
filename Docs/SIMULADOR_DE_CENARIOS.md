@@ -40,8 +40,23 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
   no Detector de Sinais, o "(Entenda)" geral traz três frases simples e um exemplo, com o nome que a base dá à contagem —
   "Mostra para onde o território iria se continuasse como vinha, e o efeito das mudanças que você quer testar. O “como vinha” e
   a margem de erro vêm da própria base: o Agente refaz no passado a projeção que teria feito e confere com o que aconteceu
-  depois. Todo resultado é um cenário hipotético, nunca uma previsão." (o exemplo usa números ilustrativos e diz isso). Depois
-  de um cálculo, "Ver explicação completa" abre "Como os métodos se saíram no passado".
+  depois. Todo resultado é um cenário hipotético, nunca uma previsão." (o exemplo usa números ilustrativos e diz isso). "Ver
+  explicação completa" abre a ficha metodológica em PDF, numa nova aba (desde 18/11/2026, AJ-03; antes, depois de um cálculo,
+  "Como os métodos se saíram no passado").
+- **Ficha metodológica (PDF) e a avaliação dos métodos** (desde 18/11/2026, AJ-03), no alto, nos dois modos, ao lado de
+  "Exportar o cenário (JSON)" e "Importar cenário (JSON)":
+  - **"Ficha metodológica (PDF)"** (`simulador-ficha`) abre numa nova aba a **Ficha B** (fonte em
+    [`Docs/fichas/ficha_simulador.html`](fichas/ficha_simulador.html); o PDF, `frontend/public/fichas/ficha-simulador.pdf`, sai
+    com os arquivos estáticos da interface, e o link respeita a base da página, `ADT_BASE_DA_PAGINA`): os modos, cada forma de
+    projetar (M0, M0d, M0g, M1, M2 e M3), as premissas, as intervenções, a meta, as referências, os conjuntos, o Brasil como
+    território, a hipótese do cenário, os limites e a avaliação dos métodos no histórico da base, com os números da base do
+    Brasil;
+  - **"Exportar a avaliação dos métodos (JSON)"** (`simulador-exportar-avaliacao`; desligado até haver um cálculo; arquivo
+    `simulador_avaliacao_dos_metodos_<último registro>.json`) leva a retroprojeção da base em uso **tal como o motor a mandou**
+    (`retroprojecao`: a escolha de cada nível, com os candidatos e os erros, as faixas por porte e prazo e a tabela dos erros de
+    cada método), com a versão do método e a da base, o último registro, a janela, as notas e as limitações. É a avaliação dos
+    métodos no histórico da base, e não uma análise do território escolhido; o conteúdo dela saiu da tela com "Como os métodos se
+    saíram no passado".
 - **"Voltar ao padrão"** (`simulador-voltar-ao-padrao`; desde 15/11/2026): **um botão só**, sempre à vista nos dois modos, ao
   lado dos botões de modo. Devolve de uma vez todas as premissas ao padrão — a forma de projetar e a janela que a base escolheu
   (também a janela trazida do Detector de Sinais), a faixa de 8 em cada 10, a permanência total e a comparação pela diferença — e
@@ -114,13 +129,13 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
   - a **forma de projetar** em uso, com a marca "(escolhida pela base)" quando é o caso, e o estado da **faixa**
     (`simulador-faixa-estado`: "Faixa de 8 em cada 10: conferida", "provisória" ou "indisponível"), cada um com o seu **"Entenda"**
     (`simulador-entenda-jeito`, `simulador-entenda-faixa`): duas ou três frases simples e um exemplo com os números do cenário,
-    que vêm do motor. "Ver explicação completa" abre "Como os métodos se saíram no passado";
+    que vêm do motor. "Ver explicação completa" abre a seção da ficha metodológica (a forma escolhida e a faixa), numa nova aba;
   - a faixa em palavras (`simulador-faixa-texto`), o resultado da meta (`simulador-planejamento`), a hipótese do cenário
     (`simulador-hipotetico`) e os avisos (`simulador-avisos`), quando há;
-  - **"Como os métodos se saíram no passado"** (`simulador-validacao`): a frase da escolha de cada nível (`simulador-escolhas`),
-    com o erro de cada candidato frente a manter o último valor e em quantas combinações de origem e prazo ele errou menos, e as
-    notas;
-  - a linha das **versões** (`simulador-versoes`): o método, a base e a categoria, a versão da base e o último registro.
+  - até 18/11/2026, também "Como os métodos se saíram no passado" (`simulador-validacao`, com a frase da escolha de cada nível,
+    o erro de cada candidato e as notas) e a linha das versões (`simulador-versoes`): desde o AJ-03, o conteúdo delas está na
+    ficha e em "Exportar a avaliação dos métodos (JSON)", e as versões, nas exportações. O último registro da base continua no
+    aviso do alto da página.
 - **"Avançado ▸"** (`simulador-avancado`) leva às quatro etapas, com o que elas têm a mais (seção C.8): vários cenários, outras
   formas de projetar e outras janelas, referências, calendário de acréscimos e permanência, conjuntos e vários territórios,
   exportar e importar.
@@ -227,10 +242,11 @@ Os campos mantêm os identificadores de antes (`simulador-janela-inicio`, `simul
      faixa e o método usado em palavras. Num **conjunto**, o método aparece como "soma das projeções dos membros (cada um com o
      crescimento do seu estado)" (ou "cada um no último valor", na persistência; nos demais métodos, "soma das contagens dos
      componentes · …"), e a faixa leva o rótulo "**aproximação**" na tabela, no texto da faixa e na legenda do gráfico;
-   - **"Como os métodos se saíram no passado"** (`simulador-validacao`): as notas, as faixas por porte e prazo (com o estado de
-     cada uma — conferida, provisória ou indisponível —, o número de origens e de casos) e o erro de cada método frente à
-     persistência;
-   - a linha das **versões** (`simulador-versoes`): o método, a versão da base, a janela e o último registro.
+   - a **janela deste cálculo** (`simulador-janela-do-calculo`, desde o AJ-03): "Janela deste cálculo: de jun/2021 a jun/2024 (a
+     janela padrão). Cada cenário parte do último registro usável do território nessa janela." Até 18/11/2026, a janela ficava na
+     linha das versões (`simulador-versoes`), e as faixas por porte e prazo e o erro de cada método frente à persistência, em
+     "Como os métodos se saíram no passado" (`simulador-validacao`); desde o AJ-03, os dois saíram da tela, e esses números vão
+     em "Exportar a avaliação dos métodos (JSON)".
 
 ### Textos
 
@@ -267,8 +283,8 @@ todo vêm do painel "Colunas". Uma janela com um registro só (numa base com reg
 A tela e os textos de cenário usam linguagem simples (decisão D-C): "continuar como vinha", "faixa provisória", "sem intervenção",
 "indisponível", com o motivo. A **deriva do estado** do M0d aparece como "o crescimento recente do estado" (o método, como
 "persistência com o crescimento recente do estado"), e a retroprojeção, como o cenário "calculado sobre datas que já têm
-registro". Os códigos dos métodos (M0, M0d, M0g, M1, M2, M3) e os termos técnicos ficam na lista de métodos do modo avançado, em
-"Como os métodos se saíram no passado", neste documento e nas exportações.
+registro". Os códigos dos métodos (M0, M0d, M0g, M1, M2, M3) e os termos técnicos ficam na lista de métodos do modo avançado, na
+ficha metodológica (PDF), neste documento e nas exportações.
 
 Os **"Entenda"** do resultado (campo `entenda` de cada cenário calculado) também vêm prontos do motor, com os números do cenário
 e da retroprojeção da própria base:
@@ -928,6 +944,12 @@ O que o estudo sustenta e o que não sustenta:
   estado, quando não há número), os eventos e o nível da hipótese do cenário em "Poucos médicos".
 - No CSV dos resultados, as colunas da faixa levam o percentual pedido: "Faixa de 80%" (8 em cada 10, o padrão), "Faixa de 50%"
   ou "Faixa de 90%".
+- **Avaliação dos métodos (JSON; desde 18/11/2026, AJ-03):** "Exportar a avaliação dos métodos (JSON)" leva a retroprojeção da
+  base em uso como o motor a mandou (`retroprojecao`: `origens`, `em_10`, as `faixas` por porte e prazo, a `tabela` dos erros de
+  cada método frente à persistência e, por nível, a `escolha` com os `candidatos`), com `ferramenta`, `conteudo` (o que o arquivo
+  é: a avaliação dos métodos no histórico da base, e não uma análise do território escolhido), `versao_do_metodo`, `fonte` (a base
+  e a versão), `ultimo_registro`, `janela`, `notas`, `limitacoes`, `exportado_em` e `referencia` (a seção 6 da Ficha B). São os
+  números que a tela mostrava em "Como os métodos se saíram no passado".
 - **Comparações (CSV, quando há referências):** uma linha por território, cenário, referência e data, com o valor do território,
   o da referência, a diferença, a razão e o índice, o alcance no horizonte simulado, os avisos e a hipótese de população (a do
   último registro ou, quando a pessoa a informou, a taxa de crescimento por ano).
@@ -997,7 +1019,8 @@ V23), a indicação aparece também com uma planilha enviada: o Simulador vale p
   CSV; o Brasil na seleção local, as referências e a métrica, o planejamento inverso, a configuração com que o Detector abre o
   Simulador, a hipótese do cenário e o CSV das comparações; o modo simples (o que testar, o território em análise e o pedido com um
   território só, sem a janela geral, as referências e o calendário do modo avançado); a resposta da V3 (a forma escolhida pela
-  base, a faixa "N em cada 10", os "Entenda", os nomes e as formas da base); os três números; os textos com os nomes de outra
+  base, a faixa "N em cada 10", os "Entenda", os nomes e as formas da base); os três números; a avaliação dos métodos exportada
+  com os números do motor, a ficha metodológica e a janela do cálculo (AJ-03); os textos com os nomes de outra
   base; e a tela (o modo simples numa tela só, as quatro etapas só no modo avançado e o campo de data). Da revisão das capturas:
   a meta que sai ao trocar de território, o campo com a meta inteira e a frase da origem dela, a leitura do caminho com o
   acréscimo e o desenho da meta, do caminho e da marca do acréscimo no gráfico. Da revisão de 15/11/2026: o resultado que sai ao
@@ -1007,7 +1030,10 @@ V23), a indicação aparece também com uma planilha enviada: o Simulador vale p
   como o padrão, o tempo da janela em palavras, o cenário exportado e importado com as premissas novas, o "(Entenda)" geral e
   as premissas em frases na tela.
 - Navegador: `backend/tests/ui_simulador.py` (suíte `base-versionada`) — o modo simples (só continuar, acrescentar, retirar e chegar
-  a uma meta; a faixa conferida e a provisória; os "Entenda"; um estado como unidade sem faixa), o modo avançado (as quatro etapas,
+  a uma meta; a faixa conferida e a provisória; os "Entenda", com o "Ver explicação completa" na seção da ficha; o link da ficha,
+  com o PDF servido pela interface; a avaliação dos métodos exportada, igual à retroprojeção da resposta do motor; um estado como
+  unidade sem faixa), o modo avançado (as quatro etapas, a janela do cálculo, a avaliação dos métodos exportada com as faixas por
+  porte e os erros de cada método,
   o Brasil, as referências, o planejamento inverso e a escolha de 5, 8 ou 9 em cada 10), a passagem entre os dois modos (o que é
   do avançado não vai no pedido do simples), "Abrir no Simulador" e "Simular recuperação" (a meta de 79 médicos para o patamar de
   78,25 de Abelardo Luz/SC, com a origem; a meta trocada por um número da pessoa), a meta e o resultado que saem ao trocar de

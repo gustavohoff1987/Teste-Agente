@@ -282,9 +282,15 @@ as ferramentas avaliam as unidades e os conjuntos: o grupo de cima como unidade 
 (`detector-aviso-da-selecao`).
 
 - **Detector de Sinais** (`analise-ferramenta-detector`): [Detector de Sinais Territoriais](DETECTOR_DE_SINAIS.md). Usa a seleção
-  em uso. Desde 13/11/2026 (comando V23, Proposta V3), a primeira tela é uma lista de quatro colunas (Território · Alerta · Por
-  quê · Último registro), com o resumo dos níveis clicável, os filtros numa linha (Até, Nível, Sinal e Buscar) e as visões
-  Lista, Mapa e Gráfico; os níveis são moderado, elevado e crítico, sempre escritos. Dentro dele, o gráfico de bolhas, o mapa
+  em uso. Desde 13/11/2026 (comando V23, Proposta V3), a primeira tela é uma lista, com o resumo dos níveis clicável, os
+  filtros numa linha (Até, Nível, Sinal e Buscar) e as visões Lista, Mapa e Gráfico; os níveis são moderado, elevado e crítico,
+  sempre escritos. Desde 18/11/2026 (AJ-04), a lista tem cinco colunas (Território · Sinal · Alerta · Por quê · Último registro),
+  com cada sinal com nível numa linha (o território é um `tbody` com uma linha por sinal; o nome e o último registro ocupam as
+  linhas dele), e a dica do mapa e do gráfico nomeia o sinal; desde o AJ-03, "Como foi calculado" saiu da tela (o método está na
+  ficha metodológica em PDF, `frontend/public/fichas/`, aberta pelo link "Ficha metodológica (PDF)"; os números, em "Exportar o
+  método (JSON)"), e os "Entenda" dos cabeçalhos da lista são escritos pela página. O "Ver explicação completa" do `Entenda`
+  pode ser um link (`completaHref`), que abre a ficha numa nova aba, na seção certa (`frontend/src/fichas.ts`, com a base da
+  página). Dentro dele, o gráfico de bolhas, o mapa
   de pontos e a Série temporal são os componentes do Agente (`PainelChart`, `MapaDosConjuntos` e `PainelSeries`), com os
   valores, os níveis e as coordenadas do motor do Detector; o `MapaDosConjuntos` ganhou, para isso, a pintura por território
   (`pintura`, com a cor e o raio de cada ponto) e o nome de cada grupo de cima junto aos pontos dele (`grupos`).
@@ -1416,7 +1422,8 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   12), as referências, o planejamento inverso e a ligação entre as duas ferramentas existem desde 11/11/2026 (etapa 5 do comando;
   [Detector e Simulador V2.2](DETECTOR_E_SIMULADOR_V2_2.md); [perfil da base](PERFIL_DA_BASE_DETECTOR_SIMULADOR.md)). Desde
   13/11/2026 (comando V23), o Detector segue a [Proposta V3](DETECTOR_E_SIMULADOR_V3.md): a régua comum por porte, os níveis
-  moderado, elevado e crítico, a lista de quatro colunas, os critérios em frases e o "Entenda". Desde 14/11/2026, o Simulador
+  moderado, elevado e crítico, a lista (de quatro colunas; de cinco, com um sinal por linha, desde 18/11/2026), os critérios em
+  frases e o "Entenda". Desde 14/11/2026, o Simulador
   também: o modo simples, a forma de projetar escolhida pela base, a faixa de 8 em cada 10 conferida no tempo e o uso com uma
   planilha enviada (nos dois modos, também quando ela só traz o ano).
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.

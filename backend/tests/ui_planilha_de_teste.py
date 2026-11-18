@@ -2,10 +2,12 @@
 
 A planilha de teste (`planilha_das_ferramentas.csv`: 20 distritos fictícios, registros de janeiro e de julho, de 2014 a 2023, sem
 grupo de cima, sem população e sem coordenadas) é enviada com os trabalhadores "Enfermeiros". O roteiro percorre o Detector de
-Sinais (a lista e o perfil, o "Entenda" da ferramenta, "Ajustar critérios", "Como foi calculado", o detalhe de um distrito com o
-"Entenda" e a explicação completa de cada sinal e o histórico) e o Simulador de Cenários (o modo simples com os quatro testes e
-os "Entenda", e as quatro etapas do modo avançado, com referências, dois cenários, uma intervenção, os resultados, as
-estatísticas e a validação), guardando todos os textos à vista em cada parada (e os que os leitores de tela leem).
+Sinais (a lista e o perfil, o "Entenda" da ferramenta, "Ajustar critérios", os "Entenda" dos cabeçalhos da lista, o detalhe de um
+distrito com o "Entenda" e a explicação completa de cada sinal e o histórico) e o Simulador de Cenários (o modo simples com os
+quatro testes e os "Entenda", e as quatro etapas do modo avançado, com referências, dois cenários, uma intervenção, os resultados
+e as estatísticas), guardando todos os textos à vista em cada parada (e os que os leitores de tela leem). Desde o AJ-03
+(18/11/2026), "Como foi calculado" e "Como os métodos se saíram no passado" saíram da tela (o método está nas fichas em PDF): no
+lugar da parada de "Como foi calculado", as dos quatro "Entenda" da lista, escritos pela página com os nomes da base.
 
 Confere que **nenhum texto traz "junho" nem "médicos"** — as palavras que a base do Brasil põe nesses lugares ("taxas de junho a
 junho", "médicos acrescentados", "Com 22 médicos…") —, nem as outras palavras próprias da base do Brasil (município, UF, IBGE,
@@ -106,8 +108,11 @@ def main():
         page.keyboard.press("Escape")
         aperta("detector-parametros-botao", detector)
         guarda("detector: ajustar critérios")
-        aperta("detector-metodo-botao", detector)
-        guarda("detector: como foi calculado")
+        for chave in ("sinal", "alerta", "por-que", "ultimo"):
+            aperta("detector-entenda-" + chave + "-botao", detector)
+            expect(detector.get_by_test_id("detector-entenda-" + chave + "-caixa")).to_be_visible()
+            guarda("detector: entenda do cabeçalho " + chave)
+            page.keyboard.press("Escape")
 
         # 3. O detalhe de um distrito: cada sinal, com o "Entenda" e a explicação completa; e o histórico de sinais.
         detector.locator('[data-testid="detector-linha"][data-id="name:Distrito 13"]').get_by_test_id("detector-abrir").click()
@@ -149,8 +154,6 @@ def main():
             expect(simulador.get_by_test_id("simulador-entenda-" + chave + "-caixa")).to_be_visible()
             guarda("simulador: entenda do " + chave)
             page.keyboard.press("Escape")
-        aperta("simulador-validacao-botao", simulador)
-        guarda("simulador: como os métodos se saíram no passado")
         simulador.get_by_test_id("simulador-teste-acrescentar").check()
         simulador.get_by_test_id("simulador-teste-quantidade").fill("3")
         expect(simulador.get_by_test_id("simulador-frase-do-teste")).to_contain_text("enfermeiros")
@@ -198,13 +201,13 @@ def main():
         expect(simulador.get_by_test_id("simulador-base")).to_contain_text("Taxas de julho a julho")
         guarda("simulador avançado: etapa 2, as estatísticas")
         simulador.get_by_test_id("simulador-etapa-4").click()
-        aperta("simulador-validacao-botao", simulador)
-        guarda("simulador avançado: a validação")
+        expect(simulador.get_by_test_id("simulador-janela-do-calculo")).to_contain_text("Janela deste cálculo: de jul/")
+        guarda("simulador avançado: etapa 4, de volta aos resultados")
         page.screenshot(path=str(OUTPUT / "planilha-de-teste-01-avancado.png"), full_page=False)
 
         # 6. A varredura: em nenhuma das paradas há "junho" nem "médicos", nem as outras palavras próprias da base do Brasil; e os
         # nomes da planilha estão em todas elas.
-        assert len(vistos) == 47, sorted(vistos)
+        assert len(vistos) == 49, sorted(vistos)
         for nome, texto in vistos.items():
             achados = sorted({texto[max(0, m.start() - 60):m.end() + 40].replace("\n", " ") for m in DA_BASE_DO_BRASIL.finditer(texto)})
             assert not achados, (nome, achados[:5])
@@ -221,7 +224,7 @@ def main():
         assert not chamadas_llm, "as ferramentas calculam sem o provedor de IA"
         assert not falhas, falhas
         browser.close()
-    print("PLANILHA DE TESTE PASS: com a planilha de julho e de enfermeiros, 47 paradas no Detector e no Simulador (modo simples, as "
+    print("PLANILHA DE TESTE PASS: com a planilha de julho e de enfermeiros, 49 paradas no Detector e no Simulador (modo simples, as "
           "quatro etapas do avançado e os \"Entenda\") sem \"junho\", \"médicos\" nem as outras palavras da base do Brasil; nos mesmos "
           "lugares, \"julho\" e \"enfermeiros\".")
 

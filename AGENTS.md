@@ -153,3 +153,6 @@ No Windows, rode o pytest com `PYTHONUTF8=1` e uma pasta temporária gravável (
     com a régua comum da Proposta V3; imprime as tabelas de `Docs/DETECTOR_DE_SINAIS.md`; fora do CI.
   - `calibrar_simulador.py`: estudo de retroprojeção do Simulador de Cenários Territoriais com a base versionada (somente leitura),
     com origens móveis; imprime as tabelas de `Docs/SIMULADOR_DE_CENARIOS.md`; fora do CI.
+  - `gerar_fichas.py`: gera as fichas metodológicas em PDF do Detector e do Simulador (`frontend/public/fichas/`) a partir das
+    fontes de `Docs/fichas/`, com o Playwright; `--conferir` só confere se os PDFs correspondem às fontes; fora do CI (o teste
+    `backend/tests/test_fichas_metodologicas.py` confere a correspondência).

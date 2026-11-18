@@ -589,7 +589,9 @@ export type RespostaDoSimulador = { versao: string; fonte: { base: string; categ
   horizonte: { data: string; anosDesdeOUltimoRegistro: number }; territorios: TerritorioSimulado[];
   retroprojecao: { origens: string[]; faixas: FaixaDaRetroprojecao[]; tabela: LinhaDaRetroprojecao[]; em10: number;
     /** A escolha por nível: "municipios" (as unidades da base) e, quando há, "estados" (os grupos de cima como unidade). */
-    escolhas: Record<string, EscolhaDaBase> };
+    escolhas: Record<string, EscolhaDaBase>;
+    /** A retroprojeção tal como o motor a mandou (os campos e os números dele), para "Exportar a avaliação dos métodos" (AJ-03). */
+    bruta: Record<string, unknown> };
   notas: string[]; limitacoes: string[];
   referencias: ReferenciaDaResposta[];
   /** A comparação deste cálculo: a métrica, a forma (diferença ou razão) e, por taxa, a hipótese de população — o texto dela e,
@@ -695,7 +697,7 @@ export function normalizarSimulador(bruto: unknown): RespostaDoSimulador {
           taxaCompostaPct: num(h.taxa_composta_pct), nota: texto(h.nota) ?? "" },
         lacunas: textos(t.lacunas), cenarios: lista(t.cenarios).map(cenarioDe) };
     }).filter(item => item.id),
-    retroprojecao: { origens: textos(retro.origens), em10: num(retro.em_10) ?? 8,
+    retroprojecao: { origens: textos(retro.origens), em10: num(retro.em_10) ?? 8, bruta: retro,
       escolhas: Object.fromEntries(Object.entries(objeto(retro.niveis)).map(([nivel, dados]) => [nivel, escolhaDe(objeto(dados).escolha)])),
       // Só as faixas com limites: a que a base não sustenta fica de fora, e a tabela diz "indisponível".
       faixas: lista(retro.faixas).map(objeto).filter(f => num(f.inferior_pct) !== null && num(f.superior_pct) !== null).map(f => (
@@ -824,6 +826,28 @@ export function textoDoFinal(cenario: CenarioCalculado, conjunto = false): strin
   const faixa = cenario.final.faixa;
   return formatarMedicos(cenario.final.total) + (faixa ? " (" + formatarMedicos(faixa.inferior) + " a " + formatarMedicos(faixa.superior) +
     (conjunto ? ", aproximação" : "") + ")" : "");
+}
+
+// ------------------------------------------------------------------------------------------------ a avaliação dos métodos (AJ-03)
+/** "Exportar a avaliação dos métodos (JSON)" (AJ-03, 18/11/2026): os números que estavam em "Como os métodos se saíram no passado"
+ * — a forma de projetar escolhida em cada nível, o erro de cada candidata frente a manter o último valor e as faixas de N em cada 10
+ * por porte e prazo, com as origens e os casos — tal como o motor os mandou na resposta (`retroprojecao`), com as versões do
+ * método e da base, a janela, as notas e as limitações. É a avaliação dos métodos no histórico da base em uso, e não uma análise
+ * do território escolhido; o método está na Ficha B, a ficha metodológica do Simulador. Nada é calculado aqui. */
+export function avaliacaoDosMetodos(resposta: RespostaDoSimulador, quando: string): string {
+  return JSON.stringify({ ferramenta: "Simulador de Cenários Territoriais",
+    conteudo: "avaliação das formas de projetar no passado da base (retroprojeção): a forma escolhida em cada nível, o erro de cada " +
+      "candidata frente a manter o último valor e as faixas por porte e prazo; não é uma análise do território escolhido",
+    versao_do_metodo: resposta.versao, fonte: resposta.fonte, ultimo_registro: resposta.ultimoRegistro, janela: resposta.janela,
+    retroprojecao: resposta.retroprojecao.bruta, notas: resposta.notas, limitacoes: resposta.limitacoes, exportado_em: quando,
+    referencia: "Ficha metodológica B — Simulador de Cenários Territoriais (fichas/ficha-simulador.pdf), seção 6" }, null, 2);
+}
+/** A janela do cálculo, no modo avançado (antes, na linha das versões, que saiu da tela no AJ-03): "Janela deste cálculo: de
+ * jun/2021 a jun/2024 (a janela padrão). Cada cenário parte do último registro usável do território nessa janela." */
+export function textoDaJanelaDoCalculo(resposta: Pick<RespostaDoSimulador, "janela">): string {
+  const j = resposta.janela;
+  return "Janela deste cálculo: de " + competenciaCurta(j.inicio) + " a " + competenciaCurta(j.fim) + (j.padrao ? " (a janela padrão)" : "") +
+    ". Cada cenário parte do último registro usável do território nessa janela.";
 }
 
 // ------------------------------------------------------------------------------------------------ exportar e importar

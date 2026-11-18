@@ -10,6 +10,12 @@
 > falavam em "2000–2024, publicada em jan/2025"; a Parte D ganhou a nota "O que foi feito na troca".
 > **Acréscimo de 15/11/2026** (decisões do responsável na pausa 2): a Parte F ganhou a nota "O que a calibração mostrou e o que
 > foi decidido", com os números da calibração feita com a régua nova.
+> **Nota de 18/11/2026** (comando de ajustes pré-publicação do responsável, AJ-03 a AJ-05; o texto aprovado abaixo fica como
+> está): a tela diz "limite fixo" onde este texto diz "por convenção" (o campo `criterio` e as exportações continuam com "por
+> convenção") e "forma" onde diz "jeito"; "Como foi calculado" (Detector) e "Como os métodos se saíram no passado" (Simulador,
+> C.8) saíram da tela — o método está nas fichas metodológicas em PDF (`Docs/fichas/`), e os números, nas exportações; o "Ver
+> explicação completa" (A.4) abre a ficha; e a lista do Detector tem um sinal com nível por linha, com a coluna "Sinal". Ver
+> [`REGISTRO_DE_COMPORTAMENTO.md`](REGISTRO_DE_COMPORTAMENTO.md).
 
 O que não for tratado aqui continua como na V2.2:
 - a histerese;

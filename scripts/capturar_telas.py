@@ -229,7 +229,6 @@ def capturar(url, saida, canal):
         def detector_parametros():
             detector = area.get_by_test_id("detector")
             detector.get_by_test_id("detector-abrir").first.click()  # fecha os detalhes
-            detector.get_by_test_id("detector-metodo-botao").click()
             detector.get_by_test_id("detector-parametros-botao").click()
             detector.get_by_test_id("detector-parametro-perda-elevado_um_em").fill("50")
             detector.get_by_test_id("detector-parametros-aplicar").click()
@@ -270,14 +269,14 @@ def capturar(url, saida, canal):
             simulador.get_by_test_id("simulador-metodo").nth(1).select_option("M1")
             expect(simulador.get_by_test_id("simulador-estatisticas")).to_be_visible()
 
-        def simulador_validacao():
-            # Dois cenários e a referência, com um estado como unidade no gráfico (sem faixa) e a validação dos métodos aberta.
+        def simulador_estado_sem_faixa():
+            # Dois cenários e a referência, com um estado como unidade no gráfico (sem faixa) e a janela do cálculo. Desde o AJ-03
+            # (18/11/2026), a avaliação dos métodos não fica mais na tela (vai na exportação e na ficha metodológica em PDF).
             simulador = area.get_by_test_id("simulador")
             simulador.get_by_test_id("simulador-calcular-direto").click()
             expect(simulador).to_have_attribute("data-estado", "pronto", timeout=180000)
             simulador.get_by_test_id("simulador-foco").select_option("uf:" + PA)
-            simulador.get_by_test_id("simulador-validacao-botao").click()
-            expect(simulador.get_by_test_id("simulador-faixas")).to_be_visible()
+            expect(simulador.get_by_test_id("simulador-janela-do-calculo")).to_be_visible()
 
         def do_detector(acao):
             """Executa a ação e espera a resposta do Detector (/api/detector) e a tela pronta."""
@@ -506,7 +505,7 @@ def capturar(url, saida, canal):
         tela("21-simulador-intervencoes", simulador_intervencoes)
         tela("22-simulador-resultados", simulador_resultados)
         tela("23-simulador-base-e-metodo", simulador_base_e_metodo)
-        tela("24-simulador-validacao", simulador_validacao)
+        tela("24-simulador-estado-sem-faixa", simulador_estado_sem_faixa)
         tela("13-estados-como-unidade", estados_como_unidade)
         tela("18-detector-brasil-alertas", detector_brasil, altura_maxima=ALTO_DO_DETECTOR)
         tela("25-detector-bolhas-distancia-e-taxa", detector_bolhas, altura_maxima=ALTO_DO_DETECTOR)

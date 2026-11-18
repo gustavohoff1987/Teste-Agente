@@ -757,7 +757,7 @@ test('a resposta V3: o jeito escolhido pela base, a faixa "N em cada 10", os "En
   // Uma resposta sem os campos da V3 (ou vazia) não quebra a tela: os nomes do Brasil, 8 em cada 10, nenhuma escolha, e a faixa de
   // cada ponto é "conferida" ou "provisória" pelo campo de antes (`validada`).
   const vazia = S.normalizarSimulador(null);
-  assert.deepEqual([vazia.fonte.rotulos, vazia.fonte.origem, vazia.retroprojecao], [ROTULOS_DO_BRASIL, 'brasil', {origens: [], em10: 8, escolhas: {}, faixas: [], tabela: []}]);
+  assert.deepEqual([vazia.fonte.rotulos, vazia.fonte.origem, vazia.retroprojecao], [ROTULOS_DO_BRASIL, 'brasil', {origens: [], em10: 8, escolhas: {}, faixas: [], tabela: [], bruta: {}}]);
   const deAntes = S.normalizarSimulador({territorios: [{id: 'code:1', cenarios: [{id: 'c1', estado: 'calculado', metodo: {pedido: 'padrao', usado: 'M0d', provisorio: true},
     parametros: {n0: 5, origem: '202406'}, faixa: {estado: 'disponivel', motivo: null, rotulo: 'x'},
     trajetoria: [{data: '202606', anos: 2, base: 6, intervencao: 0, total: 6, faixa: {inferior: 4, superior: 9, anos: 2, validada: true}},
@@ -888,8 +888,11 @@ test('a tela: o modo simples numa tela só, e as quatro etapas só no modo avan�
     'simulador-teste-quantidade', 'simulador-teste-meta-valor', 'simulador-teste-meta-origem',
     'simulador-calcular', 'simulador-pendencia', 'simulador-erro', 'simulador-resultado', 'simulador-desatualizado', 'simulador-texto', 'simulador-tres-numeros',
     'simulador-faixa-estado', 'simulador-faixa-texto', 'simulador-planejamento', 'simulador-planejamento-texto', 'simulador-planejamento-motivo', 'simulador-hipotetico',
-    'simulador-avisos', 'simulador-motivo', 'simulador-validacao-botao', 'simulador-validacao', 'simulador-escolhas', 'simulador-versoes', 'simulador-avancado'])
+    'simulador-avisos', 'simulador-motivo', 'simulador-avancado'])
     assert.equal(simples.split('data-testid="' + id + '"').length - 1, 1, id);
+  // AJ-03 (18/11/2026): "Como os métodos se saíram no passado" e a linha de versões saíram da tela, nos dois modos.
+  for (const fora of ['simulador-validacao-botao', 'simulador-validacao', 'simulador-escolhas', 'simulador-versoes', 'simulador-faixas', 'simulador-erros'])
+    assert.ok(!tela.includes('"' + fora + '"'), fora);
   // As datas (até quando, e a do acréscimo, da retirada ou do acréscimo da meta, uma de cada vez) são campos de data: o identificador
   // vai em `testid`, e o campo é de mês ou, numa base só com anos, de ano (o teste do campo de data fica mais abaixo).
   assert.equal(simples.split('<CampoDeData testid="simulador-horizonte"').length - 1, 1);
@@ -934,13 +937,13 @@ test('a tela: o modo simples numa tela só, e as quatro etapas só no modo avan�
   assert.ok(simples.includes('<p data-testid="simulador-texto" className="ferramenta-texto-do-cenario">{resultadoDoSimples.texto}</p>'));
   assert.ok(simples.includes('{tresNumeros(resultadoDoSimples, r).map(item => <div key={item.rotulo}><dt>{item.rotulo}</dt><dd>{item.valor}</dd></div>)}'));
   assert.ok(simples.includes('<span>Forma de projetar: {resultadoDoSimples.metodo.rotulo}{resultadoDoSimples.metodo.eOEscolhido ? " (escolhida pela base)" : ""}</span>'));
-  assert.match(simples, /<Entenda sobre="A forma de projetar" texto=\{resultadoDoSimples\.entenda\.jeito\.texto\} exemplo=\{resultadoDoSimples\.entenda\.jeito\.exemplo\}\s+testid="simulador-entenda-jeito" onCompleta=\{abrirAValidacao\}\/>/);
-  assert.match(simples, /<Entenda sobre=\{"A faixa de " \+ resultadoDoSimples\.faixa\.em10 \+ " em cada 10"\} texto=\{resultadoDoSimples\.entenda\.faixa\.texto\}\s+exemplo=\{resultadoDoSimples\.entenda\.faixa\.exemplo\} testid="simulador-entenda-faixa" onCompleta=\{abrirAValidacao\}\/>/);
+  assert.match(simples, /<Entenda sobre="A forma de projetar" texto=\{resultadoDoSimples\.entenda\.jeito\.texto\} exemplo=\{resultadoDoSimples\.entenda\.jeito\.exemplo\}\s+testid="simulador-entenda-jeito" completaHref=\{linkDaFicha\(BASE, "simulador", SECOES_DAS_FICHAS\.simulador\.forma\)\}\/>/);
+  assert.match(simples, /<Entenda sobre=\{"A faixa de " \+ resultadoDoSimples\.faixa\.em10 \+ " em cada 10"\} texto=\{resultadoDoSimples\.entenda\.faixa\.texto\}\s+exemplo=\{resultadoDoSimples\.entenda\.faixa\.exemplo\} testid="simulador-entenda-faixa"\s+completaHref=\{linkDaFicha\(BASE, "simulador", SECOES_DAS_FICHAS\.simulador\.faixa\)\}\/>/);
   assert.match(simples, /<span data-testid="simulador-faixa-estado">Faixa de \{resultadoDoSimples\.faixa\.em10\} em cada 10: \{!resultadoDoSimples\.final\?\.faixa \? "indisponível"\s+: resultadoDoSimples\.final\.faixa\.estado === "conferida" \? "conferida" : "provisória"\}<\/span>/);
   assert.ok(simples.includes('<p data-testid="simulador-faixa-texto" className="ferramenta-apoio">{textoDaFaixa(resultadoDoSimples, territorioEmFoco.tipo === "conjunto", r)}</p>'));
   assert.ok(simples.includes('<p data-testid="simulador-planejamento-texto" className="ferramenta-texto-do-cenario">{resultadoDoSimples.planejamento.texto}</p>'));
   assert.ok(simples.includes('{resultadoDoSimples.avisos.map(aviso => <li key={aviso.codigo} data-codigo={aviso.codigo}>{aviso.texto}</li>)}'));
-  assert.ok(simples.includes('{Object.entries(resposta.retroprojecao.escolhas).map(([nivel, escolha]) => <li key={nivel} data-nivel={nivel} data-metodo={escolha.metodo}>{escolha.texto}'));
+  assert.ok(!tela.includes('resposta.retroprojecao.escolhas') && !tela.includes('resposta.notas'), 'a escolha e as notas vão na exportação, não na tela');
   // "Simular recuperação" (Detector de Sinais): no modo simples, a meta está em "O que testar", e a tela diz de onde ela veio.
   assert.ok(tela.includes('a volta ao patamar anterior (" + (config.modo === "simples" ? "em “O que testar”" : "etapa 3") + ")."'));
   // O campo mostra a meta em uso (o patamar arredondado para cima); digitar outra troca a meta por um número da pessoa.
@@ -997,13 +1000,12 @@ test('a tela: toda data do cenário é um campo de data — de mês ou, numa bas
   // Numa base só com anos, o intervalo dos eventos é dito em anos (nas intervenções e no planejamento inverso).
   assert.ok(tela.includes('const daPlanilha = !!props.daBase, anual = ehAnual(ultimoRegistro);'));
   assert.equal(tela.split('{anual ? "a cada (anos)" : "a cada (meses)"}').length - 1, 2);
-  // Os textos do modo avançado usam os nomes da base: as formas com artigo, o título da hipótese ("Poucos …", igual nos dois modos) e
-  // a tabela de erros com os métodos que a retroprojeção da base tem (na do Brasil, M0d, M0g, M1, M2 e M3).
+  // Os textos do modo avançado usam os nomes da base: as formas com artigo e o título da hipótese ("Poucos …", igual nos dois modos).
+  // A tabela de erros dos métodos saiu com "Como os métodos se saíram no passado" (AJ-03): os números vão na exportação.
   assert.ok(tela.includes('const formas: FormasDaBase = resposta?.fonte.formas ?? formasDaPlanilha(props.daBase) ?? FORMAS_DO_BRASIL;'));
   assert.equal(tela.split('<p className="ferramenta-cartao-titulo">Poucos {r.profissionais}, no cenário<span className="analise-marca-grupo">').length - 1, 2);
   assert.ok(!tela.includes('Dependência de poucos'));
-  assert.ok(tela.includes('const metodosDaTabela = ["M0d", "M0g", "M1", "M2", "M3"].filter(metodo => !resposta || resposta.retroprojecao.tabela.some(linha => linha.metodo === metodo));'));
-  assert.ok(tela.includes('{metodosDaTabela.map(metodo => <th key={metodo} scope="col">') && tela.includes('{nomeCurtoDoMetodo(metodo, r)} ({metodo})</th>)}'));
+  assert.ok(!tela.includes('metodosDaTabela'));
   // "Copiar de novo a seleção principal" também desfaz a janela com que o Detector abriu o Simulador.
   assert.ok(tela.includes('mudar({ local: copia, acompanha: true, doDetector: undefined, janelaDoDetector: undefined, referencias: referenciasValidas(config.referencias, copia) });'));
 });
@@ -1357,7 +1359,7 @@ test('etapa 7: o "(Entenda)" geral no título, um "Voltar ao padrão" único e a
   assert.ok(S.entendaDoSimulador({...S.NOMES_DO_BRASIL, profissional: 'enfermeiro', profissionais: 'enfermeiros'}).exemplo.startsWith('Com 22 enfermeiros no último registro'));
   const tela = ler('SimuladorDeCenarios.tsx');
   assert.ok(tela.includes('const doSimulador = entendaDoSimulador(nomesDaBase);'));
-  assert.match(tela, /<div className="ferramenta-titulo-linha">\s+<h2 id="simulador-titulo" data-testid="simulador-titulo" tabIndex=\{-1\} className="analise-titulo">Simulador de Cenários Territoriais<\/h2>\s+<Entenda sobre="Simulador de Cenários" texto=\{doSimulador\.texto\} exemplo=\{doSimulador\.exemplo\} testid="simulador-entenda-ferramenta"\s+onCompleta=\{resposta \? abrirAValidacao : undefined\}\/>/);
+  assert.match(tela, /<div className="ferramenta-titulo-linha">\s+<h2 id="simulador-titulo" data-testid="simulador-titulo" tabIndex=\{-1\} className="analise-titulo">Simulador de Cenários Territoriais<\/h2>\s+<Entenda sobre="Simulador de Cenários" texto=\{doSimulador\.texto\} exemplo=\{doSimulador\.exemplo\} testid="simulador-entenda-ferramenta"\s+completaHref=\{linkDaFicha\(BASE, "simulador", SECOES_DAS_FICHAS\.simulador\.ferramenta\)\}\/>/);
   // Um "Voltar ao padrão" só, sempre à vista (fora das etapas), desligado enquanto as premissas são as do padrão. Os atalhos de
   // volta de antes — "Janela padrão (3 anos)" e "Voltar ao jeito escolhido pela base" — saíram.
   assert.ok(tela.includes('const noPadrao = premissasNoPadrao(config);'));
@@ -1436,4 +1438,32 @@ test('etapa 7: numa planilha, o grupo de cima entra como unidade — a seleção
   assert.ok(!area.includes('estados_unidade: _semContagemPropria') && !area.includes('não tem contagem própria'));
   assert.ok(area.includes('const nivelForaDasFerramentas = tipo === "arquivo" && !semSelecao(def) && def.nivel === "regioes";'));
   assert.ok(area.includes('const avisoDasFerramentas = nivelForaDasFerramentas ? "Numa planilha, as ferramentas avaliam " + rotulos.unidade.plural + ", " +'));
+});
+
+test('AJ-03: a avaliação dos métodos sai numa exportação, com os números do motor; a ficha metodológica (PDF) e a janela do cálculo na tela', () => {
+  // A exportação leva a retroprojeção tal como o motor a mandou (a escolha por nível, os candidatos, as faixas por porte e prazo e a
+  // tabela dos erros), com as versões do método e da base, a janela, as notas e as limitações.
+  const lida = S.normalizarSimulador(BRUTO);
+  assert.deepEqual(lida.retroprojecao.bruta, BRUTO.retroprojecao, 'os campos e os números do motor, sem leitura');
+  const avaliacao = JSON.parse(S.avaliacaoDosMetodos(lida, '2026-11-18T12:00:00.000Z'));
+  assert.equal(avaliacao.ferramenta, 'Simulador de Cenários Territoriais');
+  assert.deepEqual(avaliacao.retroprojecao, BRUTO.retroprojecao);
+  assert.deepEqual([avaliacao.versao_do_metodo, avaliacao.fonte.versao, avaliacao.ultimo_registro, avaliacao.janela, avaliacao.notas, avaliacao.limitacoes,
+    avaliacao.exportado_em], [BRUTO.versao, BRUTO.fonte.versao, BRUTO.ultimo_registro, lida.janela, lida.notas, lida.limitacoes, '2026-11-18T12:00:00.000Z']);
+  assert.ok(avaliacao.conteudo.includes('não é uma análise do território escolhido'));
+  assert.ok(!/jeito|convenç/i.test(JSON.stringify({conteudo: avaliacao.conteudo, referencia: avaliacao.referencia})));
+  // A janela do cálculo, no modo avançado (antes, na linha das versões): a do motor, com "(a janela padrão)" quando é ela.
+  assert.equal(S.textoDaJanelaDoCalculo({janela: {inicio: '202106', fim: '202406', registros: 7, anos: 3, padrao: true}}),
+    'Janela deste cálculo: de jun/2021 a jun/2024 (a janela padrão). Cada cenário parte do último registro usável do território nessa janela.');
+  assert.equal(S.textoDaJanelaDoCalculo({janela: {inicio: '201906', fim: '202406', registros: 11, anos: 5, padrao: false}}),
+    'Janela deste cálculo: de jun/2019 a jun/2024. Cada cenário parte do último registro usável do território nessa janela.');
+  // Na tela: a exportação nova e o link da ficha, no alto, nos dois modos; a exportação fica desligada até haver um cálculo.
+  const tela = ler('SimuladorDeCenarios.tsx');
+  const acoes = tela.slice(tela.indexOf('<div className="ferramenta-acoes analise-nao-imprimir">'), tela.indexOf('{config.modo === "simples" && <div data-testid="simulador-simples"'));
+  assert.ok(acoes.includes('<button type="button" data-testid="simulador-exportar-avaliacao" className="analise-botao-secundario" disabled={!resposta}'));
+  assert.ok(acoes.includes('avaliacaoDosMetodos(resposta, new Date().toISOString()), "application/json")}>'));
+  assert.ok(acoes.includes('<a data-testid="simulador-ficha" className="analise-botao-secundario" href={linkDaFicha(BASE, "simulador")} target="_blank" rel="noopener">'));
+  assert.ok(tela.includes('const BASE = import.meta.env.BASE_URL || "/";'));
+  assert.ok(tela.includes('<p data-testid="simulador-janela-do-calculo" className="ferramenta-apoio">{textoDaJanelaDoCalculo(resposta)}</p>'));
+  assert.ok(!/Método \{resposta\.versao\}/.test(tela), 'a linha de versões saiu');
 });
