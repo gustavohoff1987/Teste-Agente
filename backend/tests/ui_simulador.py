@@ -885,7 +885,7 @@ def main():
         assert (quatro_anos["estado"], quatro_anos["origens"], quatro_anos["casos"]) == ("provisoria", 4, 2715), quatro_anos
         # A tabela de erros traz os métodos que a retroprojeção da base tem: na do Brasil, cinco, com o crescimento da base toda (M0g).
         da_tabela = {(item["metodo"], item["porte"], item["anos"]): item for item in retro["tabela"]}
-        assert {metodo for metodo, _, _ in da_tabela} >= {"M0", "M0d", "M0g", "M1", "M2", "M3"}, sorted({metodo for metodo, _, _ in da_tabela})
+        assert {metodo for metodo, _, _ in da_tabela} >= {"M0d", "M0g", "M1", "M2", "M3"}, sorted({metodo for metodo, _, _ in da_tabela})
         frente = [da_tabela[(metodo, "1 a 3", 4)]["frente_ao_m0"] for metodo in ("M0d", "M0g", "M1", "M2", "M3")]
         assert all(abs(valor - esperado) < 0.005 for valor, esperado in zip(frente, (0.90, 0.90, 1.29, 1.16, 1.26))), frente
         expect(simulador.get_by_test_id("simulador-faixas")).to_have_count(0)

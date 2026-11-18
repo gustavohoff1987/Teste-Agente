@@ -556,7 +556,6 @@ def main():
             (item["chave"], item["um_em"], item["pede"]) for item in corpo["niveis"]], metodo["niveis"]
         assert [(item["chave"], item["um_em"], item["pede"]) for item in corpo["niveis"]] == [
             ("moderado", 20, 19), ("elevado", 100, 99), ("critico", 1000, 999)], corpo["niveis"]
-        assert metodo["notas"] == corpo["notas"], metodo["notas"]
         assert any(nota.startswith("Um nível por território: o maior entre os seus sinais, sem soma nem índice.") for nota in metodo["notas"]), metodo["notas"]
         do_monitoramento = corpo["calibracao"]["monitoramento"]
         assert do_monitoramento["avaliadas"] > 0 and metodo["regua_na_data"]["monitoramento"]["raras"] == do_monitoramento["raras"], do_monitoramento

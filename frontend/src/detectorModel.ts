@@ -745,8 +745,8 @@ export function ressalvasDaLista(resposta: RespostaDoDetector): { chave: string;
   const r = resposta.fonte.rotulos;
   const oGrupo = r.oGrupo ?? "o " + r.grupo;
   const saida = [{ chave: "raro", texto: "“Raro” quer dizer incomum nesta base, não comprovadamente pior: por construção, com os critérios " +
-    "padrão, cerca de 1 em cada 20 territórios recebe moderado em cada sinal comparado com a base. O nível não é juízo de desassistência, " +
-    "de suficiência do atendimento nem de prioridade de provimento." }];
+    "padrão, cerca de 1 em cada 20 territórios recebe moderado em cada sinal comparado com a base. O nível não diz se o atendimento é " +
+    "suficiente nem se há prioridade de provimento." }];
   if (!resposta.indisponiveis.contexto) saida.push({ chave: "distancia", texto: "A distância (sinal 11) é só contexto: em linha reta, não é " +
     "distância por estrada, tempo de viagem nem acesso, e nunca vira alerta." });
   if (resposta.linhas.some(linha => linha.tipo === "estado")) saida.push({ chave: "grupos", texto: maiuscula(oGrupo) + " como unidade tem " +

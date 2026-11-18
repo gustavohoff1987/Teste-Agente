@@ -126,7 +126,7 @@ test('a resposta do motor vira os tipos da tela, sem calcular nada: o alerta, os
   assert.deepEqual([detalhe.linha.id, detalhe.linha.alerta.estado, D.normalizarDetalhe({}).linha], ['c1', 'sem_nivel', null]);
 });
 
-test('a lista de quatro colunas: o alerta (um nível, sempre escrito, com o tipo de critério), o porquê e o último registro', () => {
+test('a lista (desde o AJ-04, cinco colunas): o alerta (um nível, sempre escrito, com o tipo de critério), o porquê e o último registro', () => {
   // Alerta: o nível e o tipo de critério; o porquê é a frase do motor, com quantos outros sinais têm nível.
   const critico = lerLinha({alerta: alerta('critico', 'estrutural', 'por convenção', 'Só 1 médico (+1 sinal)', {outros: 1,
     sinais: [{sinal: 'estrutural', nivel: 'critico', criterio: 'por convenção'}, {sinal: 'perda', nivel: 'moderado', criterio: 'comparado com a base'}]})});
@@ -366,7 +366,9 @@ test('AJ-04: cada sinal com nível numa linha (Sinal · Alerta · Por quê), do 
   // vez; o detalhe pedido só para quem tem mais de um sinal, dois de cada vez, e só depois que a lista do pedido em uso chegou
   // (enquanto a de antes continua à vista, nada é pedido com o pedido novo); "vêm da mesma queda" na linha do território.
   const tela = ler('DetectorDeSinais.tsx');
-  const cabecalho = tela.slice(tela.indexOf('<thead><tr>'), tela.indexOf('</tr></thead>'));
+  const daLista = tela.indexOf('<table data-testid="detector-tabela"');
+  const cabecalho = tela.slice(tela.indexOf('<thead><tr>', daLista), tela.indexOf('</tr></thead>', daLista));
+  assert.ok(daLista > 0 && cabecalho.length > 0, 'o cabeçalho da lista');
   const posicoes = ['cabecaDeOrdem("Território"', '>Sinal', 'cabecaDeOrdem("Alerta"', '>Por quê', 'cabecaDeOrdem("Último registro"'].map(trecho => cabecalho.indexOf(trecho));
   assert.ok(posicoes.every((posicao, i) => posicao >= 0 && (i === 0 || posicao > posicoes[i - 1])), 'Território · Sinal · Alerta · Por quê · Último registro');
   for (const trecho of ['<tbody key={linha.id} data-testid="detector-linha" data-id={linha.id}', '{indice === 0 && <th scope="rowgroup" rowSpan={altura} data-rotulo="Território"',
@@ -425,8 +427,7 @@ test('AJ-03: o nome do sinal no detalhe e no histórico de sinais; os "Entenda" 
   assert.deepEqual(D.ressalvasDaLista(lida).map(item => item.chave), ['raro', 'distancia', 'grupos', 'conjuntos']);
   const [raro, distancia, grupos, conjuntos] = D.ressalvasDaLista(lida).map(item => item.texto);
   assert.equal(raro, '“Raro” quer dizer incomum nesta base, não comprovadamente pior: por construção, com os critérios padrão, cerca de 1 em cada 20 ' +
-    'territórios recebe moderado em cada sinal comparado com a base. O nível não é juízo de desassistência, de suficiência do atendimento nem de prioridade ' +
-    'de provimento.');
+    'territórios recebe moderado em cada sinal comparado com a base. O nível não diz se o atendimento é suficiente nem se há prioridade de provimento.');
   assert.equal(distancia, 'A distância (sinal 11) é só contexto: em linha reta, não é distância por estrada, tempo de viagem nem acesso, e nunca vira alerta.');
   assert.equal(grupos, 'O estado como unidade tem régua própria, com a base dos estados: é uma base pequena, e os níveis mais graves podem ficar sem ' +
     'comparações suficientes.');

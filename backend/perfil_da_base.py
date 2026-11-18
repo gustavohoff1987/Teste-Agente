@@ -209,7 +209,7 @@ def perfil(base: Base, cal: detector.Calibracao | None = None) -> dict:
                       "falta": "O sinal 10 fica indisponível. No Simulador, o crescimento da base toda é testado no lugar do "
                                "crescimento do grupo; a forma de projetar sai da retroprojeção."})
         nao_da_para.append({"o_que": "O crescimento do grupo de cima como forma de projetar no Simulador",
-                            "motivo": "a base não tem grupo de cima; no lugar dele, o Simulador testa o crescimento da base toda, e o "
+                            "motivo": "a base não tem grupo de cima; no lugar dele, o Simulador testa o crescimento da base toda, e a "
                                       "forma de projetar sai da retroprojeção."})
 
     # População: os trechos comparáveis, lidos da própria base.

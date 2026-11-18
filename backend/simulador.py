@@ -721,7 +721,7 @@ def _base_do_cenario(base: Base, cal: detector.Calibracao, retro: Retroprojecao 
             # O todo não tem retroprojeção própria (é uma série só): usa o jeito escolhido para o nível de baixo, como provisório.
             provisorio = True
             avisos.append({"codigo": "PADRAO_PROVISORIO_DO_NIVEL", "texto":
-                           "Para " + r["o_todo"] + ", o método padrão é provisório: uma série só não tem retroprojeção própria, e vale o "
+                           "Para " + r["o_todo"] + ", o método padrão é provisório: uma série só não tem retroprojeção própria, e vale a "
                            "forma escolhida para " + (r["os_grupos"] if base.estados and not base.grupos_por_soma else r["os_unidades"]) + "." +
                            (" Ele só foi conferido num período de crescimento." if base.do_brasil else "")})
     parametros = {"n0": n0, "origem": base.periodos[origem], "janela": {"inicio": base.periodos[indices[0]], "fim": base.periodos[origem],
