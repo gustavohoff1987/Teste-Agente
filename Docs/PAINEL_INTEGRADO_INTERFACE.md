@@ -1326,9 +1326,21 @@ nos valores, nos pedidos ao motor nem nos textos, e os seletores de teste contin
   superfície do gráfico e do mapa `#1a1a19`; elevados `#232321` (dica, painel das funções, conversa, diálogos, menu do
   Histórico, controles e cartões do mapa). Quanto mais alto, mais claro.
 - **Tintas e identidade:** texto principal `#e6e5df`, corpo `#dddcd5`, secundário `#c3c2b7`, apoio `#a5a49b`; destaque
-  (azul-petróleo) `#4fbdc6` e links `#6fcbd2`. Os preenchimentos com texto branco no claro (aba e segmento escolhidos, botão
-  primário, "Começar a análise", "Li e concordo", enviar) viram claros com texto escuro, a 7:1 ou mais. Avisos em âmbar
+  (azul-petróleo) `#4fbdc6` e links `#6fcbd2`. Os preenchimentos com texto branco no claro (botão primário, "Começar a análise",
+  "Li e concordo", enviar e o número das etapas do Simulador) viram claros com texto escuro, a 7:1 ou mais. Avisos em âmbar
   (`#f6d28a` sobre `#2a2312`, 10,8:1) e erros em rosa (`#fda4af` sobre `#2e1719`, 8,9:1).
+- **O item selecionado** (desde 18/11/2026, AJ-11): no escuro, **fundo verde-azulado escuro `#1a3d3c`, texto `#e6e5df` e borda
+  verde-água `#4fbdc6`** — o texto a 9,4:1 (o apoio das abas, desenhado a 78%, a 6,4:1), a borda a 5,3:1 do fundo dele e a 8:1
+  do painel. Vale para as abas das análises e a da Seleção, com o traço de cima do painel da aba; os controles segmentados; as
+  abas e os botões pressionados da escolha dos territórios e as etiquetas dos marcados; as funções e o botão das ferramentas
+  abertos; e os botões pressionados (Lista, Mapa e Gráfico e os outros secundários, as letras, "Só o estado", as ferramentas,
+  os contadores de nível, os modos e os atalhos de data). O que distingue o selecionado do "passar o mouse" (`#142d2e`, perto
+  do fundo novo) é a borda verde-água; onde o item não tem borda (os segmentos e o botão das ferramentas), o contorno de 1 px
+  vem por dentro (`box-shadow`), sem mudar o tamanho. Antes, o selecionado usava a tinta como fundo: no escuro, um bloco creme,
+  o elemento mais claro da tela (15:1 com a página), que competia com o verde-água dos botões principais. **No claro, nada
+  muda.** As variáveis são `--cor-selecionado`, `--cor-sobre-selecionado`, `--cor-borda-selecionado` e `--contorno-selecionado`
+  (no claro, a tinta, o branco, a tinta e nenhum contorno). Ficam como estavam o número das etapas do Simulador, o "Começar a
+  análise" e todo uso da tinta como cor de texto ou de borda (inclusive o traço de cima do painel das ferramentas).
 
 **Cores do desenho no escuro**, conferidas no validador da skill (`validate_palette.js --mode dark --surface "#1a1a19"`):
 
@@ -1603,8 +1615,9 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   (o escuro só na tela e fora da impressão, o aviso síncrono no começo da impressão), as paletas do gráfico e do mapa por
   esquema (o claro igual ao de antes; no escuro, os valores validados, as rampas do escuro ao claro, o zero abaixo dos braços, o
   contraste), a pintura de cada camada no escuro, as variáveis de `styles.css` contra as paletas e contra as classes do
-  Tailwind, o contraste dos textos, avisos, links e botões nas superfícies escuras e a ausência de cor fixa nas folhas de
-  estilo.
+  Tailwind, o contraste dos textos, avisos, links e botões nas superfícies escuras, o item selecionado (AJ-11: as variáveis
+  nos dois blocos, o claro igual ao de antes, os contrastes do escuro e as regras que usam as variáveis) e a ausência de cor
+  fixa nas folhas de estilo.
 - **Navegador:** `backend/tests/ui_area_de_analise.py`, nas suítes `bloco1` (catálogo sintético) e `base-versionada`
   (`ADT_BLOCK1_REAL=1`). Confere: E0 sem números nem pedido, desde 24/10/2026 sem as abas, só com a identificação, a chamada e
   as duas entradas; a base sem seleção automática (nenhum pedido, a Seleção aberta e as abas das análises com a apresentação
@@ -1673,7 +1686,8 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
 - **Navegador, modo escuro:** `backend/tests/ui_modo_escuro.py`, na suíte `bloco1`, com o navegador no escuro
   (`color_scheme="dark"`): o aviso de privacidade, a página com o banner, as entradas dos dados, as abas e a apresentação, a
   conversa, a base sem seleção, os estados e o Amazonas com fundo escuro e textos a 4,5:1 ou mais (pelo estilo calculado); as bolhas na série única do escuro (`#1ba3b5`), com o anel na superfície escura; a
-  dica, o painel de uma função, os Detalhes e o diálogo de Nova sessão; o mapa (a superfície escura no canvas, as cores do
+  dica, o painel de uma função, os Detalhes e o diálogo de Nova sessão; desde o AJ-11, a aba ativa e um botão pressionado escuros, com
+  a borda verde-água, e o traço do painel da aba, com o claro de antes pelo `emulate_media`; o mapa (a superfície escura no canvas, as cores do
   escuro e a legenda dos quintis, ou, se o motor não entregar os pontos no catálogo sintético, só a área do mapa, com o
   registro na saída); a
   impressão de volta ao claro; e, desde 05/11/2026, o personagem (a imagem rasterizada do desenho original, com o cabelo escuro)

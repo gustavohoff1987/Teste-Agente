@@ -350,6 +350,51 @@ test('AJ-01: o botão de abrir e fechar da árvore fica a 3:1 ou mais do fundo d
   assert.ok(!/rotate\(90deg\)/.test(ANALISE), 'a seta não gira mais: ela troca de sentido');
 });
 
+test('AJ-11: o item selecionado no escuro — fundo verde-azulado escuro, texto claro e borda verde-água; no claro, o de antes', () => {
+  // As variáveis novas nos dois blocos. No claro, os mesmos valores da tinta e nenhum contorno: o estilo calculado não muda.
+  const novas = ['--cor-selecionado', '--cor-sobre-selecionado', '--cor-borda-selecionado', '--contorno-selecionado'];
+  assert.deepEqual(novas.map(nome => CLARO[nome]), [CLARO['--cor-tinta'], CLARO['--cor-sobre-tinta'], CLARO['--cor-tinta'], 'none']);
+  assert.deepEqual(novas.map(nome => ESCURO[nome]),
+    ['rgb(var(--tom-cyan-100))', 'rgb(var(--tom-ink))', 'rgb(var(--tom-teal))', 'inset 0 0 0 1px rgb(var(--tom-teal))']);
+  // No escuro: o texto a 4,5:1 ou mais sobre o fundo novo (também o texto de apoio das abas, desenhado a 78%); a borda a 3:1 ou
+  // mais com o fundo novo e com o painel; o fundo escuro e o texto claro.
+  const v = nome => nome.startsWith('--tom-') ? hexDosCanais(nome, 'escuro') : hexDe(nome, 'escuro');
+  const fundo = v('--cor-selecionado'), texto = v('--cor-sobre-selecionado'), borda = v('--cor-borda-selecionado');
+  assert.deepEqual([fundo, texto, borda], ['#1a3d3c', '#e6e5df', '#4fbdc6']);
+  const mistura = (frente, atras, alfa) => '#' + canais(frente).map((c, i) => Math.round(c * alfa + canais(atras)[i] * (1 - alfa))
+    .toString(16).padStart(2, '0')).join('');
+  assert.match(semComentarios(ler('src/analise.css')), /\.analise-familia-apoio \{[^}]*opacity: \.78;/, 'o apoio das abas a 78%');
+  for (const [nome, cor, minimo] of [['texto', texto, 4.5], ['apoio das abas', mistura(texto, fundo, 0.78), 4.5], ['texto secundário', v('--cor-texto-2'), 4.5]]) {
+    const razao = contraste(cor, fundo);
+    assert.ok(razao >= minimo, nome + ' sobre o selecionado: ' + razao.toFixed(2) + ':1');
+  }
+  for (const superficie of ['--cor-selecionado', '--cor-superficie', '--cor-superficie-suave', '--cor-pagina']) {
+    const razao = contraste(borda, v(superficie));
+    assert.ok(razao >= 3, 'borda do selecionado sobre ' + superficie + ': ' + razao.toFixed(2) + ':1');
+  }
+  assert.ok(luminancia(fundo) < 0.05 && luminancia(texto) > 0.5, 'fundo escuro e texto claro');
+  assert.ok(contraste(texto, v('--cor-pagina')) > contraste(fundo, v('--cor-pagina')), 'o selecionado deixa de ser o elemento mais claro');
+  // As regras de analise.css que passam a usar as variáveis novas (com a borda ou, onde o item não tem borda, o contorno por dentro).
+  const ANALISE = semComentarios(ler('src/analise.css'));
+  const SEL = '{ border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }';
+  for (const seletor of ['.analise-familia[aria-selected="true"]', '.territorios-aba[aria-selected="true"]', '.territorios-botoes > button[aria-pressed="true"]',
+    '.analise-funcao[aria-expanded="true"]', '.analise-botao-secundario[aria-pressed="true"]', '.analise-letra[aria-pressed="true"]',
+    '.analise-so-estado[aria-pressed="true"]', '.analise-ferramenta-nova[aria-pressed="true"]', '.ferramenta-resumo-nivel[aria-pressed="true"]',
+    '.ferramenta-modos .analise-botao-secundario[aria-pressed="true"], .ferramenta-atalhos .analise-botao-secundario[aria-pressed="true"]'])
+    assert.ok(ANALISE.replace(/\{\s+/g, '{ ').includes(seletor + ' ' + SEL), seletor);
+  assert.ok(ANALISE.includes('.analise-segmentos > button[aria-checked="true"], .analise-segmentos > button[aria-pressed="true"] { background: var(--cor-selecionado);\n' +
+    '  color: var(--cor-sobre-selecionado); box-shadow: var(--contorno-selecionado); }'), 'os segmentos, com o contorno por dentro');
+  assert.ok(ANALISE.includes('.analise-ferramentas-botao[aria-expanded="true"] { background: var(--cor-selecionado); color: var(--cor-sobre-selecionado);\n' +
+    '  box-shadow: var(--contorno-selecionado); }'), 'o botão das ferramentas, com o contorno por dentro (a borda dele é a do campo)');
+  assert.match(ANALISE, /\.territorios-marcado \{[^}]*border: 1px solid var\(--cor-borda-selecionado\);[^}]*background: var\(--cor-selecionado\); color: var\(--cor-sobre-selecionado\);/);
+  assert.match(ANALISE, /\.analise-aba-painel \{[^}]*border-top: 3px solid var\(--cor-borda-selecionado\);/, 'o traço de cima do painel da aba');
+  // Ficam como estão: o número das etapas do Simulador (o único fundo da tinta que sobra) e o uso da tinta como cor de texto e de
+  // borda; "Começar a análise" é uma classe do Tailwind (bg-ink), fora de analise.css.
+  assert.deepEqual(ANALISE.match(/background: var\(--cor-tinta\)/g), ['background: var(--cor-tinta)']);
+  assert.match(ANALISE, /\.ferramenta-etapa-numero \{[^}]*background: var\(--cor-tinta\); color: var\(--cor-sobre-tinta\);/);
+  assert.match(ANALISE, /\.analise-ferramenta-painel \{[^}]*border-top: 3px solid var\(--cor-tinta\);/);
+});
+
 test('Tailwind: cada tom das classes lê uma variável com os dois esquemas; as classes mudam sozinhas no escuro', () => {
   const cores = TAILWIND.theme.extend.colors;
   const valores = [];

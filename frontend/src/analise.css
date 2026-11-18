@@ -16,7 +16,7 @@
 .analise-familia { min-width: 0; padding: 9px 12px; border: 1px solid var(--cor-borda-controle); border-radius: 14px; background: var(--cor-superficie); color: var(--cor-tinta);
   text-align: left; transition: background .15s ease, border-color .15s ease; }
 .analise-familia:hover { border-color: var(--cor-borda-realce); }
-.analise-familia[aria-selected="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.analise-familia[aria-selected="true"] { border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }
 .analise-com-ajustes .analise-familia { margin-bottom: 6px; }
 .analise-com-ajustes .analise-familia[aria-selected="true"] { margin-bottom: 0; padding-bottom: 15px; border-radius: 14px 14px 0 0; }
 .analise-familia-nome { display: block; font-size: 14px; font-weight: 650; }
@@ -26,7 +26,7 @@
 /* A Seleção de Territórios não é uma análise: o mesmo formato de aba, com o traço de destaque à esquerda. */
 .analise-aba-selecao { box-shadow: inset 3px 0 0 var(--cor-destaque); }
 .analise-aba-painel { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px 16px 16px;
-  border: 1px solid var(--cor-borda-campo); border-top: 3px solid var(--cor-tinta); border-radius: 0 0 16px 16px;
+  border: 1px solid var(--cor-borda-campo); border-top: 3px solid var(--cor-borda-selecionado); border-radius: 0 0 16px 16px;
   background: var(--cor-superficie-suave); }
 .analise-ajustes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; min-width: 0; padding-top: 12px;
   border-top: 1px solid var(--cor-borda-suave); }
@@ -77,8 +77,8 @@
   background: var(--cor-superficie-suave); }
 .analise-segmentos > button { padding: 6px 12px; border-radius: 9px; color: var(--cor-texto-forte); font-size: 13px; font-weight: 600; }
 .analise-segmentos > button:hover { background: var(--cor-realce); }
-.analise-segmentos > button[aria-checked="true"], .analise-segmentos > button[aria-pressed="true"] { background: var(--cor-tinta);
-  color: var(--cor-sobre-tinta); }
+.analise-segmentos > button[aria-checked="true"], .analise-segmentos > button[aria-pressed="true"] { background: var(--cor-selecionado);
+  color: var(--cor-sobre-selecionado); box-shadow: var(--contorno-selecionado); }
 .analise-segmentos > button:disabled { opacity: .4; }
 
 /* ----------------------------------------------------------------------------------------- Desfazer e Limpar seleção (globais) */
@@ -188,7 +188,7 @@
 .territorios-abas { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .territorios-aba { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px; border: 1px solid var(--cor-borda-controle);
   border-radius: 12px; background: var(--cor-superficie); color: var(--cor-tinta); text-align: left; }
-.territorios-aba[aria-selected="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.territorios-aba[aria-selected="true"] { border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }
 .territorios-aba-nome { font-size: 14px; font-weight: 700; }
 .territorios-aba-status { font-size: 12px; opacity: .9; }
 .territorios-aba-incompleta { font-weight: 700; }
@@ -201,7 +201,7 @@
 .territorios-botoes { display: flex; flex-wrap: wrap; gap: 4px; }
 .territorios-botoes > button { min-height: 30px; padding: 4px 9px; border: 1px solid var(--cor-borda-campo); border-radius: 9px; background: var(--cor-superficie);
   color: var(--cor-tinta); font-size: 13px; font-weight: 600; }
-.territorios-botoes > button[aria-pressed="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.territorios-botoes > button[aria-pressed="true"] { border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }
 .territorios-botoes-ufs { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
 .territorios-filtro { display: flex; flex-direction: column; gap: 4px; padding: 7px 8px; border: 1px solid var(--cor-borda); border-radius: 10px;
   background: var(--cor-superficie-suave); }
@@ -214,8 +214,8 @@
 .territorios-adicionar { display: flex; flex-wrap: wrap; gap: 4px; }
 .territorios-adicionar .analise-botao-secundario { min-height: 30px; padding: 4px 9px; font-size: 13px; }
 .territorios-marcados { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.territorios-marcado { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--cor-tinta); border-radius: 999px;
-  background: var(--cor-tinta); color: var(--cor-sobre-tinta); font-size: 12px; font-weight: 600; }
+.territorios-marcado { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--cor-borda-selecionado);
+  border-radius: 999px; background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); font-size: 12px; font-weight: 600; }
 .territorios-marcado-fora { border-style: dashed; background: var(--cor-superficie); color: var(--cor-texto-2); text-decoration: line-through; }
 .territorios-busca { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--cor-borda-campo); border-radius: 10px;
   background: var(--cor-superficie); color: var(--cor-texto-2); }
@@ -246,13 +246,14 @@
 .analise-ferramentas-botao { display: none; align-items: center; gap: 6px; align-self: flex-start; min-height: 36px; padding: 7px 12px;
   border: 1px solid var(--cor-borda-campo); border-radius: 10px; background: var(--cor-superficie); color: var(--cor-tinta); font-size: 14px;
   font-weight: 650; }
-.analise-ferramentas-botao[aria-expanded="true"] { background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.analise-ferramentas-botao[aria-expanded="true"] { background: var(--cor-selecionado); color: var(--cor-sobre-selecionado);
+  box-shadow: var(--contorno-selecionado); }
 .analise-funcoes-lista { display: flex; flex-wrap: wrap; gap: 6px; }
 .analise-funcao { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 10px;
   border: 1px solid var(--cor-borda-controle); border-radius: 10px; background: var(--cor-superficie); color: var(--cor-tinta); font-size: 13px;
   font-weight: 600; }
 .analise-funcao:hover:not(:disabled) { border-color: var(--cor-borda-realce); background: var(--cor-superficie-suave); }
-.analise-funcao[aria-expanded="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.analise-funcao[aria-expanded="true"] { border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }
 .analise-funcao:disabled { opacity: .45; }
 .analise-barra-desenho { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; max-width: 100%;
   margin-left: auto; }
@@ -312,7 +313,7 @@
 .analise-botao-primario:hover:not(:disabled) { background: var(--cor-destaque-realce); }
 .analise-botao-secundario { border: 1px solid var(--cor-borda-campo); background: var(--cor-superficie); color: var(--cor-destaque-texto); }
 .analise-botao-secundario:hover:not(:disabled) { background: var(--cor-realce-destaque); }
-.analise-botao-secundario[aria-pressed="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.analise-botao-secundario[aria-pressed="true"] { border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }
 .analise-botao-primario:disabled, .analise-botao-secundario:disabled { opacity: .45; }
 .analise-icone { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 999px;
   color: var(--cor-texto-2); }
@@ -375,7 +376,7 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
 .analise-unidades-lista { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
 .analise-letra { min-width: 26px; padding: 2px 6px; border: 1px solid var(--cor-borda-controle); border-radius: 6px; background: var(--cor-superficie);
   font-size: 12px; font-weight: 600; }
-.analise-letra[aria-pressed="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.analise-letra[aria-pressed="true"] { border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }
 /* Seleção de Territórios (24/10/2026): os três níveis, a busca no alto, os comandos coletivos e o que entra na análise. */
 .analise-niveis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .analise-nivel { min-width: 0; padding: 8px 12px; border: 1px solid var(--cor-borda-controle); border-radius: 12px; background: var(--cor-superficie);
@@ -837,7 +838,7 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-so-estado { flex-shrink: 0; min-height: 32px; padding: 3px 10px; border: 1px solid var(--cor-borda-controle); border-radius: 999px;
   background: var(--cor-superficie); color: var(--cor-destaque-texto); font-size: 12px; font-weight: 650; white-space: nowrap; cursor: pointer; }
 .analise-so-estado:hover { border-color: var(--cor-borda-realce); }
-.analise-so-estado[aria-pressed="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.analise-so-estado[aria-pressed="true"] { border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }
 .analise-caixa.analise-caixa-bloqueada { color: var(--cor-texto-desligado); opacity: .6; cursor: not-allowed; }
 .analise-caixa.analise-caixa-bloqueada:hover { background: transparent; }
 .analise-mapa-selecao { min-height: 60px; }
@@ -887,7 +888,7 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
   border: 1px solid var(--cor-borda-convite); border-radius: 999px; background: var(--cor-superficie); color: var(--cor-destaque-texto);
   font-size: 14px; font-weight: 650; }
 .analise-ferramenta-nova:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--cor-realce-destaque); }
-.analise-ferramenta-nova[aria-pressed="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.analise-ferramenta-nova[aria-pressed="true"] { border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }
 .analise-ferramenta-nova:disabled { opacity: .5; }
 .analise-ferramenta-painel { min-width: 0; padding: 16px; border: 1px solid var(--cor-borda-campo); border-top: 3px solid var(--cor-tinta);
   border-radius: 16px; background: var(--cor-superficie); }
@@ -937,7 +938,7 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .ferramenta-resumo-nivel-elevado::before { border-color: rgb(var(--tom-orange-900)); background: rgb(var(--tom-orange-300)); }
 .ferramenta-resumo-nivel-critico::before { border-color: rgb(var(--tom-rose-800)); background: rgb(var(--tom-rose-800)); }
 .ferramenta-resumo-nivel:hover:not([aria-pressed="true"]) { background: var(--cor-realce-destaque); }
-.ferramenta-resumo-nivel[aria-pressed="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.ferramenta-resumo-nivel[aria-pressed="true"] { border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }
 .ferramenta-rolagem { min-width: 0; overflow-x: auto; }
 .analise-tabela.ferramenta-tabela { width: 100%; border-collapse: collapse; }
 .analise-tabela.ferramenta-tabela caption { padding: 0 0 6px; text-align: left; }
@@ -1048,7 +1049,7 @@ select.ferramenta-campo-da-frase { max-width: min(100%, 30em); text-align: left;
 /* Simulador de Cenários Territoriais (comando V22, etapa 4): as quatro etapas, os cartões dos cenários e o gráfico. */
 .ferramenta-modos, .ferramenta-atalhos { display: flex; flex-wrap: wrap; gap: 6px; }
 .ferramenta-modos .analise-botao-secundario[aria-pressed="true"], .ferramenta-atalhos .analise-botao-secundario[aria-pressed="true"] {
-  border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+  border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }
 .ferramenta-etapas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
 .ferramenta-etapa { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 6px 10px; border: 1px solid var(--cor-borda-campo);
   border-radius: 12px; background: var(--cor-superficie); color: var(--cor-texto); font-size: 14px; font-weight: 600; line-height: 1.25; text-align: left; }

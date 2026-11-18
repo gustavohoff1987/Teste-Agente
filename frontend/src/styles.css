@@ -67,6 +67,13 @@
   /* Textos */
   --cor-tinta: rgb(var(--tom-ink));
   --cor-sobre-tinta: rgb(var(--tom-white));
+  /* O item selecionado (abas, segmentos, botões pressionados e etiquetas; AJ-11, 18/11/2026): no claro, o bloco da tinta, como
+     antes; no escuro, fundo verde-azulado escuro, texto claro e borda verde-água — com a tinta clara do escuro, o selecionado
+     era o elemento mais claro da tela. Onde o item não tem borda, o contorno vem por dentro (sem mudar o tamanho), só no escuro. */
+  --cor-selecionado: rgb(var(--tom-ink));
+  --cor-sobre-selecionado: rgb(var(--tom-white));
+  --cor-borda-selecionado: rgb(var(--tom-ink));
+  --contorno-selecionado: none;
   --cor-texto: #18384c;
   --cor-texto-forte: #334e5f;
   --cor-texto-2: #52606d;
@@ -152,6 +159,10 @@
     --cor-realce: #2a2a28;
     --cor-realce-suave: #222220;
     --cor-realce-destaque: #142d2e;
+    --cor-selecionado: rgb(var(--tom-cyan-100));
+    --cor-sobre-selecionado: rgb(var(--tom-ink));
+    --cor-borda-selecionado: rgb(var(--tom-teal));
+    --contorno-selecionado: inset 0 0 0 1px rgb(var(--tom-teal));
     --cor-borda: #2e2e2b;
     --cor-borda-suave: #292927;
     --cor-borda-controle: #363633;

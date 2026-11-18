@@ -35,6 +35,33 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-18 · AJ-11: no modo escuro, o item selecionado com fundo verde-azulado escuro, texto claro e borda verde-água
+- **Classificação (regra 1):** AJ-11 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorre do pedido e
+  não contraria a SPEC nem uma divergência aprovada: a decisão do modo escuro de 23/10/2026 continua (a página segue o aparelho,
+  sem botão, e a impressão é sempre clara); só muda a cor do selecionado no escuro. **Mudança prevista.**
+- **Antes:** o item selecionado usava a tinta como fundo (`background: var(--cor-tinta)`). No claro, um bloco escuro; no escuro, a
+  tinta vira creme, e o selecionado era o elemento mais claro da tela (15:1 com a página): a aba ativa chamava mais atenção que o
+  conteúdo e competia com o verde-água dos botões principais.
+- **Agora (só no escuro):** fundo verde-azulado escuro `#1a3d3c`, texto `#e6e5df` e borda verde-água `#4fbdc6` — o texto a 9,4:1 (o
+  apoio das abas, a 78%, a 6,4:1), a borda a 5,3:1 do fundo novo e a 8:1 do painel. Variáveis novas, nos dois blocos de
+  `styles.css`: `--cor-selecionado`, `--cor-sobre-selecionado`, `--cor-borda-selecionado` e `--contorno-selecionado` (no claro,
+  a tinta, o branco, a tinta e nenhum contorno). Passam a usá-las as abas das análises (`.analise-familia`) e o traço de cima do
+  painel da aba (`.analise-aba-painel`); os controles segmentados; as abas, os botões pressionados e as etiquetas dos marcados da
+  escolha dos territórios; o botão das ferramentas e as funções abertas; e os botões pressionados (secundários, como Lista, Mapa
+  e Gráfico; as letras; "Só o estado"; as ferramentas; os contadores de nível; os modos e os atalhos de data). Onde o item não
+  tem borda (os segmentos e o botão das ferramentas, cuja borda é a do campo), o contorno de 1 px vem por dentro, só no escuro.
+- **Permanece:** o modo claro idêntico (o estilo calculado de cada item selecionado é o de antes); o número das etapas do
+  Simulador e o "Começar a análise"; todo uso da tinta como cor de texto ou de borda, inclusive o traço de cima do painel das
+  ferramentas (`.analise-ferramenta-painel`, fora da lista do comando); a impressão clara; as classes do Tailwind.
+- **Motivo:** AJ-11 do comando, das capturas do modo escuro.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (seção "Modo escuro" e "Testes"). Testes no mesmo commit:
+  `frontend/tests/modoEscuro.test.mjs` (teste novo do AJ-11: as variáveis nos dois blocos, o claro igual à tinta e sem contorno,
+  os contrastes do escuro — texto, apoio a 78%, texto secundário e a borda com o fundo novo, o painel e a página — e as regras que
+  usam as variáveis; o único fundo da tinta que sobra é o das etapas); `backend/tests/ui_modo_escuro.py` (a aba ativa e "Só os
+  estados" pressionado com o fundo `#1a3d3c`, a borda verde-água e o texto claro; o traço do painel da aba verde-água; com o
+  aparelho no claro, os mesmos itens com o estilo de antes). Nenhum teste fixava o creme do selecionado; as conferências de
+  legibilidade dos pressionados continuam.
+
 ### 2026-11-18 · AJ-08: a lista do Detector com cada cabeçalho numa linha e as frases já buscadas guardadas por pedido
 - **Classificação (regra 1):** AJ-08 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorre do pedido e
   não contraria a SPEC nem uma divergência aprovada: as garantias do AJ-04 continuam (o detalhe só para quem tem mais de um sinal,

@@ -10,6 +10,9 @@ luminância relativa do WCAG):
   lista do estado), os estados (E1), com a trilha e a faixa do lugar (06/11/2026: os números do Brasil; sem o Ver por desde o
   comando V22) escuras e legíveis, e o Amazonas (E2), marcado na lista de territórios, com "Entenda esta análise": o fundo da área e do gráfico escuros, o título, o subtítulo, os rótulos dos eixos e o aviso (âmbar) com contraste
   de texto; as bolhas na série única do escuro (#1ba3b5), com o anel na superfície escura (#1a1a19), e o eixo no tom do escuro;
+- o item selecionado (AJ-11, 18/11/2026): a aba ativa e um botão pressionado com fundo verde-azulado escuro, texto claro e borda
+  verde-água, e o traço de cima do painel da aba verde-água; com o aparelho no claro (page.emulate_media), os mesmos itens com o
+  estilo de antes (o bloco da tinta, o texto branco e a borda da tinta, sem contorno);
 - a dica da bolha, o painel de uma função, os Detalhes e o diálogo de Nova sessão, todos escuros e legíveis;
 - o mapa (botão analise-desenho-mapa): com os pontos do motor, a superfície escura no canvas, as cores do escuro no gancho de
   teste e a legenda dos 5 grupos iguais (quintis) legível, sem a pergunta "Como pintar o mapa?" (retirada em 23/10/2026); se o
@@ -147,6 +150,15 @@ def main():
             assert razao >= minimo, (rotulo, hexa(medida["cor"]), "sobre", hexa(medida["fundo"]), round(razao, 2))
             return medida
 
+        def selecionado(locator, rotulo):
+            """AJ-11 (18/11/2026): o item selecionado no escuro tem fundo verde-azulado escuro (#1a3d3c), texto claro a 4,5:1 ou mais e
+            borda verde-água (#4fbdc6), a 3:1 ou mais do fundo dele; antes, era um bloco creme, o elemento mais claro da tela."""
+            expect(locator).to_have_css("background-color", "rgb(26, 61, 60)")
+            expect(locator).to_have_css("border-top-color", "rgb(79, 189, 198)")
+            medida = legivel(locator, rotulo)
+            assert luminancia(medida["fundo"]) < 0.05 and luminancia(medida["cor"]) > 0.5, (rotulo, hexa(medida["fundo"]), hexa(medida["cor"]))
+            assert contraste((79, 189, 198), medida["fundo"]) >= 3, rotulo
+
         def aperta(locator):
             locator.scroll_into_view_if_needed()
             locator.focus()
@@ -223,6 +235,18 @@ def main():
         legivel(page.get_by_test_id("nav-new-session"), "Nova sessão")
         legivel(area.get_by_test_id("analise-aba-territorios"), "aba da Seleção de Territórios")
         escuro(area.get_by_test_id("analise-aba-painel"), "painel da aba")
+        # AJ-11: a aba ativa, escura e com a borda verde-água, e o traço de cima do painel da aba, verde-água. No claro, o
+        # selecionado continua o de antes: o bloco da tinta (#0e2840), o texto branco e a borda da tinta.
+        aba_ativa = area.get_by_test_id("analise-aba-territorios")
+        expect(aba_ativa).to_have_attribute("aria-selected", "true")
+        selecionado(aba_ativa, "aba ativa (Seleção de Territórios)")
+        expect(area.get_by_test_id("analise-aba-painel")).to_have_css("border-top-color", "rgb(79, 189, 198)")
+        page.emulate_media(color_scheme="light")
+        for propriedade, valor in (("background-color", "rgb(14, 40, 64)"), ("color", "rgb(255, 255, 255)"), ("border-top-color", "rgb(14, 40, 64)")):
+            expect(aba_ativa).to_have_css(propriedade, valor)
+        expect(area.get_by_test_id("analise-aba-painel")).to_have_css("border-top-color", "rgb(14, 40, 64)")
+        page.emulate_media(color_scheme="dark")
+        selecionado(aba_ativa, "aba ativa, de volta ao escuro")
         legivel(area.get_by_test_id("analise-apresentacao").locator("p").first, "orientação da Seleção")
         escuro(territorios, "lista de territórios")
         # A árvore do comando V22 (9/11/2026; muda de propósito esta conferência, que via a unidade de análise da seleção unificada de
@@ -241,6 +265,13 @@ def main():
         estados = respond(lambda: aperta(so_estados))
         expect(so_estados).to_have_attribute("aria-pressed", "true")
         legivel(so_estados, "Só os estados, pressionado")
+        selecionado(so_estados, "Só os estados, pressionado")   # AJ-11: o botão pressionado, escuro e com a borda verde-água
+        page.emulate_media(color_scheme="light")
+        for propriedade, valor in (("background-color", "rgb(14, 40, 64)"), ("color", "rgb(255, 255, 255)"), ("border-top-color", "rgb(14, 40, 64)"),
+                                   ("box-shadow", "none")):
+            expect(so_estados).to_have_css(propriedade, valor)
+        page.emulate_media(color_scheme="dark")
+        selecionado(so_estados, "Só os estados, de volta ao escuro")
         # Desfazer e Limpar seleção (24/10/2026, segunda rodada; o Desfazer era "Voltar" até 25/10/2026): no alto da área, com fundo
         # escuro e os nomes legíveis. O aviso da mudança coletiva saiu no comando V22 (seção 3); as três ações do painel da
         # direita, legíveis.
