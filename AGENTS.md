@@ -146,7 +146,8 @@ No Windows, rode o pytest com `PYTHONUTF8=1` e uma pasta temporária gravável (
   - `verificar_tudo.py`: verificação completa local, na ordem, com o resultado de cada passo e um
     resumo final; só por pedido explícito do responsável (seção 4).
   - `capturar_telas.py`: capturas das telas principais com a base versionada, para a conferência
-    visual; só por pedido explícito do responsável (seção 4).
+    visual, no esquema claro (o padrão) ou no escuro (`--esquema escuro`), cada um numa pasta própria; só por pedido
+    explícito do responsável (seção 4).
   - `validar_gemini_real.py`: amostra pequena e delimitada de conversas com o Gemini real (com `GEMINI_API_KEY`), com
     teto de chamadas próprio; fora do CI.
   - `calibrar_detector.py`: estudo de calibração do Detector de Sinais Territoriais com a base versionada (somente leitura),

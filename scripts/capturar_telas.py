@@ -1,10 +1,14 @@
 """Capturas das telas principais da página única com a base versionada, para a conferência visual (somente leitura).
 
 Uso, de qualquer pasta do repositório, depois de "npm run build" em frontend/:
-    python scripts/capturar_telas.py [--saida PASTA] [--canal chrome|chromium]
+    python scripts/capturar_telas.py [--esquema claro|escuro] [--saida PASTA] [--canal chrome|chromium]
 
 Sobe o servidor de testes (backend/tests/serve_ui_offline.py, sem transporte de IA) com a base versionada da raiz, percorre
-as telas principais da página única e salva as capturas em .local/capturas/<data-hora>/, pasta ignorada pelo Git. Desde o
+as telas principais da página única e salva as capturas em .local/capturas/<data-hora>/, pasta ignorada pelo Git. O esquema de
+cor (desde 18/11/2026, AJ-14) é o claro, por padrão, ou o escuro (--esquema escuro), também na tela do celular: a página segue o
+esquema do aparelho, e o script o define no navegador e confere que a página o seguiu. Cada esquema vai para uma pasta própria:
+o claro, em .local/capturas/<data-hora>/, como antes; o escuro, em .local/capturas/<data-hora>-escuro/; os nomes dos arquivos
+são os mesmos nos dois. Com --saida, a pasta é a indicada. Desde o
 comando V22 (9/11/2026), as telas da Seleção de Territórios: a árvore Brasil → região → estado → município, a Região Norte
 aberta, a seleção com o Pará e a Bahia como unidade ("Só o estado") e os municípios do Amazonas, com o mapa da seleção, a lista
 e as três ações; a Distribuição com os dois níveis e os quintis de cada um; "Aplicar critérios de seleção"; "Agrupar territórios selecionados" por escolha livre e
@@ -16,11 +20,14 @@ Simulador abre no modo simples, e estas telas são as do modo avançado). Da eta
 (telas 25 a 38): os fenômenos 8 a 12 do Detector em jun/2021, quando a comparação de 2 anos é habilitada (as bolhas da distância e
 da taxa, o mapa dos sinais, a série da taxa com a referência e os detalhes de cada fenômeno); "Abrir no Simulador" com as
 referências de comparação, as comparações, o planejamento inverso e o Brasil como território; e "Simular recuperação", com a meta
-hipotética e o resultado. Depois, o Histórico, o diálogo de Nova sessão, o painel "Colunas" de uma planilha de distritos e províncias
+hipotética e o resultado. Nas capturas dos fenômenos (27 a 31), desde o AJ-14, o script fecha a explicação que abriu antes e
+abre só a do sinal da captura, e a imagem vai até o fim dela, mesmo abaixo do corte do alto da página: cada captura mostra o
+próprio sinal (antes, a 30 saía igual à 29, com a explicação do sinal 11 abaixo do corte). Depois, o Histórico, o diálogo de Nova sessão, o painel "Colunas" de uma planilha de distritos e províncias
 (criada numa pasta temporária) e a Seleção no celular. Nada vai para o provedor de IA, nenhum dado é alterado e o servidor é
 encerrado no fim. Uma tela que falhar é informada no fim, sem impedir as seguintes. Saída: 0 se todas as capturas foram feitas.
 """
 import argparse
+import math
 import os
 import socket
 import subprocess
@@ -64,14 +71,16 @@ def build_desatualizado():
     return any(p.stat().st_mtime > DIST.stat().st_mtime for p in fontes)
 
 
-def capturar(url, saida, canal):
+def capturar(url, saida, canal, esquema="claro"):
     from playwright.sync_api import expect, sync_playwright
     from ui_support import abrir_regiao, accept_privacy, is_post, offline, options_of
 
     feitas, falhas = [], []
     with tempfile.TemporaryDirectory(prefix="adt-capturas-") as temporaria, sync_playwright() as p:
         browser = p.chromium.launch(headless=True, channel=canal)
-        context = browser.new_context(viewport={"width": 1366, "height": 900}, reduced_motion="reduce")
+        # O esquema de cor do aparelho (AJ-14): a página o segue, sem botão.
+        cor = "dark" if esquema == "escuro" else "light"
+        context = browser.new_context(viewport={"width": 1366, "height": 900}, reduced_motion="reduce", color_scheme=cor)
         offline(context)
         page = context.new_page()
         erros = []
@@ -79,18 +88,33 @@ def capturar(url, saida, canal):
         area = page.get_by_test_id("area-de-analise")
         territorios = area.get_by_test_id("analise-territorios")
         respostas = {}
+        # A explicação do sinal aberta pela última vez (fenomeno): a captura vai até o fim dela.
+        aberta = {"explicacao": None}
 
-        def tela(nome, acao, manter_rolagem=False, altura_maxima=None):
+        def conferir_esquema(pagina):
+            """A página seguiu o esquema pedido: o fundo e os controles nativos no claro ou no escuro."""
+            achado = pagina.evaluate("getComputedStyle(document.documentElement).colorScheme")
+            if achado != cor:
+                raise RuntimeError(f"a página está no esquema {achado}, e não no {cor}")
+
+        def tela(nome, acao, manter_rolagem=False, altura_maxima=None, ate_a_explicacao=False):
             """Executa os passos da tela e salva a captura da página inteira. Antes, volta ao topo: a barra fixa (Desfazer e Limpar
             seleção) fica no lugar dela, em vez de aparecer no meio da página. `manter_rolagem` fica para a tela que depende do
-            ponteiro parado sobre um elemento (a dica). Com `altura_maxima`, a captura para nessa altura (o alto da página)."""
+            ponteiro parado sobre um elemento (a dica). Com `altura_maxima`, a captura para nessa altura (o alto da página); com
+            `ate_a_explicacao` (AJ-14), ela vai pelo menos até o fim da explicação do sinal aberta pela ação."""
             try:
+                aberta["explicacao"] = None
                 acao()
                 if not manter_rolagem:
                     page.evaluate("window.scrollTo(0, 0)")
                 page.wait_for_timeout(900)  # transições curtas do gráfico
                 caminho = saida / (nome + ".png")
                 altura = page.evaluate("document.documentElement.scrollHeight")
+                if ate_a_explicacao:
+                    if aberta["explicacao"] is None:
+                        raise RuntimeError("a ação não abriu a explicação de um sinal")
+                    fim = aberta["explicacao"].evaluate("e => e.getBoundingClientRect().bottom + window.scrollY")
+                    altura_maxima = max(altura_maxima or 0, min(altura, math.ceil(fim) + 24))
                 if altura_maxima and altura > altura_maxima:
                     page.screenshot(path=str(caminho), full_page=True,
                                     clip={"x": 0, "y": 0, "width": page.viewport_size["width"], "height": altura_maxima})
@@ -121,6 +145,7 @@ def capturar(url, saida, canal):
         def abertura():
             page.goto(url)
             accept_privacy(page)
+            conferir_esquema(page)
             expect(page.get_by_test_id("painel-chat")).to_have_attribute("data-ampla", "true")
 
         def arvore():
@@ -285,12 +310,17 @@ def capturar(url, saida, canal):
             expect(area.get_by_test_id("detector")).to_have_attribute("data-estado", "pronto", timeout=180000)
 
         def fenomeno(chave):
-            """Abre, nos detalhes do território, a explicação completa do sinal pedido."""
-            item = area.get_by_test_id("detector").locator('[data-testid="detector-fenomeno"][data-chave="' + chave + '"]')
-            botao = item.get_by_test_id("detector-fenomeno-completa")
-            if botao.get_attribute("aria-expanded") != "true":
-                botao.click()
+            """Abre, nos detalhes do território, a explicação completa do sinal pedido. Antes, fecha as que estavam abertas (AJ-14):
+            cada captura mostra só a explicação do próprio sinal."""
+            detector = area.get_by_test_id("detector")
+            abertas = detector.locator('[data-testid="detector-fenomeno-completa"][aria-expanded="true"]')
+            while abertas.count():
+                abertas.first.click()
+            item = detector.locator('[data-testid="detector-fenomeno"][data-chave="' + chave + '"]')
+            item.get_by_test_id("detector-fenomeno-completa").click()
             expect(item.locator("dl")).to_be_visible()
+            expect(abertas).to_have_count(1)
+            aberta["explicacao"] = item.locator("dl")
 
         def detector_bolhas():
             # Etapa 5: em jun/2021 a comparação de 2 anos é habilitada (jun/2019 a jun/2021). Os municípios com queda da taxa por
@@ -467,12 +497,14 @@ def capturar(url, saida, canal):
             painel.get_by_test_id("colunas-grupo_territorial").select_option("provincia")
 
         def celular():
-            pequeno = browser.new_context(viewport={"width": 390, "height": 844}, reduced_motion="reduce", has_touch=True, is_mobile=True)
+            pequeno = browser.new_context(viewport={"width": 390, "height": 844}, reduced_motion="reduce", has_touch=True, is_mobile=True,
+                                          color_scheme=cor)
             offline(pequeno)
             celular_page = pequeno.new_page()
             celular_page.on("pageerror", lambda erro: erros.append(str(erro)))
             celular_page.goto(url)
             accept_privacy(celular_page)
+            conferir_esquema(celular_page)
             chat = celular_page.get_by_test_id("painel-chat")
             if chat.count() and chat.get_attribute("data-minimizada") == "false":
                 chat.get_by_test_id("painel-chat-minimizar").click()
@@ -510,11 +542,11 @@ def capturar(url, saida, canal):
         tela("18-detector-brasil-alertas", detector_brasil, altura_maxima=ALTO_DO_DETECTOR)
         tela("25-detector-bolhas-distancia-e-taxa", detector_bolhas, altura_maxima=ALTO_DO_DETECTOR)
         tela("26-detector-mapa-dos-sinais", detector_mapa, altura_maxima=ALTO_DO_DETECTOR)
-        tela("27-detector-taxa-e-fenomeno-8", detector_taxa, altura_maxima=ALTO_DO_DETECTOR)
-        tela("28-detector-fenomeno-9-posicao", lambda: fenomeno("posicao"), altura_maxima=ALTO_DO_DETECTOR)
-        tela("29-detector-fenomeno-10-defasagem", lambda: fenomeno("defasagem"), altura_maxima=ALTO_DO_DETECTOR)
-        tela("30-detector-fenomeno-11-contexto", lambda: fenomeno("contexto"), altura_maxima=ALTO_DO_DETECTOR)
-        tela("31-detector-fenomeno-12-sinais-combinados", detector_combinados, altura_maxima=ALTO_DO_DETECTOR)
+        tela("27-detector-taxa-e-fenomeno-8", detector_taxa, altura_maxima=ALTO_DO_DETECTOR, ate_a_explicacao=True)
+        tela("28-detector-fenomeno-9-posicao", lambda: fenomeno("posicao"), altura_maxima=ALTO_DO_DETECTOR, ate_a_explicacao=True)
+        tela("29-detector-fenomeno-10-defasagem", lambda: fenomeno("defasagem"), altura_maxima=ALTO_DO_DETECTOR, ate_a_explicacao=True)
+        tela("30-detector-fenomeno-11-contexto", lambda: fenomeno("contexto"), altura_maxima=ALTO_DO_DETECTOR, ate_a_explicacao=True)
+        tela("31-detector-fenomeno-12-sinais-combinados", detector_combinados, altura_maxima=ALTO_DO_DETECTOR, ate_a_explicacao=True)
         tela("32-abrir-no-simulador-e-referencias", abrir_no_simulador)
         tela("33-simulador-comparacoes", simulador_comparacoes)
         tela("34-simulador-brasil", simulador_brasil)
@@ -543,7 +575,10 @@ def capturar(url, saida, canal):
 
 def main():
     parser = argparse.ArgumentParser(description="Capturas das telas principais para a conferência visual.")
-    parser.add_argument("--saida", type=Path, help="pasta das capturas (padrão: .local/capturas/<data-hora>)")
+    parser.add_argument("--esquema", choices=("claro", "escuro"), default="claro",
+                        help="esquema de cor do aparelho (padrão: claro); o escuro vai para uma pasta própria")
+    parser.add_argument("--saida", type=Path,
+                        help="pasta das capturas (padrão: .local/capturas/<data-hora>, ou <data-hora>-escuro no escuro)")
     parser.add_argument("--canal", choices=("chrome", "chromium"),
                         default=os.environ.get("ADT_BROWSER_CHANNEL") or "chrome", help="navegador (padrão: chrome)")
     args = parser.parse_args()
@@ -553,7 +588,8 @@ def main():
         sys.exit("Build ausente: rode antes (cd frontend && npm run build).")
     if build_desatualizado():
         print("Aviso: há arquivos em frontend/src mais novos que o build; as capturas podem não refletir a última mudança.")
-    saida = args.saida or ROOT / ".local" / "capturas" / datetime.now().strftime("%Y%m%d-%H%M%S")
+    saida = args.saida or ROOT / ".local" / "capturas" / (datetime.now().strftime("%Y%m%d-%H%M%S") +
+                                                         ("-escuro" if args.esquema == "escuro" else ""))
     saida.mkdir(parents=True, exist_ok=True)
     porta = porta_livre()
     url = f"http://127.0.0.1:{porta}/"
@@ -566,8 +602,8 @@ def main():
         try:
             if not aguardar(url):
                 sys.exit("O servidor de testes não respondeu; veja " + str(saida / "servidor.log"))
-            print(f"Capturas em {saida} (servidor em {url}, navegador {args.canal})", flush=True)
-            feitas, falhas = capturar(url, saida, args.canal)
+            print(f"Capturas em {saida} (esquema {args.esquema}, servidor em {url}, navegador {args.canal})", flush=True)
+            feitas, falhas = capturar(url, saida, args.canal, args.esquema)
         finally:
             servidor.terminate()
             try:
