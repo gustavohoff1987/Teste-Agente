@@ -1,4 +1,5 @@
-"""As fichas metodológicas em PDF (comando de ajustes pré-publicação, AJ-03, 18/11/2026).
+"""As fichas metodológicas em PDF (comando de ajustes pré-publicação, AJ-03, 18/11/2026; reescritas para quem usa o Agente no
+comando de correção das fichas, AJ-06, do mesmo dia).
 
 Os dois arquivos que saem com a interface (`frontend/public/fichas/`) são PDFs válidos — a cadeia de tabelas de referências
 confere, objeto a objeto —, com título (o `<title>` da fonte), idioma pt-BR, texto selecionável (fontes embutidas com o mapa
@@ -8,8 +9,15 @@ inclusive as que a página abre (`SECOES_DAS_FICHAS`, em `frontend/src/fichas.ts
 a dos arquivos de hoje, com as quebras de linha em LF (como o Git os guarda). Mudou a fonte ou o estilo: gere os PDFs de novo,
 com `python scripts/gerar_fichas.py`.
 
-As fontes seguem o vocabulário da tela (AJ-05): "forma de projetar", nunca "jeito"; "limite fixo", e "por convenção" só onde a
-ficha explica o valor do campo `criterio` das exportações e da API.
+Desde o AJ-06, as fichas são só metodológicas, para quem usa o Agente (gestão, área técnica, pesquisa): o texto à vista não traz
+as marcas de estado ("Implementado", "Não implementado", "Hipótese ou limitação"), caminhos de arquivo, rotas e campos da API,
+nomes de variáveis e funções, códigos de aviso, a SPEC e os códigos das decisões e dos comandos, hashes nem o manifesto; nem as
+palavras "motor", "código" e "página", o campo `criterio` e "por convenção" (a tela e as fichas dizem "limite fixo"), "jeito" (é
+"forma de projetar") e o nome antigo do sinal 10 ("Mais longe da referência"). Cada seção que o comando manda ficar existe, com
+o id de antes (as exportações e as versões saíram; a "Leitura rápida" é nova). A letra é a Inter em versão estática, só das
+fichas (Docs/fichas/fontes/, com a licença OFL), embutida como TrueType — nenhuma fonte Type 3 —, e os arquivos de fonte do site
+(frontend/src/tipografia/) ficam idênticos. Os campos que o leitor de PDF mostra nas propriedades (assunto, palavras-chave e
+aplicativo) não trazem caminhos nem SHA-256.
 
 A leitura do PDF é feita aqui, sem dependência nova e sem o gerador: pela estrutura que o Chromium escreve (tabela de referências
 clássica, sem fluxos de objetos) e pela atualização incremental do gerador. Só lê arquivos versionados; nenhum dado da base.
@@ -28,6 +36,25 @@ PUBLICAS = ROOT / "frontend" / "public"
 FICHAS = {
     "detector": {"fonte": FONTES / "ficha_detector.html", "titulo": "Ficha metodológica A — Detector de Sinais Territoriais"},
     "simulador": {"fonte": FONTES / "ficha_simulador.html", "titulo": "Ficha metodológica B — Simulador de Cenários Territoriais"},
+}
+# AJ-06: as seções de cada ficha, na ordem (as que ficam, com o id de antes, e a "Leitura rápida", nova) e as que saíram.
+SECOES = {
+    "detector": ["leitura-rapida", "o-que-e", "dados", "niveis", "regua", "sinais", "condicoes", "parametros", "ajustar-criterios",
+                 "estados-e-conjuntos", "mesma-queda", "aviso-da-base", "historico", "regua-da-data", "simulador", "limites"],
+    "simulador": ["leitura-rapida", "o-que-e", "modos", "formas-de-projetar", "forma-escolhida", "faixa", "avaliacao",
+                  "entradas-e-saidas", "intervencoes", "meta", "referencias", "conjuntos-e-brasil", "hipotese", "horizonte", "limites"],
+}
+SAIRAM = ("exportacoes", "versoes")
+# O que não pode aparecer no texto à vista das fichas (sem diferenciar maiúsculas): o bastidor do desenvolvimento.
+PROIBIDOS = [r"implementad", r"hipótese ou limitação", r"\bmotor\b", r"\bcódigos?\b", r"\bpáginas?\b", r"por convenção",
+             r"\bcriterio\b", r"\bjeitos?\b", r"longe da referência", r"\bspec\b", r"proposta v3", r"divergência aprovada",
+             r"\bd-[abc]\b", r"\baj-\d", r"\bcomandos?\b", r"manifesto", r"\bsha\b", r"sha-?256", r"\bhash", r"/api/",
+             r"\bbackend\b", r"\bfrontend\b", r"\bdocs/", r"\bscripts/", r"\.(?:py|tsx?|md|css|html|json|pdf|csv|xlsx)\b"]
+# Os arquivos de fonte do site, que as fichas deixaram de usar e que não mudam (SHA-256, com o texto em LF).
+TIPOGRAFIA_DO_SITE = {
+    "LICENCA-OFL.txt": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
+    "inter-latin-ext-opsz-normal.woff2": "5e6d4fe9d9f4bff8b2a2469d25ab19576bb85331e22c6ed51398e16f95d56a9c",
+    "inter-latin-opsz-normal.woff2": "2c295d99e26dcf357d4d01bcf270fd6924b600c9a13dd8c363ef114f4c6976fa",
 }
 
 
@@ -164,13 +191,83 @@ def test_o_pdf_corresponde_a_fonte_atual(ficha):
     assert campo(info, "FonteArquivo") == FICHAS[nome]["fonte"].relative_to(ROOT).as_posix()
 
 
+def texto_a_vista(fonte: str) -> str:
+    """O texto que a pessoa lê: o corpo da fonte, sem as marcas do HTML."""
+    corpo = re.search(r"<body\b[^>]*>(.*)</body>", fonte, re.S).group(1)
+    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", corpo)))
+
+
 @pytest.mark.parametrize("nome", list(FICHAS))
-def test_o_vocabulario_da_tela_nas_fontes(nome):
-    """AJ-05: "forma de projetar", nunca "jeito"; "limite fixo", e "por convenção" só onde a ficha explica o campo `criterio`."""
+def test_so_o_metodo_para_quem_usa_o_agente(nome):
+    """AJ-06: nada do bastidor do desenvolvimento no texto à vista; o vocabulário da tela ("limite fixo", "forma de projetar")."""
     fonte = FICHAS[nome]["fonte"].read_text(encoding="utf-8")
-    assert not re.search(r"\bjeitos?\b", fonte, re.IGNORECASE), nome
-    for paragrafo in re.findall(r"<p\b[^>]*>(.*?)</p>", fonte, re.S):
-        if "por convenção" in paragrafo.lower():
-            assert "<code>criterio</code>" in paragrafo, paragrafo[:200]
-    if nome == "detector":
-        assert "limite fixo" in fonte
+    texto = texto_a_vista(fonte)
+    for proibido in PROIBIDOS:
+        achado = re.search(proibido, texto, re.IGNORECASE)
+        assert not achado, (nome, proibido, texto[max(0, achado.start() - 80):achado.end() + 80] if achado else "")
+    # Nomes de variáveis, de funções e de códigos de aviso (com "_" ou em camelCase); os métodos (M0 a M3) são nomes, e ficam.
+    assert not re.findall(r"\b[A-Za-z0-9]+_[A-Za-z0-9_]+\b", texto), nome
+    assert not re.findall(r"\b[a-zà-ú]+[A-Z][A-Za-z]+\b", texto), nome
+    corpo = re.search(r"<body\b[^>]*>(.*)</body>", fonte, re.S).group(1)
+    for marca in ("<code", "<em", "<i>", "<i ", 'class="marca'):
+        assert marca not in corpo, (nome, marca)
+    # Só os caracteres que a letra das fichas tem: o latim (até U+00FF), a pontuação geral (aspas, travessões, reticências) e o
+    # sinal de menos. Sem setas, sinais de comparação nem emoji, que viriam de outra fonte.
+    fora = sorted({c for c in texto if ord(c) > 0xFF and not 0x2000 <= ord(c) <= 0x206F and c != "\u2212"})
+    assert not fora, (nome, fora)
+    assert "limite fixo" in texto if nome == "detector" else "forma de projetar" in texto, nome
+
+
+@pytest.mark.parametrize("nome", list(FICHAS))
+def test_as_secoes_que_ficam_e_a_abertura(nome):
+    """AJ-06: as seções do comando, na ordem e com o id de antes (a "Leitura rápida" é nova; as exportações e as versões saíram),
+    todas no sumário; a abertura com para quem é, a base e a data dos números, a versão do método e a data da ficha."""
+    fonte = FICHAS[nome]["fonte"].read_text(encoding="utf-8")
+    assert re.findall(r'<section id="([a-z0-9-]+)"', fonte) == SECOES[nome]
+    assert not [secao for secao in SAIRAM if f'id="{secao}"' in fonte], nome
+    sumario = re.search(r'<nav class="sumario".*?</nav>', fonte, re.S).group(0)
+    assert re.findall(r'href="#([a-z0-9-]+)"', sumario) == SECOES[nome]
+    capa = texto_a_vista(fonte.split("<nav", 1)[0] + "</body>")
+    versao = {"detector": "DETECTOR-SINAIS/V3/1", "simulador": "SIMULADOR-CENARIOS/V3/1"}[nome]
+    for trecho in (versao, "jun/2024", "18/11/2026", "médicos"):
+        assert trecho in capa, (nome, trecho)
+
+
+def test_os_textos_novos_do_detector_e_o_titulo_da_avaliacao_do_simulador():
+    """AJ-09 e AJ-10 na Ficha A: o sinal 10 é "Perda em relação à referência" e a mesma queda é "vista de ângulos diferentes"; o
+    critério do sinal 11, com a taxa do Brasil na data. AJ-07: a seção da Ficha B que a exportação da avaliação cita pelo título."""
+    detector = texto_a_vista(FICHAS["detector"]["fonte"].read_text(encoding="utf-8"))
+    for trecho in ("Perda em relação à referência", "A taxa do território piorou em relação à da referência: caiu mais, ou subiu menos, "
+                   "que ela.", "são a mesma queda vista de ângulos diferentes", "2,01", "2,36", "500%"):
+        assert trecho in detector, trecho
+    simulador = FICHAS["simulador"]["fonte"].read_text(encoding="utf-8")
+    titulo = html.unescape(re.sub(r"<[^>]+>", "", re.search(r'<h2 id="avaliacao-titulo">(.*?)</h2>', simulador, re.S).group(1))).strip()
+    assert re.sub(r"^\d+\.\s*", "", titulo) == "A avaliação dos métodos no histórico da base", titulo
+
+
+def test_a_letra_estatica_das_fichas_e_a_do_site_intocada():
+    """AJ-06: a folha das fichas carrega só os arquivos estáticos de Docs/fichas/fontes/ (com a licença OFL), nos pesos que
+    existem em arquivo e sem itálico; os arquivos de fonte do site ficam idênticos."""
+    estilo = ESTILO.read_text(encoding="utf-8")
+    fontes = re.findall(r'url\("([^"]+)"\)', estilo)
+    assert fontes and all(fonte.startswith("fontes/") and (FONTES / fonte).is_file() for fonte in fontes), fontes
+    assert (FONTES / "fontes" / "LICENCA-OFL.txt").read_text(encoding="utf-8").count("SIL OPEN FONT LICENSE Version 1.1") == 1
+    assert "tipografia" not in estilo and "woff2-variations" not in estilo and "italic" not in estilo
+    declarados = {int(peso) for peso in re.findall(r"@font-face \{[^}]*font-weight: (\d+);", estilo)}
+    usados = {int(peso) for peso in re.findall(r"font-weight:\s*(\d+)", estilo)}
+    assert declarados == {400, 600, 700} and usados <= declarados, (declarados, usados)
+    for nome, esperado in TIPOGRAFIA_DO_SITE.items():
+        dados = (ROOT / "frontend" / "src" / "tipografia" / nome).read_bytes()
+        assert hashlib.sha256(dados.replace(b"\r\n", b"\n") if nome.endswith(".txt") else dados).hexdigest() == esperado, nome
+
+
+def test_nenhuma_fonte_type3_e_as_propriedades_sem_caminhos(ficha):
+    """AJ-06: as fontes do PDF são TrueType embutidas (nenhuma Type 3); o assunto, as palavras-chave e o aplicativo, que o leitor
+    de PDF mostra, sem caminhos de arquivo e sem SHA-256 (a impressão digital fica nas chaves da conferência)."""
+    nome, pdf, _ = ficha
+    assert not re.search(rb"/Subtype\s*/Type3", pdf.dados), (nome, "fonte Type 3")
+    assert re.search(rb"/FontFile2\s+\d+\s+\d+\s+R", pdf.dados), (nome, "fonte TrueType embutida")
+    info = pdf.objeto(pdf.referencia(pdf.trailer, "Info"))
+    for chave in ("Subject", "Keywords", "Creator"):
+        valor = campo(info, chave)
+        assert valor and not re.search(r"[0-9a-f]{64}|SHA|[/\\]|\.(?:py|html|css)\b", valor), (nome, chave, valor)

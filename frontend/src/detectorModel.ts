@@ -48,7 +48,7 @@ export type SinalComNivel = { sinal: string; nivel: NivelDoAlerta; criterio: str
 /** O alerta do território: um nível só (o maior entre os sinais, sem soma nem índice), o tipo de critério e o porquê. */
 export type AlertaDoTerritorio = { estado: "alerta" | "sem_alerta" | "sem_comparacoes" | "sem_nivel"; nivel: NivelDoAlerta | null;
   sinal: string | null; criterio: string | null; outros: number; porQue: string | null; sinais: SinalComNivel[];
-  /** Os sinais que vêm da mesma queda: contam como um evento. */
+  /** Os sinais da mesma queda: a mesma queda vista de ângulos diferentes, que conta como um evento só. */
   mesmaQueda: string[];
   /** Os sinais comparados com a base que ficaram sem comparações suficientes. */
   semComparacoes: string[]; motivo: string | null };
@@ -366,7 +366,7 @@ export function nomeDoSinal(chave: string, r: RotulosDaBase = ROTULOS_DO_BRASIL)
   const nomes: Record<string, string> = { estrutural: "Poucos " + r.profissionais, ausencia: "Nenhum " + r.profissional + " registrado",
     declinio: "Declínio persistente", desaceleracao: "Desaceleração", instabilidade: "Instabilidade", perda: "Queda recente",
     patamar: "Abaixo do que já teve", disponibilidade: "Menos " + r.profissionais + " por habitante", posicao: "Perda de posição",
-    defasagem: "Mais longe da referência", contexto: "Distância", coexistencia: "Sinais juntos", registro: "Registro a verificar" };
+    defasagem: "Perda em relação à referência", contexto: "Distância", coexistencia: "Sinais juntos", registro: "Registro a verificar" };
   return nomes[chave] ?? chave;
 }
 
@@ -401,10 +401,11 @@ export function textoDoPorQue(linha: LinhaDoDetector, r: RotulosDaBase = ROTULOS
   if (!linha.ultima) return "Sem registro na janela.";
   return "Nenhum sinal com nível" + (faltam ? " (sem comparações suficientes em " + faltam + ")" : "") + ".";
 }
-/** Os sinais da mesma queda, por extenso: "Queda recente e abaixo do que já teve vêm da mesma queda: contam como um evento." */
+/** Os sinais da mesma queda, por extenso (desde o AJ-10, 18/11/2026): "Queda recente e abaixo do que já teve são a mesma queda vista
+ * de ângulos diferentes: contam como um evento só." (antes, "… vêm da mesma queda: contam como um evento."). */
 export function textoDaMesmaQueda(linha: LinhaDoDetector, r: RotulosDaBase = ROTULOS_DO_BRASIL): string | null {
   const nomes = linha.alerta.mesmaQueda.map(sinal => nomeDoSinal(sinal, r).toLowerCase());
-  return nomes.length > 1 ? maiuscula(listar(nomes)) + " vêm da mesma queda: contam como um evento." : null;
+  return nomes.length > 1 ? maiuscula(listar(nomes)) + " são a mesma queda vista de ângulos diferentes: contam como um evento só." : null;
 }
 
 /** Os trechos de população comparável, por extenso: "de 2014 a 2024", "de 2014 a 2017 e de 2018 a 2021"; sem nenhum, "em nenhum
@@ -847,7 +848,7 @@ export function csvDoDetector(resposta: RespostaDoDetector, linhas: LinhaDoDetec
     ["Taxa: estado", l => l.disponibilidade.estado],
     ["Perda de posição: nível", l => doSinal(l, "posicao")], ["Percentil da taxa", l => l.posicao.percentil], ["Universo do percentil", l => l.posicao.universo],
     ["Variação do percentil em 2 anos (pontos)", l => l.posicao.variacaoPp], ["Posição: estado", l => l.posicao.estado],
-    ["Mais longe da referência: nível", l => doSinal(l, "defasagem")], ["Índice ante a referência", l => l.defasagem.indice],
+    [nomeDoSinal("defasagem", r) + ": nível", l => doSinal(l, "defasagem")], ["Índice ante a referência", l => l.defasagem.indice],
     ["Variação do índice em 2 anos (pontos)", l => l.defasagem.variacaoPontos], ["Referência: estado", l => l.defasagem.estado],
     ["Distância ao mais próximo que atende ao critério (km)", l => l.contexto.distanciaKm],
     ["Mais próximo que atende ao critério", l => l.contexto.referencia], ["Percentil da distância", l => l.contexto.percentil],

@@ -341,7 +341,7 @@ def main():
         expect(abelardo.get_by_test_id("detector-ultimo")).to_have_count(1)
         expect(abelardo.get_by_test_id("detector-ultimo")).to_have_attribute("rowspan", "5")
         assert sorted(do_abelardo["alerta"]["mesma_queda"]) == sorted(item["sinal"] for item in dele), do_abelardo["alerta"]
-        expect(abelardo.get_by_test_id("detector-linha-nota")).to_contain_text("vêm da mesma queda: contam como um evento.")
+        expect(abelardo.get_by_test_id("detector-linha-nota")).to_contain_text("são a mesma queda vista de ângulos diferentes: contam como um evento só.")
         page.screenshot(path=str(OUTPUT / "detector-01c-sinais-por-linha-real.png"), full_page=False)
         detector.get_by_test_id("detector-busca").fill("")
         expect(tabela).to_have_attribute("data-linhas", "295")
@@ -513,6 +513,11 @@ def main():
         expect(criterios.locator('[data-testid="detector-criterio"][data-sinal="patamar"] legend')).to_contain_text(
             "· limite fixo no moderado; comparado com a base no elevado e no crítico")
         assert "convenção" not in criterios.inner_text().lower() and "jeito" not in criterios.inner_text().lower()
+        # AJ-09 (18/11/2026): o sinal 10 se chama "Perda em relação à referência" no filtro e nos critérios; o nome antigo, que
+        # sugeria distância (o sinal 11), não aparece.
+        expect(detector.locator('[data-testid="detector-filtro-sinal"] option[value="defasagem"]')).to_have_text("Perda em relação à referência")
+        expect(criterios.locator('[data-testid="detector-criterio"][data-sinal="defasagem"] legend')).to_contain_text("Perda em relação à referência")
+        assert "longe da referência" not in detector.inner_text().lower()
         campo = criterios.get_by_test_id("detector-parametro-estrutural-moderado")
         expect(campo).to_have_value("5")
         expect(campo).to_have_attribute("data-trocado", "false")
@@ -624,6 +629,11 @@ def main():
         assert [(item["chave"], item["um_em"], item["pede"]) for item in corpo["niveis"]] == [
             ("moderado", 20, 19), ("elevado", 100, 99), ("critico", 1000, 999)], corpo["niveis"]
         assert any(nota.startswith("Um nível por território: o maior entre os seus sinais, sem soma nem índice.") for nota in metodo["notas"]), metodo["notas"]
+        # A lista exportada (CSV): o nível do sinal 10 com o nome novo (AJ-09) e nenhum texto com o nome antigo.
+        csv_da_lista = baixado(detector.get_by_test_id("detector-exportar-csv")).lstrip("\ufeff").splitlines()
+        cabecalho_do_csv = csv_da_lista[0].split(";")
+        assert "Perda em relação à referência: nível" in cabecalho_do_csv and "Índice ante a referência" in cabecalho_do_csv, cabecalho_do_csv
+        assert not any("longe da referência" in linha_do_csv.lower() for linha_do_csv in csv_da_lista)
         do_monitoramento = corpo["calibracao"]["monitoramento"]
         assert do_monitoramento["avaliadas"] > 0 and metodo["regua_na_data"]["monitoramento"]["raras"] == do_monitoramento["raras"], do_monitoramento
         portes = [item["porte"] for item in metodo["regua_na_data"]["perda"]]
@@ -850,7 +860,7 @@ def main():
             expect(item.get_by_test_id("detector-campo-naoSignifica").locator("dd")).to_have_text(do_fenomeno["nao_significa"])
         # Os efeitos da mesma queda contam como um evento, e a tela diz isso.
         if detalhe_2021["linha"]["alerta"]["mesma_queda"]:
-            expect(detalhe.get_by_test_id("detector-mesma-queda")).to_contain_text("vêm da mesma queda: contam como um evento.")
+            expect(detalhe.get_by_test_id("detector-mesma-queda")).to_contain_text("são a mesma queda vista de ângulos diferentes: contam como um evento só.")
         page.screenshot(path=str(OUTPUT / "detector-08-comparados-2021-real.png"), full_page=False)
         da_queda.get_by_test_id("detector-abrir").click()  # fecha os detalhes
         detector.get_by_test_id("detector-filtro-sinal").select_option("todos")
@@ -875,7 +885,7 @@ def main():
         detector.get_by_test_id("detector-busca").fill("abelardo")
         linha(ABELARDO_LUZ).get_by_test_id("detector-abrir").click()
         expect(detector.get_by_test_id("detector-detalhe")).to_have_attribute("data-id", ABELARDO_LUZ)
-        expect(detector.get_by_test_id("detector-mesma-queda")).to_contain_text("vêm da mesma queda: contam como um evento.")
+        expect(detector.get_by_test_id("detector-mesma-queda")).to_contain_text("são a mesma queda vista de ângulos diferentes: contam como um evento só.")
         expect(detector.get_by_test_id("detector-recuperacao-apoio")).to_contain_text("meta hipotética")
         expect(detector.get_by_test_id("detector-recuperacao-apoio")).to_contain_text("não uma previsão")
         # A meta é um número inteiro, o patamar arredondado para cima, e a frase diz de onde ela vem (revisão das capturas,

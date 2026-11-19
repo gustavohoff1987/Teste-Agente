@@ -41,7 +41,7 @@ import series_brasil  # noqa: E402
 SINAIS = ("estrutural", "declinio", "desaceleracao", "instabilidade", "perda", "patamar", "disponibilidade", "posicao", "defasagem")
 NOMES = {"estrutural": "1–2 Poucos médicos ou nenhum", "declinio": "3 Declínio persistente", "desaceleracao": "4 Desaceleração",
          "instabilidade": "5 Instabilidade", "perda": "6 Queda recente", "patamar": "7 Abaixo do que já teve",
-         "disponibilidade": "8 Menos médicos por habitante", "posicao": "9 Perda de posição", "defasagem": "10 Mais longe da referência"}
+         "disponibilidade": "8 Menos médicos por habitante", "posicao": "9 Perda de posição", "defasagem": "10 Perda em relação à referência"}
 FORA_DA_AVALIACAO = ("ausencia_de_dado", "janela_insuficiente", "nao_calculavel", "descritivo", "sem_comparacoes",
                      "descontinuidade_de_registro", "comparacao_nao_habilitada", "referencia_invalida")
 

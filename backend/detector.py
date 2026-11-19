@@ -1634,8 +1634,8 @@ def _texto_defasagem(base: Base, av: dict, p: dict) -> dict:
                             "referência no grupo de cima e sem o território" + (": " + rotulo if rotulo else "") + ")")
     entenda = ("Compara a taxa do território com a do grupo de cima sem ele, e vê quanto essa relação mudou em 2 anos. " +
                INCOMUM_NAO_E_PIOR)
-    exemplo = "Índice 100: taxa igual à da referência. De 90 para 75: ficou 15 pontos mais longe dela."
-    significa = "A taxa do território ficou mais distante, para baixo, da taxa da referência."
+    exemplo = "Índice 100: taxa igual à da referência. De 90 para 75, o território perdeu 15 pontos em relação a ela; de 130 para 115 também, mesmo continuando acima."
+    significa = "A taxa do território piorou em relação à da referência: caiu mais, ou subiu menos, que ela."
     nao = "A referência é uma comparação, não uma meta nem um padrão de suficiência. " + NAO_SIGNIFICA_GERAL
     nivel = ("Índice " + _br(round(s["indice"], 1)) + " ante a referência em " + curta(s["competencia"])) if s.get("indice") is not None \
         else "Sem índice"
@@ -1655,7 +1655,7 @@ def _texto_defasagem(base: Base, av: dict, p: dict) -> dict:
         observado = ("De " + curta(s["de"]) + " a " + curta(s["ate"]) + ", a taxa do território " + passou + " (índice de " +
                      _br(round(s["indice_inicial"], 1)) + " para " + _br(round(s["indice_final"], 1)) + ": " +
                      _pontos(s["variacao_pontos"]) + "). " + na_data)
-    return _relativo(base, av, "defasagem", p, nivel, variacao, observado, "este afastamento da referência", regra, significa, nao, entenda,
+    return _relativo(base, av, "defasagem", p, nivel, variacao, observado, "esta perda em relação à referência", regra, significa, nao, entenda,
                      exemplo)
 
 
@@ -1733,7 +1733,7 @@ NOMES_CURTOS_DOS_SINAIS = {"estrutural": "poucos {profissionais}", "ausencia": "
                            "declinio": "declínio persistente", "desaceleracao": "desaceleração", "instabilidade": "instabilidade",
                            "perda": "queda recente", "patamar": "abaixo do que já teve",
                            "disponibilidade": "menos {profissionais} por habitante", "posicao": "perda de posição",
-                           "defasagem": "mais longe da referência"}
+                           "defasagem": "perda em relação à referência"}
 
 
 def nome_do_sinal(base: Base, chave: str, inicial_maiuscula: bool = False) -> str:
@@ -1763,7 +1763,7 @@ def _texto_coexistencia(base: Base, av: dict) -> dict:
     observado = "Sinais com nível em " + curta(av["ultima"]["competencia"] if av.get("ultima") else base.periodos[-1]) + ": " + lista + "."
     habitual = "O alerta do território é o maior nível: " + NOMES_DAS_CLASSES[alerta["nivel"]] + ". Os níveis não se somam."
     if alerta.get("mesma_queda"):
-        habitual += " " + str(len(alerta["mesma_queda"])) + " desses sinais vêm da mesma queda e contam como um evento."
+        habitual += " " + str(len(alerta["mesma_queda"])) + " desses sinais são a mesma queda vista de ângulos diferentes e contam como um evento só."
     if s["combinacoes"]:
         observado += " Combinações: " + "; ".join(item["texto"] for item in s["combinacoes"]) + "."
     return _item(None, "juntos", None, frase, observado, regra, habitual, significa, nao, entenda, exemplo)
@@ -1775,7 +1775,7 @@ def fenomenos(base: Base, av: dict, e: int, p: dict) -> list[dict]:
     nomes = {"estrutural": "Poucos " + r["profissionais"] + " ou nenhum " + r["profissional"] + " registrado",
              "declinio": "Declínio persistente", "desaceleracao": "Desaceleração", "instabilidade": "Instabilidade",
              "perda": "Queda recente", "patamar": "Abaixo do que já teve", "disponibilidade": "Menos " + r["profissionais"] + " por habitante",
-             "posicao": "Perda de posição", "defasagem": "Mais longe da referência", "contexto": "Distância", "coexistencia": "Sinais juntos"}
+             "posicao": "Perda de posição", "defasagem": "Perda em relação à referência", "contexto": "Distância", "coexistencia": "Sinais juntos"}
     textos = {"estrutural": lambda: _texto_estrutural(base, av, e, p), "declinio": lambda: _texto_declinio(base, av, p),
               "desaceleracao": lambda: _texto_desaceleracao(base, av, p), "instabilidade": lambda: _texto_instabilidade(base, av, p),
               "perda": lambda: _texto_perda(base, av, p), "patamar": lambda: _texto_patamar(base, av, p),

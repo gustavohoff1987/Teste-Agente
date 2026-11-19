@@ -154,7 +154,7 @@ test('a lista (desde o AJ-04, cinco colunas): o alerta (um nível, sempre escrit
   const queda = lerLinha({alerta: alerta('elevado', 'disponibilidade', 'comparado com a base', '−38,2% de médicos por habitante em 2 anos (+3 sinais)',
     {outros: 3, mesma_queda: ['disponibilidade', 'defasagem', 'patamar', 'posicao']})});
   assert.equal(D.textoDaMesmaQueda(queda),
-    'Menos médicos por habitante, mais longe da referência, abaixo do que já teve e perda de posição vêm da mesma queda: contam como um evento.');
+    'Menos médicos por habitante, perda em relação à referência, abaixo do que já teve e perda de posição são a mesma queda vista de ângulos diferentes: contam como um evento só.');
   assert.equal(D.textoDaMesmaQueda(critico), null);
   // O resumo dos níveis (clicável como filtro) e os nomes dos estados do alerta.
   assert.deepEqual([['critico', 41], ['critico', 1], ['elevado', 434], ['moderado', 1], ['sem_alerta', 4118], ['sem_comparacoes', 3], ['sem_nivel', 1],
@@ -165,7 +165,7 @@ test('a lista (desde o AJ-04, cinco colunas): o alerta (um nível, sempre escrit
   // Os nomes dos sinais e o último registro usam os nomes da base.
   assert.deepEqual(['estrutural', 'ausencia', 'declinio', 'desaceleracao', 'instabilidade', 'perda', 'patamar', 'disponibilidade', 'posicao', 'defasagem',
     'contexto', 'coexistencia', 'x'].map(chave => D.nomeDoSinal(chave)), ['Poucos médicos', 'Nenhum médico registrado', 'Declínio persistente', 'Desaceleração',
-    'Instabilidade', 'Queda recente', 'Abaixo do que já teve', 'Menos médicos por habitante', 'Perda de posição', 'Mais longe da referência', 'Distância',
+    'Instabilidade', 'Queda recente', 'Abaixo do que já teve', 'Menos médicos por habitante', 'Perda de posição', 'Perda em relação à referência', 'Distância',
     'Sinais juntos', 'x']);
   assert.deepEqual(['estrutural', 'ausencia', 'disponibilidade'].map(chave => D.nomeDoSinal(chave, ENF)),
     ['Poucos enfermeiros', 'Nenhum enfermeiro registrado', 'Menos enfermeiros por habitante']);
@@ -238,7 +238,7 @@ test('"Ajustar critérios": os limites em frases, com os campos dentro delas, pa
     // O sinal 7 não fica só com "comparado com a base": o moderado dele vem de um limite fixo (AJ-05, item 2).
     ['patamar', '7', 'Abaixo do que já teve', 'limite fixo no moderado; comparado com a base no elevado e no crítico', 4],
     ['disponibilidade', '8', 'Menos médicos por habitante', 'comparado com a base', 2], ['posicao', '9', 'Perda de posição', 'comparado com a base', 2],
-    ['defasagem', '10', 'Mais longe da referência', 'comparado com a base', 2], ['contexto', '11', 'Distância', 'só contexto', 1]]);
+    ['defasagem', '10', 'Perda em relação à referência', 'comparado com a base', 2], ['contexto', '11', 'Distância', 'só contexto', 1]]);
   // Cada parâmetro que o motor deixa trocar (detector.EDITAVEIS e comparativos.EDITAVEIS) tem um campo numa frase, uma vez só.
   const campos = criterios.flatMap(criterio => criterio.frases.flatMap(frase => frase.filter(parte => typeof parte !== 'string').map(parte => parte.grupo + '.' + parte.campo)));
   const um_em = grupo => ['moderado', 'elevado', 'critico'].map(nivel => grupo + '.' + nivel + '_um_em');
@@ -331,7 +331,7 @@ test('AJ-04: cada sinal com nível numa linha (Sinal · Alerta · Por quê), do 
     {sinal: 'disponibilidade', nome: 'Menos médicos por habitante', nivel: 'elevado', criterio: 'comparado com a base', estado: 'elevado', texto: 'Elevado',
       porQue: '−36,2% de médicos por habitante em 2 anos'},
     {sinal: 'posicao', nome: 'Perda de posição', nivel: 'moderado', criterio: 'comparado com a base', estado: 'moderado', texto: 'Moderado', porQue: null},
-    {sinal: 'defasagem', nome: 'Mais longe da referência', nivel: 'moderado', criterio: 'comparado com a base', estado: 'moderado', texto: 'Moderado', porQue: null}]);
+    {sinal: 'defasagem', nome: 'Perda em relação à referência', nivel: 'moderado', criterio: 'comparado com a base', estado: 'moderado', texto: 'Moderado', porQue: null}]);
   // Com o detalhe do território: a frase de cada outro sinal é a do motor (`fenomenos[].situacao`); a do principal continua a da lista.
   const detalhe = D.normalizarDetalhe({territorio: {id: 'code:350530', rotulo: 'BARRA BONITA (SP)'}, janela: {}, fenomenos: [
     {chave: 'disponibilidade', situacao: 'outra frase'}, {chave: 'posicao', situacao: 'Caiu 11,5 pontos de percentil em 2 anos'},
@@ -364,7 +364,7 @@ test('AJ-04: cada sinal com nível numa linha (Sinal · Alerta · Por quê), do 
   assert.deepEqual(D.filtrarLinhas(lida.linhas, {...D.SEM_FILTROS, sinal: 'posicao'}).map(item => item.id), ['code:350530']);
   // A tela: cinco colunas, com "Sinal" antes de "Alerta"; cada território num grupo de linhas, com o nome e o último registro uma
   // vez; o detalhe pedido só para quem tem mais de um sinal, dois de cada vez, e só depois que a lista do pedido em uso chegou
-  // (enquanto a de antes continua à vista, nada é pedido com o pedido novo); "vêm da mesma queda" na linha do território.
+  // (enquanto a de antes continua à vista, nada é pedido com o pedido novo); "são a mesma queda vista de ângulos diferentes" na linha do território.
   const tela = ler('DetectorDeSinais.tsx');
   const daLista = tela.indexOf('<table data-testid="detector-tabela"');
   const cabecalho = tela.slice(tela.indexOf('<thead><tr>', daLista), tela.indexOf('</tr></thead>', daLista));
@@ -716,7 +716,7 @@ test('o que o Detector leva ao Simulador: o território, a data, a janela escolh
   // "Abrir no Simulador" e "Simular recuperação": os sinais com nível, pelos nomes da tela, e a janela só quando a pessoa a
   // escolheu (a janela padrão do Detector, a série inteira, não é levada).
   assert.deepEqual(D.alvoDoSimulador(barra, lida), {id: 'code:350530', tipo: 'municipio', rotulo: 'BARRA BONITA (SP)',
-    sinais: ['Menos médicos por habitante (elevado)', 'Mais longe da referência (moderado)', 'Perda de posição (moderado)'], fim: '202106',
+    sinais: ['Menos médicos por habitante (elevado)', 'Perda em relação à referência (moderado)', 'Perda de posição (moderado)'], fim: '202106',
     janela: {inicio: '201401', fim: '202106'}, exploratorio: false});
   assert.deepEqual(D.alvoDoSimulador(par, {janela: {...lida.janela, padrao: true}, exploratorio: true}), {id: 'c1', tipo: 'conjunto', rotulo: 'Par',
     sinais: [], fim: '202106', janela: null, exploratorio: true});
@@ -846,6 +846,36 @@ test('revisão das capturas de 15/11/2026: a série do território na largura da
   assert.ok(series.startsWith('export default function PainelSeries({ itens, competencias, indicador, rotulos, referencias = [], rotuloDaData = exibirCompetencia }: Props) {'));
   assert.equal(series.split('rotuloDaData(').length - 1, 4, 'o eixo, a dica e a descrição usam a mesma função');
   assert.equal(series.split('exibirCompetencia(').length - 1, 0, 'nenhuma data do gráfico escrita fora dela');
+});
+
+test('AJ-09 e AJ-10: o sinal 10 é "Perda em relação à referência"; a mesma queda, "vista de ângulos diferentes"', () => {
+  // AJ-09 (18/11/2026): o nome não sugere distância (a distância é o sinal 11). A chave continua `defasagem`.
+  assert.deepEqual([D.nomeDoSinal('defasagem'), D.nomeDoSinal('defasagem', ENF)], ['Perda em relação à referência', 'Perda em relação à referência']);
+  const lida = comparada(), [barra] = lida.linhas;
+  assert.ok(D.filtrosDeSinal().some(opcao => opcao.chave === 'defasagem' && opcao.rotulo === 'Perda em relação à referência'), 'o filtro "Sinal"');
+  assert.deepEqual(D.linhasDoTerritorio(barra, null).map(item => item.nome), ['Menos médicos por habitante', 'Perda de posição', 'Perda em relação à referência']);
+  // O CSV: o cabeçalho do nível do sinal 10 e os valores com o nome novo; as colunas do índice continuam.
+  const [cabecalho, dados] = D.csvDoDetector(lida, [barra]).slice(1).trim().split('\r\n');
+  const colunas = cabecalho.split(';'), valores = dados.split(';');
+  assert.equal(valores[colunas.indexOf('Perda em relação à referência: nível')], 'Moderado');
+  assert.ok(colunas.includes('Índice ante a referência') && colunas.includes('Variação do índice em 2 anos (pontos)'));
+  assert.ok(valores[colunas.indexOf('Sinais com nível')].includes('Perda em relação à referência: Moderado'));
+  assert.equal(valores[colunas.indexOf('Sinais da mesma queda (um evento)')], 'Menos médicos por habitante | Perda em relação à referência | Perda de posição');
+  // AJ-10: a frase da mesma queda, na linha do território e no detalhe; o nome do conceito continua ("mesma queda").
+  assert.equal(D.textoDaMesmaQueda(barra), 'Menos médicos por habitante, perda em relação à referência e perda de posição são a mesma queda vista de ' +
+    'ângulos diferentes: contam como um evento só.');
+  // O nome antigo e a frase antiga não aparecem em nenhum texto da tela do Detector (nem no que ele leva ao Simulador).
+  const textos = [['detectorModel.ts', ts.ScriptKind.TS], ['DetectorDeSinais.tsx', ts.ScriptKind.TSX], ['DetectorGraficos.tsx', ts.ScriptKind.TSX],
+    ['simuladorModel.ts', ts.ScriptKind.TS], ['SimuladorDeCenarios.tsx', ts.ScriptKind.TSX]].flatMap(([nome, tipo]) => {
+    const achados = [];
+    const visitar = no => {
+      if (ts.isStringLiteralLike(no) || ts.isTemplateHead(no) || ts.isTemplateMiddle(no) || ts.isTemplateTail(no) || ts.isJsxText(no)) achados.push(no.text);
+      ts.forEachChild(no, visitar);
+    };
+    visitar(ts.createSourceFile(nome, ler(nome), ts.ScriptTarget.ES2022, true, tipo));
+    return achados;
+  });
+  assert.deepEqual(textos.filter(texto => /longe da referência|vêm da mesma queda/i.test(texto)), []);
 });
 
 test('AJ-05: nos textos da tela do Detector, nada de "por convenção" nem de "jeito"; o nome da tela é "limite fixo"', () => {

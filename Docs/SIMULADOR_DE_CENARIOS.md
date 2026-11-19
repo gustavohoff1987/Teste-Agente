@@ -49,8 +49,12 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
     [`Docs/fichas/ficha_simulador.html`](fichas/ficha_simulador.html); o PDF, `frontend/public/fichas/ficha-simulador.pdf`, sai
     com os arquivos estáticos da interface, e o link respeita a base da página, `ADT_BASE_DA_PAGINA`): os modos, cada forma de
     projetar (M0, M0d, M0g, M1, M2 e M3), as premissas, as intervenções, a meta, as referências, os conjuntos, o Brasil como
-    território, a hipótese do cenário, os limites e a avaliação dos métodos no histórico da base, com os números da base do
-    Brasil;
+    território, a hipótese do cenário, os avisos de horizonte, os limites e a avaliação dos métodos no histórico da base, com
+    os números da base do Brasil. Desde 18/11/2026 (AJ-06, comando de correção das fichas), ela é **só metodológica, para quem
+    usa o Agente**: abre com uma **leitura rápida** (o que o Simulador faz, como ler o resultado e o que ele não diz), traz a
+    versão do método na abertura e deixou de fora o bastidor do desenvolvimento (as marcas de estado, os caminhos de arquivo, as
+    rotas e os campos da API, os códigos da SPEC, das decisões e dos avisos, os hashes, as exportações e as versões), que
+    continua neste documento. A letra é a Inter estática das fichas (`Docs/fichas/fontes/`), embutida como TrueType;
   - **"Exportar a avaliação dos métodos (JSON)"** (`simulador-exportar-avaliacao`; desligado até haver um cálculo; arquivo
     `simulador_avaliacao_dos_metodos_<último registro>.json`) leva a retroprojeção da base em uso **tal como o motor a mandou**
     (`retroprojecao`: a escolha de cada nível, com os candidatos e os erros, as faixas por porte e prazo e a tabela dos erros de

@@ -509,7 +509,7 @@ def test_perfil_da_planilha_de_teste_da_para_e_nao_da_para():
         {"o_que": "Alertas críticos", "motivo": "eles pedem 999 comparações, e esta base chega a 360."},
         {"o_que": "\"Menos enfermeiros por habitante\" e \"perda de posição\" (sinais 8 e 9)", "motivo": "a base não tem população.",
          "sinais": ["disponibilidade", "posicao"]},
-        {"o_que": "\"Mais longe da referência\" (sinal 10)", "motivo": "a base não tem população nem grupo de cima.", "sinais": ["defasagem"]},
+        {"o_que": "\"Perda em relação à referência\" (sinal 10)", "motivo": "a base não tem população nem grupo de cima.", "sinais": ["defasagem"]},
         {"o_que": "\"Distância\" (sinal 11)", "motivo": "a base não tem população nem coordenadas com o referencial informado.",
          "sinais": ["contexto"]},
         {"o_que": "O crescimento do grupo de cima como forma de projetar no Simulador",

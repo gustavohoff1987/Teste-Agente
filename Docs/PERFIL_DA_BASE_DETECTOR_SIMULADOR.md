@@ -209,7 +209,8 @@ durante 10 anos, de jan/2014 a jul/2023, sem grupo de cima, sem população e se
 - Não dá para:
   - alertas críticos: eles pedem 999 comparações, e esta base chega a 360;
   - "Menos enfermeiros por habitante" e "perda de posição" (sinais 8 e 9): a base não tem população;
-  - "Mais longe da referência" (sinal 10): a base não tem população nem grupo de cima;
+  - "Perda em relação à referência" (sinal 10; até 18/11/2026, "Mais longe da referência"): a base não tem população nem grupo de
+    cima;
   - "Distância" (sinal 11): a base não tem população nem coordenadas com o referencial informado;
   - o crescimento do grupo de cima como forma de projetar no Simulador: a base não tem grupo de cima; no lugar dele, o Simulador
     testa o crescimento da base toda, e a forma de projetar sai da retroprojeção;

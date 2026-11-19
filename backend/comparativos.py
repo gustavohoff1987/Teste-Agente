@@ -1,5 +1,5 @@
 """Sinais 8 a 12 do Detector de Sinais Territoriais (comando V23, Proposta V3, tabela B.2): menos profissionais por habitante,
-perda de posição, mais longe da referência, distância e sinais juntos. Referência metodológica: Docs/DETECTOR_E_SIMULADOR_V3.md
+perda de posição, perda em relação à referência, distância e sinais juntos. Referência metodológica: Docs/DETECTOR_E_SIMULADOR_V3.md
 (Partes A e B); as definições operacionais da V2.2 (Docs/DETECTOR_E_SIMULADOR_V2_2.md, seções 4.1 e 4.2) continuam valendo no
 que a V3 não muda.
 
@@ -9,7 +9,7 @@ O que este módulo calcula (os textos ficam em detector.py):
   com a decomposição (profissionais, população e taxa).
 - **9, perda de posição:** o percentil do território pela taxa, (posto médio − 0,5) ÷ n, num universo fixo na janela (os
   municípios com taxa válida nas duas datas; para estados como unidade, os estados), e a variação em pontos.
-- **10, mais longe da referência:** o índice 100 × taxa do território ÷ taxa da referência, com a referência no grupo de cima,
+- **10, perda em relação à referência:** o índice 100 × taxa do território ÷ taxa da referência, com a referência no grupo de cima,
   na mesma unidade do território e sem ele, e a variação em pontos.
 - **11, distância:** a distância geodésica até o território mais próximo com taxa igual ou maior que o critério (padrão: a taxa
   da base toda na data; ajustável de 10% a 500% dela), com a posição dessa distância entre os que não atendem ao critério. Só

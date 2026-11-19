@@ -35,6 +35,108 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-18 · AJ-06: as fichas metodológicas reescritas para quem usa o Agente, com a Inter estática e sem o bastidor do desenvolvimento
+- **Classificação (regra 1):** AJ-06 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorre do pedido e
+  não contraria a SPEC nem uma divergência aprovada: as fichas continuam documentos de leitura, servidos com a interface (AJ-03),
+  com o mesmo título, idioma, arquivos e destinos que a tela abre; só o conteúdo e a letra mudam. **Mudança prevista.** O backend
+  não mudou.
+- **Antes:** as duas fichas (`ficha-detector.pdf`, 19 folhas e 1.469.258 bytes; `ficha-simulador.pdf`, 20 folhas e 1.417.774
+  bytes) foram escritas como documento de desenvolvimento: marcas de estado ("Implementado", "Hipótese ou limitação", "Não
+  implementado"), caminhos de arquivo, rotas e campos da API, códigos da SPEC, das decisões e dos avisos, hashes da base, a seção
+  das exportações e a das versões, e as palavras "motor", "código" e "página"; "por convenção" aparecia onde explicavam o campo
+  `criterio`. A letra era a Inter variável do site (`frontend/src/tipografia/`), que o Chromium embutia como Type 3, com fontes
+  de reserva do sistema para os símbolos que ela não tem. O assunto do PDF trazia os caminhos e os SHA-256; as palavras-chave, o
+  caminho da fonte; o aplicativo, `scripts/gerar_fichas.py`.
+- **Agora:**
+  - **Para quem usa o Agente** (gestão, área técnica, pesquisa), só o método: o que a ferramenta mede, como mede, com que
+    critérios e limites, como ler o resultado e o que ele não diz, em linguagem simples, com cada termo técnico explicado na
+    primeira vez e cada fórmula acompanhada da explicação em palavras. Cada ficha abre com a **leitura rápida** (uma folha) e
+    traz na abertura para quem é, a base e a data dos números ("base do Brasil, médicos, registros até jun/2024"), a versão do
+    método como nas exportações (`DETECTOR-SINAIS/V3/1`, `SIMULADOR-CENARIOS/V3/1`) e a data da ficha.
+  - **Ficha A (Detector):** leitura rápida e 15 seções, com os ids de antes — o que é, a base e os registros, os níveis e os tipos
+    de critério ("limite fixo"), a régua, os 12 sinais um a um (no sinal 10, o nome e os textos do AJ-09 e a referência de cada
+    tipo de território; no sinal 11, o critério de X% da taxa do Brasil na data, com 2,01 em jun/2021 e 2,36 em jun/2024),
+    condições, parâmetros, ajustar critérios, estados e conjuntos, a mesma queda (com a frase do AJ-10), o aviso da base, o
+    histórico, a régua da data (os números da base em uso em "Exportar o método (JSON)"), a meta de "Simular recuperação" e
+    "Limites e o que o Detector não faz". Saíram as exportações e as versões. 21 folhas, 832.589 bytes.
+  - **Ficha B (Simulador):** leitura rápida e 14 seções, com os ids de antes — o que é, os modos, as formas de projetar (em
+    linguagem simples, com o nome do método entre parênteses), a forma escolhida pela base, a faixa, "A avaliação dos métodos no
+    histórico da base" (o título que a exportação cita), as premissas, as intervenções, a meta, as referências, os conjuntos e o
+    todo, a hipótese, os avisos de horizonte (sem os códigos) e "Limites e o que o Simulador não faz". Saíram as exportações e as
+    versões; os itálicos também. 23 folhas, 799.446 bytes.
+  - **A letra:** a Inter em versão estática, só das fichas (`Docs/fichas/fontes/`: os pesos 400, 600 e 700 do subconjunto latino,
+    com a licença OFL), embutida como TrueType — nenhuma fonte Type 3 e nenhuma fonte de reserva além da Arial do rodapé. A folha
+    `ficha.css` usa só esses pesos (os 650 e 750 viraram 600 e 700) e não tem mais as regras das marcas nem do `code`.
+  - **As propriedades do PDF:** o assunto, as palavras-chave e o aplicativo dizem o que a ficha é, sem caminhos e sem SHA-256; a
+    impressão digital da fonte e do estilo continua nas chaves da conferência (`FonteSHA256`, `EstiloSHA256` e `FonteArquivo`).
+- **Permanece:** os títulos ("Ficha metodológica A — Detector de Sinais Territoriais" e "Ficha metodológica B — Simulador de
+  Cenários Territoriais"), o idioma, os nomes dos PDFs e as pastas; os destinos que a tela abre (Ficha A: `o-que-e`, `sinais`,
+  `niveis` e `dados`; Ficha B: `o-que-e`, `forma-escolhida` e `faixa`); a acessibilidade (PDF com tags, sumário lateral e texto
+  selecionável), o gerador e a conferência com a fonte; os números e as tabelas da base do Brasil; os arquivos de fonte do site,
+  idênticos. As referências técnicas que saíram das fichas continuam na documentação do repositório.
+- **Motivo:** AJ-06 do comando: as fichas tinham sido escritas para quem desenvolve.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md` e `Docs/SIMULADOR_DE_CENARIOS.md` (a ficha de cada ferramenta e o
+  teste das fichas), as fontes em `Docs/fichas/` (as duas fichas, `ficha.css` e `fontes/`), os PDFs gerados de novo e
+  `scripts/gerar_fichas.py` (os metadados). Testes no mesmo commit, em `backend/tests/test_fichas_metodologicas.py`: o texto à
+  vista sem o bastidor (as marcas, os caminhos, as rotas e os campos da API, os códigos, os hashes, "motor", "código", "página",
+  "por convenção", "jeito", o nome antigo do sinal 10 e nomes com "_" ou em camelCase) e só com os caracteres da letra das fichas;
+  as seções do comando, na ordem, com os ids de antes e todas no sumário; a abertura com a versão do método, a base e a data; os
+  textos novos do sinal 10 e da mesma queda e o título da avaliação dos métodos; a letra estática, com os pesos que existem em
+  arquivo, sem itálico, e os arquivos de fonte do site com o SHA-256 de antes; nenhuma fonte Type 3 e as propriedades do PDF sem
+  caminhos e sem SHA-256. Muda de propósito, pela decisão nova: o teste do vocabulário das fichas (AJ-05), que aceitava "por
+  convenção" onde a ficha explicava o campo `criterio` — agora, o termo e o campo não aparecem.
+
+### 2026-11-18 · AJ-10: a frase da "mesma queda" diz que os sinais são a mesma queda vista de ângulos diferentes
+- **Classificação (regra 1):** AJ-10 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorre do pedido e
+  não contraria a SPEC nem uma divergência aprovada: a Proposta V3 ("Sinais que vêm da mesma queda contam como um evento só, e a
+  tela diz isso") continua; só a frase fica mais clara. **Mudança prevista.** No backend, só o texto que a pessoa lê.
+- **Antes:** na linha do território, na lista (`detector-linha-nota`), e no detalhe (`detector-mesma-queda`): "A, B e C vêm da
+  mesma queda: contam como um evento."; no sinal 12, "Sinais juntos": "4 desses sinais vêm da mesma queda e contam como um
+  evento."
+- **Agora:** "A, B e C são a mesma queda vista de ângulos diferentes: contam como um evento só." e "4 desses sinais são a mesma
+  queda vista de ângulos diferentes e contam como um evento só."
+- **Permanece:** o nome do conceito, "mesma queda", nas regras do sinal 12, na nota do método ("Sinais que vêm da mesma queda
+  contam como um evento"), na coluna "Sinais da mesma queda (um evento)" do CSV e no título da seção da ficha; quais sinais são da
+  mesma queda (o motor decide, como antes).
+- **Motivo:** AJ-10 do comando.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md` e as fichas. Testes no mesmo commit: `frontend/tests/detector.test.mjs`
+  (o teste novo do AJ-09 e do AJ-10 confere a frase e que a antiga não está em nenhum texto da tela). Mudam de propósito, pela
+  decisão nova: em `detector.test.mjs`, a frase da mesma queda; em `backend/tests/test_detector.py`, os dois textos do sinal 12
+  (`habitual`); em `backend/tests/ui_detector.py`, as três conferências de "vêm da mesma queda: contam como um evento.".
+
+### 2026-11-18 · AJ-09: o sinal 10 passa a se chamar "Perda em relação à referência"
+- **Classificação (regra 1):** AJ-09 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorre do pedido e
+  não contraria a SPEC nem uma divergência aprovada: a Proposta V3 (tabela B.2), aprovada pelo responsável, chamava o sinal de
+  "Mais longe da referência"; o responsável troca o nome no comando, e a Proposta V3 ganha uma nota, como a de 18/11/2026.
+  Nenhum cálculo, critério, nível, chave, campo ou valor muda. **Mudança prevista.** No backend, só textos que a pessoa lê e
+  comentários.
+- **Antes:** "Mais longe da referência" — o nome sugeria distância em km, que é o sinal 11, e nem sempre o território fica mais
+  longe (Barra Bonita, SP, passou de 1,27 para 0,72 vez a taxa da referência: estava 27% acima e ficou 28% abaixo, quase à mesma
+  distância). "O que significa": "A taxa do território ficou mais distante, para baixo, da taxa da referência."; o exemplo:
+  "Índice 100: taxa igual à da referência. De 90 para 75: ficou 15 pontos mais longe dela."; sem comparações bastantes, "… se
+  este afastamento da referência chega ao nível …".
+- **Agora:** **"Perda em relação à referência"** — na lista, no filtro "Sinal", no detalhe do território, na frase do sinal 12, no
+  "não dá para" do perfil da base, no painel "Ajustar critérios", na dica do mapa e do gráfico, no CSV (o cabeçalho
+  "Perda em relação à referência: nível", agora pelo nome da tela, como as colunas dos sinais 1–2 e 8, e os valores de "Sinais com
+  nível" e "Sinais da mesma queda") e nos sinais que o Detector leva ao Simulador; também nas fichas metodológicas (AJ-06) e no
+  estudo de calibração (`scripts/calibrar_detector.py`). "O que significa": "A taxa do território piorou em relação à da
+  referência: caiu mais, ou subiu menos, que ela."; o exemplo: "Índice 100: taxa igual à da referência. De 90 para 75, o
+  território perdeu 15 pontos em relação a ela; de 130 para 115 também, mesmo continuando acima."; sem comparações bastantes,
+  "… se esta perda em relação à referência chega ao nível …".
+- **Permanece:** a chave `defasagem`, os campos e os números do sinal; a frase do "Por quê" ("A taxa passou de 1,27 para 0,72
+  vezes a dos demais municípios de São Paulo em 2 anos"); "Índice ante a referência" e as demais colunas do CSV; o texto aprovado
+  da Proposta V3 (atualizado por nota) e as entradas antigas deste registro.
+- **Motivo:** AJ-09 do comando: um nome que não sugira distância e que diga o que o sinal mede.
+- **Documentação e testes:** `Docs/DETECTOR_DE_SINAIS.md` (a tabela dos sinais, a nota do sinal 10 e as duas tabelas de
+  calibração), `Docs/PERFIL_DA_BASE_DETECTOR_SIMULADOR.md`, a nota de 18/11/2026 (à noite) em `Docs/DETECTOR_E_SIMULADOR_V3.md` e
+  as fichas. Testes no mesmo commit: `backend/tests/test_detector.py` (o nome, a chave, "O que significa", o exemplo e a falta de
+  história do sinal 10); `frontend/tests/detector.test.mjs` (teste novo do AJ-09 e do AJ-10: o nome no filtro, nas linhas e no
+  CSV, cabeçalho e valores, e nenhum texto da tela do Detector nem do Simulador com o nome antigo); `backend/tests/ui_detector.py`
+  (o nome no filtro e nos critérios; nenhum texto com o nome antigo na tela nem no CSV exportado). Mudam de propósito, pela
+  decisão nova: em `test_detector.py`, a lista dos nomes dos sinais e a frase do sinal 12; em
+  `backend/tests/test_ferramentas_qualquer_base.py`, o "não dá para" do perfil da base; em `detector.test.mjs`, a frase da mesma
+  queda, a lista dos nomes, a tabela dos critérios, as linhas do território e os sinais levados ao Simulador.
+
 ### 2026-11-18 · AJ-12 e AJ-13: os grupos e faixas começam um passo mais longe da superfície, e o contorno dos rótulos das bolhas volta a 3 px opacos
 - **Classificação (regra 1):** AJ-12 e AJ-13 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorrem do
   pedido e não contrariam a SPEC nem uma divergência aprovada (as regras do gráfico de bolhas do Adendo BOL-20261021 não tratam

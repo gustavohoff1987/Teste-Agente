@@ -61,7 +61,8 @@ Numa planilha, nenhum desses nomes aparece se não vier dela. A seção [Qualque
   dela. Nos sinais 8 a 10, a janela de 2 anos que **começa ou termina** num registro assim não é avaliada ("descontinuidade de
   registro", sem nível) nem entra nas comparações dos outros territórios.
 - **Um nível por território:** o maior entre os seus sinais. Não há soma nem índice. Os sinais que vêm da mesma queda (queda
-  recente, declínio, abaixo do que já teve e os três comparados com outros) contam como **um evento**, e a tela diz isso.
+  recente, declínio, abaixo do que já teve e os três comparados com outros) contam como **um evento**, e a tela diz isso: são
+  "a mesma queda vista de ângulos diferentes" (desde 18/11/2026, AJ-10).
 - **Aviso da base:** quando, numa mesma data, os territórios com queda rara passam do triplo do esperado (mais de 15%, com 100
   avaliações ou mais), a tela avisa que pode ter havido mudança no registro da base, e não nos territórios.
 - **Estados como unidade:** têm régua própria, com a base dos estados (as contagens estaduais). É uma base pequena: os níveis
@@ -83,7 +84,7 @@ Todos os limites são padrões e podem ser trocados em "Ajustar critérios" (a c
 | 7 | Abaixo do que já teve | Distância ao patamar: a maior média de 2 anos completos, antes dos 4 últimos registros | 2 últimos registros 15% ou mais abaixo | Isso, e 1 em 100 | 4 últimos registros 30% ou mais abaixo, e 1 em 1.000 | Limite fixo no moderado; comparado com a base no elevado e no crítico; patamar de pelo menos 20 |
 | 8 | Menos profissionais por habitante | Variação da taxa por 1.000 habitantes em 2 anos | 1 em 20 | 1 em 100 | 1 em 1.000 | Comparado com a base; população comparável; pelo menos 20 no início da janela |
 | 9 | Perda de posição | Variação do percentil da taxa em 2 anos | 1 em 20 | 1 em 100 | 1 em 1.000 | Idem |
-| 10 | Mais longe da referência | Variação do índice ante o grupo de cima, sem o próprio território, em 2 anos | 1 em 20 | 1 em 100 | 1 em 1.000 | Idem; precisa de grupo de cima |
+| 10 | Perda em relação à referência | Variação do índice ante o grupo de cima, sem o próprio território, em 2 anos | 1 em 20 | 1 em 100 | 1 em 1.000 | Idem; precisa de grupo de cima |
 | 11 | Distância | Km em linha reta até o território mais próximo com taxa de pelo menos X% da taxa da base toda, e a posição dessa distância | Só contexto | — | — | X ajustável de 10% a 500%; o padrão é 100% |
 | 12 | Sinais juntos | Quais sinais com nível coincidem no território, agrupando os efeitos da mesma queda | Mostra quais coincidem; não soma | — | — | — |
 
@@ -114,7 +115,13 @@ Notas:
   voltou); a variação de jun/2022 a jun/2024, de −74,4% na taxa, partia do registro do pico e deixou de ser alerta crítico.
 - **Sinal 10, em palavras simples:** a frase diz quantas vezes a taxa da referência o território tinha e tem ("A taxa passou de
   1,27 para 0,72 vezes a dos demais municípios de São Paulo em 2 anos"); o índice e os pontos ("índice de 126,8 para 72,1: −54,7
-  pontos") ficam na explicação completa.
+  pontos") ficam na explicação completa. **O nome é "Perda em relação à referência"** desde 18/11/2026 (AJ-09; antes, "Mais
+  longe da referência", que sugeria distância em km, o sinal 11, e nem sempre o território fica mais longe: Barra Bonita (SP)
+  passou de 1,27 para 0,72 vez a taxa da referência, de 27% acima a 28% abaixo, quase à mesma distância). O que o sinal mede é
+  a perda em relação à referência. "O que significa": "A taxa do território piorou em relação à da referência: caiu mais, ou
+  subiu menos, que ela."; o exemplo: "Índice 100: taxa igual à da referência. De 90 para 75, o território perdeu 15 pontos em
+  relação a ela; de 130 para 115 também, mesmo continuando acima."; sem comparações bastantes, "… se esta perda em relação à
+  referência chega ao nível …". A chave (`defasagem`), os campos e os números não mudam.
 - **Sinal 11:** nunca vira alerta e nunca usa as palavras "isolamento" ou "desassistência". O estado como unidade não tem um
   ponto único; num conjunto, vale o componente mais próximo. **A frase diz o que é o território de referência** — o mais próximo
   com taxa de pelo menos X% da taxa da base toda, com o X em uso e o valor do critério — **e em que posição a distância fica**
@@ -142,7 +149,9 @@ Notas:
     distância não pode ser medida"; "Não calculável: sem a taxa do Brasil na data";
   - sinal que a base não sustenta: "Indisponível nesta base: a base não tem população nem grupo de cima" (em `situacao`; a tela
     continua mostrando o rótulo "Indisponível nesta base" e, ao lado, os motivos por extenso).
-- **Sinal 12:** lista os sinais com nível e diz quantos vêm da mesma queda. Sem soma de pontos e sem índice geral.
+- **Sinal 12:** lista os sinais com nível e diz quantos são a mesma queda ("4 desses sinais são a mesma queda vista de ângulos
+  diferentes e contam como um evento só.", desde o AJ-10; antes, "… vêm da mesma queda e contam como um evento."). Sem soma
+  de pontos e sem índice geral.
 
 **População comparável (sinais 8, 9 e 10).** A variação em 2 anos só é calculada quando a janela de comparação (na série anual)
 cabe inteira num **trecho de população comparável**. Os trechos vêm da própria base (`comparativos.populacao_comparavel`). Em
@@ -178,8 +187,15 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
 - **Ficha metodológica (PDF)** (`detector-ficha`, ao lado das exportações; desde 18/11/2026, AJ-03): abre numa nova aba a
   **Ficha A** (fonte em [`Docs/fichas/ficha_detector.html`](fichas/ficha_detector.html); o PDF,
   `frontend/public/fichas/ficha-detector.pdf`, sai com os arquivos estáticos da interface, e o link respeita a base da página,
-  `ADT_BASE_DA_PAGINA`). Ela explica o método e a técnica: os 12 sinais, os níveis e a régua, as condições, os parâmetros, a
-  régua da data e o monitoramento, as exportações e os limites, com os números da base do Brasil em jun/2024.
+  `ADT_BASE_DA_PAGINA`). Desde 18/11/2026 (AJ-06, comando de correção das fichas), ela é **só metodológica, para quem usa o
+  Agente** (gestão, área técnica, pesquisa): abre com uma **leitura rápida** (o que o Detector faz, como ler o resultado e o que
+  ele não diz) e explica o que ele mede, como mede, com que critérios e limites — os 12 sinais, os níveis e a régua, as
+  condições, os parâmetros, os estados como unidade e os conjuntos, a mesma queda, o aviso da base, o histórico, a régua da data
+  e o monitoramento, a meta de "Simular recuperação" e os limites —, com os números da base do Brasil em jun/2024 e a versão
+  do método na abertura. Saiu dela o bastidor do desenvolvimento (as marcas de estado, os caminhos de arquivo, as rotas e os
+  campos da API, os códigos da SPEC, das decisões e dos avisos, os hashes, as exportações e as versões), que continua neste
+  documento; o tipo de critério se chama "limite fixo". A letra é a Inter estática das fichas (`Docs/fichas/fontes/`, com a
+  licença OFL), embutida como TrueType (antes, a variável do site, embutida como Type 3).
 - **Aviso da data** (`detector-data`): "Registro mais recente da base: jun/2024. Os sinais descrevem a situação até jun/2024, não
   a de hoje." Quando há, o **aviso da base** (`detector-aviso-da-base`).
 - **Filtros, numa linha** (`ferramenta-filtros`): **Até** (`detector-janela-fim`, a data avaliada, entre as competências reais),
@@ -253,8 +269,9 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
   - **Último registro** (`detector-ultimo`), uma vez para o grupo: "jun/2024 · 5 médicos", com a marca de registro quando há
     (`detector-registro`: "verificar registro" ou "descontinuidade de registro").
 
-  Quando dois ou mais sinais vêm da mesma queda, uma linha a mais do território diz isso (`detector-linha-nota`: "… vêm da
-  mesma queda: contam como um evento."). O resumo, os contadores, os filtros, a ordem e as páginas continuam **por território**
+  Quando dois ou mais sinais são da mesma queda, uma linha a mais do território diz isso (`detector-linha-nota`: "A, B e C são
+  a mesma queda vista de ângulos diferentes: contam como um evento só."; até o AJ-10, "… vêm da mesma queda: contam como um
+  evento."). O resumo, os contadores, os filtros, a ordem e as páginas continuam **por território**
   ("de N territórios"): com o filtro "Sinal", o território aparece com todos os seus sinais. Os cabeçalhos ordenam a lista: pelo
   nome, pelo nível (o padrão: do crítico ao moderado; depois quem a base não pôde comparar, os conjuntos e os sem alerta) ou pelo
   número do último registro. A ordem não é um índice. Desde o AJ-08, **cada cabeçalho fica numa linha** — o rótulo, a seta de
@@ -271,7 +288,8 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
   como unidade, com régua própria, quando há algum na lista; e os conjuntos, sem nível, quando há algum. As demais ressalvas já
   estão na tela (a data do registro mais recente, a configuração exploratória, o aviso da base e "um nível por território").
 - **Detalhe** (a seta de cada linha, `detector-detalhe`): o alerta do território, com o nome do sinal principal
-  (`detector-detalhe-sinal`, desde o AJ-03), o porquê e, quando há, "vêm da mesma queda: contam como um evento"
+  (`detector-detalhe-sinal`, desde o AJ-03), o porquê e, quando há, "… são a mesma queda vista de ângulos diferentes: contam como
+  um evento só"
   (`detector-mesma-queda`); a série observada (`detector-serie`), só com os registros reais e as
   marcas de registro; a **série da taxa** (`detector-serie-da-taxa`), com a da referência tracejada e as datas escritas como nos
   outros gráficos do Detector ("jun/2021"); e os 12 sinais em quatro grupos
@@ -499,7 +517,7 @@ registrados aqui e na Parte F da [Proposta V3](DETECTOR_E_SIMULADOR_V3.md).
 | 7 Abaixo do que já teve | 30.358 | 5,90% | 0,98% | 0,04% | 6,92% |
 | 8 Menos médicos por habitante | 30.276 | 2,63% | 0,73% | 0,09% | 3,45% |
 | 9 Perda de posição | 30.276 | 5,09% | 1,11% | 0,08% | 6,28% |
-| 10 Mais longe da referência | 30.267 | 3,56% | 0,80% | 0,09% | 4,45% |
+| 10 Perda em relação à referência | 30.267 | 3,56% | 0,80% | 0,09% | 4,45% |
 
 Leitura: os sinais comparados com a base ficam perto das metas (5%, 1% e 0,1%). O crítico do sinal 7 (0,04%) fica perto da meta
 de 0,1% e passa a valer onde há 999 comparações. O sinal 3, por convenção, fica perto do que a raridade daria. Os sinais 1 e 2 são
@@ -539,7 +557,7 @@ somam. O "sinal principal" é o de maior nível (no empate, o primeiro na ordem 
 | 7 Abaixo do que já teve | 105 | 28 | 3 | 136 (2,4%) | 92 (1,7%) |
 | 8 Menos médicos por habitante | 74 | 30 | 3 | 107 (1,9%) | 22 (0,4%) |
 | 9 Perda de posição | 134 | 41 | 5 | 180 (3,2%) | 72 (1,3%) |
-| 10 Mais longe da referência | 99 | 31 | 4 | 134 (2,4%) | 43 (0,8%) |
+| 10 Perda em relação à referência | 99 | 31 | 4 | 134 (2,4%) | 43 (0,8%) |
 | **Território: o maior nível entre os sinais** | 978 | 436 | 40 | **1.454 de 5.570 (26,1%)** | — |
 
 Mais da metade dos municípios com alerta (799 de 1.454) tem como sinal principal "Poucos médicos ou nenhum", que é uma convenção
@@ -676,8 +694,11 @@ o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudan�
   versionada e que a malha não tem geometria além deles.
 - pytest: `backend/tests/test_fichas_metodologicas.py` — os dois PDFs das fichas são válidos, com título, idioma pt-BR, tags,
   sumário, texto selecionável e os destinos nomeados de todas as seções (inclusive as que a página abre), e correspondem às
-  fontes atuais (a impressão digital SHA-256 da fonte e do estilo); as fontes usam "forma de projetar" e "limite fixo", com "por
-  convenção" só onde explicam o campo `criterio`.
+  fontes atuais (a impressão digital SHA-256 da fonte e do estilo); desde o AJ-06, o texto à vista sem o bastidor do
+  desenvolvimento (as marcas de estado, os caminhos, as rotas e os campos da API, os códigos, os hashes, "motor", "código",
+  "página", "por convenção", "jeito" e o nome antigo do sinal 10), as seções do comando na ordem, com o id de antes, a abertura
+  com a versão do método, os textos novos do sinal 10 e da mesma queda, a letra estática das fichas com a do site intocada, nenhuma
+  fonte Type 3 nos PDFs e as propriedades do PDF (assunto, palavras-chave e aplicativo) sem caminhos e sem SHA-256.
 - Navegador: `backend/tests/ui_detector.py` (suíte `base-versionada`) — a lista de cinco colunas, o resumo clicável, os filtros
   e a ordem; o cabeçalho numa linha a 1366 px, sem rolagem horizontal (AJ-08); ABELARDO LUZ (SC), com quatro sinais de dois
   níveis, uma linha por sinal, com os nomes do filtro e o nível, o

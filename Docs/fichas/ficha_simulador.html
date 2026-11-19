@@ -10,132 +10,198 @@
 <header class="capa">
   <p class="sobretitulo">Agente Diagnóstico Territorial da Força de Trabalho na Saúde · Ficha metodológica B</p>
   <h1>Simulador de Cenários Territoriais</h1>
-  <p class="subtitulo">Como o Simulador monta cenários hipotéticos e condicionais, como a própria base escolhe a forma de projetar e a faixa de N em cada 10, e como os métodos se saíram no histórico da base.</p>
+  <p class="subtitulo">O que o Simulador faz, como projeta, com que regras e limites, como ler o resultado e o que ele não diz.</p>
   <dl class="identificacao">
+    <dt>Para quem é</dt>
+    <dd>Para quem usa o Agente na gestão, na área técnica ou na pesquisa e quer saber como os cenários são calculados e até onde eles valem.</dd>
+    <dt>Base e data dos números</dt>
+    <dd>Base do Brasil, médicos, registros até jun/2024: registros de janeiro e junho, de jan/2014 a jun/2024 (22 registros), de 5.570 municípios e 27 unidades da federação.</dd>
+    <dt>Avaliação dos métodos</dt>
+    <dd>Origens de jun/2017 a jun/2023, conferidas até jun/2024 (seção 6).</dd>
     <dt>Versão do método</dt>
-    <dd><code>SIMULADOR-CENARIOS/V3/1</code></dd>
-    <dt>Base dos números</dt>
-    <dd>Brasil: médicos, registros de janeiro e junho, de jan/2014 a jun/2024 (22 registros; 5.570 municípios e 27 unidades da federação)</dd>
-    <dt>Versão da base</dt>
-    <dd><code>faa54169c5b6</code> · completa: <code>faa54169c5b6f31bfc5d669964f49c93<wbr>cc8abce386816fa57191a5566de93cb1</code>, a de <code>dados/brasil/manifesto.json</code></dd>
-    <dt>Data de referência dos números</dt>
-    <dd>jun/2024, o último registro da base</dd>
-    <dt>Origens da retroprojeção</dt>
-    <dd>jun/2017 a jun/2023 (7 origens, uma por ano)</dd>
+    <dd>SIMULADOR-CENARIOS/V3/1, como aparece nas exportações</dd>
     <dt>Data da ficha</dt>
     <dd>18/11/2026</dd>
   </dl>
 </header>
 
-<p class="legenda-das-marcas">Como ler as marcas do texto: <span class="marca marca-implementado">Implementado</span> é o que o código faz hoje; <span class="marca marca-limitacao">Hipótese ou limitação</span> é uma hipótese do método ou da pessoa, ou um limite do que o resultado sustenta; <span class="marca marca-nao">Não implementado</span> é o que o Simulador não faz. Os nomes e os números da base do Brasil (municípios, estados, médicos, junho, Brasil) aparecem só nos exemplos e nos números dela: com outra base, valem os nomes e os números da base em uso.</p>
-
 <nav class="sumario" aria-labelledby="sumario-titulo">
   <h2 id="sumario-titulo">Sumário</h2>
   <ol>
+    <li><a href="#leitura-rapida">Leitura rápida</a></li>
     <li><a href="#o-que-e">1. O que é e o que não é</a></li>
     <li><a href="#modos">2. Os dois modos: simples e avançado</a></li>
     <li><a href="#formas-de-projetar">3. As formas de projetar</a></li>
     <li><a href="#forma-escolhida">4. A forma escolhida pela base</a></li>
     <li><a href="#faixa">5. A faixa de N em cada 10</a></li>
     <li><a href="#avaliacao">6. A avaliação dos métodos no histórico da base</a></li>
-    <li><a href="#entradas-e-saidas">7. Entradas, saídas e premissas</a></li>
+    <li><a href="#entradas-e-saidas">7. As premissas e a conta do cenário</a></li>
     <li><a href="#intervencoes">8. Intervenções</a></li>
     <li><a href="#meta">9. Meta: o planejamento inverso</a></li>
     <li><a href="#referencias">10. Referências e comparação</a></li>
     <li><a href="#conjuntos-e-brasil">11. Conjuntos, o grupo de cima como unidade e o todo</a></li>
     <li><a href="#hipotese">12. A hipótese do cenário</a></li>
     <li><a href="#horizonte">13. Os avisos de horizonte</a></li>
-    <li><a href="#exportacoes">14. Exportações e importação</a></li>
-    <li><a href="#limites">15. Limitações, hipóteses e o que não está implementado</a></li>
-    <li><a href="#versoes">16. Versões, reprodutibilidade e documentos</a></li>
+    <li><a href="#limites">14. Limites e o que o Simulador não faz</a></li>
   </ol>
 </nav>
 
 <main>
 
-<section id="o-que-e" aria-labelledby="o-que-e-titulo">
+<section id="leitura-rapida" class="nova-pagina" aria-labelledby="leitura-rapida-titulo">
+  <h2 id="leitura-rapida-titulo">Leitura rápida</h2>
+  <h3>O que o Simulador faz</h3>
+  <p>Mostra <strong>cenários hipotéticos e condicionais</strong>: quantos profissionais um território teria numa data final <strong>se</strong> continuasse como vinha e <strong>se</strong> acontecessem as mudanças que você quer testar. Cada número só vale com essas hipóteses. O cálculo segue regras fixas, sem inteligência artificial: o mesmo pedido, na mesma base, dá sempre o mesmo resultado.</p>
+  <ul>
+    <li>Parte do último registro usável do território, a <strong>origem</strong>, e projeta a <strong>base do cenário</strong>: o que o território teria sem nenhuma mudança.</li>
+    <li><strong>“Continuar como vinha”</strong> usa a forma de projetar que a própria base escolheu pela <strong>retroprojeção</strong>: o Agente refaz, em datas do passado, a projeção que teria feito e confere com o que aconteceu depois. Na base do Brasil: o último valor com o crescimento recente do estado, nos municípios; o crescimento do próprio estado, nos estados.</li>
+    <li>Acréscimos, retiradas e metas — as <strong>intervenções</strong> — são hipóteses suas e se somam à base do cenário, sem o crescimento histórico.</li>
+  </ul>
+  <h3>Como ler o resultado</h3>
+  <ul>
+    <li>O <strong>observado</strong>, a <strong>base do cenário</strong> e a <strong>intervenção</strong> ficam sempre separados. O registro mais recente é histórico; o que vem depois dele é simulado.</li>
+    <li>A <strong>faixa de 8 em cada 10</strong> diz quanto o valor real costuma se afastar do cenário: em 8 de cada 10 retroprojeções de territórios do mesmo <strong>porte</strong> (número parecido de profissionais) e <strong>prazo</strong> (anos desde a origem), ele ficou dentro dela. A faixa pode estar <strong>conferida</strong> (com dados que vieram depois), <strong>provisória</strong> (sem conferência bastante, ou um pouco abaixo do esperado) ou <strong>indisponível</strong>, com o motivo.</li>
+    <li>Na base do Brasil, ela existe nos municípios até 4 anos à frente, conferida até 2 anos (salvo de 10.000 médicos para cima); nos estados e no Brasil, não.</li>
+    <li><strong>“(escolhida pela base)”</strong> quer dizer que a forma de projetar errou menos que manter o último valor no histórico da base, e não que ela é a melhor para o seu território.</li>
+    <li>O <strong>horizonte</strong> é o tempo da origem até a data final. Os avisos de horizonte aparecem quando ele se afasta da história usada no cálculo: cautela, extrapolação e extrapolação extrema.</li>
+    <li>A <strong>meta</strong> é uma conta condicional: o menor número inteiro de profissionais que, nas hipóteses do cenário, a alcança na data final.</li>
+  </ul>
+  <div class="quadro quadro-atencao">
+    <p class="quadro-titulo">O que o resultado não diz</p>
+    <p>Não é previsão nem a situação de hoje. Não é recomendação de provimento nem avaliação da suficiência do atendimento. A faixa não é garantia nem intervalo de confiança e não mede a incerteza das intervenções: o passado testado (2017–2024) foi de crescimento e pode não se repetir. Um nível de “Poucos profissionais” num valor simulado é hipótese do cenário, e não um sinal observado.</p>
+  </div>
+</section>
+
+<section id="o-que-e" class="nova-pagina" aria-labelledby="o-que-e-titulo">
   <h2 id="o-que-e-titulo">1. O que é e o que não é</h2>
-  <p>O Simulador de Cenários Territoriais mostra, para os territórios escolhidos, <strong>cenários hipotéticos e condicionais</strong>: quantos profissionais um território teria numa data final <em>se</em> continuasse como vinha, segundo uma forma de projetar, e <em>se</em> acontecessem as mudanças que a pessoa quer testar — acréscimos, retiradas ou uma meta. Cada número só vale com essas hipóteses. <span class="marca marca-implementado">Implementado</span></p>
+  <p>O Simulador de Cenários Territoriais mostra, para os territórios escolhidos, <strong>cenários hipotéticos e condicionais</strong>. Um cenário diz quantos profissionais um território teria numa data final em duas condições: se continuasse como vinha, segundo uma <strong>forma de projetar</strong> (uma regra que leva o último registro adiante no tempo), e se acontecessem as mudanças que a pessoa quer testar — acréscimos, retiradas ou uma meta. Cada número só vale com essas hipóteses.</p>
   <div class="quadro quadro-atencao">
     <p class="quadro-titulo">O que o resultado não é</p>
-    <p>Os cenários não são previsão, observação atual nem recomendação de provimento, e também não são conclusão sobre o atendimento. Todo texto de cenário começa por “Cenário hipotético, não é previsão”, e nenhum texto do Simulador usa palavras de recomendação (decisão D-B de 10/11/2026). O registro mais recente da base é histórico: o que vem depois dele é simulado, e as datas simuladas, mesmo as que já passaram, não descrevem a situação de hoje.</p>
+    <p>Um cenário não é previsão, não é observação atual e não é recomendação de provimento. Também não é conclusão sobre o atendimento. Todo texto de cenário começa por “Cenário hipotético, não é previsão”, e nenhum texto do Simulador usa palavras de recomendação, como “recomenda-se” ou “deveria”. O registro mais recente da base é histórico. O que vem depois dele é simulado, e as datas simuladas, mesmo as que já passaram, não descrevem a situação de hoje.</p>
   </div>
-  <p><strong>Uma exceção aprovada, só nesta ferramenta.</strong> A SPEC (<code>IMPLEMENTATION_SPEC.md</code>) exclui “projeção ou previsão (Caso 4)” da família FAM-08, e o critério de aceite AT-04 manda não projetar. Em 9/11/2026, o responsável pelo produto aprovou o Simulador como exceção (decisão 2 do comando V22; Proposta V2.2, seção 2.5), restrita a esta ferramenta determinística — que calcula por regras fixas, sem o provedor de IA —, com os cenários rotulados como hipotéticos e o texto de cada um num modelo fixo (seção 12). A exceção está registrada como divergência aprovada, e a SPEC não foi editada. O assistente de conversa continua recusando pedidos livres de projeção ou previsão (AT-04), indica o Simulador e não monta cenários. <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>Como o Simulador calcula.</strong> No motor do Agente (<code>backend/simulador.py</code>, rota <code>POST /api/simulador</code>), sem o provedor de IA: o motor só lê e calcula, nada é registrado na sessão nem vai ao provedor, e a página mostra o que o motor manda. Vale para <strong>qualquer base</strong> — a do Brasil ou uma planilha enviada —, com os nomes, o mês da série anual e o grupo de cima lidos dela. Nesta ficha, a <em>unidade</em> é o território que a base conta (na base do Brasil, o município), o <em>grupo de cima</em> é o nível que reúne as unidades (o estado), e <em>o todo</em> é a base inteira (o Brasil). O observado, a base do cenário e a intervenção ficam sempre separados, no cálculo e na tela. <span class="marca marca-implementado">Implementado</span></p>
-  <p>Exemplo ilustrativo, do “Entenda” geral da ferramenta: “Com 22 médicos no último registro, ‘continuar como vinha’ pode levar a 25 dois anos depois; com 5 acrescentados, a 30. Os números deste exemplo são ilustrativos.”</p>
+  <p><strong>Três coisas ficam sempre separadas</strong>, no cálculo e no resultado:</p>
+  <ul>
+    <li>o <strong>observado</strong>: os registros reais, só nas datas com registro;</li>
+    <li>a <strong>base do cenário</strong>: o que a forma de projetar dá para as datas depois da origem, sem nenhuma mudança;</li>
+    <li>a <strong>intervenção</strong>: os acréscimos e as retiradas que a pessoa declara, somados à base.</li>
+  </ul>
+  <p><strong>Como o Simulador calcula.</strong> Por regras fixas, sem inteligência artificial. O Simulador só lê a base e calcula: nada do cálculo é gravado nem enviado a um provedor de IA. O cálculo é determinístico: o mesmo pedido, na mesma base e na mesma versão do método, dá sempre o mesmo resultado. Só o Simulador monta cenários. O assistente de conversa do Agente não faz projeções nem previsões; quando alguém pede uma, ele indica o Simulador.</p>
+  <p><strong>Qualquer base.</strong> O Simulador vale para a base do Brasil e para uma planilha enviada. Os nomes, o mês da série anual e o grupo de cima são lidos da base em uso. Nesta ficha:</p>
+  <ul>
+    <li>a <strong>unidade</strong> é o território que a base conta (na base do Brasil, o município);</li>
+    <li>o <strong>grupo de cima</strong> é o nível que reúne as unidades (na base do Brasil, o estado);</li>
+    <li><strong>o todo</strong> é a base inteira (na base do Brasil, o Brasil);</li>
+    <li>a <strong>série anual</strong> é a dos registros de um mesmo mês, ano a ano (na base do Brasil, junho).</li>
+  </ul>
+  <p>Os nomes e os números da base do Brasil aparecem nos exemplos e nas tabelas. Com outra base, valem os nomes e os números dela.</p>
+  <div class="exemplo">
+    <p class="quadro-titulo">Exemplo ilustrativo, do “Entenda” do Simulador</p>
+    <p>“Com 22 médicos no último registro, ‘continuar como vinha’ pode levar a 25 dois anos depois; com 5 acrescentados, a 30. Os números deste exemplo são ilustrativos.”</p>
+  </div>
 </section>
 
 <section id="modos" aria-labelledby="modos-titulo">
   <h2 id="modos-titulo">2. Os dois modos: simples e avançado</h2>
-  <p>Na linha “Ferramentas”, ao lado do Detector de Sinais, o Simulador abre no <strong>modo simples</strong>, numa tela só; o <strong>modo avançado</strong> tem quatro etapas, com a mesma configuração. Nos dois, a data do registro mais recente fica sempre à vista, com a distância até hoje; nada é calculado sem “Calcular”, e o resultado fica marcado como desatualizado depois de uma mudança; o pedido leva sempre a persistência sem intervenção (manter o último valor), como referência; e “Voltar ao padrão”, um botão só, devolve de uma vez as premissas ao padrão — a forma de projetar e a janela que a base escolheu (também a trazida do Detector), a faixa de 8 em cada 10, a permanência total e a comparação pela diferença —, sem mexer no território, no que testar, na data final nem nas referências. <span class="marca marca-implementado">Implementado</span></p>
+  <p>O Simulador tem dois modos, “Modo simples” e “Avançado”. Os dois usam o mesmo método e guardam a mesma configuração: trocar de modo não perde o que foi escolhido. O que muda é o que a pessoa pode escolher.</p>
+  <p><strong>As premissas padrão</strong> são as mesmas nos dois modos: a forma de projetar e a janela que a base escolheu (seções 4 e 7), a faixa de 8 em cada 10 (seção 5), a permanência total dos acréscimos (seção 8) e, nas comparações, a diferença (seção 10). A <strong>janela</strong> é o período de registros usado para medir o crescimento. “Voltar ao padrão” devolve todas as premissas de uma vez. Ele não mexe no território, no que se quer testar, na data final nem nas referências. Em todo cálculo, a <strong>persistência</strong> — manter o último valor — é calculada à parte, como referência de comparação.</p>
   <h3>Modo simples</h3>
-  <ol>
-    <li><strong>Território:</strong> um, entre os da seleção do Simulador (sem escolha, o primeiro); o pedido leva só ele, e trocá-lo tira da tela o resultado e a meta do anterior.</li>
-    <li><strong>O que testar:</strong> “Só continuar como vinha”; “Acrescentar [N] em [data]” ou “Retirar [N] em [data]”, uma intervenção com permanência total, sem o crescimento histórico para quem entra; ou “Chegar a [meta] na data final, com um acréscimo em [data]” (seção 9). Trocar de opção volta à forma escolhida pela base.</li>
-    <li><strong>Até quando:</strong> qualquer data depois do último registro; os atalhos de 1, 2 e 4 anos são só atalhos (sem escolha, 2 anos).</li>
-  </ol>
-  <p>O pedido do simples não leva o que só o avançado escolhe (a janela geral, as referências, o calendário, a permanência, as outras intervenções), salvo a janela trazida do Detector; a faixa escolhida no avançado (5, 8 ou 9 em cada 10) vale também no simples. <span class="marca marca-implementado">Implementado</span></p>
-  <h3>Modo avançado: quatro etapas</h3>
-  <p>As premissas ficam em frases, com os campos dentro delas; até 5 cenários e até 100 territórios. <span class="marca marca-implementado">Implementado</span></p>
-  <ol>
-    <li><strong>Territórios em análise:</strong> a seleção do Simulador, cópia da seleção principal que a acompanha até ser alterada aqui; a busca acrescenta, só no Simulador, uma unidade, um grupo como unidade ou o todo (o grupo e as unidades dele não entram juntos, RQ-DAD-30); “Aplicar à seleção principal” é o único caminho de volta (o todo não vai); e as referências (seção 10). Aberto pelo Detector de Sinais, o Simulador fica só com aquele território, com um aviso de onde ele veio.</li>
-    <li><strong>Base histórica e método:</strong> a janela, com o início e o fim entre os registros reais (atalhos “Últimos 5 anos” e “Série completa”); e, em cada cenário, “Forma de projetar: [Continuar como vinha (a forma escolhida pela base)], com [a janela geral].”, com a lista das formas (seção 3) e uma janela própria, se a pessoa quiser.</li>
-    <li><strong>Intervenções e horizonte:</strong> a data final (atalhos de 1, 2, 4 e 10 anos), a faixa a mostrar (5, 8 ou 9 em cada 10), as intervenções (seção 8) e o planejamento inverso (seção 9).</li>
-    <li><strong>Comparações e resultados:</strong> o gráfico de um território por vez; por cenário, a frase fixa, as contas da data final, a faixa, os avisos, as comparações, o planejamento inverso e a hipótese do cenário (no todo, a marca “método provisório”); a tabela de todos os territórios; e as exportações em CSV (seção 14).</li>
-  </ol>
-  <div class="quadro">
-    <p class="quadro-titulo">Na tela: o resultado do modo simples</p>
-    <p>O gráfico (o observado, a base do cenário, a intervenção, a faixa e a persistência de referência, separados por “observado | simulado (hipótese)”); a frase fixa do cenário (seção 12); três números — no último registro usado, na data final e a diferença, ou “precisaria acrescentar N”; a forma de projetar em uso, com a marca “(escolhida pela base)” quando é o caso (seção 4), e o estado da faixa — conferida, provisória ou indisponível (seção 5) —, cada um com o seu “Entenda”; e, quando há, a meta (“conta condicional”), a hipótese do cenário e os avisos.</p>
-  </div>
+  <ul>
+    <li><strong>Um território e um cenário</strong>, com a janela padrão ou a janela com que o Detector de Sinais abriu o Simulador. A forma de projetar é a escolhida pela base; se outra foi escolhida no modo avançado, o modo simples a usa e avisa.</li>
+    <li><strong>O que testar</strong>, uma opção de cada vez: só continuar como vinha; acrescentar ou retirar uma quantidade numa data, com permanência total; ou chegar a uma meta na data final, com um acréscimo numa data (seção 9).</li>
+    <li><strong>A data final</strong>: qualquer data depois do último registro. Sem escolha, 2 anos depois dele.</li>
+    <li><strong>A faixa</strong>: a de 8 em cada 10, ou a que foi escolhida no modo avançado (5, 8 ou 9 em cada 10).</li>
+    <li><strong>O resultado</strong> resume o cenário em três números: o valor no último registro usado, o valor na data final e a diferença entre eles. Numa meta, o terceiro número diz quanto seria preciso acrescentar (“precisaria acrescentar N”).</li>
+  </ul>
+  <p>O que só o modo avançado escolhe — outra janela, as referências, o calendário dos acréscimos, a permanência e as outras intervenções — fica guardado e não entra no cálculo do modo simples.</p>
+  <h3>Modo avançado</h3>
+  <ul>
+    <li><strong>Até 5 cenários e até 100 territórios</strong>, cada território simulado à parte. Os territórios formam a seleção do Simulador: uma cópia da Seleção de Territórios, que pode mudar no Simulador sem mudar a seleção principal.</li>
+    <li><strong>Outras formas de projetar</strong> (seção 3) e outra janela, geral ou só de um cenário (seção 7).</li>
+    <li><strong>A faixa de 5, 8 ou 9 em cada 10</strong> (seção 5).</li>
+    <li><strong>Intervenções com calendário e permanência</strong>, até 8 por cenário (seção 8), e a meta com calendário (seção 9).</li>
+    <li><strong>Referências de comparação</strong>, pela diferença, pela razão ou pela taxa por 1.000 habitantes (seção 10).</li>
+    <li><strong>Conjuntos</strong> (territórios somados num só), <strong>o grupo de cima como unidade e o todo</strong> (seção 11).</li>
+  </ul>
 </section>
 
 <section id="formas-de-projetar" aria-labelledby="formas-de-projetar-titulo">
   <h2 id="formas-de-projetar-titulo">3. As formas de projetar</h2>
-  <p>A <strong>forma de projetar</strong> dá a <strong>base do cenário</strong>, B(t): quantos profissionais o território teria em cada data depois da origem, sem contar intervenções. Nas contas, <em>t</em> é o tempo em anos reais desde a origem (na base do Brasil, 5 meses de janeiro a junho e 7 de junho a janeiro), e N<sub>0</sub> é o valor na origem, o último registro usável do território na janela (seção 7). Cada forma tem um nome simples e um código, que aparece na lista do modo avançado, nas exportações e nesta ficha. <span class="marca marca-implementado">Implementado</span></p>
+  <p>A <strong>forma de projetar</strong> dá a <strong>base do cenário</strong>, B(t): quantos profissionais o território teria em cada data depois da origem, sem contar as intervenções. A <strong>origem</strong> é o último registro usável do território na janela (seção 7), e N<sub>0</sub> é o valor nela. Nas contas, t é o tempo desde a origem em <strong>anos reais</strong>: na base do Brasil, de janeiro a junho passam 5 meses, e de junho a janeiro, 7, e não meio ano cada.</p>
+  <p>Dois tipos de registro ficam fora das contas, marcados pelo Detector de Sinais: o <strong>pico que volta</strong>, um salto que se desfaz em até dois registros, e a <strong>quebra de fonte</strong>, um trecho em que a série das unidades não é compatível com a fonte do grupo de cima (seção 7).</p>
+  <p>Cada forma tem um nome simples e, entre parênteses, o nome do método, que aparece na lista do modo avançado, nas exportações e nas tabelas desta ficha. Nos textos de cenário e nas Tabelas 3 e 4, M0d aparece como “persistência com o crescimento recente do estado”, e M0g, como “persistência com o crescimento recente da base toda”.</p>
   <table>
-    <caption>Tabela 1. As formas de projetar: o que cada uma faz, a conta, o que precisa e o que acontece sem isso</caption>
+    <caption>Tabela 1. As formas de projetar: o que cada uma faz, do que precisa e o que acontece sem isso</caption>
     <thead>
-      <tr><th scope="col">Forma (código)</th><th scope="col">O que faz, e a conta</th><th scope="col">Precisa de</th><th scope="col">Sem o que precisa</th></tr>
+      <tr><th scope="col">Forma de projetar (método)</th><th scope="col">O que faz</th><th scope="col">Precisa de</th><th scope="col">Sem isso</th></tr>
     </thead>
     <tbody>
-      <tr><th scope="row">Continuar como vinha, a forma escolhida pela base (<code>padrao</code>)</th><td>A forma que a retroprojeção da própria base escolheu para o nível do território (seção 4): na base do Brasil, M0d nos municípios e M1 nos estados e, como provisório, no Brasil</td><td>A retroprojeção da base</td><td>M0, com aviso</td></tr>
-      <tr><th scope="row">Persistência: o último valor se mantém (M0)</th><td>Mantém o último registro; é sempre calculada e serve de referência para as outras. B(t) = N<sub>0</sub></td><td>Um registro usável na janela</td><td>Não calculável (ausência de dado não é zero)</td></tr>
-      <tr><th scope="row">Último valor com o crescimento recente do grupo de cima (M0d)</th><td>Faz o último registro crescer no ritmo recente do grupo de cima (na base do Brasil, o estado, pela soma dos seus municípios), e não no do território: B(t) = N<sub>0</sub> × (1 + g)<sup>t</sup>, com g = (S<sub>0</sub> ÷ S<sub>−3</sub>)<sup>1/3</sup> − 1, a soma S das unidades do grupo na origem e no mesmo mês, 3 anos antes</td><td>Grupo de cima; o registro de 3 anos antes; soma acima de zero; nenhuma quebra de fonte nesses 3 anos</td><td>M0, com aviso. Não se aplica aos grupos como unidade, ao todo nem a uma base sem grupo de cima</td></tr>
-      <tr><th scope="row">Último valor com o crescimento recente da base toda (M0g)</th><td>O mesmo, no ritmo da base toda: S é a soma de todos os territórios do nível</td><td>O registro de 3 anos antes; soma acima de zero</td><td>M0, com aviso. Não se aplica ao todo</td></tr>
-      <tr><th scope="row">Taxa composta da janela (M1)</th><td>O percentual médio por ano que reproduz o crescimento do próprio território na janela: r = (N<sub>f</sub> ÷ N<sub>i</sub>)<sup>1/T</sup> − 1, com N<sub>i</sub> e N<sub>f</sub> o primeiro e o último registro usável e T o tempo real entre eles; B(t) = N<sub>0</sub> × (1 + r)<sup>t</sup></td><td>Dois registros, o primeiro e o último acima de zero</td><td>Não se aplica; como forma escolhida pela base, M0, com aviso</td></tr>
-      <tr><th scope="row">Tendência linear robusta (M2)</th><td>A variação típica por ano, em profissionais, pela mediana das inclinações entre todos os pares de registros (Theil–Sen), pouco sensível a um registro fora do comum: B(t) = a + b·t, com a = mediana(y) − b × mediana(t)</td><td>Três registros</td><td>Não se aplica. Negativo para em zero, com aviso</td></tr>
-      <tr><th scope="row">Tendência log-linear (M3)</th><td>A variação proporcional ajustada a todos os registros por uma regressão de Poisson, própria para contagens (mínimos quadrados reponderados, IRLS): B(t) = e<sup>α + β·t</sup>; taxa anual = e<sup>β</sup> − 1. A dispersão quase-Poisson é só diagnóstico</td><td>Três registros, algum acima de zero</td><td>Não se aplica com menos de três; não calculável com a série em zero ou sem convergência</td></tr>
-      <tr><th scope="row">Taxa informada por você (<code>manual</code>)</th><td>Uma taxa anual da pessoa, rotulada como hipótese dela; o sistema nunca sugere uma: B(t) = N<sub>0</sub> × (1 + taxa ÷ 100)<sup>t</sup></td><td>A taxa, de −99% a +500% ao ano</td><td>O cenário não é pedido</td></tr>
+      <tr><th scope="row">Continuar como vinha (a forma escolhida pela base)</th><td>Usa a forma que a avaliação no histórico da base escolheu para o nível do território (seções 4 e 6). Na base do Brasil: M0d nos municípios; M1 nos estados e, como provisória, no Brasil</td><td>A avaliação no histórico da base</td><td>Mantém o último valor (M0), com aviso</td></tr>
+      <tr><th scope="row">Persistência: o último valor se mantém (M0)</th><td>Mantém o último registro. É sempre calculada e serve de referência para as outras formas</td><td>Um registro usável na janela</td><td>Não calculável: ausência de dado não é zero</td></tr>
+      <tr><th scope="row">Último valor com o crescimento do grupo de cima (M0d)</th><td>Faz o último registro crescer no ritmo dos 3 anos anteriores do grupo de cima (na base do Brasil, o estado, pela soma dos seus municípios), e não no ritmo do próprio território</td><td>Grupo de cima; o registro de 3 anos antes; soma acima de zero; nenhuma quebra de fonte nesses 3 anos</td><td>Mantém o último valor (M0), com aviso. Não vale para os grupos como unidade, para o todo nem numa base sem grupo de cima</td></tr>
+      <tr><th scope="row">Último valor com o crescimento da base toda (M0g)</th><td>O mesmo, no ritmo dos 3 anos anteriores da base toda: a soma de todos os territórios do nível</td><td>O registro de 3 anos antes; soma acima de zero</td><td>Mantém o último valor (M0), com aviso. Não vale para o todo</td></tr>
+      <tr><th scope="row">Taxa composta da janela (M1)</th><td>Aplica o percentual por ano que reproduz o crescimento do próprio território na janela</td><td>Dois registros, o primeiro e o último acima de zero</td><td>Não se aplica. Como forma escolhida pela base, mantém o último valor (M0), com aviso</td></tr>
+      <tr><th scope="row">Tendência linear robusta (M2)</th><td>Segue a variação típica por ano, em profissionais, medida em todos os registros da janela. Um registro fora do comum quase não a altera</td><td>Três registros</td><td>Não se aplica com menos de três registros. Quando a linha cairia abaixo de zero, a base para em zero, com aviso</td></tr>
+      <tr><th scope="row">Tendência log-linear (M3)</th><td>Segue a variação proporcional por ano, ajustada a todos os registros da janela por um modelo próprio para contagens</td><td>Três registros, algum acima de zero</td><td>Não se aplica com menos de três registros. Não calculável com a série toda em zero ou quando o ajuste não converge</td></tr>
+      <tr><th scope="row">Taxa informada por você</th><td>Aplica uma taxa anual escolhida pela pessoa, rotulada como hipótese dela. O sistema nunca sugere uma taxa</td><td>A taxa, de −99% a +500% ao ano</td><td>Sem a taxa, não há cenário</td></tr>
     </tbody>
   </table>
-  <p>Em M2 e M3, a tendência ajustada pode não passar pelo último registro, e a diferença fica à vista (“A tendência ajustada dá [valor] em [origem], e o registro é [N<sub>0</sub>] ([diferença]): o cenário segue a tendência ajustada.”). Nas formas que multiplicam o último valor, um território em zero continua em zero e só sai dele com uma intervenção (aviso <code>ZERO_CONTINUA_ZERO</code>). <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>A média aritmética das taxas é só descrição.</strong> As estatísticas históricas do modo avançado (os registros usáveis, as lacunas e as taxas de um ano para o outro no mês da série anual — na base do Brasil, de junho a junho —, com a taxa composta, a média aritmética, a mediana e o desvio-padrão delas) descrevem o passado. A média aritmética nunca alimenta uma projeção: com taxas que oscilam, ela superestima o crescimento ocorrido, que é o da taxa composta (M1) — de 3 para 5 médicos, e de volta a 3, as taxas são +66,7% e −40%, e a média é +13,3% ao ano, embora a variação real seja zero (exemplo ilustrativo da Proposta V2.2, seção 8.6). Comparar formas e janelas mostra a sensibilidade do cenário a elas, não uma faixa de confiança. <span class="marca marca-limitacao">Hipótese ou limitação</span></p>
+
+  <h3>As contas de cada forma</h3>
+  <p class="formula">M0: B(t) = N<sub>0</sub></p>
+  <p>Em palavras: a base do cenário é o último valor, em todas as datas.</p>
+  <p class="formula">M0d e M0g: B(t) = N<sub>0</sub> × (1 + g)<sup>t</sup>, com g = (S<sub>0</sub> ÷ S<sub>−3</sub>)<sup>1/3</sup> − 1</p>
+  <p>Em palavras: g é o crescimento médio por ano de uma soma S nos 3 anos antes da origem. S<sub>0</sub> é a soma na origem, e S<sub>−3</sub>, a soma no mesmo mês, 3 anos antes. No M0d, S é a soma das unidades do grupo de cima do território; no M0g, a soma de todos os territórios do nível. O último valor do território cresce nesse ritmo.</p>
+  <p class="formula">M1: B(t) = N<sub>0</sub> × (1 + r)<sup>t</sup>, com r = (N<sub>f</sub> ÷ N<sub>i</sub>)<sup>1/T</sup> − 1</p>
+  <p>Em palavras: r é a <strong>taxa composta</strong>, o percentual por ano que, aplicado ano após ano, leva do primeiro registro usável da janela (N<sub>i</sub>) ao último (N<sub>f</sub>) no tempo real entre eles, T, em anos. É o crescimento que de fato ocorreu na janela, por ano.</p>
+  <p class="formula">M2: B(t) = a + b × t, com b = a mediana das inclinações entre todos os pares de registros e a = mediana(y) − b × mediana(t)</p>
+  <p>Em palavras: para cada par de registros da janela, calcula-se quanto o número de profissionais mudou por ano entre eles, a inclinação. A <strong>mediana</strong> — o valor do meio, quando os valores são postos em ordem — dessas inclinações é a variação típica por ano, b (método de Theil–Sen). Na fórmula, y são os registros, t são as datas deles, contadas desde a origem, e a é o valor da linha na origem.</p>
+  <p class="formula">M3: B(t) = e<sup>c + k × t</sup>, com a taxa anual = e<sup>k</sup> − 1</p>
+  <p>Em palavras: o logaritmo da base do cenário segue uma linha reta no tempo. Os números c e k são ajustados a todos os registros da janela por uma regressão de Poisson, própria para contagens, calculada por mínimos quadrados reponderados (o método IRLS). A taxa anual, e<sup>k</sup> − 1, é a variação proporcional por ano. A dispersão quase-Poisson, que mede se os registros variam mais do que o modelo espera, é calculada só como diagnóstico.</p>
+  <p class="formula">Taxa informada por você: B(t) = N<sub>0</sub> × (1 + taxa ÷ 100)<sup>t</sup></p>
+  <p>Em palavras: a cada ano, o último valor cresce, ou diminui, pela taxa que a pessoa digitou, em %.</p>
+
+  <h3>O que vale para todas</h3>
+  <p><strong>A tendência e o último registro.</strong> Em M2 e em M3, a linha ajustada pode não passar pelo último registro. A diferença fica à vista: “A tendência ajustada dá [valor] em [origem], e o registro é [N<sub>0</sub>] ([diferença]): o cenário segue a tendência ajustada.”</p>
+  <p><strong>Zero continua zero.</strong> Nas formas que multiplicam o último valor, um território em zero continua em zero. Só uma intervenção o tira dele.</p>
+  <p><strong>A média aritmética das taxas é só descrição.</strong> No modo avançado, as estatísticas históricas do território descrevem o passado. Elas trazem os registros usáveis, as lacunas e as taxas de um ano para o outro na série anual (na base do Brasil, de junho a junho), com a taxa composta, a média aritmética, a mediana e o desvio-padrão dessas taxas. A média aritmética nunca alimenta uma projeção. Com taxas que oscilam, ela superestima o crescimento que de fato ocorreu, que é o da taxa composta (M1). Exemplo ilustrativo: de 3 para 5 médicos, e de volta a 3, as taxas são +66,7% e −40%, e a média é +13,3% ao ano, mas a variação real é zero.</p>
+  <p><strong>Comparar formas e janelas</strong> mostra quanto o cenário muda com elas, a sensibilidade, e não uma faixa de confiança.</p>
 </section>
 
 <section id="forma-escolhida" aria-labelledby="forma-escolhida-titulo">
   <h2 id="forma-escolhida-titulo">4. A forma escolhida pela base</h2>
-  <p>“Continuar como vinha” usa a forma que <strong>a própria base escolhe</strong>, pela retroprojeção (seção 6; Proposta V3, seção C.3), uma vez por versão da base e por nível de território — as unidades e, quando a base tem a contagem própria deles, os grupos como unidade —, sem depender do território, da janela, da data final nem das intervenções. Concorrem com manter o último valor (M0), na ordem de proximidade do território, o crescimento do próprio território (M1, com os 3 anos até a origem), o do grupo de cima (M0d, que não concorre num nível sem grupo de cima) e o da base toda (M0g); M2, M3 e a taxa da pessoa não concorrem. <span class="marca marca-implementado">Implementado</span></p>
+  <p>“Continuar como vinha” usa a forma de projetar que <strong>a própria base escolhe</strong>, pela avaliação no histórico dela (seção 6). A escolha é feita uma vez para cada versão da base e para cada nível de território: as unidades e, quando a base tem a contagem própria deles, os grupos como unidade. Ela não depende do território, da janela, da data final nem das intervenções.</p>
+  <p><strong>As candidatas.</strong> Três formas concorrem com manter o último valor (M0), na ordem de proximidade do território: o crescimento do próprio território (M1, com os 3 anos até a origem); o do grupo de cima (M0d, que não concorre num nível sem grupo de cima); e o da base toda (M0g). M2, M3 e a taxa da pessoa não concorrem.</p>
+  <p><strong>Como a base escolhe.</strong> Na retroprojeção (seção 6), cada candidata é refeita a partir de várias datas do passado, as <strong>origens</strong>, e comparada com o que aconteceu 1, 2, 3 e 4 anos depois, os <strong>prazos</strong>. Cada território, numa origem e num prazo, é um <strong>caso</strong>. Em cada grupo de casos, mede-se:</p>
+  <p class="formula">erro frente a manter o último valor = erro absoluto médio da forma ÷ erro absoluto médio de manter o último valor</p>
+  <p>Em palavras: o <strong>erro absoluto médio</strong> é a distância média, em profissionais, entre o que a forma projetou e o que de fato aconteceu, sem contar se errou para cima ou para baixo. Dividido pelo erro de manter o último valor, nos mesmos casos, ele dá 1 quando os dois erraram o mesmo e fica abaixo de 1 quando a forma errou menos.</p>
   <ol>
-    <li><strong>A medida:</strong> o erro absoluto médio do candidato — a distância média entre o observado e o projetado, em profissionais — dividido pelo de manter o último valor (1, “errou o mesmo”; abaixo de 1, “errou menos”), calculado porte a porte e então tirada a média, com cada porte pesando o mesmo, juntando os prazos de 1 a 4 anos. O <strong>porte</strong> é o número de profissionais na origem, nas 10 faixas da régua comum às duas ferramentas (de “1 a 3” a “10.000 ou mais”, como nas tabelas da seção 6); um porte com menos de 30 casos junta-se a um vizinho.</li>
-    <li><strong>Quem vale:</strong> o candidato que errou menos que manter o último valor no total e em pelo menos metade das combinações de origem e prazo.</li>
-    <li><strong>Quem fica:</strong> entre os que valem, o mais próximo do território cujo erro esteja a até 5% do melhor (o próprio território, depois o grupo de cima, depois a base toda).</li>
-    <li><strong>Exceção por porte:</strong> num porte em que a forma escolhida errou mais que manter o último valor em todos os prazos com pelo menos 30 casos, os territórios mantêm o último valor (aviso <code>PORTE_USA_O_ULTIMO_VALOR</code>).</li>
-    <li><strong>Sem escolha:</strong> sem série anual (nenhum mês se repete em todos os anos), ou com menos de 3 origens com 3 anos antes e 1 ano depois, o padrão é manter o último valor (aviso <code>SEM_RETROPROJECAO</code>); quando nenhum candidato vale, também (aviso <code>PADRAO_E_O_ULTIMO_VALOR</code>), e a faixa passa a ser a de manter o último valor.</li>
+    <li><strong>A medida:</strong> essa razão é calculada porte a porte e, depois, tira-se a média, com cada porte pesando o mesmo, juntando os prazos de 1 a 4 anos. O <strong>porte</strong> é o número de profissionais na origem, em 10 faixas, as mesmas do Detector de Sinais (de “1 a 3” a “10.000 ou mais”, como nas tabelas da seção 6). Um porte com menos de 30 casos se junta a um vizinho.</li>
+    <li><strong>Quem vale:</strong> a forma que errou menos que manter o último valor no total e em pelo menos metade das combinações de origem e prazo.</li>
+    <li><strong>Quem fica:</strong> entre as que valem, a mais próxima do território — o próprio território, depois o grupo de cima, depois a base toda — cujo erro fique a até 5% do erro da melhor.</li>
+    <li><strong>Exceção por porte:</strong> num porte em que a forma escolhida errou mais que manter o último valor em todos os prazos com pelo menos 30 casos, os territórios desse porte mantêm o último valor, com aviso.</li>
+    <li><strong>Sem escolha:</strong> a base pode não ter série anual (nenhum mês se repete em todos os anos) ou ter menos de 3 origens com 3 anos antes e 1 ano depois. Nesses casos, não há retroprojeção bastante, e o padrão é manter o último valor, com aviso. Quando nenhuma forma vale, o padrão também é manter o último valor, e a faixa passa a ser a dele.</li>
   </ol>
-  <p>Num território em que a forma escolhida não se aplica — sem o crescimento do grupo ou o da base toda; na taxa composta, sem o registro de 3 anos antes ou com o início ou o fim em zero —, o cenário mantém o último valor (aviso <code>VOLTA_AO_M0</code>). O todo, uma série só, usa a forma escolhida para o nível de baixo, como provisória (aviso <code>PADRAO_PROVISORIO_DO_NIVEL</code>); se ela é o crescimento do grupo ou o da base toda, vale a taxa composta dos 3 anos até a origem, porque, para o todo, a base toda é a própria série. <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>O que quer dizer “(escolhida pela base)”.</strong> A marca, ao lado da forma de projetar no resultado, diz que a forma em uso é a que a retroprojeção da base escolheu para o nível deste território (na resposta, <code>metodo.escolhido_pela_base</code> e <code>metodo.e_o_escolhido</code>). Não diz que ela é a melhor para este território: diz que, no histórico da base, ela errou menos que manter o último valor nos territórios do nível. Sem a marca — outra forma, da pessoa ou de uma exceção —, não há faixa; com ela, a faixa ainda depende da janela, do porte e dos casos (seção 5). Na base do Brasil, a forma escolhida é M0d nos municípios e M1 nos estados, sem exceções por porte (seção 6). <span class="marca marca-implementado">Implementado</span></p>
+  <p><strong>Quando a forma escolhida não se aplica a um território.</strong> Às vezes falta o que a forma escolhida pede: o crescimento do grupo de cima ou o da base toda; ou, na taxa composta, o registro de 3 anos antes, ou um primeiro e um último registro acima de zero. Nesses casos, o cenário mantém o último valor, com aviso. Quando a forma escolhida é a taxa composta (M1), “continuar como vinha” a mede sempre nos 3 anos até a origem, como na avaliação.</p>
+  <p><strong>O todo.</strong> O todo é uma série só e não tem avaliação própria. Ele usa, como provisória, a forma escolhida para o nível de baixo (seção 11). Se essa forma é o crescimento do grupo de cima ou o da base toda, vale a taxa composta dos 3 anos até a origem, porque, para o todo, a base toda é a própria série dele.</p>
+  <p><strong>O que quer dizer “(escolhida pela base)”.</strong> A marca, ao lado da forma de projetar no resultado, diz que a forma em uso é a que a avaliação no histórico da base escolheu para o nível deste território. Ela não diz que essa forma é a melhor para este território. Diz que, no passado da base, ela errou menos que manter o último valor nos territórios do mesmo nível. Sem a marca — com outra forma, escolhida pela pessoa ou por uma exceção —, não há faixa. Com a marca, a faixa ainda depende da janela, do porte e dos casos (seção 5).</p>
+  <p><strong>Na base do Brasil</strong>, a forma escolhida é M0d nos municípios e M1 nos estados, sem exceções por porte (seção 6).</p>
   <div class="exemplo">
-    <p class="quadro-titulo">Exemplo ilustrativo, da documentação do Simulador: o “Entenda” da forma de projetar</p>
-    <p>“O cenário parte do último registro usado (jun/2024) e soma o crescimento recente do estado: +3,06% ao ano nos 3 anos anteriores.” Depois, diz que essa forma errou menos que manter o último valor, quando refeita no passado, e dá a conta: “De 52 médicos em jun/2024, a base do cenário vai a 53,6 um ano depois, sem contar intervenções.”</p>
+    <p class="quadro-titulo">Exemplo ilustrativo: o “Entenda” da forma de projetar</p>
+    <p>“O cenário parte do último registro usado (jun/2024) e soma o crescimento recente do estado: +3,06% ao ano nos 3 anos anteriores. Usamos esta forma porque, nesta base, ela errou menos que simplesmente manter o último valor, quando refeita no passado.” E o exemplo: “De 52 médicos em jun/2024, a base do cenário vai a 53,6 um ano depois, sem contar intervenções.”</p>
   </div>
 </section>
 
 <section id="faixa" aria-labelledby="faixa-titulo">
   <h2 id="faixa-titulo">5. A faixa de N em cada 10</h2>
-  <p>A faixa mostra quanto o valor real costuma se afastar do cenário, medido no passado da própria base. A <strong>faixa de 8 em cada 10</strong>, o padrão, quer dizer que, entre as retroprojeções de territórios do mesmo porte e com o mesmo prazo, 8 em cada 10 terminaram dentro dela; no modo avançado, a pessoa pode pedir a de 5 ou a de 9 em cada 10. Quando a base não a sustenta, ela é <strong>indisponível</strong>, sempre com o motivo, sem extrapolar (Proposta V3, seção C.4). <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>Como é montada.</strong> Em cada caso da retroprojeção da forma escolhida (seção 6), o <strong>erro relativo</strong> é observado ÷ cenário − 1: zero quando o cenário acertou, +0,20 quando o observado ficou 20% acima. A faixa de um porte, num prazo de 1 a 4 anos, vai de um percentil a outro desse erro, entre os casos daquele porte e prazo — um <strong>percentil</strong> é o valor abaixo do qual fica uma parte dos casos: abaixo do 10º, 10% deles. Os casos mínimos deixam pelo menos 20 casos fora da faixa de cada lado. Faltando casos, a faixa usa a retaguarda comum às duas ferramentas (Proposta V3, regra A.2.4): junta os portes vizinhos, um de cada lado; ainda faltando, acrescenta, um a um, os portes menores, que variam mais, e fica mais larga, e por isso mais cautelosa (aviso <code>FAIXA_COM_PORTES_MENORES</code>); se nada bastar, é indisponível, com os números (na planilha de teste do repositório: “pede 200 casos por prazo, e esta base tem 88 em 1 ano para o porte deste território”). <span class="marca marca-implementado">Implementado</span></p>
+  <p>A <strong>faixa</strong> mostra quanto o valor real costuma se afastar do cenário, medido no passado da própria base. A <strong>faixa de 8 em cada 10</strong>, o padrão, quer dizer que, entre as retroprojeções de territórios do mesmo porte e com o mesmo prazo, 8 em cada 10 terminaram dentro dela. No modo avançado, a pessoa pode pedir a de 5 ou a de 9 em cada 10. Quando a base não sustenta a faixa, ela é <strong>indisponível</strong>, sempre com o motivo, e nada é extrapolado.</p>
+
+  <h3>Como a faixa é montada</h3>
+  <p class="formula">erro relativo = observado ÷ cenário − 1</p>
+  <p>Em palavras: em cada caso da retroprojeção da forma escolhida (seção 6), o erro relativo diz quanto o observado ficou acima ou abaixo do cenário, em proporção: zero quando o cenário acertou; +0,20 quando o observado ficou 20% acima.</p>
+  <p>A faixa de um porte, num prazo de 1 a 4 anos, vai de um <strong>percentil</strong> a outro desse erro, entre os casos daquele porte e prazo. Um percentil é o valor abaixo do qual fica uma parte dos casos: abaixo do 10º percentil ficam 10% deles. A faixa de 8 em cada 10 vai do 10º ao 90º percentil (Tabela 2). Os casos mínimos garantem que pelo menos 20 casos fiquem fora da faixa de cada lado.</p>
+  <p><strong>Quando faltam casos</strong> do próprio porte, a faixa junta os portes vizinhos, um de cada lado. Ainda faltando, acrescenta, um a um, os portes menores, que variam mais: a faixa fica mais larga, e por isso mais cautelosa, com aviso. Se nada bastar, a faixa é indisponível, e o resultado dá os números. Por exemplo: “A faixa de 8 em cada 10 pede 200 casos por prazo, e esta base tem [N] em 1 ano para o porte deste território, mesmo juntando os portes vizinhos e os menores.”</p>
   <table>
-    <caption>Tabela 2. As três faixas: os percentis, os casos mínimos e os estados da conferência no tempo, pela cobertura</caption>
+    <caption>Tabela 2. As três faixas: os percentis, os casos mínimos, a meta de cobertura e a situação na conferência no tempo, pela cobertura</caption>
     <thead>
       <tr><th scope="col">Faixa</th><th scope="col">Percentis do erro relativo</th><th scope="col">Casos por prazo</th><th scope="col">Meta de cobertura</th><th scope="col">Conferida</th><th scope="col">Provisória</th><th scope="col">Indisponível</th></tr>
     </thead>
@@ -145,45 +211,77 @@
       <tr><th scope="row">9 em cada 10</th><td>do 5º ao 95º</td><td class="numero">400</td><td class="numero">90%</td><td>85% ou mais</td><td>de 80% a 84%</td><td>abaixo de 80%</td></tr>
     </tbody>
   </table>
-  <p><strong>A conferência no tempo.</strong> Testada nos mesmos casos com que foi montada, uma faixa pareceria melhor do que é. Por isso, para cada origem de teste, o motor remonta a faixa só com as retroprojeções cujo resultado já era conhecido naquela data e conta quantos casos daquela origem, do mesmo porte, caíram dentro dela; juntando as origens de teste, essa é a <strong>cobertura</strong>. Comparada em pontos inteiros com a meta (74,95% conta como 75%), ela faz a faixa <strong>conferida</strong> (até 5 pontos abaixo da meta, ou mais), <strong>provisória</strong> (de 5 a 10 pontos abaixo) ou <strong>indisponível</strong> (mais de 10 abaixo). Com menos de 3 origens de teste ou menos de 50 casos de teste, a faixa não pôde ser conferida e fica provisória. <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>O prazo.</strong> A faixa de um cenário vai do 1º ano depois da origem até o maior prazo <strong>seguido</strong> que a base sustenta (no máximo, 4 anos): um prazo sem faixa a encerra ali, sem “buracos”, e, sem a de 1 ano, não há faixa. Uma data entre dois anos inteiros usa a faixa do ano seguinte (a 1 ano e meio da origem, a de 2 anos). Além do maior prazo, o cenário continua, com os avisos de horizonte (seção 13), e a faixa é indisponível, “sem extrapolar” (aviso <code>FAIXA_ATE_4_ANOS</code>). <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>Só para a forma e a janela escolhidas pela base.</strong> A faixa mede o erro da forma escolhida, medida como na retroprojeção, com os 3 anos até a origem. Não há faixa, e a tela diz por quê, com outra forma ou outra janela (na taxa composta, a faixa pede a janela de 3 anos até a origem); quando o padrão manteve o último valor neste território, por uma exceção; com zero profissionais na origem; no todo; e numa base sem retroprojeção bastante. Quando nenhuma forma errou menos que manter o último valor, a faixa é a dele. <span class="marca marca-implementado">Implementado</span></p>
+
+  <h3>A conferência no tempo</h3>
+  <p>Testada nos mesmos casos com que foi montada, uma faixa pareceria melhor do que é. Por isso, para cada <strong>origem de teste</strong>, a faixa é montada de novo só com as retroprojeções cujo resultado já era conhecido naquela data, e conta-se quantos casos daquela origem, do mesmo porte, caíram dentro dela. Juntando as origens de teste, essa proporção é a <strong>cobertura</strong>. Ela é comparada com a meta de cobertura em pontos inteiros (74,95% conta como 75%):</p>
+  <ul>
+    <li><strong>conferida:</strong> até 5 pontos abaixo da meta, ou acima dela;</li>
+    <li><strong>provisória:</strong> de 6 a 10 pontos abaixo da meta;</li>
+    <li><strong>indisponível:</strong> mais de 10 pontos abaixo da meta.</li>
+  </ul>
+  <p>Com menos de 3 origens de teste ou menos de 50 casos de teste, a faixa não pôde ser conferida e fica provisória.</p>
+
+  <h3>O prazo da faixa</h3>
+  <p>A faixa de um cenário vai do 1º ano depois da origem até o maior prazo <strong>seguido</strong> que a base sustenta, no máximo 4 anos. Um prazo sem faixa a encerra ali, sem “buracos”; sem a faixa de 1 ano, não há faixa. Uma data entre dois anos inteiros usa a faixa do ano seguinte: a 1 ano e meio da origem, vale a de 2 anos. Além do maior prazo, o cenário continua, com os avisos de horizonte (seção 13), e a faixa é indisponível, sem extrapolar.</p>
+
+  <h3>Quando não há faixa</h3>
+  <p>A faixa mede o erro da forma escolhida pela base, calculada como na retroprojeção, com os 3 anos até a origem. Por isso, não há faixa nos casos abaixo, e o resultado diz por quê:</p>
+  <ul>
+    <li>com outra forma de projetar ou outra janela (na taxa composta, a faixa pede a janela de 3 anos até a origem);</li>
+    <li>quando, neste território, o padrão manteve o último valor, por uma exceção de porte ou porque a forma escolhida não se aplica a ele;</li>
+    <li>com zero profissionais na origem;</li>
+    <li>no todo, que não tem retroprojeção própria;</li>
+    <li>numa base sem retroprojeção bastante.</li>
+  </ul>
+  <p>Quando nenhuma forma errou menos que manter o último valor, a faixa é a de manter o último valor.</p>
+
+  <h3>A faixa com intervenções e em conjuntos</h3>
   <p class="formula">limite inferior(t) = máx(0, B(t) × (1 + q<sub>inf</sub>) + I(t)) &nbsp;·&nbsp; limite superior(t) = máx(0, B(t) × (1 + q<sub>sup</sub>) + I(t))</p>
-  <p><strong>A faixa acompanha a intervenção.</strong> q<sub>inf</sub> e q<sub>sup</sub> são os percentis do porte de N<sub>0</sub>, no prazo daquela data. A intervenção I(t) desloca a faixa sem alargá-la: a faixa não mede a incerteza das intervenções, que são hipóteses da pessoa. Num <strong>conjunto</strong>, a faixa é a do porte da soma, com o rótulo “aproximação”: vem da margem de territórios desse porte, e não de conjuntos. Montada com o erro do passado, e não em volta da linha, a faixa pode ficar inteira de um lado dela (na base do Brasil, a de 5 em cada 10 dos estados de 3.000 a 9.999 médicos, em 4 anos, vai de +3% a +10%; Tabela 7), e a frase da faixa explica isso. <span class="marca marca-limitacao">Hipótese ou limitação</span></p>
+  <p>Em palavras: q<sub>inf</sub> e q<sub>sup</sub> são os percentis do erro relativo do porte de N<sub>0</sub>, no prazo daquela data. Eles são aplicados à base do cenário, B(t), e depois se soma o efeito das intervenções, I(t). Nenhum limite fica abaixo de zero. A intervenção desloca a faixa sem alargá-la: a faixa não mede a incerteza das intervenções, que são hipóteses da pessoa.</p>
+  <p>Num <strong>conjunto</strong>, a faixa é a do porte da soma, com o rótulo “aproximação”: ela vem da margem de territórios desse porte, e não de conjuntos.</p>
+  <p><strong>A faixa pode ficar inteira de um lado da linha.</strong> Ela é montada com o erro do passado, e não em volta da linha do cenário. Por isso, pode ficar toda acima ou toda abaixo dela: na base do Brasil, a de 5 em cada 10 dos estados de 3.000 a 9.999 médicos, em 4 anos, vai de +3% a +10% (Tabela 7). Não é erro da conta: no passado da base, naquele porte e prazo, o observado ficou, na maior parte dos casos, acima do que a forma de projetar dava. A frase da faixa explica isso.</p>
   <div class="exemplo">
-    <p class="quadro-titulo">Exemplo ilustrativo, da documentação do Simulador: o “Entenda” da faixa</p>
-    <p>“Refizemos este tipo de projeção em datas passadas, para territórios do mesmo porte. Em 8 de cada 10 vezes, o valor real ficou dentro desta faixa. Não é garantia: o passado testado (2017–2024) pode não se repetir.” Exemplo: “Entre 44 e 68 médicos na data final.” Numa faixa provisória, o texto acrescenta: “Faixa provisória: ainda não deu para conferi-la com dados que vieram depois, ou a conferência ficou um pouco abaixo do esperado.”</p>
+    <p class="quadro-titulo">Exemplo ilustrativo: o “Entenda” da faixa</p>
+    <p>“Refizemos este tipo de projeção em datas passadas, para territórios do mesmo porte. Em 8 de cada 10 vezes, o valor real ficou dentro desta faixa. Não é garantia: o passado testado (2017–2024) pode não se repetir.” E o exemplo: “Entre 44 e 68 médicos na data final.” Numa faixa provisória, o texto acrescenta: “Faixa provisória: ainda não deu para conferi-la com dados que vieram depois, ou a conferência ficou um pouco abaixo do esperado.”</p>
   </div>
 </section>
 
-<section id="avaliacao" aria-labelledby="avaliacao-titulo">
+<section id="avaliacao" class="nova-pagina" aria-labelledby="avaliacao-titulo">
   <h2 id="avaliacao-titulo">6. A avaliação dos métodos no histórico da base</h2>
-  <p>Esta é a avaliação que escolhe a forma de “continuar como vinha” (seção 4) e monta as faixas (seção 5); ela aparecia antes na tela, em “Como os métodos se saíram no passado”, e os números da base em uso saem em “Exportar a avaliação dos métodos (JSON)” (seção 14). É a avaliação dos <strong>métodos</strong> no histórico da <strong>base</strong> — quanto cada forma teria errado, no passado, em todos os territórios de um nível, porte a porte e prazo a prazo —, e <strong>não uma análise do território escolhido</strong>: não muda com a seleção, a janela, a data final, a forma escolhida pela pessoa nem as intervenções, e o motor a calcula uma vez por versão da base e por nível de território. <span class="marca marca-implementado">Implementado</span></p>
+  <p>Esta avaliação mede quanto cada forma de projetar teria errado, no passado da base, em todos os territórios de um nível, porte a porte e prazo a prazo. É ela que escolhe a forma de “continuar como vinha” (seção 4) e monta as faixas (seção 5).</p>
+  <div class="quadro">
+    <p class="quadro-titulo">Ela avalia a base, e não o território escolhido</p>
+    <p>A avaliação não muda com a seleção, a janela, a data final, a forma escolhida pela pessoa nem as intervenções. É feita uma vez para cada versão da base e para cada nível de território. Os números da base em uso saem em “Exportar a avaliação dos métodos (JSON)”. Os números desta seção são os da base do Brasil.</p>
+  </div>
 
   <h3>Como é feita: a retroprojeção com origens móveis</h3>
-  <p><strong>Retroprojeção</strong> é refazer, numa data do passado, a projeção que o Agente teria feito naquela data, só com o que se sabia até ela, e conferir com o que aconteceu depois; <strong>origens móveis</strong> quer dizer que isso se repete em várias datas de partida, as <strong>origens</strong>, uma por ano. <span class="marca marca-implementado">Implementado</span></p>
+  <p><strong>Retroprojeção</strong> é refazer, numa data do passado, a projeção que o Agente teria feito naquela data, só com o que se sabia até ela, e conferir com o que aconteceu depois. <strong>Origens móveis</strong> quer dizer que isso se repete em várias datas de partida, as origens, uma por ano.</p>
   <ol>
-    <li><strong>As origens:</strong> os registros do mês da série anual (na base do Brasil, junho) com o registro do mesmo mês 3 anos antes e pelo menos 1 ano depois — na base do Brasil, 7, de jun/2017 a jun/2023.</li>
-    <li><strong>Os casos:</strong> em cada origem, cada território com a janela de 3 anos inteira (sem ausência de dado, sem pico que volta conhecido até a origem, sem quebra de fonte) e com pelo menos 1 profissional na origem e 3 anos antes. Um <strong>caso</strong> é um território, numa origem, num prazo.</li>
+    <li><strong>As origens:</strong> os registros da série anual (na base do Brasil, junho) que têm o registro do mesmo mês 3 anos antes e pelo menos 1 ano depois. Na base do Brasil, são 7, de jun/2017 a jun/2023.</li>
+    <li><strong>Os casos:</strong> em cada origem, entra cada território com os 3 anos antes dela completos, isto é, sem ausência de dado, sem pico que volta já conhecido na origem e sem quebra de fonte. O território precisa ter pelo menos 1 profissional na origem e 3 anos antes.</li>
     <li><strong>O ajuste, só com o passado:</strong> M0 usa o valor na origem; M0d e M0g, o crescimento do grupo de cima e o da base toda nos 3 anos antes; M1, a taxa composta do território nesses 3 anos; M2 e M3, os registros desses 3 anos.</li>
-    <li><strong>A conferência:</strong> cada projeção é confrontada com o observado 1, 2, 3 e 4 anos depois, no mesmo mês (os <strong>prazos</strong>); o alvo precisa ter registro e não ser pico que volta nem quebra de fonte.</li>
+    <li><strong>A conferência:</strong> cada projeção é comparada com o observado 1, 2, 3 e 4 anos depois, no mesmo mês. O registro conferido precisa existir e não pode ser pico que volta nem quebra de fonte.</li>
   </ol>
-  <p class="exemplo"><strong>Ilustração da regra, com as datas da base do Brasil.</strong> Na origem de jun/2019, cada forma é ajustada com os registros de jun/2016 a jun/2019 e confrontada com o observado em jun/2020, jun/2021, jun/2022 e jun/2023; na de jun/2023, só há o prazo de 1 ano (jun/2024). Por isso há 22 combinações de origem e prazo: 4 em cada origem de 2017 a 2020, 3 em 2021, 2 em 2022 e 1 em 2023.</p>
-  <p><strong>Como ler as tabelas desta seção.</strong></p>
+  <div class="exemplo">
+    <p class="quadro-titulo">A regra com as datas da base do Brasil</p>
+    <p>Na origem de jun/2019, cada forma é ajustada com os registros de jun/2016 a jun/2019 e comparada com o observado em jun/2020, jun/2021, jun/2022 e jun/2023. Na de jun/2023, só há o prazo de 1 ano (jun/2024). Por isso há 22 combinações de origem e prazo: 4 em cada origem de 2017 a 2020, 3 em 2021, 2 em 2022 e 1 em 2023.</p>
+  </div>
+
+  <h3>Como ler as tabelas desta seção</h3>
   <ul>
-      <li><strong>Erro frente a manter o último valor</strong> (Tabelas 3, 4, 8 e 9): o erro absoluto médio da forma dividido pelo de manter o último valor (M0), nos mesmos casos — 1,00 é “errou o mesmo”; abaixo, “errou menos”. Na escolha (Tabelas 3 e 4), é a média das razões dos portes; nas tabelas por porte e prazo, a de cada célula.</li>
-      <li><strong>Faixas</strong> (Tabelas 5 e 7): “−9% a +87%”, na de 8 em cada 10, quer dizer que, em 8 de cada 10 casos daquele porte e prazo, o observado ficou entre 9% abaixo e 87% acima do projetado. Sem marca, a faixa é conferida; “(p)”, provisória; “(indisponível)” depois dos números, calculada, mas reprovada na conferência; “indisponível (N casos)”, faltam casos mesmo com a retaguarda; “−0%”, um limite negativo menor que 0,5%, arredondado a zero.</li>
-      <li><strong>Viés</strong> (Tabelas 10 e 11): a média de observado − projetado, em médicos, em 4 anos; positivo, a forma subestimou o que aconteceu.</li>
+    <li><strong>Erro frente a manter o último valor</strong> (Tabelas 3, 4, 8 e 9): o erro absoluto médio da forma dividido pelo de manter o último valor (M0), nos mesmos casos (seção 4). 1,00 é “errou o mesmo”; abaixo de 1,00, “errou menos”. Na escolha (Tabelas 3 e 4), é a média das razões dos portes; nas tabelas por porte e prazo, a razão de cada célula.</li>
+    <li><strong>Faixas</strong> (Tabelas 5 e 7): “−9% a +87%”, na de 8 em cada 10, quer dizer que, em 8 de cada 10 casos daquele porte e prazo, o observado ficou entre 9% abaixo e 87% acima do projetado. Sem marca, a faixa é conferida; “(p)”, provisória; “(indisponível)” depois dos números, calculada, mas reprovada na conferência; “indisponível (N casos)”, faltam casos mesmo juntando outros portes; “−0%”, um limite negativo menor que 0,5%, arredondado a zero.</li>
+    <li><strong>Viés</strong> (Tabelas 10 e 11): a média, entre os casos, de observado − projetado, em médicos, em 4 anos. Positivo quer dizer que a forma projetou menos do que aconteceu: subestimou.</li>
   </ul>
 
   <h3>Os números da base do Brasil</h3>
-  <p>Base Brasil, versão <code>faa54169c5b6</code> · método <code>SIMULADOR-CENARIOS/V3/1</code> · data de referência jun/2024 (o último registro) · origens de jun/2017 a jun/2023. Números reproduzidos em 18/11/2026 por <code>python scripts/calibrar_simulador.py</code>, com a base versionada, somente leitura; as mesmas tabelas estão em <code>Docs/SIMULADOR_DE_CENARIOS.md</code>, seção “Retroprojeção”.</p>
+  <p>Base do Brasil, médicos, registros até jun/2024 · origens de jun/2017 a jun/2023 · método SIMULADOR-CENARIOS/V3/1.</p>
 
   <h4>A escolha da forma de projetar</h4>
   <table>
     <caption>Tabela 3. Municípios: cada candidato frente a manter o último valor. Origens de jun/2017 a jun/2023 · 122.317 casos · 22 combinações de origem e prazo</caption>
     <thead>
-      <tr><th scope="col">Forma (código)</th><th scope="col">Erro frente a manter o último valor</th><th scope="col">Errou menos em</th><th scope="col">Casos</th><th scope="col">Vale</th></tr>
+      <tr><th scope="col">Forma de projetar (método)</th><th scope="col">Erro frente a manter o último valor</th><th scope="col">Errou menos em</th><th scope="col">Casos</th><th scope="col">Vale</th></tr>
     </thead>
     <tbody>
       <tr><th scope="row">taxa composta da janela (M1)</th><td class="numero">1,015</td><td class="numero">2 de 22</td><td class="numero">122.317</td><td>não</td></tr>
@@ -191,18 +289,18 @@
       <tr><th scope="row">persistência com o crescimento recente da base toda (M0g)</th><td class="numero">0,700</td><td class="numero">22 de 22</td><td class="numero">122.317</td><td>sim</td></tr>
     </tbody>
   </table>
-  <p>Escolhida: persistência com o crescimento recente do estado (M0d); exceções por porte, nenhuma. M0d e M0g valem; o melhor é M0g (0,700), e M0d (0,714) fica a até 5% dele (a 2%) e é o mais próximo do território. M1 errou mais que manter o último valor no total (1,015) e errou menos só em 2 de 22 combinações: não vale. As razões porte a porte usadas na exceção (os prazos com pelo menos 30 casos) são as de M0d na Tabela 8, salvo de 10.000 médicos para cima, em que só o prazo de 1 ano tem esses casos (0,54); de 1 a 9 médicos, M0d erra um pouco mais em 1 ano (1,04 e 1,02), mas menos de 2 a 4 anos, e não entra na exceção.</p>
+  <p>Nos municípios, a escolhida é a persistência com o crescimento recente do estado (M0d), sem exceções por porte. M0d e M0g valem. A melhor é M0g (0,700), e M0d (0,714) fica a até 5% dela (a 2%) e é a mais próxima do território. M1 errou mais que manter o último valor no total (1,015) e errou menos só em 2 de 22 combinações: não vale. A exceção por porte olha os prazos com pelo menos 30 casos. As razões desses prazos são as de M0d na Tabela 8, salvo de 10.000 médicos para cima, em que só o prazo de 1 ano tem esses casos (0,54). De 1 a 9 médicos, M0d erra um pouco mais em 1 ano (1,04 e 1,02), mas menos de 2 a 4 anos, e por isso não entra na exceção.</p>
   <table>
     <caption>Tabela 4. Estados como unidade: cada candidato frente a manter o último valor. Origens de jun/2017 a jun/2023 · 594 casos · 22 combinações</caption>
     <thead>
-      <tr><th scope="col">Forma (código)</th><th scope="col">Erro frente a manter o último valor</th><th scope="col">Errou menos em</th><th scope="col">Casos</th><th scope="col">Vale</th></tr>
+      <tr><th scope="col">Forma de projetar (método)</th><th scope="col">Erro frente a manter o último valor</th><th scope="col">Errou menos em</th><th scope="col">Casos</th><th scope="col">Vale</th></tr>
     </thead>
     <tbody>
       <tr><th scope="row">taxa composta da janela (M1)</th><td class="numero">0,398</td><td class="numero">22 de 22</td><td class="numero">594</td><td>sim</td></tr>
       <tr><th scope="row">persistência com o crescimento recente da base toda (M0g)</th><td class="numero">0,410</td><td class="numero">22 de 22</td><td class="numero">594</td><td>sim</td></tr>
     </tbody>
   </table>
-  <p>Escolhida: taxa composta da janela (M1), a melhor e a mais próxima do território; exceções por porte, nenhuma. O crescimento do grupo de cima (M0d) não concorre, porque os estados não têm grupo de cima. As razões porte a porte com pelo menos 30 casos são as da forma M1 na Tabela 9, de 3.000 médicos para cima; de 300 a 2.999 médicos, nenhum prazo tem 30 casos.</p>
+  <p>Nos estados, a escolhida é a taxa composta da janela (M1), a melhor e a mais próxima do território, sem exceções por porte. O crescimento do grupo de cima (M0d) não concorre, porque os estados não têm grupo de cima. As razões porte a porte com pelo menos 30 casos são as de M1 na Tabela 9, de 3.000 médicos para cima; de 300 a 2.999 médicos, nenhum prazo tem 30 casos.</p>
 
   <h4>As faixas</h4>
   <table>
@@ -251,7 +349,7 @@
     </tbody>
   </table>
   <table>
-    <caption>Tabela 6. Municípios: como cada faixa de 8 em cada 10 foi montada e conferida no tempo. Em cada célula, o estado (e, quando não foi o próprio porte, com quem a faixa foi montada), os casos com que foi montada e a cobertura na conferência, com os casos de teste. Em 1, 2, 3 e 4 anos, as faixas foram montadas com casos de 7, 6, 5 e 4 origens e conferidas em 6, 4, 2 e 0 origens de teste; todas as provisórias o são por falta de conferência bastante</caption>
+    <caption>Tabela 6. Municípios: como cada faixa de 8 em cada 10 foi montada e conferida no tempo. Em cada célula: a situação da faixa (conferida ou provisória) e, quando ela não foi montada só com o próprio porte, com quem foi; os casos com que foi montada; e a cobertura na conferência, sobre os casos de teste. Em 1, 2, 3 e 4 anos, as faixas foram montadas com casos de 7, 6, 5 e 4 origens e conferidas em 6, 4, 2 e 0 origens de teste. Todas as provisórias o são por falta de conferência bastante</caption>
     <thead>
       <tr><th scope="col">Médicos na origem</th><th scope="col">1 ano</th><th scope="col">2 anos</th><th scope="col">3 anos</th><th scope="col">4 anos</th></tr>
     </thead>
@@ -268,7 +366,7 @@
       <tr><th scope="row">10.000 ou mais</th><td>provisória, com os vizinhos<br>203 casos<br>91,2% de 34</td><td>provisória, com portes menores<br>560 casos<br>87,0% de 23</td><td>provisória, com portes menores<br>446 casos<br>83,3% de 12</td><td>provisória, com portes menores<br>338 casos<br>sem origem de teste</td></tr>
     </tbody>
   </table>
-  <p>Em 1 e 2 anos, a conferência cobriu de 75,0% a 87,3% dos casos de teste, e as faixas de 8 em cada 10 estão conferidas, salvo de 10.000 médicos para cima (só 34 e 23 casos de teste, para um mínimo de 50). Em 3 anos há só 2 origens de teste, e em 4 anos, nenhuma: as faixas de 3 e 4 anos ficam provisórias em todos os portes. De 3.000 médicos para cima, faltaram casos do próprio porte, e as faixas juntam os vizinhos ou os portes menores. Com 1 a 3 médicos, a faixa é assimétrica — um médico a mais já é +33% a +100% (Proposta V3, seção C.4) —, e a de 5 em cada 10 cobriu menos de 40% dos casos na conferência em 1 e 2 anos: indisponível, e, como a faixa de um cenário não tem “buracos” de prazo, esses municípios ficam sem ela em todos os prazos.</p>
+  <p>Em 1 e 2 anos, as faixas de 8 em cada 10 estão conferidas, e a conferência cobriu de 75,0% a 87,3% dos casos de teste. A exceção é de 10.000 médicos para cima: só 34 e 23 casos de teste, para um mínimo de 50, e as faixas ficam provisórias. Em 3 anos há só 2 origens de teste, e em 4 anos, nenhuma: as faixas de 3 e 4 anos ficam provisórias em todos os portes. De 3.000 médicos para cima, faltaram casos do próprio porte, e as faixas juntam os vizinhos ou os portes menores. Com 1 a 3 médicos, a faixa é assimétrica: um médico a mais já é +33% a +100%. Nesse porte, a faixa de 5 em cada 10 cobriu menos de 40% dos casos na conferência em 1 e 2 anos e é indisponível. Como a faixa de um cenário não tem “buracos” de prazo, esses municípios ficam sem ela em todos os prazos.</p>
   <table>
     <caption>Tabela 7. Estados como unidade: as faixas de 5, 8 e 9 em cada 10 da forma escolhida, por médicos na origem e prazo (as de 8 e de 9 alcançam os mesmos casos); “(p)” é provisória</caption>
     <thead>
@@ -281,7 +379,7 @@
       <tr><th scope="row">10.000 ou mais</th><td>5: −0% a +2% (p)<br>8 e 9: indisponível (189 casos)</td><td>5: −0% a +4% (p)<br>8 e 9: indisponível (162 casos)</td><td>5: +1% a +7% (p)<br>8 e 9: indisponível (135 casos)</td><td>5: +3% a +9% (p)<br>8 e 9: indisponível (108 casos)</td></tr>
     </tbody>
   </table>
-  <p>Nos estados, a faixa de 8 em cada 10 é indisponível em todos os portes e prazos (em 1 ano, 189 casos, para 200 pedidos; na conferência, as 16 células dela aparecem como “indisponível (poucos casos)”); a de 5 em cada 10 existe como provisória de 1.000 médicos para cima (de 1.000 a 2.999, até 3 anos).</p>
+  <p>Nos estados, a faixa de 8 em cada 10 é indisponível em todos os portes e prazos: em 1 ano, há 189 casos, para 200 pedidos. A de 5 em cada 10 existe como provisória de 1.000 médicos para cima (de 1.000 a 2.999, até 3 anos).</p>
 
   <h4>O erro de cada forma por porte e prazo</h4>
   <table>
@@ -325,7 +423,7 @@
       <tr><th scope="row">M3</th><td class="numero">0,99</td><td class="numero">0,69</td><td class="numero">0,55</td><td class="numero">0,58</td><td class="numero">0,65</td><td class="numero">0,35</td><td class="numero">0,35</td><td class="numero">0,34</td><td class="numero">0,39</td><td class="numero">0,34</td><td class="numero">0,37</td><td class="numero">0,40</td><td class="numero">0,31</td><td class="numero">0,25</td><td class="numero">0,27</td><td class="numero">0,27</td></tr>
     </tbody>
   </table>
-  <p>Nos municípios, M0d e M0g erram menos que manter o último valor de 2 a 4 anos em todos os portes (em 1 ano, abaixo de 10 médicos, um pouco mais: de 1,02 a 1,04). M1 e M3 erram mais em todos os prazos abaixo de 100 médicos (M1, de 1,09 a 1,44), e M2, abaixo de 50; nos portes maiores, as três erram menos na maior parte dos prazos, com exceções (por exemplo, M1 e M3 de 3.000 a 9.999 médicos, em 3 e 4 anos). Nos estados, todas as formas erram menos que manter o último valor, em todos os portes e prazos.</p>
+  <p>Nos municípios, M0d e M0g erram menos que manter o último valor de 2 a 4 anos em todos os portes; em 1 ano, abaixo de 10 médicos, erram um pouco mais (de 1,02 a 1,04). M1 e M3 erram mais em todos os prazos abaixo de 100 médicos (M1, de 1,09 a 1,44), e M2, abaixo de 50. Nos portes maiores, as três erram menos na maior parte dos prazos, com exceções (por exemplo, M1 e M3 de 3.000 a 9.999 médicos, em 3 e 4 anos). Nos estados, todas as formas erram menos que manter o último valor, em todos os portes e prazos.</p>
 
   <h4>O viés em 4 anos</h4>
   <table>
@@ -351,7 +449,9 @@
   <p>Todos os vieses são positivos: no período testado, o observado ficou acima do projetado em todos os portes. Manter o último valor subestima o crescimento do período; a forma escolhida reduz o viés, sem zerá-lo.</p>
 
   <h4>O todo: o Brasil</h4>
-  <p>O todo — na base do Brasil, a contagem nacional de médicos únicos — é uma série só e não tem retroprojeção própria. O estudo confere, nas mesmas origens, a taxa composta de 3 anos contra manter o último valor, pelo erro relativo absoluto mediano (a mediana, entre as origens, de |projetado ÷ observado − 1|). A conferência é só do estudo: o motor não a calcula nem a exporta, e o padrão do todo segue provisório (seção 11).</p>
+  <p>O todo — na base do Brasil, a contagem nacional de médicos únicos — é uma série só e não tem retroprojeção própria. Um estudo à parte compara, nas mesmas origens, a taxa composta de 3 anos com manter o último valor:</p>
+  <p class="formula">erro relativo absoluto = |projetado ÷ observado − 1|</p>
+  <p>Em palavras: a distância, em proporção, entre o projetado e o observado, sem o sinal. A Tabela 12 traz a mediana desse erro entre as origens. Esse estudo não entra no cálculo do Simulador nem na exportação, e o padrão do todo segue provisório (seção 11).</p>
   <table>
     <caption>Tabela 12. O Brasil: a taxa composta de 3 anos contra manter o último valor, erro relativo absoluto mediano</caption>
     <thead>
@@ -364,98 +464,155 @@
       <tr><th scope="row">4 anos</th><td class="numero">4</td><td class="numero">3,8%</td><td class="numero">16,9%</td></tr>
     </tbody>
   </table>
-  <p>O padrão dos estados e o do Brasil foram conferidos só num período de crescimento forte e contínuo, e toda a avaliação descreve as origens de 2017 a 2023, com origens que se sobrepõem no tempo (seção 15). <span class="marca marca-limitacao">Hipótese ou limitação</span></p>
+  <p>O padrão dos estados e o do Brasil foram conferidos só num período de crescimento forte e contínuo. Toda a avaliação descreve as origens de 2017 a 2023, que se sobrepõem no tempo (seção 14).</p>
 
-  <h3>Os vínculos com o resultado de um cenário</h3>
-  <p>A avaliação é da base, e não do território; mas o código usa três de seus resultados em cada cenário calculado: <span class="marca marca-implementado">Implementado</span></p>
+  <h3>O que a avaliação leva a cada cenário</h3>
+  <p>A avaliação é da base, e não do território. Mas três resultados dela entram em cada cenário calculado:</p>
   <ol>
-    <li><strong>A forma de “continuar como vinha”:</strong> o cenário padrão usa a forma escolhida para o nível do território (na resposta do motor, <code>escolha.metodo</code> em <code>retroprojecao.niveis</code>) — na base do Brasil, M0d nos municípios e M1 nos estados —, e a marca “(escolhida pela base)” diz isso (seção 4); um porte listado em <code>escolha.excecoes</code> mantém o último valor.</li>
-    <li><strong>A faixa do cenário:</strong> é a da célula do porte do território na origem e do prazo de cada data, aplicada à base do cenário e somada à intervenção (seção 5). Num município de 20 a 49 médicos na origem, por exemplo, a faixa de 8 em cada 10 em 1 ano vem da linha “20 a 49” da Tabela 5 (−19% a +24%), e o estado dela, conferida, da Tabela 6.</li>
-    <li><strong>Os avisos e os textos:</strong> a taxa composta escolhida pela pessoa numa unidade de um porte em que ela errou mais que manter o último valor em todos os prazos com pelo menos 30 casos traz o aviso <code>M1_ABAIXO_DE_100</code> (o nome é o de antes; na base do Brasil, abaixo de 100 médicos); o “Entenda” da faixa cita o período testado (2017–2024); e o perfil da base resume o que a avaliação sustenta (nos municípios, a faixa de 8 em cada 10 até 4 anos, conferida até 2).</li>
+    <li><strong>A forma de “continuar como vinha”:</strong> o cenário padrão usa a forma escolhida para o nível do território — na base do Brasil, M0d nos municípios e M1 nos estados —, e a marca “(escolhida pela base)” diz isso (seção 4). Num porte com exceção, o cenário mantém o último valor.</li>
+    <li><strong>A faixa do cenário:</strong> é a da célula do porte do território na origem e do prazo de cada data, aplicada à base do cenário e somada à intervenção (seção 5). Num município de 20 a 49 médicos na origem, por exemplo, a faixa de 8 em cada 10 em 1 ano vem da linha “20 a 49” da Tabela 5 (−19% a +24%), e a situação dela, conferida, da Tabela 6.</li>
+    <li><strong>Os avisos e os textos:</strong> a pessoa pode escolher a taxa composta (M1) para uma unidade de um porte em que essa forma errou mais que manter o último valor, em todos os prazos com pelo menos 30 casos. Nesse caso, o resultado avisa; na base do Brasil, isso vale abaixo de 100 médicos. O “Entenda” da faixa cita o período testado (2017–2024). O perfil da base, mostrado antes das ferramentas, resume o que a avaliação sustenta: nos municípios, a faixa de 8 em cada 10 até 4 anos, conferida até 2.</li>
   </ol>
-  <p>A referência dinâmica (seção 10) e o todo (seção 11) também seguem a forma escolhida para o nível deles. <strong>Com outra base</strong> ou outra versão da base do Brasil, o motor refaz a retroprojeção e calcula outra avaliação — outras origens, outros casos, outra forma escolhida, outras faixas —, e os números da base em uso saem em “Exportar a avaliação dos métodos (JSON)” (seção 14); na planilha de teste do repositório, por exemplo, nenhuma forma vale, e “continuar como vinha” mantém o último valor (da documentação do Simulador). <span class="marca marca-implementado">Implementado</span></p>
+  <p>A referência dinâmica (seção 10) e o todo (seção 11) também seguem a forma escolhida para o nível deles. <strong>Com outra base</strong>, ou com outra versão da base do Brasil, a avaliação é refeita: outras origens, outros casos, outra forma escolhida, outras faixas. Numa base em que nenhuma forma vale, “continuar como vinha” mantém o último valor.</p>
 </section>
 
 <section id="entradas-e-saidas" aria-labelledby="entradas-e-saidas-titulo">
-  <h2 id="entradas-e-saidas-titulo">7. Entradas, saídas e premissas</h2>
-  <p><strong>Entradas.</strong> Os territórios (até 100 no avançado, cada um simulado à parte); a janela histórica, com o início e o fim entre os registros reais — sem escolha, os 3 anos até o último registro, contados pelo tempo, e não pelo número de registros (na base do Brasil, 7 registros, de jun/2021 a jun/2024; numa base com um registro por ano, 4) —, e, no avançado, uma janela própria por cenário; a forma de projetar (seção 3); a data final, depois do fim da janela e até 2100 (sem escolha, 2 anos depois do último registro); e as intervenções, a meta, as referências e a faixa (seções 5, 8, 9 e 10). <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>A origem de cada cenário</strong> é o <strong>último registro usável do território na janela</strong>: um registro que existe — ausência de dado não é zero — e que o Detector não marcou como <em>pico que volta</em> (um salto que se desfaz em até dois registros) nem como <em>quebra de fonte</em> (uma série municipal incompatível com a fonte do grupo de cima; na base do Brasil, só o Distrito Federal, de jan/2014 a jun/2017). Esses registros ficam fora da base do cenário, a janela começa depois da quebra, e a tela avisa. Cada território tem a sua origem; quando a janela termina antes do último registro da base, o cenário é calculado também sobre as datas que já têm registro, ao lado do observado (aviso <code>RETROPROJECAO</code>). <span class="marca marca-implementado">Implementado</span></p>
-  <p class="formula">N(t) = máx(0, B(t) + I(t)) &nbsp;·&nbsp; I(t) = Σ<sub>j</sub> a<sub>j</sub> · S(t − t<sub>j</sub>) &nbsp;·&nbsp; S(u) = 0 para u &lt; 0</p>
-  <p><strong>A conta.</strong> N(t) é o total do cenário; B(t), a base do cenário (seção 3); I(t), o efeito acumulado das intervenções, com a<sub>j</sub> cada acréscimo (positivo) ou retirada (negativa) na data t<sub>j</sub> e S(u) a permanência do efeito u anos depois do evento (seção 8). A base e a intervenção ficam separadas: o crescimento histórico nunca é aplicado a quem entra. A base nunca fica abaixo de zero (aviso <code>BASE_TRUNCADA_EM_ZERO</code>), e, se as retiradas levam o total abaixo de zero, o cenário volta como “retirada acima do estoque”, para revisão: o zero da conta não esconde a intervenção impossível. O texto arredonda para o inteiro mais próximo; a resposta e o CSV levam a precisão integral. As datas da trajetória são os registros reais depois da origem, os meses em que a base tem registro (na base do Brasil, janeiro e junho) até a data final, as datas das intervenções e a data final. <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>Saídas.</strong> Por território, o observado (com o estado de cada registro: observado, zero confirmado ou ausência de dado), as estatísticas históricas e os cenários; por cenário, o estado, a forma pedida e a usada, os parâmetros, os avisos, a trajetória (em cada data, a base, a intervenção, o total, o observado e a faixa), o texto fixo, os dois “Entenda” e, quando há, as comparações, o planejamento inverso e a hipótese do cenário; e, no cálculo inteiro, as versões, a fonte, a janela, a avaliação dos métodos (<code>retroprojecao</code>), as notas e as limitações (<code>CENARIO_HIPOTETICO</code>, <code>PADRAO_ESCOLHIDO_PELA_BASE</code> e <code>FAIXA_SO_DO_METODO_PADRAO</code>). <span class="marca marca-implementado">Implementado</span></p>
+  <h2 id="entradas-e-saidas-titulo">7. As premissas e a conta do cenário</h2>
+  <p><strong>A janela histórica</strong> é o período de registros usado para medir o crescimento do território. Sem escolha, são os 3 anos até o último registro, contados pelo tempo, e não pelo número de registros: na base do Brasil, 7 registros, de jun/2021 a jun/2024; numa base com um registro por ano, 4. No modo avançado, a pessoa pode escolher outra janela, geral ou só para um cenário, com o início e o fim entre os registros reais e pelo menos dois registros.</p>
+  <p><strong>A origem de cada cenário</strong> é o último registro usável do território na janela. Usável quer dizer:</p>
+  <ul>
+    <li><strong>que existe:</strong> ausência de dado não é zero. Um registro que falta é uma lacuna; um zero registrado é um zero confirmado;</li>
+    <li><strong>que não é pico que volta:</strong> um salto que se desfaz em até dois registros, marcado pelo Detector de Sinais;</li>
+    <li><strong>que não está numa quebra de fonte:</strong> um trecho em que a série das unidades não é compatível com a fonte do grupo de cima. Na base do Brasil, só o Distrito Federal, de jan/2014 a jun/2017.</li>
+  </ul>
+  <p>Esses registros ficam fora da base do cenário, a janela começa depois da quebra, e o resultado avisa. Cada território tem a sua origem. Quando a janela termina antes do último registro da base, o cenário é calculado também sobre as datas que já têm registro, ao lado do observado, com aviso.</p>
+  <p><strong>A data final</strong> é qualquer data depois do fim da janela, até 2100. Sem escolha, 2 anos depois do último registro.</p>
+
+  <h3>A conta</h3>
+  <p class="formula">N(t) = máx(0, B(t) + I(t)) &nbsp;·&nbsp; I(t) = a<sub>1</sub> × S(t − t<sub>1</sub>) + a<sub>2</sub> × S(t − t<sub>2</sub>) + … &nbsp;·&nbsp; S(u) = 0 para u &lt; 0</p>
+  <p>Em palavras: o total do cenário na data t, N(t), é a base do cenário, B(t) (seção 3), mais o efeito acumulado das intervenções, I(t). Cada evento j acrescenta (a<sub>j</sub> positivo) ou retira (a<sub>j</sub> negativo) profissionais na data t<sub>j</sub>. S(u) é a parte do efeito que permanece u anos depois do evento (seção 8); antes do evento, o efeito é zero.</p>
+  <ul>
+    <li><strong>A base e a intervenção ficam separadas:</strong> o crescimento histórico nunca é aplicado a quem entra.</li>
+    <li><strong>A base nunca fica abaixo de zero:</strong> quando uma tendência levaria a um número negativo, a base para em zero, com aviso.</li>
+    <li><strong>Retirada acima do estoque:</strong> se as retiradas levam o total abaixo de zero, o cenário volta para revisão, sem valor. O zero da conta não esconde a intervenção impossível.</li>
+    <li><strong>Arredondamento:</strong> o texto arredonda para o inteiro mais próximo; as exportações levam o valor sem arredondar.</li>
+    <li><strong>As datas calculadas</strong> são os registros reais depois da origem, os meses em que a base tem registro (na base do Brasil, janeiro e junho) até a data final, as datas das intervenções e a data final.</li>
+  </ul>
   <table>
     <caption>Tabela 13. Os estados de um cenário</caption>
     <thead>
       <tr><th scope="col">Estado</th><th scope="col">Quando</th></tr>
     </thead>
     <tbody>
-      <tr><th scope="row">calculado (<code>calculado</code>)</th><td>A conta foi feita: só este estado tem valor, texto e curva.</td></tr>
-      <tr><th scope="row">não se aplica (<code>nao_aplicavel</code>)</th><td>A forma não vale para a série ou para o nível do território, com o motivo.</td></tr>
-      <tr><th scope="row">não calculável (<code>nao_calculavel</code>)</th><td>Sem registro usável na janela; no M3, série toda em zero ou ajuste que não converge; data final ou intervenção até a origem.</td></tr>
-      <tr><th scope="row">retirada acima do estoque (<code>retirada_acima_do_estoque</code>)</th><td>As retiradas passam do número de profissionais do cenário: ele volta para revisão, sem valor.</td></tr>
+      <tr><th scope="row">calculado</th><td>A conta foi feita. Só este estado tem valor, texto e curva.</td></tr>
+      <tr><th scope="row">não se aplica</th><td>A forma de projetar não vale para a série ou para o nível do território. O resultado diz o motivo.</td></tr>
+      <tr><th scope="row">não calculável</th><td>Sem registro usável na janela; no M3, a série toda em zero ou um ajuste que não converge; a data final ou uma intervenção até a origem.</td></tr>
+      <tr><th scope="row">retirada acima do estoque</th><td>As retiradas passam do número de profissionais do cenário: ele volta para revisão, sem valor.</td></tr>
     </tbody>
   </table>
 </section>
 
 <section id="intervencoes" aria-labelledby="intervencoes-titulo">
   <h2 id="intervencoes-titulo">8. Intervenções</h2>
-  <p>Uma intervenção é uma mudança hipotética que a pessoa quer testar: o <strong>acréscimo</strong> ou a <strong>retirada</strong> de uma quantidade de profissionais (um número acima de zero), numa data depois da origem — uma intervenção até a origem não é aceita, porque ela já está nos registros. Ela é sempre uma hipótese da pessoa, e o texto do cenário a rotula assim. <span class="marca marca-implementado">Implementado</span></p>
+  <p>Uma <strong>intervenção</strong> é uma mudança hipotética que a pessoa quer testar: o <strong>acréscimo</strong> ou a <strong>retirada</strong> de uma quantidade de profissionais (um número acima de zero), numa data depois da origem. Uma intervenção até a origem não é aceita, porque o que aconteceu até ali já está nos registros. A intervenção é sempre uma hipótese da pessoa, e o texto do cenário a rotula assim.</p>
   <ul>
-    <li><strong>Calendário:</strong> uma data, ou de uma data a outra a cada n meses (de 1 a 120; 12 por padrão), com até 240 eventos; um acréscimo anual acontece uma vez por ano, e não a cada registro. Numa base com um registro por ano, as datas são anos, e o intervalo é de 12 meses ou um múltiplo de 12. No avançado, até 8 intervenções por cenário (a rota aceita até 12); no simples, uma, numa data, com permanência total.</li>
-    <li><strong>Permanência:</strong> S(u) = (p ÷ 100)<sup>u</sup>, com p em % ao ano e u em anos desde o evento. p = 100, todos permanecem, é o padrão, rotulado como hipótese em cada texto (“com permanência total (hipótese)”); com p menor, uma parte do efeito sai a cada ano, e, com p = 0, o efeito não dura além da data do evento. Na tela: “Dos médicos acrescentados, a cada ano permanecem [100]%.” (numa retirada, “Do efeito da retirada, a cada ano permanecem [100]%.”). O sistema não estima a permanência a partir dos dados. <span class="marca marca-limitacao">Hipótese ou limitação</span></li>
-    <li><strong>Para quem vale:</strong> para <strong>cada território</strong> do cenário, e não para o total — cada unidade, grupo como unidade e conjunto recebe a quantidade inteira, e, com mais de um território, o texto diz “em cada território do cenário” (da documentação do Simulador: com 49 territórios, um acréscimo de 5 médicos soma 5 a cada um deles). Na rota, uma intervenção pode valer só para parte dos territórios (o campo <code>territorios</code>), mas a tela não oferece essa escolha. <span class="marca marca-nao">Não implementado</span></li>
-    <li><strong>Na tela:</strong> no gráfico, a linha contínua do total com a intervenção sobre a base tracejada, com um marcador em cada evento; no avançado, as contas da data final — “Na data final, neste território: base do cenário de [B] + [I] da intervenção = [N] médicos (o texto acima arredonda para o inteiro).”. A faixa acompanha a intervenção, sem se alargar (seção 5).</li>
+    <li><strong>Calendário:</strong> uma data, ou de uma data a outra, a cada n meses (de 1 a 120; 12, sem escolha), com até 240 eventos. Um acréscimo anual acontece uma vez por ano, e não a cada registro. Numa base com um registro por ano, as datas são anos, e o intervalo é de 12 meses ou um múltiplo de 12. No modo avançado, cada cenário tem até 8 intervenções; no modo simples, uma, numa data, com permanência total.</li>
+    <li><strong>Para quem vale:</strong> para <strong>cada território</strong> do cenário, e não para o total. Cada unidade, grupo como unidade e conjunto recebe a quantidade inteira. Com mais de um território, o texto diz “em cada território do cenário”: com 49 territórios, um acréscimo de 5 médicos soma 5 a cada um deles.</li>
   </ul>
+  <h3>A permanência</h3>
+  <p class="formula">S(u) = (p ÷ 100)<sup>u</sup></p>
+  <p>Em palavras: p é a <strong>permanência</strong>, em % ao ano, a parte do efeito que continua no território a cada ano, e u é o tempo, em anos, desde o evento. A premissa aparece como “Dos médicos acrescentados, a cada ano permanecem [100]%.” (numa retirada, “Do efeito da retirada, a cada ano permanecem [100]%.”). Com p = 100, todos permanecem: é o padrão, rotulado como hipótese em cada texto (“com permanência total (hipótese)”). Com p menor, uma parte do efeito sai a cada ano; com p = 0, o efeito não dura além da data do evento. O sistema não estima a permanência a partir dos dados.</p>
+  <p><strong>Na data final</strong>, o total é a base do cenário mais o efeito das intervenções: “Na data final, neste território: base do cenário de [B] + [I] da intervenção = [N] médicos (o texto acima arredonda para o inteiro).” A faixa acompanha a intervenção, sem se alargar (seção 5).</p>
 </section>
 
 <section id="meta" aria-labelledby="meta-titulo">
   <h2 id="meta-titulo">9. Meta: o planejamento inverso</h2>
-  <p>No planejamento inverso, a pessoa diz aonde quer chegar — uma <strong>meta hipotética</strong> na data final —, e o motor calcula o <strong>menor número inteiro</strong> de profissionais por evento com que o cenário a alcança. O resultado é uma conta condicional às hipóteses do cenário, não um plano: não diz se os profissionais existem, se ficam nem quanto custa, e não é avaliação de suficiência. <span class="marca marca-implementado">Implementado</span> <span class="marca marca-limitacao">Hipótese ou limitação</span></p>
-  <p><strong>A meta</strong> é um número de profissionais; o <strong>patamar anterior</strong> — o do sinal 7 do Detector de Sinais, “Abaixo do que já teve”: a maior média de dois anos completos de registros antes dos mais recentes —, arredondado para cima, para o resultado não parecer abaixo dela, com o rótulo dizendo de onde veio; ou o valor de uma referência na data final (só no avançado; seção 10). Exemplo ilustrativo, da documentação: “Meta hipotética: voltar ao patamar de 79 médicos em jun/2026 (patamar de 78,25, média de 4 registros, arredondado para cima)”.</p>
-  <p class="formula">o menor inteiro x ≥ 1 com B(T) + I(T) + x · Σ<sub>j</sub> S(T − t<sub>j</sub>) ≥ meta</p>
-  <p><strong>A conta.</strong> T é a data final; B(T), a base do cenário sem arredondar; I(T), as outras intervenções do cenário; t<sub>j</sub>, os eventos do calendário entre a origem e T. Com k eventos e permanência total, x é (meta − N(T)) ÷ k, arredondado para cima; com permanência menor, cada evento pesa (p ÷ 100) elevado aos anos até T, e o motor procura o menor inteiro. A resposta traz a conta sem arredondar e o cenário simulado de novo com o acréscimo, que alcança a meta. Os estados: <strong>calculado</strong>, com o texto que termina em “É uma conta condicional às hipóteses do cenário, não um plano.”; <strong>já alcançada</strong>, sem acréscimo; <strong>não alcançável</strong>, quando, com permanência zero, nenhum acrescentado está no território na data final; e <strong>não calculável</strong>, sem evento entre a origem e a data final, sem patamar calculável ou sem a referência. <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>Nos dois modos.</strong> No simples, um acréscimo numa data, com o resultado nos três números e no gráfico (seção 2). No avançado, “Calcular o acréscimo que alcança uma meta (planejamento inverso)”, com o calendário e a permanência; o resultado leva a marca “conta condicional”, e “Usar como intervenção deste cenário” põe o acréscimo entre as intervenções, por comando da pessoa — só com um território na seleção, porque o número é próprio de cada território. <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>“Simular recuperação”, vindo do Detector.</strong> Abre o Simulador com aquele território, a janela em uso lá (quando a pessoa a escolheu) e, como meta hipotética, a volta ao patamar anterior: no modo simples, em “Chegar a uma meta”, com um acréscimo um ano depois do último registro. A frase ao lado do campo diz de onde a meta veio (“A meta veio do Detector de Sinais: o patamar anterior, de 78,25 médicos (a maior média de dois anos seguidos), arredondado para cima. É uma hipótese que você pode trocar.”). “Abrir no Simulador” abre o mesmo território, sem meta. A meta é uma hipótese editável, nunca uma orientação de provimento (decisão D-B de 10/11/2026). <span class="marca marca-implementado">Implementado</span></p>
+  <p>No <strong>planejamento inverso</strong>, a pessoa diz aonde quer chegar — uma <strong>meta hipotética</strong> na data final —, e o Simulador calcula o <strong>menor número inteiro</strong> de profissionais por evento com que o cenário a alcança. O resultado é uma conta condicional às hipóteses do cenário, e não um plano: não diz se os profissionais existem, se ficam nem quanto custa, e não avalia a suficiência do atendimento.</p>
+  <p><strong>A meta</strong> pode ser:</p>
+  <ul>
+    <li>um número de profissionais;</li>
+    <li>o <strong>patamar anterior</strong>, o do sinal 7 do Detector de Sinais, “Abaixo do que já teve”: a maior média de dois anos completos de registros antes dos mais recentes. Como o patamar é uma média e pode ter decimal, a meta é o patamar arredondado para cima, para o resultado não parecer abaixo dela, e o rótulo diz de onde ela veio;</li>
+    <li>o valor de uma referência na data final (só no modo avançado; seção 10).</li>
+  </ul>
+  <p>Exemplo ilustrativo: “Meta hipotética: voltar ao patamar de 79 médicos em jun/2026 (patamar de 78,25, média de 4 registros, arredondado para cima)”.</p>
+  <p class="formula">x = o menor inteiro, a partir de 1, com B(T) + I(T) + x × [S(T − t<sub>1</sub>) + … + S(T − t<sub>k</sub>)] igual à meta ou acima dela</p>
+  <p>Em palavras: T é a data final; B(T), a base do cenário nessa data, sem arredondar; I(T), o efeito das outras intervenções do cenário; t<sub>1</sub> a t<sub>k</sub>, os k eventos do calendário entre a origem e T. Cada evento pesa o que dele ainda permanece na data final. Com permanência total, x é a diferença entre a meta e B(T) + I(T), dividida por k e arredondada para cima. Com permanência menor, cada evento pesa (p ÷ 100) elevado aos anos que faltam até T, e o Simulador procura o menor inteiro que alcança a meta. O resultado traz também a conta sem arredondar e o cenário calculado de novo com o acréscimo, que alcança a meta.</p>
+  <p><strong>Os resultados possíveis:</strong></p>
+  <ul>
+    <li><strong>calculado</strong>, com o texto que termina em “É uma conta condicional às hipóteses do cenário, não um plano.”;</li>
+    <li><strong>já alcançada</strong>: o cenário já chega à meta, sem acréscimo;</li>
+    <li><strong>não alcançável</strong>: com permanência zero, nenhum profissional acrescentado está no território na data final;</li>
+    <li><strong>não calculável</strong>: sem evento entre a origem e a data final, sem patamar calculável ou sem a referência.</li>
+  </ul>
+  <p><strong>Nos dois modos.</strong> No modo simples, a meta usa um acréscimo numa data, com permanência total. No modo avançado, a meta pode ter um calendário e uma permanência, e o acréscimo calculado pode entrar como intervenção do cenário, por escolha da pessoa. Isso só vale com um território na seleção, porque o número é próprio de cada território.</p>
+  <p><strong>“Simular recuperação”, vindo do Detector de Sinais.</strong> Abre o Simulador com aquele território, a janela em uso no Detector (quando a pessoa a escolheu lá) e, como meta hipotética, a volta ao patamar anterior: no modo simples, em “Chegar a uma meta”, com um acréscimo um ano depois do último registro. A frase ao lado da meta diz de onde ela veio: “A meta veio do Detector de Sinais: o patamar anterior, de 78,25 médicos (a maior média de dois anos seguidos), arredondado para cima. É uma hipótese que você pode trocar.” “Abrir no Simulador” abre o mesmo território, sem meta. A meta é uma hipótese editável, nunca uma orientação de provimento.</p>
 </section>
 
 <section id="referencias" aria-labelledby="referencias-titulo">
   <h2 id="referencias-titulo">10. Referências e comparação</h2>
-  <p>Uma <strong>referência</strong> é um território, ou um valor da pessoa, com que cada cenário é comparado: opcional, no modo avançado (até 5), ela pode estar fora da seleção do Simulador, sem mudar a seleção principal — uma unidade, um grupo como unidade, o todo, um conjunto da seleção do Simulador ou um valor. A <strong>fixa</strong> mantém o valor do último registro usável dela na janela; a <strong>dinâmica</strong> segue a forma de projetar que a base escolheu para o nível dela, sem intervenções, com os avisos dessa forma (na base do Brasil, M0d nos municípios e nos conjuntos deles, e a taxa composta de 3 anos nos estados e no Brasil); e <strong>o valor da pessoa</strong> se mantém, lido na métrica escolhida. Antes da origem da referência, vale o registro dela. <span class="marca marca-implementado">Implementado</span> Na tela, a referência dinâmica não tem forma, janela nem intervenções próprias (a rota aceita outra forma). <span class="marca marca-nao">Não implementado</span></p>
-  <p><strong>A comparação, em cada data.</strong> Na origem e em cada data do cenário, três números: a <strong>diferença</strong> (referência − território), a <strong>razão</strong> (território ÷ referência, quando a referência é acima de zero) e o <strong>índice</strong> (100 × a razão; 100 é a referência). A frase destaca a diferença (o padrão; por exemplo, “28 abaixo da referência”) ou a razão (“0,44 vezes o valor da referência”), com o índice entre parênteses — números ilustrativos, da documentação do Simulador —; os três números são os mesmos nas duas formas, e, diante de uma referência em zero, a frase diz que a razão não pode ser calculada. Nenhuma variação é chamada de convergência. O alcance diz se o território já está no nível da referência na origem, se a alcança (na primeira data avaliada em que isso ocorre) ou que “não alcança no horizonte simulado” — nenhuma data é inventada ou extrapolada. <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>Por taxa: a hipótese de população.</strong> Por taxa, os números são profissionais por 1.000 habitantes, e a população futura é sempre uma hipótese declarada: <strong>constante</strong> (o padrão: a do último registro em todas as datas simuladas) ou <strong>crescendo x% ao ano</strong> depois do último registro, de −20% a +20% (negativo, uma população que diminui), uma hipótese da pessoa, a mesma no território e na referência — a razão e o índice entre dois territórios não mudam; as taxas e a diferença, sim. Até o último registro, vale a população dele; um valor informado como referência já é uma taxa e não muda. A base não traz população futura, e o sistema não a estima nem sugere a taxa; sem população válida, a comparação é “não calculável”. Exemplo ilustrativo, da documentação: “Hipótese sua: população crescendo 2% ao ano depois de jun/2024, a mesma taxa no território e na referência.” <span class="marca marca-limitacao">Hipótese ou limitação</span></p>
-  <p><strong>Sobreposição e unidades.</strong> A comparação avisa quando a referência é o próprio território, quando um contém o outro (o todo; o grupo da unidade; um conjunto com unidades em comum; grupos em comum) — “a comparação não é independente” — e quando as contagens têm unidades diferentes: nunca se declara uma independência que não há, e comparar quantidades de territórios de portes diferentes não é comparar a suficiência do atendimento. No gráfico, por quantidade, cada referência tem a sua curva (R1, R2…); por taxa, as referências ficam só nos textos. <span class="marca marca-limitacao">Hipótese ou limitação</span></p>
+  <p>Uma <strong>referência</strong> é um território, ou um valor da pessoa, com que cada cenário é comparado. Ela é opcional e fica no modo avançado, com até 5 referências. Pode estar fora da seleção do Simulador, sem mudar a seleção principal: uma unidade, um grupo como unidade, o todo, um conjunto da seleção do Simulador ou um valor.</p>
+  <ul>
+    <li><strong>Fixa:</strong> mantém o valor do último registro usável dela na janela.</li>
+    <li><strong>Dinâmica:</strong> segue a forma de projetar que a base escolheu para o nível dela, sem intervenções e com os avisos dessa forma. Na base do Brasil, M0d nos municípios e nos conjuntos de municípios; a taxa composta dos 3 anos até a origem nos estados, nos conjuntos de estados e no Brasil. Ela não tem forma de projetar, janela nem intervenções próprias: usa a janela geral do cálculo.</li>
+    <li><strong>Valor da pessoa:</strong> se mantém, lido na métrica escolhida.</li>
+  </ul>
+  <p>Antes da origem da referência, vale o registro dela.</p>
+  <h3>A comparação em cada data</h3>
+  <p class="formula">diferença = referência − território &nbsp;·&nbsp; razão = território ÷ referência &nbsp;·&nbsp; índice = 100 × razão</p>
+  <p>Em palavras: na origem e em cada data do cenário, a comparação dá três números. A <strong>diferença</strong> é a distância, em profissionais, entre a referência e o território; ela é positiva quando o território fica abaixo da referência. A <strong>razão</strong> diz quantas vezes o valor da referência o território teria; ela só existe quando a referência é acima de zero. O <strong>índice</strong> é a razão vezes 100: 100 é o valor da referência.</p>
+  <p>A frase destaca a diferença (o padrão; por exemplo, “28 abaixo da referência”) ou a razão (“0,44 vezes o valor da referência”), sempre com o índice entre parênteses; os números destes exemplos são ilustrativos. Os três números são os mesmos nas duas formas. Diante de uma referência em zero, a frase diz que a razão não pode ser calculada. Nenhuma variação é chamada de convergência.</p>
+  <p><strong>O alcance</strong> diz se o território já está no nível da referência na origem, se a alcança — na primeira data avaliada em que isso ocorre — ou que “não alcança no horizonte simulado”. Nenhuma data é inventada ou extrapolada.</p>
+  <h3>Por taxa: a hipótese de população</h3>
+  <p>Por taxa, os números são profissionais por 1.000 habitantes. A população futura é sempre uma hipótese declarada:</p>
+  <ul>
+    <li><strong>constante</strong>, o padrão: a população do último registro em todas as datas simuladas;</li>
+    <li><strong>crescendo x% ao ano</strong> depois do último registro, de −20% a +20% (um número negativo é uma população que diminui), uma hipótese da pessoa.</li>
+  </ul>
+  <p class="formula">população na data t = população do último registro × (1 + x ÷ 100)<sup>anos desde o último registro</sup></p>
+  <p>Em palavras: até o último registro, vale a população dele; depois, ela cresce, ou diminui, x% a cada ano. A mesma taxa vale para o território e para a referência: a razão e o índice entre dois territórios não mudam, mas as taxas e a diferença, sim. Um valor informado como referência já é uma taxa e não muda. A base não traz população futura, e o sistema não a estima nem sugere a taxa. Sem população válida, a comparação é “não calculável”. Exemplo ilustrativo: “Hipótese sua: população crescendo 2% ao ano depois de jun/2024, a mesma taxa no território e na referência.”</p>
+  <p><strong>Sobreposição e unidades.</strong> A comparação avisa quando a referência é o próprio território e quando um contém o outro — o todo; o grupo da unidade; um conjunto com unidades em comum; grupos em comum —, dizendo que “a comparação não é independente”. Avisa também quando as contagens têm unidades diferentes. Nunca se declara uma independência que não há. Comparar quantidades de territórios de portes diferentes não é comparar a suficiência do atendimento.</p>
 </section>
 
 <section id="conjuntos-e-brasil" aria-labelledby="conjuntos-e-brasil-titulo">
   <h2 id="conjuntos-e-brasil-titulo">11. Conjuntos, o grupo de cima como unidade e o todo</h2>
-  <p><strong>Conjuntos.</strong> Um conjunto, montado na Seleção de Territórios, reúne territórios do mesmo nível (unidades e, na base do Brasil, também estados; numa planilha, só unidades). O valor dele é a <strong>soma das contagens dos componentes</strong>, só nas datas em que todos têm registro, e não o número de profissionais diferentes. Na persistência e no crescimento do grupo de cima (M0 e M0d), a base do conjunto é a <strong>soma das projeções dos membros</strong>, cada um com o crescimento do seu grupo (sem ele, o membro fica na persistência, com aviso); nas outras formas, a conta é feita na série da soma, rotulada “soma das contagens dos componentes”. A faixa é a do porte da soma, com o rótulo “aproximação” (seção 5), e o conjunto não tem a hipótese do cenário (seção 12). <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>O grupo de cima como unidade.</strong> Na base do Brasil, o estado entra pela <strong>contagem própria</strong> (médicos únicos no estado, da fonte estadual), com retroprojeção própria (Tabelas 4, 7, 9 e 11): a forma escolhida é a taxa composta (M1), e a faixa de 8 em cada 10 é indisponível. Numa planilha com a coluna de grupo, o grupo é a <strong>soma das unidades dele</strong>, nas datas em que todas têm registro, também com retroprojeção própria — com poucos territórios, em geral o cenário mantém o último valor, sem faixa, com o motivo. O grupo inteiro e as unidades dele não entram juntos (RQ-DAD-30). <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>O todo.</strong> Na base do Brasil, <strong>o Brasil</strong> entra como território pela contagem nacional de médicos únicos: existe só no Simulador, é simulado à parte e nunca é somado aos demais. O padrão dele é <strong>provisório</strong>: uma série só não tem retroprojeção própria, e vale a forma escolhida para o nível de baixo (seção 4) — na base do Brasil, a taxa composta dos 3 anos até a origem, a forma escolhida para os estados —, com o aviso de que é provisório e só foi conferido num período de crescimento (Tabela 12) e, no avançado, a marca “método provisório”. O todo não tem faixa nem hipótese do cenário. Numa planilha, o todo é a soma das unidades com registro, com o nome que a pessoa deu, e segue, como provisória, a forma escolhida para as unidades. <span class="marca marca-limitacao">Hipótese ou limitação</span></p>
-  <p><strong>O que cada contagem conta.</strong> Na base do Brasil: no município, os médicos registrados nele (quem atua em mais de um conta em cada um); no estado e no Brasil, os médicos únicos; num conjunto, a soma das contagens dos componentes. A tela mostra a contagem de cada território. <span class="marca marca-limitacao">Hipótese ou limitação</span></p>
+  <p><strong>Conjuntos.</strong> Um conjunto, montado na Seleção de Territórios, reúne territórios do mesmo nível: unidades ou, na base do Brasil, também estados; numa planilha, só unidades. O valor dele é a <strong>soma das contagens dos componentes</strong>, só nas datas em que todos têm registro, e não o número de profissionais diferentes.</p>
+  <ul>
+    <li>Num conjunto de unidades, na persistência e no crescimento do grupo de cima (M0 e M0d), a base do cenário é a <strong>soma das projeções dos membros</strong>, cada um com o crescimento do seu grupo. Sem esse crescimento, o membro fica no último valor, com aviso.</li>
+    <li>Nas outras formas, a conta é feita na série da soma, rotulada “soma das contagens dos componentes”.</li>
+    <li>A faixa é a do porte da soma, com o rótulo “aproximação” (seção 5), e o conjunto não tem a hipótese do cenário (seção 12).</li>
+  </ul>
+  <p><strong>O grupo de cima como unidade.</strong> Na base do Brasil, o estado entra pela <strong>contagem própria</strong> — os médicos únicos no estado, da fonte estadual —, com avaliação própria no histórico (Tabelas 4, 7, 9 e 11): a forma escolhida é a taxa composta (M1), e a faixa de 8 em cada 10 é indisponível. Numa planilha com a coluna de grupo, o grupo é a <strong>soma das unidades dele</strong>, nas datas em que todas têm registro, também com avaliação própria. Com poucos territórios, em geral o cenário do grupo mantém o último valor, sem faixa, com o motivo. O grupo inteiro e as unidades dele não entram juntos na seleção.</p>
+  <p><strong>O todo.</strong> Na base do Brasil, <strong>o Brasil</strong> entra como território pela contagem nacional de médicos únicos. Ele existe só no Simulador, é simulado à parte e nunca é somado aos demais. O padrão dele é <strong>provisório</strong>: uma série só não tem retroprojeção própria, e vale a forma escolhida para o nível de baixo (seção 4). Na base do Brasil, é a taxa composta dos 3 anos até a origem, a forma escolhida para os estados, com o aviso de que é provisória e só foi conferida num período de crescimento (Tabela 12); no modo avançado, com a marca “método provisório”. O todo não tem faixa nem hipótese do cenário. Numa planilha, o todo é a soma das unidades com registro, com o nome que a pessoa deu, e segue, como provisória, a forma escolhida para as unidades.</p>
+  <p><strong>O que cada contagem conta.</strong> Na base do Brasil, a contagem do município é a dos médicos registrados nele: quem atua em mais de um município conta em cada um. No estado e no Brasil, a contagem é de médicos únicos. Num conjunto, é a soma das contagens dos componentes. O resultado mostra a contagem de cada território.</p>
 </section>
 
 <section id="hipotese" aria-labelledby="hipotese-titulo">
   <h2 id="hipotese-titulo">12. A hipótese do cenário</h2>
-  <p><strong>O texto fixo.</strong> O texto de cada cenário segue só o modelo fixo aprovado com a exceção (seção 1), montado no motor, sem o provedor de IA:</p>
+  <p><strong>O texto fixo.</strong> O texto de cada cenário segue sempre o mesmo modelo, montado por regras fixas, sem inteligência artificial:</p>
   <div class="quadro">
     <p>Cenário hipotético, não é previsão: com o método [forma de projetar] e as premissas [premissas], [território] teria [N] [profissionais] em [data]. Base: registros até [origem].</p>
   </div>
-  <p>As premissas trazem a janela, o parâmetro da forma (o crescimento do grupo de cima, com o nome dele, o da base toda, a taxa ou a variação por ano) e cada intervenção, com a permanência rotulada como hipótese (“acréscimo de 5 médicos em cada território do cenário, em jun/2025, com permanência total (hipótese)”). N é o inteiro mais próximo; num conjunto, o território leva “(soma das projeções dos membros)” ou “(soma das contagens dos componentes)”. Os textos usam linguagem simples (decisão D-C) e nenhuma palavra de recomendação (decisão D-B). <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>O rótulo “hipótese do cenário”.</strong> Tudo o que o Simulador diz sobre um valor simulado é hipótese do cenário, nunca um sinal observado. O painel “Poucos médicos, no cenário” leva o rótulo “hipótese do cenário” e fica à parte do resultado, para não ser confundido com um dado observado. <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>Os níveis no cenário: só os sinais 1 e 2, por limite fixo.</strong> O Detector de Sinais usa dois tipos de critério: um <strong>limite fixo</strong>, igual para todos os territórios (por exemplo, “até 1 profissional”), ou a <strong>comparação com territórios do mesmo porte na base</strong> (o quanto uma mudança observada é rara entre territórios de tamanho parecido). Só os sinais 1 e 2 — “Poucos profissionais” e “Nenhum profissional registrado” — usam limite fixo e podem ser aplicados a um valor simulado (Proposta V3, seção C.6): <span class="marca marca-implementado">Implementado</span></p>
+  <p>As premissas trazem a janela e o parâmetro da forma de projetar: o crescimento do grupo de cima, com o nome dele, o da base toda, a taxa ou a variação por ano. Trazem também cada intervenção, com a permanência rotulada como hipótese: “acréscimo de 5 médicos em cada território do cenário, em jun/2025, com permanência total (hipótese)”. N é o inteiro mais próximo. Num conjunto, o território leva “(soma das projeções dos membros)” ou “(soma das contagens dos componentes)”. Os textos usam linguagem simples e nenhuma palavra de recomendação.</p>
+  <p><strong>O rótulo “hipótese do cenário”.</strong> Tudo o que o Simulador diz sobre um valor simulado é hipótese do cenário, nunca um sinal observado. O quadro “Poucos médicos, no cenário” leva esse rótulo e fica à parte do resultado, para não ser confundido com um dado observado.</p>
+  <h3>Os níveis no cenário: só os sinais de limite fixo</h3>
+  <p>O Detector de Sinais usa duas regras para dar um nível: um <strong>limite fixo</strong>, igual para todos os territórios (por exemplo, “até 1 profissional”), ou a <strong>comparação com territórios do mesmo porte na base</strong>, que diz o quanto uma mudança observada é rara entre territórios de tamanho parecido. Só os sinais 1 e 2 — “Poucos profissionais” e “Nenhum profissional registrado”; na base do Brasil, “Poucos médicos” e “Nenhum médico registrado” — usam limite fixo e podem ser aplicados a um valor simulado:</p>
   <ul>
-    <li>o valor do cenário na data final, arredondado ao inteiro mais próximo, recebe o nível pelos limites padrão do Detector: com 0 ou 1 profissional, crítico; com 2 ou 3, elevado; com 4 ou 5, moderado; com 6 ou mais, sem alerta (os limites mudados em “Ajustar critérios”, no Detector, não entram);</li>
-    <li>quando há faixa, os limites dela também recebem o nível, e, se a faixa cruza um limite, a tela diz “pode ficar entre moderado e elevado”, sem escolher um só; até 20 profissionais, o texto diz quanto a saída de um tiraria;</li>
-    <li>só para unidades da base (na base do Brasil, municípios), e só quando há nível no valor ou num limite da faixa, ou o território teria até 20 profissionais.</li>
+    <li>o valor do cenário na data final, arredondado ao inteiro mais próximo, recebe o nível pelos limites padrão do Detector: com 0 ou 1 profissional, crítico; com 2 ou 3, elevado; com 4 ou 5, moderado; com 6 ou mais, sem alerta. Os limites que a pessoa muda no Detector não entram;</li>
+    <li>quando há faixa, os limites dela também recebem o nível; se a faixa cruza um limite, o resultado diz “pode ficar entre moderado e elevado”, sem escolher um só. Até 20 profissionais, o texto diz quanto a saída de um tiraria do total;</li>
+    <li>vale só para unidades da base (na base do Brasil, municípios), e só aparece quando há nível no valor ou num limite da faixa, ou quando o território teria até 20 profissionais.</li>
   </ul>
-  <p>Os sinais comparados com a base (sinais 5 a 10) e os de evento observado (queda, patamar, declínio) <strong>nunca</strong> se aplicam a valores simulados: valem só para registros reais. <span class="marca marca-nao">Não implementado</span> Exemplo ilustrativo (Proposta V3, seção C.6): “No cenário, em jun/2026, o território teria 3 médicos: seria Elevado em ‘Poucos profissionais’ (hipótese do cenário).”</p>
+  <p>Os sinais comparados com a base (os sinais 5 a 10) e os de evento observado (queda, patamar, declínio) <strong>nunca</strong> se aplicam a valores simulados: valem só para registros reais.</p>
+  <p>Exemplo ilustrativo: “Hipótese do cenário (não é um sinal observado): com 3 médicos em jun/2026, o território seria Elevado em ‘Poucos médicos’.”</p>
 </section>
 
 <section id="horizonte" aria-labelledby="horizonte-titulo">
   <h2 id="horizonte-titulo">13. Os avisos de horizonte</h2>
-  <p>Quanto mais longe a data final, mais incerto o cenário. O aviso compara <strong>H</strong>, o tempo da origem até a data final, com <strong>W</strong>, o tempo de história usado no cálculo: em manter o último valor (M0) e nas formas que medem o crescimento nos 3 anos antes da origem (M0d e M0g), W = 3 anos; na taxa composta, nas tendências e na taxa da pessoa, W é o tempo da janela usada. Os avisos são informativos, sem garantia estatística (cortes da Proposta V2.2, seção 7.3). Na base do Brasil, com a data final padrão e a forma escolhida para os municípios, H = 2 anos e W = 3 anos: H passa da metade de W, e o aviso é de cautela. <span class="marca marca-implementado">Implementado</span> <span class="marca marca-limitacao">Hipótese ou limitação</span></p>
+  <p>Quanto mais longe a data final, mais incerto o cenário. O aviso de horizonte compara dois tempos:</p>
+  <p class="formula">razão do horizonte = H ÷ W</p>
+  <p>Em palavras: <strong>H</strong> é o <strong>horizonte</strong>, o tempo da origem até a data final; <strong>W</strong> é o tempo de história usado no cálculo. Em manter o último valor (M0) e nas formas que medem o crescimento nos 3 anos antes da origem (M0d e M0g), W = 3 anos. Na taxa composta, nas tendências e na taxa da pessoa, W é o tempo da janela usada. Quanto maior a razão, mais o cenário vai além do que a história usada sustenta. <strong>Extrapolar</strong> é justamente isso: levar a conta para longe do período que a alimenta.</p>
+  <p>Os avisos são informativos, sem garantia estatística. Na base do Brasil, com a data final padrão e a forma escolhida para os municípios, H = 2 anos e W = 3 anos: H passa da metade de W, e o aviso é de cautela.</p>
   <table>
-    <caption>Tabela 14. Os níveis do aviso de horizonte, pela razão H ÷ W. Quando o cenário mantém o último valor, que não usa a história, os níveis são os mesmos, mas a frase não fala em história. Entre parênteses, os dois tempos (“2 anos à frente, com 3 anos de história usados no cálculo”) ou, no último valor, só o tempo à frente (exemplo ilustrativo, da documentação do Simulador)</caption>
+    <caption>Tabela 14. Os níveis do aviso de horizonte, pela razão H ÷ W. Quando o cenário mantém o último valor, que não usa a história, os níveis são os mesmos, mas a frase não fala em história. Entre parênteses, a frase diz os dois tempos (“2 anos à frente, com 3 anos de história usados no cálculo”) ou, no último valor, só o tempo à frente (exemplo ilustrativo)</caption>
     <thead>
       <tr><th scope="col">H ÷ W</th><th scope="col">Nível</th><th scope="col">Texto, nas formas que usam a história</th><th scope="col">Texto, quando o cenário mantém o último valor</th></tr>
     </thead>
@@ -468,53 +625,22 @@
   </table>
 </section>
 
-<section id="exportacoes" aria-labelledby="exportacoes-titulo">
-  <h2 id="exportacoes-titulo">14. Exportações e importação</h2>
-  <p>As exportações levam o que o motor mandou, sem recalcular nada, com as versões do método e da base (nos CSV, em cada linha). Os CSV usam o separador “;” e a marca BOM, com vírgula decimal e precisão integral. <span class="marca marca-implementado">Implementado</span></p>
-  <p><strong>“Exportar o cenário (JSON)”</strong>, no alto da ferramenta, nos dois modos: o arquivo <code>cenario_do_simulador.json</code>, no formato <code>ADT-CENARIO/1</code>, guarda a <strong>configuração</strong>, e não os resultados — <code>formato</code>, <code>ferramenta</code>, <code>versao_do_metodo</code> (a do último cálculo), <code>base</code> (o nome, a categoria, a versão e o último registro), <code>exportado_em</code>, <code>aviso</code> (“Cenários hipotéticos e condicionais: não são previsão nem recomendação.”), <code>selecao_local</code> (com a composição e a versão dos conjuntos), <code>janela</code>, <code>horizonte</code>, <code>modo</code> e <code>cenarios</code> (com as intervenções e o planejamento inverso de cada um) e, quando há ou quando não são o padrão, <code>territorio</code>, <code>faixa</code>, <code>janela_do_detector</code>, <code>referencias</code>, <code>metrica</code>, <code>forma</code>, <code>populacao</code> e <code>populacao_pct</code>. O aviso de origem do Detector não é exportado.</p>
-  <p><strong>“Importar cenário (JSON)”</strong> lê esse formato e repõe a configuração, sem calcular: até 5 cenários e 5 referências; uma forma desconhecida volta a “Continuar como vinha”; a referência a um conjunto que não veio no arquivo fica de fora; e a seleção importada deixa de acompanhar a seleção principal. Se o arquivo foi montado com outra versão da base, a tela avisa: “ele foi montado com outra versão da base; confira os territórios e calcule de novo.”</p>
-  <p><strong>“Exportar os resultados (CSV)”</strong>, no modo avançado, na etapa 4: <code>cenarios_&lt;data final&gt;.csv</code>, uma linha por território, cenário e data, com o território (identificação, tipo e contagem), o cenário, a forma pedida e a usada, o estado, a origem e o valor nela, a janela, a data e a natureza (“retroprojeção (data com registro)” ou “cenário hipotético”), o observado, a base, a intervenção, o total, a faixa (inferior e superior, com o percentual pedido no nome da coluna: 50%, 80% ou 90%), os códigos dos avisos, o texto do cenário, o planejamento inverso (a meta, os profissionais por evento e os eventos), o nível da hipótese do cenário e as versões.</p>
-  <p><strong>“Exportar as comparações (CSV)”</strong>, com referências: <code>comparacoes_&lt;data final&gt;.csv</code>, uma linha por território, cenário, referência e data, com a referência (o tipo e o que ela é), a métrica, os dois valores, a diferença (referência − território), a razão (território ÷ referência), o índice (100 = referência), o alcance no horizonte simulado e a data dele, os avisos, a hipótese de população e as versões.</p>
-  <p><strong>“Exportar a avaliação dos métodos (JSON)”</strong>, no alto da ferramenta, nos dois modos, ligado depois de um cálculo: o arquivo <code>simulador_avaliacao_dos_metodos_&lt;último registro&gt;.json</code> traz os números de calibração da base e da data em uso — os que a seção 6 mostra para a base do Brasil —, tal como o motor os manda na resposta de <code>POST /api/simulador</code>, com o que o arquivo é (<code>conteudo</code>: a avaliação das formas de projetar no passado da base, e não uma análise do território escolhido), a data da exportação e a referência a esta ficha: <code>versao_do_metodo</code>; <code>fonte</code> (a base, a categoria, a versão da base, a primeira e a última datas e os nomes da base); <code>ultimo_registro</code>; <code>janela</code>; <code>notas</code>; <code>limitacoes</code>; e <code>retroprojecao</code>, com <code>origens</code>, <code>faixas</code> e <code>tabela</code> das unidades, <code>em_10</code> (a faixa do cálculo: 5, 8 ou 9 em cada 10), <code>escolha</code> (a das unidades) e <code>niveis</code> (o mesmo por nível de território — as unidades e, quando a base tem a contagem própria deles, os grupos como unidade —, cada um com <code>origens</code>, <code>escolha</code>, <code>faixas</code> e <code>tabela</code>). Em <code>escolha</code> vêm a forma escolhida, o <code>motivo</code> (<code>escolhido</code>, <code>nenhum_vale</code>, <code>poucas_origens</code> ou <code>sem_serie_anual</code>), os <code>candidatos</code> e as <code>excecoes</code>; em <code>faixas</code>, por porte e prazo, os limites, os casos, as origens, o <code>estado</code> e a conferência; em <code>tabela</code>, por forma, porte e prazo, os casos, as origens, o erro absoluto médio, o viés e a razão frente a manter o último valor. Com esse arquivo, as tabelas da seção 6 podem ser refeitas para a base em uso — as razões porte a porte da escolha são as linhas de <code>tabela</code> da forma escolhida com pelo menos 30 casos, e as faixas são as da opção do cálculo —; a conferência do todo (Tabela 12) é só do estudo e não vem na exportação. <span class="marca marca-implementado">Implementado</span></p>
-</section>
-
 <section id="limites" aria-labelledby="limites-titulo">
-  <h2 id="limites-titulo">15. Limitações, hipóteses e o que não está implementado</h2>
-  <h3>Limitações e hipóteses</h3>
-  <ul>
-    <li><strong>O passado testado foi de crescimento:</strong> as origens são de 2017 a 2023, conferidas até 2024, um período em que o número de médicos cresceu em quase todo o país. A escolha da forma, os erros e as faixas descrevem esse período; nada garante que valham noutro regime, por exemplo, de queda. <span class="marca marca-limitacao">Hipótese ou limitação</span></li>
-    <li><strong>As origens se sobrepõem:</strong> a janela de 3 anos de uma origem cobre parte da janela da seguinte, e um território aparece em várias origens; os casos não são independentes, e a faixa não é um intervalo de confiança. Na base do Brasil, as faixas de 3 e 4 anos são provisórias: a conferência no tempo tem só 2 origens de teste em 3 anos e nenhuma em 4. <span class="marca marca-limitacao">Hipótese ou limitação</span></li>
-    <li><strong>A base do cenário supõe que o passado recente continua:</strong> não conhece políticas, concursos, fechamentos ou choques; e a média aritmética das taxas é só descrição do passado (seção 3). <span class="marca marca-limitacao">Hipótese ou limitação</span></li>
-    <li><strong>A faixa cobre pouco:</strong> só a forma e a janela escolhidas pela base, até o maior prazo com casos suficientes, num único período, sem medir a incerteza das intervenções; na base do Brasil, os estados como unidade não têm faixa de 8 em cada 10 (189 casos em 1 ano, para 200 pedidos), e o todo não tem faixa. <span class="marca marca-limitacao">Hipótese ou limitação</span></li>
-    <li><strong>A escolha compara pouco</strong> (três candidatos com manter o último valor, sempre com a janela de 3 anos), e as datas simuladas que já passaram não foram conferidas com registros (a base do Brasil vai até jun/2024). <span class="marca marca-limitacao">Hipótese ou limitação</span></li>
-    <li><strong>As contagens, as comparações e a meta</strong> têm os limites das seções 9 a 11: um conjunto é a soma das contagens, nunca “médicos únicos”; comparar quantidades de portes diferentes não é comparar a suficiência do atendimento; e o planejamento inverso é uma conta, não uma resposta de política. <span class="marca marca-limitacao">Hipótese ou limitação</span></li>
-  </ul>
-  <h3>O que não está implementado</h3>
-  <ul>
-    <li><strong>Previsão:</strong> nenhum resultado do Simulador é previsão, e o assistente de conversa não monta cenários (continua recusando projeções livres, AT-04, e indica o Simulador). <span class="marca marca-nao">Não implementado</span></li>
-    <li><strong>Faixas fora da forma escolhida pela base</strong> (M2, M3, a taxa da pessoa, a taxa composta fora da escolha da base ou com outra janela), além do maior prazo que a base sustenta (no máximo, 4 anos), para território em zero e para o todo, que não tem retroprojeção própria. <span class="marca marca-nao">Não implementado</span></li>
-    <li><strong>Sugestões:</strong> o sistema nunca sugere uma taxa de crescimento nem estima a permanência ou a população futura. <span class="marca marca-nao">Não implementado</span></li>
-    <li><strong>Na tela,</strong> a intervenção só para parte dos territórios e a referência dinâmica com forma, janela ou intervenções próprias (a rota aceita a intervenção parcial e outra forma na referência); os níveis no cenário fora dos sinais 1 e 2 ou fora das unidades (grupos, conjuntos e o todo); e, numa planilha, conjuntos de grupos e o nível acima do grupo. <span class="marca marca-nao">Não implementado</span></li>
-  </ul>
-</section>
-
-<section id="versoes" aria-labelledby="versoes-titulo">
-  <h2 id="versoes-titulo">16. Versões, reprodutibilidade e documentos</h2>
-  <ul>
-    <li><strong>Método:</strong> <code>SIMULADOR-CENARIOS/V3/1</code>, da Proposta V3 (comando V23): a forma de projetar escolhida pela base e as faixas conferidas no tempo. Vai na resposta do motor (<code>versao</code>), nas exportações e nesta ficha.</li>
-    <li><strong>Base:</strong> Brasil, versão <code>faa54169c5b6</code> (completa: <code>faa54169c5b6f31bfc5d669964f49c93<wbr>cc8abce386816fa57191a5566de93cb1</code>), governada por <code>dados/brasil/manifesto.json</code> (tamanhos e SHA-256 dos arquivos; <code>python backend/brazil_data.py diagnostico</code> confere). Data de referência: jun/2024; origens: jun/2017 a jun/2023.</li>
-    <li><strong>Reprodutibilidade:</strong> as tabelas da seção 6 são reproduzidas por <code>python scripts/calibrar_simulador.py</code>, na raiz do repositório, que lê a base do Brasil pela mesma leitura verificada do serviço, roda a retroprojeção do motor (<code>simulador.retroprojetar</code>) e imprime as tabelas — somente leitura, fora do produto e do CI, sem gravar nada e sem mandar nada ao provedor de IA. Para a base em uso, os números vêm em “Exportar a avaliação dos métodos (JSON)”. O cálculo é determinístico: o mesmo pedido, nas mesmas versões da base e do método, dá o mesmo resultado.</li>
-    <li><strong>Documentos e código:</strong> <code>Docs/SIMULADOR_DE_CENARIOS.md</code> (o que o Simulador faz hoje); <code>Docs/DETECTOR_E_SIMULADOR_V3.md</code> (Proposta V3, Partes A, C e F); <code>Docs/DETECTOR_E_SIMULADOR_V2_2.md</code> (Proposta V2.2, no que a V3 não muda: seção 2.5 e seções 7 a 11); <code>Docs/PERFIL_DA_BASE_DETECTOR_SIMULADOR.md</code>; <code>Docs/REGISTRO_DE_COMPORTAMENTO.md</code>; a Ficha metodológica A — Detector de Sinais Territoriais; e <code>backend/simulador.py</code>, <code>backend/series_brasil.py</code>, <code>backend/perfil_da_base.py</code>, <code>backend/reguas.py</code>, <code>frontend/src/simuladorModel.ts</code> e <code>frontend/src/SimuladorDeCenarios.tsx</code>.</li>
-  </ul>
+  <h2 id="limites-titulo">14. Limites e o que o Simulador não faz</h2>
+  <p><strong>O passado testado foi de crescimento.</strong> As origens da avaliação vão de 2017 a 2023, conferidas até 2024, um período em que o número de médicos cresceu em quase todo o país. A escolha da forma de projetar, os erros e as faixas descrevem esse período, e nada garante que valham noutro regime, por exemplo, de queda. O padrão dos estados e o do Brasil foram conferidos só nesse período de crescimento forte e contínuo.</p>
+  <p><strong>As origens se sobrepõem.</strong> A janela de 3 anos de uma origem cobre parte da janela da seguinte, e um território aparece em várias origens. Por isso, os casos não são independentes, e a faixa não é um intervalo de confiança. Na base do Brasil, as faixas de 3 e 4 anos são provisórias: a conferência no tempo tem só 2 origens de teste em 3 anos e nenhuma em 4.</p>
+  <p><strong>A base do cenário supõe que o passado recente continua.</strong> Ela não conhece políticas, concursos, fechamentos ou choques. A média aritmética das taxas só descreve o passado (seção 3). As datas simuladas que já passaram não foram conferidas com registros: a base do Brasil vai até jun/2024.</p>
+  <p><strong>A faixa cobre pouco.</strong> Ela só existe para a forma e a janela escolhidas pela base, até o maior prazo com casos suficientes (no máximo, 4 anos), e vem de um único período. Não mede a incerteza das intervenções. Não há faixa para as outras formas, para território em zero nem para o todo (seção 5). Na base do Brasil, os estados como unidade não têm faixa de 8 em cada 10: há 189 casos em 1 ano, para 200 pedidos.</p>
+  <p><strong>A escolha compara pouco.</strong> Só três formas concorrem com manter o último valor, sempre com a janela de 3 anos. M2, M3 e a taxa da pessoa ficam à escolha, sem faixa.</p>
+  <p><strong>As contagens, as comparações e a meta têm limites próprios</strong> (seções 9 a 11). Um conjunto é a soma das contagens, nunca “médicos únicos”. Comparar quantidades de territórios de portes diferentes não é comparar a suficiência do atendimento. Na comparação por taxa, a mesma taxa de crescimento da população vale para o território e para a referência, e por isso não distingue territórios que crescem em ritmos diferentes. O planejamento inverso é uma conta, e não uma resposta de política.</p>
+  <p><strong>O que o Simulador não faz.</strong> Não faz previsão, e o assistente de conversa não monta cenários: ele indica o Simulador. Não sugere taxa de crescimento e não estima a permanência nem a população futura. Uma intervenção vale para todos os territórios do cenário: não há como aplicá-la só a uma parte deles. A referência dinâmica não tem forma de projetar, janela nem intervenções próprias. Os níveis no cenário só valem para os sinais 1 e 2 e só para unidades, e não para grupos, conjuntos nem o todo. Numa planilha, não há conjuntos de grupos nem o nível acima do grupo, e a comparação por taxa só existe quando a planilha tem população.</p>
 </section>
 
 </main>
 
 <footer class="colofao">
-  <p>Fonte desta ficha: <code>Docs/fichas/ficha_simulador.html</code>, com a folha de estilo <code>Docs/fichas/ficha.css</code>. O PDF é gerado por <code>scripts/gerar_fichas.py</code> e guarda a impressão digital SHA-256 da fonte (e a da folha de estilo), para conferir que ele corresponde à fonte atual.</p>
-  <p>Os números da seção 6 são reproduzidos por <code>python scripts/calibrar_simulador.py</code>, na raiz do repositório, com a base versionada, somente leitura.</p>
-  <p>Esta “ficha metodológica (PDF)” é um documento de leitura: ela não altera nem substitui as “fichas de método” de <code>backend/definicoes.py</code> (Adendo PAR-20261026 da SPEC), usadas pela conversa.</p>
-  <p>Ficha metodológica B — Simulador de Cenários Territoriais · método <code>SIMULADOR-CENARIOS/V3/1</code> · base Brasil, versão <code>faa54169c5b6</code> · data de referência jun/2024 · 18/11/2026.</p>
+  <p>Ficha metodológica B — Simulador de Cenários Territoriais · método SIMULADOR-CENARIOS/V3/1 · base do Brasil, médicos, registros até jun/2024 · 18/11/2026.</p>
+  <p>Esta ficha descreve o método. Com outra base, os números da avaliação dos métodos são os dela e saem em “Exportar a avaliação dos métodos (JSON)”. O Detector de Sinais Territoriais tem a sua ficha, a Ficha metodológica A.</p>
 </footer>
 
 </body>

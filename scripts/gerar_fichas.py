@@ -11,9 +11,13 @@ O que o PDF tem:
   (os links do sumário da fonte e o sumário lateral do PDF, pelos títulos) e os destinos nomeados das seções (o id de cada seção
   na fonte), que a página usa para abrir a ficha no ponto certo ("#nameddest=…");
 - a **impressão digital** (SHA-256) da fonte e da folha de estilo, gravada nos metadados do documento (/FonteSHA256 e
-  /EstiloSHA256, repetidas em /Subject). O teste backend/tests/test_fichas_metodologicas.py confere que cada PDF corresponde à fonte
-  atual: mudou a fonte, gere o PDF de novo com este script. As quebras de linha entram na conta como LF (o Git pode deixar a cópia
-  local em CRLF).
+  /EstiloSHA256, com o arquivo da fonte em /FonteArquivo). O teste backend/tests/test_fichas_metodologicas.py confere que cada PDF
+  corresponde à fonte atual: mudou a fonte, gere o PDF de novo com este script. As quebras de linha entram na conta como LF (o Git
+  pode deixar a cópia local em CRLF);
+- desde o AJ-06 (comando de correção das fichas, 18/11/2026), os campos que o leitor de PDF mostra nas propriedades — o assunto,
+  as palavras-chave e o aplicativo — dizem o que a ficha é, para quem usa o Agente, sem caminhos e sem SHA-256; e a letra é a
+  Inter estática das fichas (Docs/fichas/fontes/), embutida como TrueType (com a variável do site, o Chromium a embutia como
+  Type 3).
 
 Sem dependência nova: o Playwright é o dos roteiros de navegador; os metadados entram numa atualização incremental do PDF, escrita
 aqui mesmo. Nada vai à rede, e nada da base de dados entra nas fichas além dos números que elas citam.
@@ -37,6 +41,8 @@ FICHAS = {
                   "rodape": "Ficha metodológica B — Simulador de Cenários Territoriais"},
 }
 AUTOR = "Agente Diagnóstico Territorial da Força de Trabalho na Saúde"
+# O que o leitor de PDF mostra como aplicativo: o navegador que fez o PDF, sem caminho de arquivo (AJ-06).
+APLICATIVO = "Chromium, a partir da fonte em HTML"
 IDIOMA = "pt-BR"
 
 
@@ -73,14 +79,15 @@ def _objeto(pdf: bytes, referencia: bytes) -> bytes:
     return achados[-1].group(1).strip()
 
 
-def gravar_metadados(pdf: bytes, titulo: str, assunto: str, fonte: str, impressao_da_fonte: str, impressao_do_estilo: str) -> bytes:
-    """Acrescenta ao PDF uma atualização incremental com os metadados do documento (título, autor, assunto, palavras-chave e as
-    impressões digitais da fonte e do estilo) e, quando falta, o idioma no catálogo. O conteúdo das páginas não muda."""
+def gravar_metadados(pdf: bytes, titulo: str, assunto: str, palavras: str, fonte: str, impressao_da_fonte: str,
+                     impressao_do_estilo: str) -> bytes:
+    """Acrescenta ao PDF uma atualização incremental com os metadados do documento (título, autor, assunto, palavras-chave, o
+    aplicativo e as impressões digitais da fonte e do estilo) e, quando falta, o idioma no catálogo. O conteúdo das páginas não
+    muda."""
     trailer, tabela_anterior = _ultimo_trailer(pdf)
     proximo = trailer["Size"]
     novos = []   # (número, corpo)
-    info = {"Title": titulo, "Author": AUTOR, "Subject": assunto, "Keywords": "ficha metodológica; " + fonte,
-            "Creator": "scripts/gerar_fichas.py (Chromium, pelo Playwright)", "FonteArquivo": fonte}
+    info = {"Title": titulo, "Author": AUTOR, "Subject": assunto, "Keywords": palavras, "Creator": APLICATIVO, "FonteArquivo": fonte}
     corpo_info = b"<< " + b" ".join(b"/" + chave.encode("ascii") + b" " + _texto_pdf(valor) for chave, valor in info.items())
     corpo_info += b" /FonteSHA256 (" + impressao_da_fonte.encode("ascii") + b") /EstiloSHA256 (" + impressao_do_estilo.encode("ascii") + b")"
     if trailer["Info"]:
@@ -163,9 +170,11 @@ def gerar(nomes: list[str]) -> None:
                 bruto = provisorio.read_bytes()
             relativa = fonte.relative_to(ROOT).as_posix()
             impressao = impressao_digital(fonte)
-            assunto = (titulo + ". Documento de leitura sobre o método e a técnica. Fonte: " + relativa + " (SHA-256 " + impressao +
-                       ") e Docs/fichas/ficha.css (SHA-256 " + estilo + ").")
-            ficha["pdf"].write_bytes(gravar_metadados(bruto, titulo, assunto, relativa, impressao, estilo))
+            ferramenta = titulo.split(" — ")[-1]
+            assunto = (titulo + ". Para quem usa o Agente: o que a ferramenta mede, como mede, com que critérios e limites, como "
+                       "ler o resultado e o que ele não diz.")
+            palavras = "ficha metodológica; " + ferramenta + "; método; Agente Diagnóstico Territorial"
+            ficha["pdf"].write_bytes(gravar_metadados(bruto, titulo, assunto, palavras, relativa, impressao, estilo))
             print(f"{ficha['pdf'].relative_to(ROOT).as_posix()}: {ficha['pdf'].stat().st_size:,} bytes · fonte {impressao[:12]}…")
         navegador.close()
 

@@ -16,6 +16,10 @@
 > C.8) saíram da tela — o método está nas fichas metodológicas em PDF (`Docs/fichas/`), e os números, nas exportações; o "Ver
 > explicação completa" (A.4) abre a ficha; e a lista do Detector tem um sinal com nível por linha, com a coluna "Sinal". Ver
 > [`REGISTRO_DE_COMPORTAMENTO.md`](REGISTRO_DE_COMPORTAMENTO.md).
+> **Nota de 18/11/2026, à noite** (comando de correção das fichas do responsável, AJ-06 a AJ-14; o texto aprovado abaixo fica
+> como está): o sinal 10 da tabela B.2 se chama **"Perda em relação à referência"** (AJ-09; a chave `defasagem` e os números não
+> mudam), e a frase da mesma queda diz que os sinais "são a mesma queda vista de ângulos diferentes: contam como um evento só"
+> (AJ-10); as fichas metodológicas em PDF foram reescritas para quem usa o Agente (AJ-06).
 
 O que não for tratado aqui continua como na V2.2:
 - a histerese;

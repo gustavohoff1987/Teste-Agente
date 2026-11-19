@@ -828,7 +828,7 @@ def test_textos_de_um_sinal_uma_frase_o_entenda_e_a_explicacao_completa():
         ("10", "defasagem", "comparado"), ("11", "contexto", "onde"), ("12", "coexistencia", "juntos")]
     assert [item["nome"] for item in itens] == [
         "Poucos médicos ou nenhum médico registrado", "Declínio persistente", "Desaceleração", "Instabilidade", "Queda recente",
-        "Abaixo do que já teve", "Menos médicos por habitante", "Perda de posição", "Mais longe da referência", "Distância", "Sinais juntos"]
+        "Abaixo do que já teve", "Menos médicos por habitante", "Perda de posição", "Perda em relação à referência", "Distância", "Sinais juntos"]
     campos = {"chave", "numero", "nome", "grupo", "dimensao", "nivel", "estado_do_nivel", "criterio_do_nivel", "situacao", "entenda",
               "exploratorio", "sem_comparacoes", "observado", "criterio", "habitual", "significa", "nao_significa", "limitacoes", "qualidade",
               "estado", "classe"}   # `estado` e `classe`: os campos que a resposta já trazia (a classe é o nível)
@@ -866,6 +866,13 @@ def test_textos_de_um_sinal_uma_frase_o_entenda_e_a_explicacao_completa():
     # pontos ficam na explicação completa (revisão das capturas, 14/11/2026).
     da_referencia = texto_do(b, av, e, "defasagem")
     assert da_referencia["situacao"] == "A taxa passou de 1,03 para 0,83 vezes a dos demais municípios de Rondônia em 2 anos"
+    # AJ-09 (comando de correção das fichas, 18/11/2026): o nome e os textos do sinal 10 dizem perda em relação à referência, e não
+    # distância (a distância é o sinal 11); a chave continua "defasagem".
+    assert (da_referencia["chave"], da_referencia["nome"]) == ("defasagem", "Perda em relação à referência")
+    assert da_referencia["significa"] == "A taxa do território piorou em relação à da referência: caiu mais, ou subiu menos, que ela."
+    assert da_referencia["entenda"]["exemplo"] == ("Índice 100: taxa igual à da referência. De 90 para 75, o território perdeu 15 pontos "
+                                                    "em relação a ela; de 130 para 115 também, mesmo continuando acima.")
+    assert detector.nome_do_sinal(b, "defasagem") == "perda em relação à referência"
     assert da_referencia["observado"] == (
         "De jun/2019 a jun/2021, a taxa do território passou de 1,03 para 0,83 vezes a dos demais municípios de Rondônia (índice de 103 "
         "para 82,5: −20,5 pontos). Em jun/2021, a taxa do território é de 1,60 por 1.000 habitantes, e a dos demais municípios de "
@@ -873,9 +880,9 @@ def test_textos_de_um_sinal_uma_frase_o_entenda_e_a_explicacao_completa():
     juntos = texto_do(b, av, e, "coexistencia")
     assert (juntos["nivel"], juntos["estado_do_nivel"], juntos["numero"]) == (None, "juntos", "12")
     assert juntos["situacao"] == ("4 sinais com nível: queda recente (elevado), menos médicos por habitante (elevado), perda de posição "
-                                  "(elevado) e mais longe da referência (elevado)")
-    assert juntos["habitual"] == ("O alerta do território é o maior nível: elevado. Os níveis não se somam. 4 desses sinais vêm da mesma "
-                                  "queda e contam como um evento.")
+                                  "(elevado) e perda em relação à referência (elevado)")
+    assert juntos["habitual"] == ("O alerta do território é o maior nível: elevado. Os níveis não se somam. 4 desses sinais são a mesma "
+                                  "queda vista de ângulos diferentes e contam como um evento só.")
     # O sinal 4 é exploratório e diz que não indica o que vem depois; o 11 nunca usa "isolamento" nem "desassistência".
     ritmo = texto_do(b, av, e, "desaceleracao")
     assert ritmo["exploratorio"] is True and "não indica o que vem depois" in ritmo["entenda"]["texto"]
@@ -896,6 +903,11 @@ def test_textos_de_um_sinal_uma_frase_o_entenda_e_a_explicacao_completa():
     assert sem["habitual"] == ("A base ainda não tem história para dizer se esta queda da taxa chega ao nível moderado, elevado ou crítico: "
                                "são 0 comparações, e o moderado pede 19.")
     assert sem["sem_comparacoes"]["texto"] == "Sem comparações suficientes para o moderado, o elevado e o crítico: há 0, e o moderado pede 19."
+    # AJ-09: no sinal 10, a falta de história fala da perda em relação à referência.
+    sem_referencia = texto_do(b, avaliar(b, "110200", i("201606")), i("201606"), "defasagem")
+    assert sem_referencia["estado_do_nivel"] == "sem_comparacoes", sem_referencia["estado_do_nivel"]
+    assert sem_referencia["habitual"].startswith("A base ainda não tem história para dizer se esta perda em relação à referência chega ao "
+                                                 "nível "), sem_referencia["habitual"]
     # Os "Entenda" da primeira tela (seção A.4): duas ou três frases e um exemplo com números, com os nomes da base.
     da_tela = detector.entenda_da_ferramenta(b)
     assert sorted(da_tela) == ["alerta", "ferramenta", "termos"] and all(item["texto"] and item["exemplo"] for item in da_tela.values())
@@ -1624,8 +1636,8 @@ def test_real_fenomenos_8_a_12_comparacao_so_com_populacao_comparavel(real):
                                                        "12 foram iguais ou piores (raridade de 1 em cada 133).")
     juntos = do_sinal["coexistencia"]
     assert (juntos["nivel"], juntos["estado_do_nivel"]) == (None, "juntos") and juntos["situacao"].startswith("5 sinais com nível: queda recente (crítico)")
-    assert juntos["habitual"] == ("O alerta do território é o maior nível: crítico. Os níveis não se somam. 4 desses sinais vêm da mesma "
-                                  "queda e contam como um evento.")
+    assert juntos["habitual"] == ("O alerta do território é o maior nível: crítico. Os níveis não se somam. 4 desses sinais são a mesma "
+                                  "queda vista de ângulos diferentes e contam como um evento só.")
     assert detalhe["linha"]["alerta"] == barra["alerta"]
     comparativo = detalhe["comparativo"]
     assert comparativo["competencias"] == list(PERIODOS[:16]) and len(comparativo["taxa"]) == len(comparativo["indice"]) == 16
