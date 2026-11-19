@@ -42,7 +42,11 @@ def _linha(celulas):
 
 
 def _pct(valor, casas=0, sinal=True):
-    return (("+" if valor > 0 else "−" if valor < 0 else "") if sinal else "") + f"{abs(valor):.{casas}f}%".replace(".", ",")
+    """O percentual com `casas` casas e, com `sinal`, o sinal do número já arredondado: o que arredonda para zero sai sem sinal,
+    "0%" (AJ-19, 18/11/2026; antes, o sinal vinha do valor antes de arredondar, e −0,3 saía "−0%", e 0,4, "+0%")."""
+    numero = f"{abs(valor):.{casas}f}"
+    prefixo = ("" if not numero.strip("0.") else "+" if valor > 0 else "−" if valor < 0 else "") if sinal else ""
+    return prefixo + numero.replace(".", ",") + "%"
 
 
 def _br(valor):

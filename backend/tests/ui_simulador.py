@@ -30,7 +30,9 @@ Confere, contra as respostas de POST /api/simulador:
   alcança no horizonte simulado" e o aviso de sobreposição; o CSV das comparações; o planejamento inverso, com a meta hipotética,
   o menor inteiro por evento e o plano usado como intervenção, que recalculado alcança a meta; e a faixa pedida (5 em cada 10);
 - o que só o modo avançado escolhe fica no modo avançado: a janela geral e as referências vão no pedido do modo avançado, não vão
-  no do modo simples (ficam guardadas) e voltam a ir no modo avançado; o jeito de projetar escolhido lá é avisado no modo simples;
+  no do modo simples (ficam guardadas) e voltam a ir no modo avançado; o jeito de projetar escolhido lá é avisado no modo simples
+  e, desde o AJ-17 (18/11/2026), também a faixa escolhida lá: a de 9 em cada 10, com o aviso e o pedido de antes (com a faixa); a
+  de 8, sem aviso; a forma e a faixa trocadas, os dois avisos, que o "Voltar ao padrão" desfaz de uma vez, com a faixa de volta a 8;
 - "Simular recuperação", no Detector de Sinais: ABELARDO LUZ (SC) abre o modo simples com "Chegar a uma meta" marcado e o patamar
   anterior como meta, que a pessoa pode trocar;
 - nenhuma chamada ao provedor de IA e nenhum erro na página.
@@ -1194,7 +1196,9 @@ def main():
         expect(territorio).to_have_value(MANAUS)
         expect(simples).to_have_attribute("data-teste", "continuar")
         do_avancado = simulador.get_by_test_id("simulador-metodo-do-avancado")
+        faixa_do_avancado = simulador.get_by_test_id("simulador-faixa-do-avancado")
         expect(do_avancado).to_have_count(0)
+        expect(faixa_do_avancado).to_have_count(0)   # AJ-17: com a faixa de 8 em cada 10, sem aviso
         corpo, enviado = calcular()
         assert enviado == {"base": so_o_municipio(MANAUS), "horizonte": "202806", "cenarios": [C1, PERSISTENCIA]}, enviado
         assert not {"janela", "referencias", "comparacao", "brasil"} & set(enviado), enviado
@@ -1221,21 +1225,54 @@ def main():
         assert enviado == com_a_janela, enviado
         assert [item["id"] for item in corpo["referencias"]] == ["r1", "r2", "r3"] and corpo["janela"]["padrao"] is False, corpo["janela"]
         expect(resultado.get_by_test_id("simulador-comparacao")).to_have_count(3)
-        # Um jeito de projetar escolhido à mão no modo avançado (a taxa composta), sem calcular: o modo simples avisa, e o "Voltar ao
-        # padrão" único, no alto, desfaz essa escolha e a janela de 5 anos de uma vez — a janela padrão de volta, para os blocos
-        # seguintes.
+        # A faixa escolhida no modo avançado também vale no modo simples, e ele avisa (AJ-17, 18/11/2026), logo depois do aviso da
+        # forma, com o número em uso. Só a faixa de 9: o aviso da faixa, sem o da forma, e o pedido do modo simples é o de antes, com
+        # a faixa; a resposta usa a de 9. A faixa de 8, escolhida de novo: sem aviso.
+        faixa_em_10 = simulador.get_by_test_id("simulador-faixa-em-10")
+        aviso_da_faixa = ("Este cenário usa a faixa de {} em cada 10, escolhida no modo avançado, e não a de 8 em cada 10. “Voltar ao padrão”, no "
+                          "alto, desfaz essa escolha.")
+
+        def faixa_no_avancado(quantos):
+            simulador.get_by_test_id("simulador-modo-avancado").click()
+            expect(simulador).to_have_attribute("data-modo", "avancado")
+            simulador.get_by_test_id("simulador-etapa-3").click()
+            faixa_em_10.select_option(quantos)
+            expect(faixa_em_10).to_have_value(quantos)
+
+        def no_modo_simples():
+            simulador.get_by_test_id("simulador-modo-simples").click()
+            expect(simulador).to_have_attribute("data-modo", "simples")
+
+        faixa_no_avancado("9")
+        no_modo_simples()
+        expect(faixa_do_avancado).to_have_text(aviso_da_faixa.format(9))
+        expect(faixa_do_avancado).to_have_attribute("role", "status")
+        expect(faixa_do_avancado.get_by_role("button")).to_have_count(0)
+        expect(do_avancado).to_have_count(0)
+        corpo, enviado = calcular()
+        assert enviado == {"base": so_o_municipio(MANAUS), "horizonte": "202806", "faixa": 9, "cenarios": [C1, PERSISTENCIA]}, enviado
+        expect(resultado_simples.get_by_test_id("simulador-faixa-estado")).to_contain_text("Faixa de 9 em cada 10")
+        faixa_no_avancado("8")
+        no_modo_simples()
+        expect(faixa_do_avancado).to_have_count(0)
+        # Um jeito de projetar escolhido à mão no modo avançado (a taxa composta), com a faixa de 9, sem calcular: o modo simples dá os
+        # dois avisos, o da forma primeiro, e o "Voltar ao padrão" único, no alto, desfaz as duas escolhas e a janela de 5 anos de uma
+        # vez — a janela padrão e a faixa de 8 de volta, para os blocos seguintes.
+        faixa_no_avancado("9")
         simulador.get_by_test_id("simulador-etapa-2").click()
         simulador.get_by_test_id("simulador-metodo").select_option("M1")
         expect(simulador).to_have_attribute("data-estado", "desatualizado")
-        simulador.get_by_test_id("simulador-modo-simples").click()
-        expect(simulador).to_have_attribute("data-modo", "simples")
+        no_modo_simples()
         expect(do_avancado).to_contain_text(
             "Este cenário usa uma forma de projetar escolhida no modo avançado (taxa composta da janela), e não a que a base escolheu.")
         expect(do_avancado).to_contain_text("“Voltar ao padrão”, no alto, desfaz essa escolha.")
         expect(do_avancado.get_by_role("button")).to_have_count(0)
+        expect(faixa_do_avancado).to_have_text(aviso_da_faixa.format(9))
+        expect(simples.locator('[data-testid="simulador-metodo-do-avancado"] ~ [data-testid="simulador-faixa-do-avancado"]')).to_have_count(1)
         expect(voltar_ao_padrao).to_be_enabled()
         voltar_ao_padrao.click()
         expect(do_avancado).to_have_count(0)
+        expect(faixa_do_avancado).to_have_count(0)
         expect(voltar_ao_padrao).to_be_disabled()
         simulador.get_by_test_id("simulador-modo-avancado").click()
         expect(simulador).to_have_attribute("data-modo", "avancado")
@@ -1243,6 +1280,8 @@ def main():
         expect(simulador.get_by_test_id("simulador-metodo")).to_have_value("padrao")
         expect(simulador.get_by_test_id("simulador-janela-inicio")).to_have_value("202106")
         expect(simulador.get_by_test_id("simulador-frase-da-janela")).to_have_attribute("data-padrao", "true")
+        simulador.get_by_test_id("simulador-etapa-3").click()
+        expect(faixa_em_10).to_have_value("8")
         expect(simulador).to_have_attribute("data-estado", "desatualizado")
 
         # 18. O planejamento inverso: a meta hipotética de alcançar a referência (FLORIANOPOLIS), com um acréscimo por ano. O motor

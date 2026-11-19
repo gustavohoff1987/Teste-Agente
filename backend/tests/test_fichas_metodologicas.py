@@ -17,13 +17,16 @@ palavras "motor", "código" e "página", o campo `criterio` e "por convenção" 
 o id de antes (as exportações e as versões saíram; a "Leitura rápida" é nova). A letra é a Inter em versão estática, só das
 fichas (Docs/fichas/fontes/, com a licença OFL), embutida como TrueType — nenhuma fonte Type 3 —, e os arquivos de fonte do site
 (frontend/src/tipografia/) ficam idênticos. Os campos que o leitor de PDF mostra nas propriedades (assunto, palavras-chave e
-aplicativo) não trazem caminhos nem SHA-256.
+aplicativo) não trazem caminhos nem SHA-256. Desde o AJ-19 (rodada final da correção das fichas, do mesmo dia), o percentual que
+arredonda para zero sai sem sinal ("0%") no estudo que imprime as tabelas das faixas (scripts/calibrar_simulador.py), e a Ficha B
+não traz "−0%" nem "+0%".
 
 A leitura do PDF é feita aqui, sem dependência nova e sem o gerador: pela estrutura que o Chromium escreve (tabela de referências
 clássica, sem fluxos de objetos) e pela atualização incremental do gerador. Só lê arquivos versionados; nenhum dado da base.
 """
 import hashlib
 import html
+import importlib.util
 import re
 from pathlib import Path
 
@@ -243,6 +246,23 @@ def test_os_textos_novos_do_detector_e_o_titulo_da_avaliacao_do_simulador():
     simulador = FICHAS["simulador"]["fonte"].read_text(encoding="utf-8")
     titulo = html.unescape(re.sub(r"<[^>]+>", "", re.search(r'<h2 id="avaliacao-titulo">(.*?)</h2>', simulador, re.S).group(1))).strip()
     assert re.sub(r"^\d+\.\s*", "", titulo) == "A avaliação dos métodos no histórico da base", titulo
+
+
+def test_o_percentual_que_arredonda_para_zero_sai_sem_sinal_e_a_ficha_b_sem_menos_zero():
+    """AJ-19 (rodada final da correção das fichas, 18/11/2026): no estudo que imprime as tabelas das faixas
+    (scripts/calibrar_simulador.py, as Tabelas 5 e 7 da Ficha B), o sinal vem do número já arredondado: o que arredonda para zero
+    sai "0%", sem sinal (antes, −0,3 saía "−0%", e 0,4, "+0%"); os outros números não mudam. A Ficha B não traz "−0%" nem "+0%",
+    e a explicação das faixas não fala mais deles."""
+    especificacao = importlib.util.spec_from_file_location("calibrar_simulador", ROOT / "scripts" / "calibrar_simulador.py")
+    calibrar = importlib.util.module_from_spec(especificacao)
+    especificacao.loader.exec_module(calibrar)
+    assert [calibrar._pct(valor) for valor in (-0.3, -0.6, 0.4, 2)] == ["0%", "−1%", "0%", "+2%"]
+    assert calibrar._pct(-0.04, 1) == "0,0%"
+    assert [calibrar._pct(valor) for valor in (0, -9.2, 87.4)] == ["0%", "−9%", "+87%"]
+    assert calibrar._pct(81.3, 1, False) == "81,3%" and calibrar._pct(-0.3, 0, False) == "0%"
+    texto = texto_a_vista(FICHAS["simulador"]["fonte"].read_text(encoding="utf-8"))
+    assert not re.search(r"[−+-]0(?:,0+)?%", texto), re.findall(r".{0,40}[−+-]0(?:,0+)?%", texto)
+    assert "0% a +4% (p)" in texto and "0% a +2% (p)" in texto
 
 
 def test_a_letra_estatica_das_fichas_e_a_do_site_intocada():

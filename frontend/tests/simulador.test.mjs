@@ -884,8 +884,8 @@ test('a tela: o modo simples numa tela só, e as quatro etapas só no modo avan�
   const simples = tela.slice(inicioDoSimples, inicioDoAvancado), avancado = tela.slice(inicioDoAvancado);
   assert.match(tela, /<section data-testid="simulador" data-estado=\{[^}]*\}\s+data-etapa=\{etapa\} data-modo=\{config\.modo\}/);
   // Numa tela só: o território, até quando (com os atalhos), o que testar, "Calcular" e o resultado, com os dois "Entenda".
-  for (const id of ['simulador-territorio', 'simulador-sem-territorio', 'simulador-aviso-local', 'simulador-metodo-do-avancado', 'simulador-o-que-testar',
-    'simulador-teste-quantidade', 'simulador-teste-meta-valor', 'simulador-teste-meta-origem',
+  for (const id of ['simulador-territorio', 'simulador-sem-territorio', 'simulador-aviso-local', 'simulador-metodo-do-avancado', 'simulador-faixa-do-avancado',
+    'simulador-o-que-testar', 'simulador-teste-quantidade', 'simulador-teste-meta-valor', 'simulador-teste-meta-origem',
     'simulador-calcular', 'simulador-pendencia', 'simulador-erro', 'simulador-resultado', 'simulador-desatualizado', 'simulador-texto', 'simulador-tres-numeros',
     'simulador-faixa-estado', 'simulador-faixa-texto', 'simulador-planejamento', 'simulador-planejamento-texto', 'simulador-planejamento-motivo', 'simulador-hipotetico',
     'simulador-avisos', 'simulador-motivo', 'simulador-avancado'])
@@ -1134,6 +1134,17 @@ test('qualquer base: os nomes da planilha antes da primeira resposta, e o cenár
   assert.ok(tela.includes('...(p.daBase ? { base: { nome: resposta?.fonte.base || "planilha enviada", categoria: resposta?.fonte.categoria || p.daBase.categoria || "" } } : {})'));
   assert.ok(tela.includes('{cenarioDoSimples.metodo !== "padrao" && <p data-testid="simulador-metodo-do-avancado"'));
   assert.ok(tela.includes('“Voltar ao padrão”, no alto, desfaz essa escolha.</p>}') && !tela.includes('Voltar ao jeito escolhido pela base') && !tela.includes('Voltar à forma escolhida pela base'));
+  // AJ-17 (18/11/2026): a faixa escolhida no modo avançado (5 ou 9 em cada 10) vale também no modo simples, como a forma de projetar,
+  // e o modo simples avisa, no mesmo estilo e papel, logo depois do aviso da forma, com o número em uso; com a de 8 (ou sem
+  // escolha), sem aviso. O pedido não muda (a faixa vai nos dois modos), e "Voltar ao padrão" devolve a de 8.
+  const avisoDaForma = tela.indexOf('data-testid="simulador-metodo-do-avancado"'), avisoDaFaixa = tela.indexOf('data-testid="simulador-faixa-do-avancado"');
+  const entreOsAvisos = tela.slice(avisoDaForma, avisoDaFaixa);
+  assert.ok(avisoDaForma > 0 && avisoDaFaixa > avisoDaForma && entreOsAvisos.split('</p>}').length - 1 === 1 && !entreOsAvisos.slice(1).includes('data-testid='),
+    'o aviso da faixa logo depois do aviso da forma');
+  assert.ok(tela.includes('{!!config.faixa && config.faixa !== 8 && <p data-testid="simulador-faixa-do-avancado" role="status" className="ferramenta-exploratorio">\n' +
+    '        Este cenário usa a faixa de {config.faixa} em cada 10, escolhida no modo avançado, e não a de 8 em cada 10.\n' +
+    '        “Voltar ao padrão”, no alto, desfaz essa escolha.</p>}'), 'o aviso da faixa');
+  assert.equal(S.comAsPremissasPadrao({...config, faixa: 9}).faixa, undefined);
 });
 
 test('modo simples: o pedido leva só o que a tela simples mostra — sem o calendário, a permanência e as outras intervenções do modo avançado', () => {

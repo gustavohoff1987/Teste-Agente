@@ -35,6 +35,37 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-18 · AJ-17 e AJ-19: o modo simples avisa quando usa a faixa escolhida no avançado; "−0%" vira "0%" nas tabelas da Ficha B
+- **Classificação (regra 1):** AJ-17 e AJ-19 do comando da rodada final da correção das fichas do responsável (18/11/2026).
+  Decorrem do pedido e não contrariam a SPEC nem uma divergência aprovada: o Simulador é a exceção aprovada à exclusão de projeção
+  (FAM-08, Caso 4), o aviso só diz o que o cenário já usa, e o pedido ao motor não muda. **Mudança prevista.** O backend não mudou.
+- **Antes:**
+  - **AJ-17:** a faixa escolhida no modo avançado (5 ou 9 em cada 10) valia também no modo simples, como a forma de projetar, mas
+    só a forma era avisada; o documento dizia que o modo simples usava 8;
+  - **AJ-19:** no estudo que imprime as tabelas das faixas (`scripts/calibrar_simulador.py`, `_pct`), o sinal vinha do valor antes
+    de arredondar: −0,3 saía "−0%" (e 0,4, "+0%"). A Ficha B trazia "−0%" em três células da Tabela 7 (estados como unidade, 5 em
+    cada 10) e explicava o "−0%" na leitura das tabelas.
+- **Agora:**
+  - **AJ-17:** com a faixa diferente de 8, o modo simples mostra, logo depois do aviso da forma, no mesmo estilo e papel
+    (`simulador-faixa-do-avancado`, `role="status"`): "Este cenário usa a faixa de 9 em cada 10, escolhida no modo avançado, e não
+    a de 8 em cada 10. “Voltar ao padrão”, no alto, desfaz essa escolha." Com a de 8, sem aviso; com a forma e a faixa trocadas,
+    os dois avisos. Na Ficha B (o modo simples): "A forma de projetar é a escolhida pela base, e a faixa é a de 8 em cada 10; se
+    outra foi escolhida no modo avançado, o modo simples a usa e avisa.";
+  - **AJ-19:** o sinal vem do número já arredondado: o que arredonda para zero sai "0%", sem sinal. Na Ficha B, as três células
+    passam a "0% a +2% (p)" e "0% a +4% (p)", e sai da leitura das tabelas a frase do "−0%". O PDF da Ficha B foi gerado de novo,
+    uma vez, depois das duas mudanças (23 folhas, 799.356 bytes, sem fonte Type 3).
+- **Permanece:** o pedido do modo simples (a faixa já ia nos dois modos) e o "Voltar ao padrão", que já devolvia a faixa de 8; o
+  seletor da faixa, só no modo avançado; os outros números das tabelas; `Docs/SIMULADOR_DE_CENARIOS.md`, que já escrevia "0%" nas
+  tabelas dos estados; a Ficha A.
+- **Motivo:** lacuna 4 do relato final da rodada anterior (o modo simples com a faixa do avançado; o "−0%"); AJ-17 e AJ-19 do
+  comando.
+- **Documentação e testes:** `Docs/SIMULADOR_DE_CENARIOS.md` (o modo simples, as limitações e os testes) e a Ficha B
+  (`Docs/fichas/ficha_simulador.html`, com o PDF). Testes no mesmo commit: `frontend/tests/simulador.test.mjs` (o identificador novo
+  no modo simples e o aviso, logo depois do da forma), `backend/tests/ui_simulador.py` (a faixa de 9: o aviso, o pedido de antes,
+  com a faixa, e a resposta com a de 9; a de 8, sem aviso; a forma e a faixa trocadas, os dois avisos, que o "Voltar ao padrão"
+  desfaz, com a faixa de volta a 8) e `backend/tests/test_fichas_metodologicas.py` (teste novo: os casos do `_pct` e a Ficha B sem
+  "−0%").
+
 ### 2026-11-18 · AJ-16: no modo leve, as bolhas dos grupos e das faixas a 88%, como no modo normal
 - **Classificação (regra 1):** AJ-16 do comando da rodada final da correção das fichas do responsável (18/11/2026). Decorre do
   pedido e não contraria a SPEC, que não trata da opacidade, nem uma divergência aprovada: os 62% do modo leve eram uma escolha de

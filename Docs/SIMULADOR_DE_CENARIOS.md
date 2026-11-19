@@ -110,7 +110,11 @@ Três coisas ficam sempre separadas, no cálculo e na tela:
 
   Trocar de opção volta à forma de projetar escolhida pela base; a quantidade, a meta e a data digitadas ficam. Quando o
   cenário traz uma forma de projetar escolhida no modo avançado, o modo simples avisa (`simulador-metodo-do-avancado`) e diz que
-  "Voltar ao padrão", no alto, desfaz essa escolha. Antes do primeiro cálculo com uma planilha, as frases já usam o nome da contagem dela:
+  "Voltar ao padrão", no alto, desfaz essa escolha. A faixa escolhida no modo avançado (5 ou 9 em cada 10) também vale no modo
+  simples, e, desde 18/11/2026 (AJ-17), o modo simples avisa logo depois, no mesmo estilo (`simulador-faixa-do-avancado`): "Este
+  cenário usa a faixa de 9 em cada 10, escolhida no modo avançado, e não a de 8 em cada 10. “Voltar ao padrão”, no alto, desfaz
+  essa escolha." Com a de 8, sem aviso; com a forma e a faixa trocadas, os dois avisos. O pedido é o de antes: a faixa vai nos
+  dois modos, e "Voltar ao padrão" devolve a de 8. Antes do primeiro cálculo com uma planilha, as frases já usam o nome da contagem dela:
   o nome dos trabalhadores informado no envio ("Acrescentar … enfermeiros"), quando ele serve aos textos, ou "profissionais",
   "vínculos" ou "postos" (`simuladorModel.nomeDosTrabalhadores`, a mesma regra do motor).
 - **Até quando** (`simulador-horizonte`): qualquer mês depois do último registro; os atalhos de 1, 2 e 4 anos
@@ -986,7 +990,7 @@ O que o estudo sustenta e o que não sustenta:
 - Numa planilha enviada, o grupo de cima como unidade é a soma das unidades dele, nas datas em que todas têm registro (ela não
   tem a contagem própria do grupo), e a comparação por taxa pede população (seção "Qualquer base"). Numa planilha só com anos, os
   calendários se repetem em anos inteiros.
-- A escolha de 5, 8 ou 9 em cada 10 fica no modo avançado; o modo simples usa 8.
+- A escolha de 5, 8 ou 9 em cada 10 fica no modo avançado; o modo simples usa a faixa escolhida lá e avisa quando ela não é a de 8.
 
 **Assistente de conversa.** Ele continua recusando previsões e projeções livres (AT-04) e não monta cenários. Desde 11/11/2026,
 a recusa indica o caminho: "Para montar cenários hipotéticos, que não são previsão, há o Simulador de Cenários, na linha
@@ -1033,14 +1037,16 @@ V23), a indicação aparece também com uma planilha enviada: o Simulador vale p
   o aviso único da seleção e o gráfico na largura da tela. Da etapa 7: a forma de comparar e a hipótese de população no pedido
   e na leitura da resposta, o que falta para calcular, as premissas no padrão e o "Voltar ao padrão", a janela igual à da base
   como o padrão, o tempo da janela em palavras, o cenário exportado e importado com as premissas novas, o "(Entenda)" geral e
-  as premissas em frases na tela.
+  as premissas em frases na tela. Do AJ-17 (18/11/2026): no modo simples, o aviso da faixa escolhida no modo avançado, logo
+  depois do aviso da forma.
 - Navegador: `backend/tests/ui_simulador.py` (suíte `base-versionada`) — o modo simples (só continuar, acrescentar, retirar e chegar
   a uma meta; a faixa conferida e a provisória; os "Entenda", com o "Ver explicação completa" na seção da ficha; o link da ficha,
   com o PDF servido pela interface; a avaliação dos métodos exportada, igual à retroprojeção da resposta do motor; um estado como
   unidade sem faixa), o modo avançado (as quatro etapas, a janela do cálculo, a avaliação dos métodos exportada com as faixas por
   porte e os erros de cada método,
   o Brasil, as referências, o planejamento inverso e a escolha de 5, 8 ou 9 em cada 10), a passagem entre os dois modos (o que é
-  do avançado não vai no pedido do simples), "Abrir no Simulador" e "Simular recuperação" (a meta de 79 médicos para o patamar de
+  do avançado não vai no pedido do simples; a forma e a faixa escolhidas lá vão, com os avisos no modo simples, desde o AJ-17, e
+  "Voltar ao padrão" desfaz as duas), "Abrir no Simulador" e "Simular recuperação" (a meta de 79 médicos para o patamar de
   78,25 de Abelardo Luz/SC, com a origem; a meta trocada por um número da pessoa), a meta e o resultado que saem ao trocar de
   território, o gráfico de "Chegar a uma meta" (a linha da meta, o caminho com o acréscimo e a marca dele), "Acrescentar 1
   médico" e o gráfico desenhado na largura da tela, no computador e numa tela de celular (texto de 12 px); da etapa 7, o

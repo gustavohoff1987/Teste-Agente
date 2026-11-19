@@ -621,6 +621,11 @@ export default function SimuladorDeCenarios(props: Props) {
       {cenarioDoSimples.metodo !== "padrao" && <p data-testid="simulador-metodo-do-avancado" role="status" className="ferramenta-exploratorio">
         Este cenário usa uma forma de projetar escolhida no modo avançado ({nomeCurtoDoMetodo(cenarioDoSimples.metodo, r)}), e não a que a base escolheu.
         “Voltar ao padrão”, no alto, desfaz essa escolha.</p>}
+      {/* AJ-17 (18/11/2026): a faixa escolhida no modo avançado vale também aqui, como a forma de projetar; com outra que não a de
+          8 em cada 10, o aviso diz qual. */}
+      {!!config.faixa && config.faixa !== 8 && <p data-testid="simulador-faixa-do-avancado" role="status" className="ferramenta-exploratorio">
+        Este cenário usa a faixa de {config.faixa} em cada 10, escolhida no modo avançado, e não a de 8 em cada 10.
+        “Voltar ao padrão”, no alto, desfaz essa escolha.</p>}
       <fieldset data-testid="simulador-o-que-testar" className="ferramenta-teste analise-nao-imprimir">
         <legend>O que testar</legend>
         <div className="ferramenta-teste-opcoes">
