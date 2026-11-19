@@ -98,6 +98,10 @@ Notas:
   profissionais" (sinal 1). O "Entenda" do sinal 6 traz esse exemplo.
 - **Sinal 4:** mostra uma mudança de ritmo; não indica o que vem depois (na base do Brasil, a repetição da classe não antecipou o
   crescimento seguinte). O moderado é rotulado como exploratório.
+- **Sinal 5:** a oscilação típica do porte (a escala com que cada mudança da janela é ajustada) é medida só nas mudanças
+  anteriores de territórios com pelo menos 6 profissionais no registro anterior, por tipo de intervalo entre registros (na base do
+  Brasil, 5 ou 7 meses), e só quando há pelo menos 100 delas (`detector.MEDIA_MINIMA_DA_INSTABILIDADE` e `MINIMO_DE_ESCALA`); sem
+  isso, o sinal fica "sem a oscilação típica do porte para comparar". A Ficha A diz o mesmo.
 - **Sinal 6:** o nível é o mais grave em que a queda é rara **e** tem o tamanho mínimo daquele nível (o maior entre o mínimo em
   profissionais e a fração do que havia, arredondada para cima). Sem queda, a tela ainda diz que níveis a base sustenta para o
   porte.
@@ -123,8 +127,9 @@ Notas:
   subiu menos, que ela."; o exemplo: "Índice 100: taxa igual à da referência. De 90 para 75, o território perdeu 15 pontos em
   relação a ela; de 130 para 115 também, mesmo continuando acima."; sem comparações bastantes, "… se esta perda em relação à
   referência chega ao nível …". A chave (`defasagem`), os campos e os números não mudam.
-- **Sinal 11:** nunca vira alerta e nunca usa as palavras "isolamento" ou "desassistência". O estado como unidade não tem um
-  ponto único; num conjunto, vale o componente mais próximo. **A frase diz o que é o território de referência** — o mais próximo
+- **Sinal 11:** nunca vira alerta e nunca usa as palavras "isolamento" ou "desassistência". O estado como unidade e o conjunto
+  de estados não têm um ponto único, e o sinal não se aplica a eles (`comparativos.contexto`: só o nível dos municípios tem a
+  distância); num conjunto de municípios, vale o componente mais próximo. **A frase diz o que é o território de referência** — o mais próximo
   com taxa de pelo menos X% da taxa da base toda, com o X em uso e o valor do critério — **e em que posição a distância fica**
   entre os territórios abaixo do critério (desde 15/11/2026). Rio Rufino (SC), em jun/2024: "A 21,3 km, em linha reta, de BOCAINA
   DO SUL (SC): o município mais próximo com taxa igual ou maior que a do Brasil (2,36 médicos por 1.000 habitantes). De cada 100

@@ -477,7 +477,8 @@ simuladas.
   inteiras, nada muda.
 - **Conferência no tempo:** para cada origem de teste, a faixa é remontada só com as retroprojeções cujo resultado já era
   conhecido naquela data e conferida nos casos dela. Pela cobertura (arredondada em pontos inteiros) frente à meta (80%, 50% ou
-  90%): até 5 pontos abaixo, **conferida**; de 5 a 10 pontos abaixo, **provisória**; mais que isso, **indisponível**. Com menos
+  90%): até 5 pontos abaixo, **conferida**; de 6 a 10 pontos abaixo, **provisória**; mais que isso, **indisponível** (como a
+  cobertura é comparada em pontos inteiros, não há caso entre 5 e 6; antes, este documento dizia "de 5 a 10"). Com menos
   de 3 origens de teste ou menos de 50 casos de teste, a faixa não pôde ser conferida e fica **provisória** (aviso
   `FAIXA_PROVISORIA`).
 - A data intermediária usa a faixa do ano inteiro seguinte. A faixa é da base e **acompanha a intervenção** (os limites da base,

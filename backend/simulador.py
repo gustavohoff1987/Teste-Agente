@@ -14,14 +14,20 @@ Tendência-base e intervenção ficam separadas (seção 9):
 com t em anos reais desde a origem (o último registro usável da janela) e a permanência total (S = 1) como padrão, rotulada como
 hipótese. O crescimento histórico nunca é aplicado aos médicos acrescentados.
 
-Métodos de base (seção 8.8):
+Métodos de base (seção 8.8; o padrão, desde a Proposta V3, seção C.3, é a forma de projetar escolhida pela base):
 
+- **padrão, "continuar como vinha":** a forma de projetar que a própria base escolheu para o nível do território, pela
+  retroprojeção: entre o crescimento do próprio território (M1), o do grupo de cima (M0d) e o da base toda (M0g), só vale quem
+  errou menos que manter o último valor, e fica o mais próximo do território com erro a até 5% do melhor. Na base do Brasil, o M0d
+  nos municípios e o M1 (na janela de 3 anos até a origem) nos estados como unidade. Sem retroprojeção bastante, sem candidato que
+  valha ou, num porte, com a escolhida errando mais que manter o último valor em todos os prazos, o M0, com aviso.
 - **M0, persistência:** B(t) = N0. Sempre calculado: é a referência de comparação.
-- **M0d, persistência com deriva do estado** (padrão provisório dos municípios): B(t) = N0 × (1 + g_UF)^t, com g_UF = o
-  crescimento anual composto da soma municipal da UF nos 3 anos anteriores à origem. Volta ao M0, com aviso, sem os 3 anos ou com
-  quebra de fonte na janela da deriva. Zero continua zero.
-- **M1, taxa composta:** r = (Nf/Ni)^(1/T) − 1, com T real em anos e extremos acima de zero; B(t) = N0 × (1 + r)^t. É o padrão
-  provisório dos estados como unidade (na janela de 3 anos da série do próprio nível), com aviso.
+- **M0d, persistência com o crescimento recente do grupo de cima** (na base do Brasil, a deriva do estado): B(t) = N0 × (1 + g)^t,
+  com g = o crescimento anual composto da soma das unidades do grupo de cima (a soma municipal da UF) nos 3 anos anteriores à
+  origem. Volta ao M0, com aviso, sem os 3 anos ou com quebra de fonte na janela da deriva. Zero continua zero.
+- **M0g, persistência com o crescimento recente da base toda:** o mesmo, com a soma de todos os territórios do nível; é o
+  candidato das bases sem grupo de cima.
+- **M1, taxa composta:** r = (Nf/Ni)^(1/T) − 1, com T real em anos e extremos acima de zero; B(t) = N0 × (1 + r)^t.
 - **M2, tendência linear robusta (Theil–Sen):** inclinação = mediana das inclinações entre pares de registros; intercepto =
   mediana(y) − b · mediana(t); a projeção negativa não aparece como estoque válido.
 - **M3, tendência log-linear:** Poisson com ligação log (IRLS); a dispersão quase-Poisson é só diagnóstico; série toda em zero,
@@ -33,10 +39,13 @@ Métodos de base (seção 8.8):
 A **média aritmética das taxas** (de junho a junho) é só estatística descritiva, ao lado da mediana, da dispersão e da taxa
 composta: nunca alimenta uma projeção. Comparar janelas e métodos é sensibilidade a método e janela, não faixa de confiança.
 
-**Faixas de 80%** (seção 8.8): só para o M0d municipal (e, como aproximação, para conjuntos de municípios), de 1 a 4 anos, pela
-retroprojeção com origens móveis na própria base (P10 a P90 da razão observado ÷ projetado − 1, por porte na origem e horizonte);
-a data intermediária usa a faixa do ano inteiro seguinte; a faixa é da base e se desloca com a intervenção. Fora disso,
-"indisponível", sem extrapolar.
+**Faixas de 5, 8 e 9 em cada 10** (Proposta V3, seção C.4; 8 é o padrão): só para a forma e a janela escolhidas pela base, de 1 a
+4 anos, pela retroprojeção com origens móveis na própria base — do 10º ao 90º percentil da razão observado ÷ projetado − 1 na de 8
+(do 25º ao 75º na de 5; do 5º ao 95º na de 9), por porte na origem e prazo, com um mínimo de casos por prazo (80, 200 e 400;
+faltando, as faixas vizinhas e depois os portes menores) e sem "buracos" de prazo. Cada faixa é conferida no tempo, remontada só
+com o que já era conhecido em cada origem de teste: conferida, provisória ou indisponível, pela cobertura frente à meta. Num
+conjunto, a faixa do porte da soma, como aproximação. A data intermediária usa a faixa do ano inteiro seguinte; a faixa é da base
+e se desloca com a intervenção. Fora disso, "indisponível", com o motivo, sem extrapolar.
 """
 from __future__ import annotations
 
@@ -56,7 +65,7 @@ from series_brasil import Base, Territorio, mes_da_competencia
 # Numa base com um registro por ano ("AAAA00"), as datas do pedido e da resposta são anos. Vale para o pedido em curso.
 _ANUAL: ContextVar[bool] = ContextVar("simulador_base_anual", default=False)
 
-VERSION = "SIMULADOR-CENARIOS/V3/1"   # Proposta V3 (comando V23): o jeito de projetar escolhido pela base e as faixas conferidas no tempo
+VERSION = "SIMULADOR-CENARIOS/V3/1"   # Proposta V3 (comando V23): a forma de projetar escolhida pela base e as faixas conferidas no tempo
 # Os nomes dos métodos nos textos (decisão D-C: linguagem simples). No anexo, a "deriva do estado" do M0d é o crescimento anual
 # composto da soma municipal da UF; na tela e nos textos de cenário, "o crescimento recente do estado".
 METODOS = ("padrao", "M0", "M0d", "M0g", "M1", "M2", "M3", "manual")
@@ -1641,8 +1650,8 @@ def _planejar(base: Base, cal: detector.Calibracao, retro: Retroprojecao, territ
 
 
 def _hipotetico(territorio: Territorio, resultado: dict) -> dict | None:
-    """Os níveis no cenário (Proposta V3, seção C.6): só os sinais 1 e 2 do Detector (poucos profissionais e nenhum, por
-    convenção) podem ser aplicados a um valor simulado, rotulados como hipótese do cenário. Os sinais comparados com a base
+    """Os níveis no cenário (Proposta V3, seção C.6): só os sinais 1 e 2 do Detector (poucos profissionais e nenhum, de limite
+    fixo) podem ser aplicados a um valor simulado, rotulados como hipótese do cenário. Os sinais comparados com a base
     (5 a 10) e os de evento observado (queda, patamar, declínio) nunca se aplicam a curvas simuladas. Só para municípios."""
     if territorio.tipo != "municipio" or resultado["estado"] != "calculado":
         return None
