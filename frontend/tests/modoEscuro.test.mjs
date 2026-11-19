@@ -383,36 +383,65 @@ test('AJ-12 e AJ-13: a ponta dos grupos e faixas como desenhada (a 88%) a 2:1 ou
   assert.match(semComentarios(ler('src/styles.css')), /\.painel-rotulo \{[^}]*stroke:var\(--grafico-superficie\); stroke-width:3px;/);
 });
 
-test('AJ-16: no modo leve, as bolhas dos grupos e das faixas a 88%, como no modo normal; as outras camadas a 62%', () => {
-  // A opacidade de cada bolha da camada leve, pela camada em uso: só os grupos e as faixas (a rampa ordinal) passam a 88%.
-  const CAMADAS = ['unica', 'variacao', 'classes', 'grupos', 'faixas', 'condicoes', 'ordem'];
-  const inteira = {vazada: false, apagada: false};
-  assert.deepEqual(CAMADAS.map(camada => M.opacidadeNoLeve(inteira, M.pelaRampaOrdinal(camada))), [0.62, 0.62, 0.62, 0.88, 0.88, 0.62, 0.62]);
-  // A vazada (inteira) e a apagada (35%) não mudam, em nenhuma camada.
-  for (const camada of CAMADAS) {
-    assert.equal(M.opacidadeNoLeve({vazada: true, apagada: false}, M.pelaRampaOrdinal(camada)), 1, camada);
-    assert.equal(M.opacidadeNoLeve({vazada: false, apagada: true}, M.pelaRampaOrdinal(camada)), 0.35, camada);
+test('AJ-16 e AJ-22: no modo leve, 88% só quando a cor da bolha é um tom da rampa em uso (grupos ou faixas de 1 a 5 tons); o resto a 62%', () => {
+  const [claro, escuro] = [M.PALETA_CLARA, M.PALETA_ESCURA];
+  const item = (extra = {}) => ({id: 'code:1', tipo: 'municipio', rotulo: 'X (AM)', uf: 'AM', populacao: 10, quantidade: 1, densidade: 1,
+    distancia_km: null, inicial: {populacao: 10, quantidade: 1, densidade: 1}, variacao_percentual: {populacao: 0, quantidade: 0, densidade: 0},
+    avaliavel: {densidade: true, distancia: null, variacao: true}, motivos: [], referencia: false, ...extra});
+  for (const paleta of [claro, escuro]) {
+    // Os tons em uso: os da rampa dos grupos ou das faixas de 1 a 5 tons, a mesma lista da paleta (a camada leve é memorizada e
+    // compara as propriedades por referência). Com mais de 5 (os decis, as faixas com mais de 5 rótulos) ou outra camada, nenhum, e
+    // sempre a mesma lista vazia.
+    for (const total of [1, 2, 3, 4, 5]) {
+      assert.equal(M.tonsDaRampa('grupos', total, 0, paleta), paleta.ordinais[total]);
+      assert.equal(M.tonsDaRampa('faixas', 0, total, paleta), paleta.ordinais[total]);
+    }
+    const nenhum = M.tonsDaRampa('unica', 5, 5, paleta);
+    assert.deepEqual(nenhum, []);
+    for (const [camada, grupos, faixas] of [['grupos', 10, 0], ['grupos', 0, 5], ['faixas', 0, 6], ['faixas', 5, 0], ['variacao', 5, 5],
+      ['classes', 5, 5], ['condicoes', 5, 5], ['ordem', 5, 5]])
+      assert.equal(M.tonsDaRampa(camada, grupos, faixas, paleta), nenhum, camada + ' ' + grupos + ' ' + faixas);
+    // Bolha a bolha, pela pintura (pintar, no mesmo formato): os quintis, os quartis e as faixas de até 5 tons a 88%; os decis e as
+    // faixas com mais de 5 rótulos (a cor única, com as linhas de corte), o cinza de fora das faixas, a cor única e as outras
+    // camadas a 62%, como antes do AJ-16; a apagada (35%) e a vazada (inteira) não mudam.
+    const noLeve = (camada, extra = {}, totais = {}) => {
+      const p = {camada, indicador: 'densidade', limiteVariacao: 40, totalGrupos: 0, totalFaixas: 0, primeiros: null, paleta, ...totais};
+      return M.opacidadeNoLeve(M.pintar(item(extra), p), M.tonsDaRampa(camada, p.totalGrupos, p.totalFaixas, paleta));
+    };
+    const grupo = (indice, total) => noLeve('grupos', {grupo: {indice, rotulo: indice + 'º'}}, {totalGrupos: total});
+    const faixa = (indice, total) => noLeve('faixas', {faixa: indice === 'fora' ? 'fora' : {indice, rotulo: 'faixa ' + indice}}, {totalFaixas: total});
+    assert.deepEqual([1, 2, 3, 4, 5].map(i => grupo(i, 5)), [0.88, 0.88, 0.88, 0.88, 0.88], 'quintis');
+    assert.deepEqual([1, 4].map(i => grupo(i, 4)), [0.88, 0.88], 'quartis');
+    assert.deepEqual([1, 7, 10].map(i => grupo(i, 10)), [0.62, 0.62, 0.62], 'decis');
+    assert.deepEqual([1, 2, 3, 'fora'].map(i => faixa(i, 3)), [0.88, 0.88, 0.88, 0.62], 'faixas digitadas e o cinza de fora');
+    assert.deepEqual([1, 6, 'fora'].map(i => faixa(i, 6)), [0.62, 0.62, 0.62], 'mais de 5 faixas');
+    assert.equal(noLeve('unica'), 0.62, 'cor única');
+    assert.equal(noLeve('condicoes', {condicoes: {situacao: 'ATENDE', porCondicao: [], motivo: null}}), 0.62);
+    assert.equal(noLeve('condicoes', {condicoes: {situacao: 'NAO_ATENDE', porCondicao: [], motivo: null}}), 0.35, 'apagada');
+    assert.equal(noLeve('grupos', {}, {totalGrupos: 5}), 1, 'sem grupo: vazada');
+    assert.equal(M.opacidadeNoLeve({cor: paleta.ordinais[5][0], vazada: false, apagada: true}, paleta.ordinais[5]), 0.35, 'a apagada vem antes do tom');
   }
   // Por quê: a 62%, a ponta das rampas fica abaixo de 2:1 da superfície (1,70:1 no claro e 1,74:1 no escuro); a 88%, os números do
-  // AJ-12 (a conta dos 2:1 de cada rampa está no teste do AJ-12). Na cor única, a transparência passa (2,28:1 e 2,99:1) e continua
-  // mostrando onde há muitas bolhas.
+  // AJ-12 (a conta dos 2:1 de cada rampa está no teste do AJ-12). Na cor única (e nos decis), a transparência passa (2,28:1 e 2,99:1)
+  // e continua mostrando onde há muitas bolhas.
   const desenhada = (cor, superficie, alfa) => '#' + canais(cor).map((c, i) => Math.round(c * alfa + canais(superficie)[i] * (1 - alfa))
     .toString(16).padStart(2, '0')).join('');
   const razao = (cor, superficie, alfa) => contraste(desenhada(cor, superficie, alfa), superficie).toFixed(2);
-  const [claro, escuro] = [M.PALETA_CLARA, M.PALETA_ESCURA];
   assert.deepEqual([0.62, 0.88].map(alfa => [razao(claro.ordinais[5][0], claro.superficie, alfa), razao(escuro.ordinais[5][0], escuro.superficie, alfa)]),
     [['1.70', '1.74'], ['2.17', '2.30']]);
   assert.deepEqual([razao(claro.bolha, claro.superficie, 0.62), razao(escuro.bolha, escuro.superficie, 0.62)], ['2.28', '2.99']);
-  // No gráfico: a camada leve usa essa opacidade, com a camada em uso que a área leva ao gráfico (a pintura não muda de formato).
-  // Ficam o esmaecer da camada inteira com o destaque da análise (30%) e as bolhas do modo normal (88%); o gráfico do Detector de
-  // Sinais, que pinta pelo nível, não leva a propriedade e continua a 62% no modo leve.
-  const grafico = ler('src/PainelChart.tsx');
-  assert.ok(grafico.includes('fill={bolha.cor} fillOpacity={opacidadeNoLeve(bolha, !!gruposOuFaixas)}'), 'a camada leve');
-  assert.ok(grafico.includes('esmaecida={!!destaque} gruposOuFaixas={!!p.gruposOuFaixas}'), 'a propriedade chega à camada leve');
+  // No gráfico: a camada leve usa essa opacidade, com os tons da rampa em uso que a área leva ao gráfico (a camada em uso, os totais
+  // de grupos e de faixas e a paleta do esquema; a pintura não muda de formato). Ficam o esmaecer da camada inteira com o destaque da
+  // análise (30%) e as bolhas do modo normal (88%); o gráfico do Detector de Sinais, que pinta pelo nível, não leva os tons e continua
+  // a 62% no modo leve. A regra do AJ-16, pela camada em uso, saiu.
+  const grafico = ler('src/PainelChart.tsx'), area = ler('src/AreaDeAnalise.tsx');
+  assert.ok(grafico.includes('fill={bolha.cor} fillOpacity={opacidadeNoLeve(bolha, tons)}'), 'a camada leve');
+  assert.ok(grafico.includes('esmaecida={!!destaque} tons={p.tonsDaRampa}'), 'os tons chegam à camada leve');
   assert.ok(grafico.includes('<g data-testid="analise-camada-leve" className="analise-camada-leve" opacity={esmaecida ? 0.3 : undefined}'), 'o esmaecer');
   assert.equal(grafico.split('fillOpacity={bolha.vazada ? 1 : 0.88}').length - 1, 1, 'o modo normal a 88%');
-  assert.ok(ler('src/AreaDeAnalise.tsx').includes(' gruposOuFaixas={pelaRampaOrdinal(camadaFinal)} '), 'a camada em uso, da área de análise');
-  assert.ok(!ler('src/DetectorGraficos.tsx').includes('gruposOuFaixas'), 'o gráfico do Detector, sem a propriedade');
+  assert.ok(area.includes(' tonsDaRampa={tonsDaRampa(camadaFinal, totalGrupos, totalFaixas, paleta)} '), 'os tons em uso, da área de análise');
+  assert.ok(!ler('src/DetectorGraficos.tsx').includes('tonsDaRampa'), 'o gráfico do Detector, sem os tons');
+  assert.ok(!('pelaRampaOrdinal' in M) && !grafico.includes('gruposOuFaixas') && !area.includes('gruposOuFaixas'), 'sem a regra do AJ-16 pela camada');
 });
 
 test('AJ-11 e AJ-15: o item selecionado no escuro — fundo verde-azulado escuro, texto claro e borda verde-água, também no traço dos painéis; no claro, o de antes', () => {

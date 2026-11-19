@@ -35,6 +35,31 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-19 · AJ-22: no modo leve, 88% só nos tons da rampa em uso; os decis, as faixas com mais de 5 rótulos e o cinza de fora voltam a 62%
+- **Classificação (regra 1):** AJ-22, Parte 1 do comando final do responsável (19/11/2026), lacuna 1 do relato da rodada final.
+  Decorre do pedido e não contraria a SPEC nem uma divergência aprovada: corrige o alcance do AJ-16, da mesma rodada.
+  **Mudança prevista.**
+- **Antes (desde o AJ-16, `127c84aa`):** no modo leve, a opacidade dependia da camada em uso (`pelaRampaOrdinal(camadaFinal)`):
+  toda bolha das camadas `grupos` e `faixas` ia a 88%. Isso pegou mais do que o pedido: os decis e as faixas com mais de 5 rótulos
+  (que usam a cor única, com as linhas de corte, porque `corOrdinal` dá `null` acima de 5 tons) e o cinza das bolhas de fora das
+  faixas digitadas também passaram de 62% para 88%.
+- **Agora:** a regra é pela cor de cada bolha. **88% só quando a cor é um tom da rampa em uso**: `tonsDaRampa(camadaFinal,
+  totalGrupos, totalFaixas, paleta)` dá os tons dos grupos ou das faixas de 1 a 5 tons (a lista da paleta do esquema) e, com mais
+  de 5 ou outra camada, a lista vazia; `opacidadeNoLeve(bolha, tons)` dá 88% à bolha com um desses tons. Os decis, as faixas com
+  mais de 5 rótulos e o cinza de fora voltam a 62%, como antes do AJ-16. O gráfico recebe os tons na propriedade `tonsDaRampa`
+  (no lugar de `gruposOuFaixas`), sempre a mesma lista para os mesmos dados, para a camada leve, memorizada, não redesenhar à toa.
+- **Permanece:** os quintis, os quartis e as faixas de até 5 tons a 88% (o 1º grupo, como desenhado, a 2,17:1 no claro e a
+  2,30:1 no escuro); a cor única e as outras camadas a 62%; a apagada (35%); a vazada; o esmaecer com o destaque da análise
+  (30%); o modo normal (88% em todas as bolhas não vazadas); o mapa; o gráfico do Detector (62% no modo leve); a pintura
+  (`pintar`, no mesmo formato).
+- **Motivo:** lacuna 1 do relato da rodada final; AJ-22 do comando.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (as cores, o modo leve e a tabela das cores do escuro). Testes no
+  mesmo commit: `frontend/tests/modoEscuro.test.mjs` (o teste do AJ-16 passa a cobrir a regra nova, bolha a bolha pela pintura —
+  quintis, quartis e faixas de até 5 tons a 88%; decis, mais de 5 faixas, o cinza de fora e a cor única a 62% — e os tons como a
+  mesma lista; as conferências do código-fonte seguem a implementação nova) e `backend/tests/ui_area_de_analise.py` (os 5.570
+  municípios, no claro e no escuro, cada bolha à vista pela cor e pela opacidade: cor única, quintis, decis e faixas digitadas com
+  o cinza de fora).
+
 ### 2026-11-18 · AJ-17 e AJ-19: o modo simples avisa quando usa a faixa escolhida no avançado; "−0%" vira "0%" nas tabelas da Ficha B
 - **Classificação (regra 1):** AJ-17 e AJ-19 do comando da rodada final da correção das fichas do responsável (18/11/2026).
   Decorrem do pedido e não contrariam a SPEC nem uma divergência aprovada: o Simulador é a exceção aprovada à exclusão de projeção

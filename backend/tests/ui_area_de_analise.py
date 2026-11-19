@@ -47,8 +47,9 @@ em si (pontos, pintura, transição, lado a lado) é conferido no roteiro do map
 
 Catálogo sintético do Bloco 1 (AM: MANAUS, TEFE e PARINTINS; SP: FORA; quatro competências; fonte estadual sintética; todas as
 sedes no mesmo ponto) ou, com ADT_BLOCK1_REAL=1, a base versionada (somente leitura), que acrescenta o modo leve com todos os
-municípios do Brasil (desde o AJ-16, de 18/11/2026, com a opacidade das bolhas: 62% na cor única e 88% nos quintis, com o 1º
-quintil, como desenhado, a 2,17:1 da superfície do gráfico no claro e a 2,30:1 com o aparelho no escuro). O roteiro assume que a estrutura da página abre a área de análise (`area-de-analise`) depois do aceite de
+municípios do Brasil (desde o AJ-16 e o AJ-22, de 18/11/2026, com a cor e a opacidade de cada bolha, no claro e no escuro: 88%
+só nos tons da rampa em uso — os quintis, com o 1º quintil, como desenhado, a 2,17:1 da superfície do gráfico no claro e a 2,30:1
+no escuro, e as faixas digitadas —; a cor única, os decis e o cinza de fora das faixas a 62%). O roteiro assume que a estrutura da página abre a área de análise (`area-de-analise`) depois do aceite de
 privacidade e usa os botões de fonte da própria área em E0. Cada bolha desenhada é conferida com a resposta de /api/painel: todo
 número vem do motor. A disponibilidade da análise espacial também vem do motor: no catálogo sintético, instalado como versão
 externa, o referencial (SIRGAS 2000 ou WGS 84) pode não ser premissa, e o roteiro segue o que o motor disser (a aba desabilitada
@@ -1846,14 +1847,28 @@ def main():
             expect(area.get_by_test_id("analise-dica")).to_be_visible(timeout=5000)
             page.mouse.move(2, 2)
             shot("11-brasil-leve")
-            # AJ-16 (18/11/2026): no modo leve, a cor única fica a 62% (a transparência mostra onde há muitas bolhas); com a cor dos
-            # grupos, os quintis, 88%, como no modo normal, e o 1º quintil, como desenhado sobre a superfície do gráfico, a 2,17:1
-            # no claro e a 2,30:1 com o aparelho no escuro (page.emulate_media). Sem os grupos, de volta aos 62%.
+            # AJ-16 e AJ-22 (18/11/2026): no modo leve, 88% só quando a cor da bolha é um tom da rampa em uso (grupos ou faixas de 1 a
+            # 5 tons), como no modo normal; o resto a 62%, como antes do AJ-16. Cada bolha à vista da camada leve (sem as vazadas) é
+            # conferida pela cor e pela opacidade, no claro e com o aparelho no escuro (page.emulate_media): a cor única a 62%; os
+            # quintis a 88%, com o 1º quintil, como desenhado sobre a superfície do gráfico, a 2,17:1 no claro e a 2,30:1 no escuro;
+            # os decis (a cor única, com as linhas de corte) a 62%; as faixas digitadas (1; 2; 3; 4: três faixas) com os tons a 88% e
+            # o cinza de fora a 62%. Sem os grupos, de volta à cor única.
             camada = area.get_by_test_id("analise-camada-leve")
+            rampas = {"light": {3: ("#6da7ec", "#2a78d6", "#104281"), 5: ("#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b")},
+                      "dark": {3: ("#1c5cab", "#3987e5", "#9ec5f4"), 5: ("#1c5cab", "#2a78d6", "#5598e7", "#86b6ef", "#b7d3f6")}}
+            unica, cinza = {"light": "#008b9e", "dark": "#1ba3b5"}, {"light": "#c9c7bf", "dark": "#5f5e5a"}
 
-            def opacidades_da_camada():
-                return set(camada.locator('[data-testid="analise-bolha"][data-visivel="true"]').evaluate_all(
-                    "es => es.filter(e => !e.hasAttribute('stroke-dasharray')).map(e => e.getAttribute('fill-opacity'))"))
+            def pares_da_camada(esperados, rotulo):
+                """Espera que os pares (cor, opacidade) das bolhas à vista da camada leve, sem as vazadas, sejam os esperados (a
+                resposta nova e a troca de esquema redesenham os milhares de círculos)."""
+                pares = None
+                for _ in range(100):
+                    pares = {tuple(par) for par in camada.locator('[data-testid="analise-bolha"][data-visivel="true"]').evaluate_all(
+                        "es => es.filter(e => !e.hasAttribute('stroke-dasharray')).map(e => [e.getAttribute('fill'), e.getAttribute('fill-opacity')])")}
+                    if pares == esperados:
+                        return
+                    page.wait_for_timeout(300)
+                raise AssertionError((rotulo, sorted(pares), sorted(esperados)))
 
             def primeiro_quintil(cor):
                 """O contraste do 1º quintil como desenhado: a cor dele a 88% sobre o fundo efetivo do gráfico."""
@@ -1867,25 +1882,38 @@ def main():
                 frente = [int(cor[i:i + 2], 16) for i in (1, 3, 5)]
                 return contraste([int(f * 0.88 + s * 0.12 + 0.5) for f, s in zip(frente, superficie)], superficie)
 
-            assert opacidades_da_camada() == {"0.62"}, opacidades_da_camada()
+            pares_da_camada({(unica["light"], "0.62")}, "cor única, no claro")
             quintis, sent = ok(lambda: area.get_by_test_id("analise-agrupar").select_option("quintis"))
             assert sent["grupos"] == {"tipo": "quintis"} and len(quintis["itens"]) > 5000, sent
             expect(chart).to_have_attribute("data-modo", "leve")
             expect(area.get_by_test_id("analise-legenda-cor")).to_have_attribute("data-camada", "grupos")
+            pares_da_camada({(cor, "0.88") for cor in rampas["light"][5]}, "quintis, no claro")
             razao = primeiro_quintil("#6da7ec")
             assert round(razao, 2) == 2.17, razao
-            assert opacidades_da_camada() == {"0.88"}, opacidades_da_camada()
             shot("11b-brasil-leve-quintis")
             page.emulate_media(color_scheme="dark")
+            pares_da_camada({(cor, "0.88") for cor in rampas["dark"][5]}, "quintis, no escuro")
             razao = primeiro_quintil("#1c5cab")
             assert round(razao, 2) == 2.30, razao
-            assert opacidades_da_camada() == {"0.88"}, opacidades_da_camada()
             page.emulate_media(color_scheme="light")
-            primeiro_quintil("#6da7ec")
+            decis, sent = ok(lambda: area.get_by_test_id("analise-agrupar").select_option("decis"))
+            assert sent["grupos"] == {"tipo": "decis"} and len(decis["itens"]) > 5000, sent
+            for esquema in ("light", "dark"):
+                page.emulate_media(color_scheme=esquema)
+                pares_da_camada({(unica[esquema], "0.62")}, "decis, " + esquema)
+            page.emulate_media(color_scheme="light")
+            area.get_by_test_id("analise-agrupar").select_option("faixas")
+            area.get_by_test_id("analise-faixas").fill("1; 2; 3; 4")
+            faixas, sent = ok(lambda: aperta(area.get_by_test_id("analise-faixas-aplicar")),
+                              condicao=lambda opcoes: opcoes.get("faixas") == [1, 2, 3, 4])
+            assert len(faixas["faixas"]["rotulos"]) == 3 and faixas["faixas"]["fora"] > 0, faixas["faixas"]
+            expect(area.get_by_test_id("analise-legenda-cor")).to_have_attribute("data-camada", "faixas")
+            for esquema in ("light", "dark"):
+                page.emulate_media(color_scheme=esquema)
+                pares_da_camada({(cor, "0.88") for cor in rampas[esquema][3]} | {(cinza[esquema], "0.62")}, "faixas digitadas, " + esquema)
+            page.emulate_media(color_scheme="light")
             area.get_by_test_id("analise-agrupar").select_option("nenhum")
-            expect(camada.locator('[data-testid="analise-bolha"][data-visivel="true"]').first).to_have_attribute("fill-opacity", "0.62",
-                                                                                                                 timeout=30000)
-            assert opacidades_da_camada() == {"0.62"}, opacidades_da_camada()
+            pares_da_camada({(unica["light"], "0.62")}, "sem os grupos, de volta à cor única")
 
         # 15. O todo é a referência fixa (06/11/2026); desde o comando V22, sem o Ver por: o Brasil inteiro pela caixa da raiz, a
         # trilha no Brasil, e o Limpar seleção tira tudo, com a trilha de volta ao começo.

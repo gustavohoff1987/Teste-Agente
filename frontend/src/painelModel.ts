@@ -1272,16 +1272,24 @@ export function arranjar(capsulas: Capsula[], folga = 1.5): Map<string, number> 
 /** Acima deste número de bolhas, o gráfico usa o modo leve: arranjo numa faixa limitada e desenho simplificado. */
 export const LIMITE_LEVE = 400;
 
-/** As camadas em que a cor vem de grupos ou de faixas (a rampa ordinal). */
-export const pelaRampaOrdinal = (camada: CamadaDeCor): boolean => camada === "grupos" || camada === "faixas";
+/** Nenhum tom: a mesma lista vazia a cada desenho (a camada leve é memorizada e compara as propriedades por referência). */
+const SEM_TONS: readonly string[] = [];
+
+/** Os tons da rampa em uso (AJ-22, 18/11/2026): os de `corOrdinal` para os grupos ou as faixas de 1 a 5 tons, na paleta do esquema.
+ * Com mais de 5 (os decis, as faixas com mais de 5 rótulos), a cor é a única, com as linhas de corte, e não há tom; com outra
+ * camada, também não. Para os mesmos dados, devolve sempre a mesma lista (a da paleta ou a vazia). */
+export const tonsDaRampa = (camada: CamadaDeCor, totalGrupos: number, totalFaixas: number, paleta: PaletaDoGrafico = PALETA_CLARA): readonly string[] =>
+  (camada === "grupos" ? paleta.ordinais[totalGrupos] : camada === "faixas" ? paleta.ordinais[totalFaixas] : undefined) ?? SEM_TONS;
 
 /** Opacidade do preenchimento de uma bolha no modo leve (a camada de círculos simples). A massa de bolhas fica a 62%, pela
- * sobreposição de milhares delas: na cor única, a transparência mostra onde há muitas. Com a cor dos grupos ou das faixas
- * (`gruposOuFaixas`, AJ-16 de 18/11/2026), 88%, como no modo normal: a 62%, a ponta das rampas ficava abaixo de 2:1 da superfície
- * (1,70:1 no claro e 1,74:1 no escuro), e a sobreposição somava tons da mesma rampa, numa mistura que parecia outro grupo. A
- * pintura apagada (não atende, fora dos primeiros) fica a 35%, e a vazada, inteira. */
-export const opacidadeNoLeve = (bolha: Pick<Pintura, "vazada" | "apagada">, gruposOuFaixas: boolean): number =>
-  bolha.vazada ? 1 : bolha.apagada ? 0.35 : gruposOuFaixas ? 0.88 : 0.62;
+ * sobreposição de milhares delas: na cor única, a transparência mostra onde há muitas. Quando a cor da bolha é um tom da rampa em
+ * uso (`tons`, de `tonsDaRampa`), 88%, como no modo normal (AJ-16, com a regra exata do AJ-22, de 18/11/2026): a 62%, a ponta das
+ * rampas ficava abaixo de 2:1 da superfície (1,70:1 no claro e 1,74:1 no escuro), e a sobreposição somava tons da mesma rampa,
+ * numa mistura que parecia outro grupo. Os decis e as faixas com mais de 5 rótulos (a cor única, com as linhas de corte) e o
+ * cinza de fora das faixas digitadas ficam a 62%. A pintura apagada (não atende, fora dos primeiros) fica a 35%, e a vazada,
+ * inteira. */
+export const opacidadeNoLeve = (bolha: Pick<Pintura, "cor" | "vazada" | "apagada">, tons?: readonly string[]): number =>
+  bolha.vazada ? 1 : bolha.apagada ? 0.35 : tons?.includes(bolha.cor) ? 0.88 : 0.62;
 
 /** Arranjo do eixo único com muitas bolhas (modo leve): a mesma ideia de `arranjar`, numa faixa limitada (`meia` de cada lado
  * da linha central), com uma grade de ocupação de 2 px; sem lugar livre, fica o de menor sobreposição (as bolhas são
