@@ -383,6 +383,38 @@ test('AJ-12 e AJ-13: a ponta dos grupos e faixas como desenhada (a 88%) a 2:1 ou
   assert.match(semComentarios(ler('src/styles.css')), /\.painel-rotulo \{[^}]*stroke:var\(--grafico-superficie\); stroke-width:3px;/);
 });
 
+test('AJ-16: no modo leve, as bolhas dos grupos e das faixas a 88%, como no modo normal; as outras camadas a 62%', () => {
+  // A opacidade de cada bolha da camada leve, pela camada em uso: só os grupos e as faixas (a rampa ordinal) passam a 88%.
+  const CAMADAS = ['unica', 'variacao', 'classes', 'grupos', 'faixas', 'condicoes', 'ordem'];
+  const inteira = {vazada: false, apagada: false};
+  assert.deepEqual(CAMADAS.map(camada => M.opacidadeNoLeve(inteira, M.pelaRampaOrdinal(camada))), [0.62, 0.62, 0.62, 0.88, 0.88, 0.62, 0.62]);
+  // A vazada (inteira) e a apagada (35%) não mudam, em nenhuma camada.
+  for (const camada of CAMADAS) {
+    assert.equal(M.opacidadeNoLeve({vazada: true, apagada: false}, M.pelaRampaOrdinal(camada)), 1, camada);
+    assert.equal(M.opacidadeNoLeve({vazada: false, apagada: true}, M.pelaRampaOrdinal(camada)), 0.35, camada);
+  }
+  // Por quê: a 62%, a ponta das rampas fica abaixo de 2:1 da superfície (1,70:1 no claro e 1,74:1 no escuro); a 88%, os números do
+  // AJ-12 (a conta dos 2:1 de cada rampa está no teste do AJ-12). Na cor única, a transparência passa (2,28:1 e 2,99:1) e continua
+  // mostrando onde há muitas bolhas.
+  const desenhada = (cor, superficie, alfa) => '#' + canais(cor).map((c, i) => Math.round(c * alfa + canais(superficie)[i] * (1 - alfa))
+    .toString(16).padStart(2, '0')).join('');
+  const razao = (cor, superficie, alfa) => contraste(desenhada(cor, superficie, alfa), superficie).toFixed(2);
+  const [claro, escuro] = [M.PALETA_CLARA, M.PALETA_ESCURA];
+  assert.deepEqual([0.62, 0.88].map(alfa => [razao(claro.ordinais[5][0], claro.superficie, alfa), razao(escuro.ordinais[5][0], escuro.superficie, alfa)]),
+    [['1.70', '1.74'], ['2.17', '2.30']]);
+  assert.deepEqual([razao(claro.bolha, claro.superficie, 0.62), razao(escuro.bolha, escuro.superficie, 0.62)], ['2.28', '2.99']);
+  // No gráfico: a camada leve usa essa opacidade, com a camada em uso que a área leva ao gráfico (a pintura não muda de formato).
+  // Ficam o esmaecer da camada inteira com o destaque da análise (30%) e as bolhas do modo normal (88%); o gráfico do Detector de
+  // Sinais, que pinta pelo nível, não leva a propriedade e continua a 62% no modo leve.
+  const grafico = ler('src/PainelChart.tsx');
+  assert.ok(grafico.includes('fill={bolha.cor} fillOpacity={opacidadeNoLeve(bolha, !!gruposOuFaixas)}'), 'a camada leve');
+  assert.ok(grafico.includes('esmaecida={!!destaque} gruposOuFaixas={!!p.gruposOuFaixas}'), 'a propriedade chega à camada leve');
+  assert.ok(grafico.includes('<g data-testid="analise-camada-leve" className="analise-camada-leve" opacity={esmaecida ? 0.3 : undefined}'), 'o esmaecer');
+  assert.equal(grafico.split('fillOpacity={bolha.vazada ? 1 : 0.88}').length - 1, 1, 'o modo normal a 88%');
+  assert.ok(ler('src/AreaDeAnalise.tsx').includes(' gruposOuFaixas={pelaRampaOrdinal(camadaFinal)} '), 'a camada em uso, da área de análise');
+  assert.ok(!ler('src/DetectorGraficos.tsx').includes('gruposOuFaixas'), 'o gráfico do Detector, sem a propriedade');
+});
+
 test('AJ-11 e AJ-15: o item selecionado no escuro — fundo verde-azulado escuro, texto claro e borda verde-água, também no traço dos painéis; no claro, o de antes', () => {
   // As variáveis novas nos dois blocos. No claro, os mesmos valores da tinta e nenhum contorno: o estilo calculado não muda.
   const novas = ['--cor-selecionado', '--cor-sobre-selecionado', '--cor-borda-selecionado', '--contorno-selecionado'];

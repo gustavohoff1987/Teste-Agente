@@ -23,7 +23,7 @@ import {
   regraConfere, textoDaRegra, quantos, criteriosDasCondicoes, type RegraDaSelecao, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, textoDaReferencia, textoEspacialNosGrupos,
   textoVerUnidadesDosGrupos, type ParteDaTrilha,
   montarOpcoes, profissionaisDe,
-  apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
+  apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pelaRampaOrdinal, pintar,
   pinturaDoMapa, prefixoDe, precisaQuintisDoMapa, resumoDoUniverso, ritmoDaJanela, ritmosDaBase, RITMOS_TENDENCIA,
   rotulosEfetivos, salvarEstado, selecaoDasFerramentas, semSelecao, semTerritorios, separarItens, significadoDaClasse, tamanhoDoMapa, textoDaMarca, textoDoDesfazer, textoDoDesfeito,
   textoDoMetodo, textoDosTerritoriosBase, textoForaDoDesenho, textoInstrucaoGrupos, tituloDaAnalise, todosOs, umA, visaoEfetiva,
@@ -1955,7 +1955,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     return <PainelChart resposta={resposta} itens={visiveis} todos={plotaveis} indicador={indicador} escala={escala} distancia={distanciaNaTela}
       cometa={cometa} trajetoria={cometa} porItem={referenciaPorItem} pares={paresLigados} destaque={realceNaTela.length ? realceNaTela : destaque}
       foco={parDoFoco ? parDoFoco.base.id : null} onFocar={distanciaNaTela && pares.length ? focarBase : undefined}
-      realce={realceNaTela} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares}
+      realce={realceNaTela} vista={vista} fase={fase} pintura={pintura} gruposOuFaixas={pelaRampaOrdinal(camadaFinal)} selecionados={selecao} limiares={limiares}
       nomes={nomes} carregando={carregando}
       rotuloDistancia={rotuloDistancia} rotulos={rotulos} contextoBrasil={contextoBrasil} cortes={cortes} corte={corteAtivo(corte, dominio) ? corte : null}
       faixasDistancia={faixasDistancia} unidadesDoGrupo={unidadesDoGrupo} legendaCor={layoutTendencia ? null : legendaCor} notas={notasDoGrafico}

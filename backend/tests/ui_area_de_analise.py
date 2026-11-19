@@ -47,7 +47,8 @@ em si (pontos, pintura, transição, lado a lado) é conferido no roteiro do map
 
 Catálogo sintético do Bloco 1 (AM: MANAUS, TEFE e PARINTINS; SP: FORA; quatro competências; fonte estadual sintética; todas as
 sedes no mesmo ponto) ou, com ADT_BLOCK1_REAL=1, a base versionada (somente leitura), que acrescenta o modo leve com todos os
-municípios do Brasil. O roteiro assume que a estrutura da página abre a área de análise (`area-de-analise`) depois do aceite de
+municípios do Brasil (desde o AJ-16, de 18/11/2026, com a opacidade das bolhas: 62% na cor única e 88% nos quintis, com o 1º
+quintil, como desenhado, a 2,17:1 da superfície do gráfico no claro e a 2,30:1 com o aparelho no escuro). O roteiro assume que a estrutura da página abre a área de análise (`area-de-analise`) depois do aceite de
 privacidade e usa os botões de fonte da própria área em E0. Cada bolha desenhada é conferida com a resposta de /api/painel: todo
 número vem do motor. A disponibilidade da análise espacial também vem do motor: no catálogo sintético, instalado como versão
 externa, o referencial (SIRGAS 2000 ou WGS 84) pode não ser premissa, e o roteiro segue o que o motor disser (a aba desabilitada
@@ -97,6 +98,15 @@ def mm_aaaa(competencia):
 
 def options_of(request):
     return json.loads(request.post_data.split('name="options"\r\n\r\n', 1)[1].split("\r\n--", 1)[0])
+
+
+def contraste(a, b):
+    """Contraste WCAG 2 entre duas cores em canais de 0 a 255."""
+    def luminancia(canais):
+        lineares = [c / 255 / 12.92 if c / 255 <= 0.04045 else ((c / 255 + 0.055) / 1.055) ** 2.4 for c in canais]
+        return 0.2126 * lineares[0] + 0.7152 * lineares[1] + 0.0722 * lineares[2]
+    clara, escura = sorted((luminancia(a), luminancia(b)), reverse=True)
+    return (clara + 0.05) / (escura + 0.05)
 
 
 def esperados(body, indicador="densidade", corte=None, distancia=False):
@@ -1836,6 +1846,46 @@ def main():
             expect(area.get_by_test_id("analise-dica")).to_be_visible(timeout=5000)
             page.mouse.move(2, 2)
             shot("11-brasil-leve")
+            # AJ-16 (18/11/2026): no modo leve, a cor única fica a 62% (a transparência mostra onde há muitas bolhas); com a cor dos
+            # grupos, os quintis, 88%, como no modo normal, e o 1º quintil, como desenhado sobre a superfície do gráfico, a 2,17:1
+            # no claro e a 2,30:1 com o aparelho no escuro (page.emulate_media). Sem os grupos, de volta aos 62%.
+            camada = area.get_by_test_id("analise-camada-leve")
+
+            def opacidades_da_camada():
+                return set(camada.locator('[data-testid="analise-bolha"][data-visivel="true"]').evaluate_all(
+                    "es => es.filter(e => !e.hasAttribute('stroke-dasharray')).map(e => e.getAttribute('fill-opacity'))"))
+
+            def primeiro_quintil(cor):
+                """O contraste do 1º quintil como desenhado: a cor dele a 88% sobre o fundo efetivo do gráfico."""
+                primeiro = camada.locator('[data-testid="analise-bolha"][data-grupo="1"][data-visivel="true"]').first
+                expect(primeiro).to_have_attribute("fill", cor, timeout=30000)
+                expect(primeiro).to_have_attribute("fill-opacity", "0.88")
+                fundo = chart.locator("svg").first.evaluate(
+                    "e => { for (let n = e; n; n = n.parentElement) { const c = getComputedStyle(n).backgroundColor;"
+                    " if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c; } return null; }")
+                superficie = [int(valor) for valor in re.findall(r"\d+", fundo)[:3]]
+                frente = [int(cor[i:i + 2], 16) for i in (1, 3, 5)]
+                return contraste([int(f * 0.88 + s * 0.12 + 0.5) for f, s in zip(frente, superficie)], superficie)
+
+            assert opacidades_da_camada() == {"0.62"}, opacidades_da_camada()
+            quintis, sent = ok(lambda: area.get_by_test_id("analise-agrupar").select_option("quintis"))
+            assert sent["grupos"] == {"tipo": "quintis"} and len(quintis["itens"]) > 5000, sent
+            expect(chart).to_have_attribute("data-modo", "leve")
+            expect(area.get_by_test_id("analise-legenda-cor")).to_have_attribute("data-camada", "grupos")
+            razao = primeiro_quintil("#6da7ec")
+            assert round(razao, 2) == 2.17, razao
+            assert opacidades_da_camada() == {"0.88"}, opacidades_da_camada()
+            shot("11b-brasil-leve-quintis")
+            page.emulate_media(color_scheme="dark")
+            razao = primeiro_quintil("#1c5cab")
+            assert round(razao, 2) == 2.30, razao
+            assert opacidades_da_camada() == {"0.88"}, opacidades_da_camada()
+            page.emulate_media(color_scheme="light")
+            primeiro_quintil("#6da7ec")
+            area.get_by_test_id("analise-agrupar").select_option("nenhum")
+            expect(camada.locator('[data-testid="analise-bolha"][data-visivel="true"]').first).to_have_attribute("fill-opacity", "0.62",
+                                                                                                                 timeout=30000)
+            assert opacidades_da_camada() == {"0.62"}, opacidades_da_camada()
 
         # 15. O todo é a referência fixa (06/11/2026); desde o comando V22, sem o Ver por: o Brasil inteiro pela caixa da raiz, a
         # trilha no Brasil, e o Limpar seleção tira tudo, com a trilha de volta ao começo.

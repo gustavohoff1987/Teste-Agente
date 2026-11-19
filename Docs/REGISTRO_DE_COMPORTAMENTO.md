@@ -35,6 +35,29 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-18 · AJ-16: no modo leve, as bolhas dos grupos e das faixas a 88%, como no modo normal
+- **Classificação (regra 1):** AJ-16 do comando da rodada final da correção das fichas do responsável (18/11/2026). Decorre do
+  pedido e não contraria a SPEC, que não trata da opacidade, nem uma divergência aprovada: os 62% do modo leve eram uma escolha de
+  desenho registrada aqui ("pela sobreposição de milhares de bolhas", na entrada de 25/10/2026; mantidos na do AJ-12), e esta
+  entrada traz a exceção. **Mudança prevista.**
+- **Antes:** acima de 400 bolhas (o modo leve), toda bolha não apagada era desenhada a 62%, também com a cor dos grupos e das
+  faixas: a ponta das rampas ficava a 1,70:1 da superfície no claro e a 1,74:1 no escuro, abaixo dos 2:1 que o AJ-12 garantiu a
+  88%, e, onde as bolhas se sobrepõem, a transparência somava tons da mesma rampa, numa mistura que parecia outro grupo.
+- **Agora:** com a camada de grupos ou de faixas em uso (`pelaRampaOrdinal(camadaFinal)`, levada ao gráfico na propriedade
+  `gruposOuFaixas`), as bolhas do modo leve ficam a 88%, como no modo normal (`opacidadeNoLeve`): o 1º grupo, como desenhado, a
+  2,17:1 da superfície no claro e a 2,30:1 no escuro. Vale para a camada inteira, como no modo normal: também nos decis (só as
+  linhas de corte, na cor única) e nas bolhas de fora das faixas digitadas (o cinza neutro).
+- **Permanece:** as outras camadas a 62% (na cor única, a transparência mostra onde há muitas bolhas e passa: 2,28:1 no claro e
+  2,99:1 no escuro); a pintura apagada (35%), a vazada (inteira) e o esmaecer da camada inteira com o destaque da análise (30%);
+  o gráfico do Detector de Sinais, que pinta pelo nível (62% no modo leve); a pintura (`pintar`, no mesmo formato), a legenda dos
+  grupos e faixas e o mapa (os pontos já são opacos).
+- **Motivo:** lacuna 2 do relato final da rodada anterior; AJ-16 do comando.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` ("Eixos, marcas e cores", com o modo leve, e a tabela das cores
+  do escuro). Testes no mesmo commit: `frontend/tests/modoEscuro.test.mjs` (teste novo do AJ-16: 88% só nos grupos e nas faixas, as
+  outras camadas a 62%, a apagada e a vazada iguais, os contrastes a 62% e a 88%, o esmaecer e o gráfico do Detector sem a
+  propriedade) e `backend/tests/ui_area_de_analise.py` (com os 5.570 municípios no modo leve: a cor única a 62%; os quintis a 88%,
+  com o 1º quintil a 2,17:1 no claro e a 2,30:1 com o aparelho no escuro; sem os grupos, de volta aos 62%).
+
 ### 2026-11-18 · AJ-15: no escuro, o traço de cima do painel das ferramentas na cor do selecionado
 - **Classificação (regra 1):** AJ-15 do comando da rodada final da correção das fichas do responsável (18/11/2026). Decorre do
   pedido e não contraria a SPEC nem uma divergência aprovada: estende ao painel das ferramentas a variável do selecionado do

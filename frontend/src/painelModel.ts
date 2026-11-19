@@ -1272,6 +1272,17 @@ export function arranjar(capsulas: Capsula[], folga = 1.5): Map<string, number> 
 /** Acima deste número de bolhas, o gráfico usa o modo leve: arranjo numa faixa limitada e desenho simplificado. */
 export const LIMITE_LEVE = 400;
 
+/** As camadas em que a cor vem de grupos ou de faixas (a rampa ordinal). */
+export const pelaRampaOrdinal = (camada: CamadaDeCor): boolean => camada === "grupos" || camada === "faixas";
+
+/** Opacidade do preenchimento de uma bolha no modo leve (a camada de círculos simples). A massa de bolhas fica a 62%, pela
+ * sobreposição de milhares delas: na cor única, a transparência mostra onde há muitas. Com a cor dos grupos ou das faixas
+ * (`gruposOuFaixas`, AJ-16 de 18/11/2026), 88%, como no modo normal: a 62%, a ponta das rampas ficava abaixo de 2:1 da superfície
+ * (1,70:1 no claro e 1,74:1 no escuro), e a sobreposição somava tons da mesma rampa, numa mistura que parecia outro grupo. A
+ * pintura apagada (não atende, fora dos primeiros) fica a 35%, e a vazada, inteira. */
+export const opacidadeNoLeve = (bolha: Pick<Pintura, "vazada" | "apagada">, gruposOuFaixas: boolean): number =>
+  bolha.vazada ? 1 : bolha.apagada ? 0.35 : gruposOuFaixas ? 0.88 : 0.62;
+
 /** Arranjo do eixo único com muitas bolhas (modo leve): a mesma ideia de `arranjar`, numa faixa limitada (`meia` de cada lado
  * da linha central), com uma grade de ocupação de 2 px; sem lugar livre, fica o de menor sobreposição (as bolhas são
  * semitransparentes). As maiores entram primeiro. Determinístico. */

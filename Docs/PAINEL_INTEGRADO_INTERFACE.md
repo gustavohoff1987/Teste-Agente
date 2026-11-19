@@ -1063,7 +1063,8 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
 - **Eixo único (Distribuição, Tendência na Trajetória e estados):** Y é o indicador. Na visão Tendência, o quadro de
   setas (acima) substitui as bolhas, com a escala própria de cada linha. As bolhas se espalham na horizontal só como arranjo, para
   não se sobreporem, e a nota diz "a posição horizontal é só arranjo". Arranjo exato até 400 bolhas (o gráfico cresce na altura
-  se precisar); acima disso, ou se não couber, o arranjo leve, numa faixa limitada da largura, com bolhas semitransparentes.
+  se precisar); acima disso, ou se não couber, o arranjo leve, numa faixa limitada da largura, com bolhas semitransparentes (salvo
+  com a cor dos grupos ou das faixas; veja "Modo leve", abaixo).
 - **Análise espacial:** X = distância até a referência (km), Y = indicador. Sem reta de tendência nem correlação.
 - **Tamanho:** população, com área proporcional (raio pela raiz quadrada: o raio máximo, de 12 a 34 px conforme a largura, vai
   para a maior população do resultado) e diâmetro mínimo visível (raio de 4 px); legenda com três populações redondas (1, 2 ou
@@ -1079,7 +1080,7 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
 - **Cores,** uma camada de cada vez (condições, depois ordenação, depois a da família), conferidas com o validador da skill de
   visualização: série única em azul-petróleo `#008b9e`; famílias da tendência `#2a78d6`, `#eb6834` e `#1baf7a` (conferidas em
   todos os pares); grupos e faixas na rampa ordinal azul (de 2 a 5 tons, `--ordinal`), com a ponta junto da superfície a 2:1 ou
-  mais como desenhada, a 88% de opacidade (desde o AJ-12, 18/11/2026); mudança no divergente azul e laranja com
+  mais como desenhada, a 88% de opacidade (desde o AJ-12, 18/11/2026; no modo leve também, desde o AJ-16); mudança no divergente azul e laranja com
   o zero cinza. Texto sempre em tinta, nunca na cor da série. O verde-água fica abaixo de 3:1 na superfície clara: a legenda, a
   contagem e a tabela dão o valor por outro caminho. Esses são os valores do modo claro; no escuro, os mesmos matizes em passos
   escolhidos para a superfície escura (seção "Modo escuro").
@@ -1091,7 +1092,15 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
 - **Estados e municípios** nunca no mesmo eixo nem somados; o modo Agrupar territórios junta municípios, e criar um conjunto leva a
   análise aos municípios.
 - **Modo leve:** acima de 400 bolhas, uma camada de círculos simples que não muda ao passar o mouse; só as bolhas em destaque
-  ganham o desenho completo. A régua só esconde; as posições não mudam. Sem animação. A tabela mostra 100 linhas por vez.
+  ganham o desenho completo. A régua só esconde; as posições não mudam. Sem animação. A tabela mostra 100 linhas por vez. As
+  bolhas ficam a 62% de opacidade, pela sobreposição de milhares delas: na cor única, a transparência mostra onde há muitas
+  (o azul-petróleo passa, a 2,28:1 da superfície no claro e a 2,99:1 no escuro). **Com a cor dos grupos ou das faixas** (as camadas
+  `grupos` e `faixas`, também nos decis, que usam a cor única com as linhas de corte), **88%, como no modo normal** (desde
+  18/11/2026, AJ-16; `opacidadeNoLeve`): a 62%, a ponta das rampas ficava a 1,70:1 da superfície no claro e a 1,74:1 no escuro,
+  abaixo dos 2:1, e, onde as bolhas se sobrepõem, a transparência somava tons da mesma rampa, numa mistura que parecia outro
+  grupo; a 88%, 2,17:1 e 2,30:1, os números do AJ-12. A pintura apagada (35%), a vazada (inteira) e o esmaecer da camada inteira
+  com o destaque da análise (30%) não mudam; o gráfico do Detector de Sinais, que pinta pelo nível, continua a 62%. A legenda e o
+  mapa não mudam (os pontos do mapa já são opacos).
 
 ## Funções
 
@@ -1358,7 +1367,7 @@ nos valores, nos pedidos ao motor nem nos textos, e os seletores de teste contin
 | Famílias da tendência | `#2a78d6`, `#eb6834`, `#1baf7a` | `#3987e5`, `#d95926`, `#199e70` | PASS em todos os pares: CVD ΔE 9,4; visão normal 20,9 |
 | Setas do quadro (24/10/2026): alta e queda | `#2a78d6`, `#eb6834` | `#3987e5`, `#d95926` | PASS em todos os pares: CVD ΔE 24,7 (claro) e 26,8 (escuro); visão normal 33,6 e 31,8; ≥ 3:1 |
 | Setas do quadro: pausa | `#898781` | `#898781` | 3,50:1 no claro e 4,85:1 no escuro (a forma da seta também diz a direção) |
-| Grupos e faixas (2 a 5) | do claro (menor) ao escuro (maior), a partir de `#6da7ec`: 5 tons `#6da7ec` → `#0d366b` | do escuro (menor) ao claro (maior), a partir de `#1c5cab`: 5 tons `#1c5cab` → `#b7d3f6` | `--ordinal` PASS; a ponta junto da superfície, desenhada a 88% como as bolhas, a 2,17:1 no claro e 2,30:1 no escuro (desde 18/11/2026, AJ-12; antes, `#86b6ef` e `#184f95`, a 1,88:1 e 1,94:1 desenhados, abaixo dos 2:1) |
+| Grupos e faixas (2 a 5) | do claro (menor) ao escuro (maior), a partir de `#6da7ec`: 5 tons `#6da7ec` → `#0d366b` | do escuro (menor) ao claro (maior), a partir de `#1c5cab`: 5 tons `#1c5cab` → `#b7d3f6` | `--ordinal` PASS; a ponta junto da superfície, desenhada a 88% como as bolhas, a 2,17:1 no claro e 2,30:1 no escuro (desde 18/11/2026, AJ-12; antes, `#86b6ef` e `#184f95`, a 1,88:1 e 1,94:1 desenhados, abaixo dos 2:1), também no modo leve (AJ-16; antes, a 62%, 1,70:1 e 1,74:1) |
 | Mudança: aumento | `#9cc2ee` → `#184f95` | `#1c5cab` → `#3987e5` → `#9ec5f4` | `--ordinal` PASS |
 | Mudança: redução | `#f2ad8c` → `#a8431b` | `#a8431b` → `#d95926` → `#f2ad8c` | `--ordinal` PASS; entre os braços, CVD ΔE 21,8 nos começos e 14,3 nas pontas |
 | Mudança: zero | `#c9c7bf` | `#45443f` (1,78:1; ΔL ≥ 0,09 abaixo dos começos) | — |

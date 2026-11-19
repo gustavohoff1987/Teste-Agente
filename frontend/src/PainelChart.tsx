@@ -5,7 +5,7 @@ import MiniMapa from "./MiniMapa";
 import type { PainelIndicador, PainelItem, PainelResposta } from "./painelApi";
 import {
   INDICADORES, LIMITE_LEVE, caudaDoCometa, dicaDaReferenciaDeContexto, exibirCompetencia, formatarNumero, formatarVariacao, geometriaDaLegendaDeTamanho, larguraDoTexto,
-  legendaDeTamanhos, montarDica, montarGrafico, opacidadeComDestaque, opacidadeDaBolha, paletaDoGrafico, posicaoNoEixo, posicionarRotulos, raioDaPopulacao,
+  legendaDeTamanhos, montarDica, montarGrafico, opacidadeComDestaque, opacidadeDaBolha, opacidadeNoLeve, paletaDoGrafico, posicaoNoEixo, posicionarRotulos, raioDaPopulacao,
   referenciasDeContexto, type BolhaDesenho, type Corte, type Escala, type PaletaDoGrafico, type ParDaBase, type Pintura, type RotulosTerritoriais, type Vista,
 } from "./painelModel";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
@@ -78,6 +78,9 @@ type Props = {
   vista: Vista;
   fase: FaseAnimacao;
   pintura: (item: PainelItem) => Pintura;
+  /** A cor vem de grupos ou de faixas (as camadas `grupos` e `faixas`, AJ-16 de 18/11/2026): no modo leve, as bolhas ficam a 88%,
+   * como no modo normal, e não a 62% (opacidadeNoLeve). Sem ela, as outras camadas, como antes. */
+  gruposOuFaixas?: boolean;
   selecionados: string[];
   limiares: number[];
   nomes: Map<string, string>;
@@ -433,7 +436,7 @@ export default function PainelChart(p: Props) {
         <circle r={Math.max(contexto.r + 2, 12)} fill="transparent"/>
       </g>)}
       {leve ? <>
-        <CamadaLeve bolhas={ordem} dentro={dentro!} cometa={p.cometa} distancia={p.distancia} paleta={paleta} esmaecida={!!destaque}
+        <CamadaLeve bolhas={ordem} dentro={dentro!} cometa={p.cometa} distancia={p.distancia} paleta={paleta} esmaecida={!!destaque} gruposOuFaixas={!!p.gruposOuFaixas}
           onAtivar={ativarLeve} onAcionar={id => { const bolha = grafico.bolhas.find(item => item.id === id); if (bolha) acionar(bolha); }}/>
         {especiais.map(bolha => desenharBolha(bolha, "analise-bolha-destaque",
           selecionados.has(bolha.id) || bolha.tipo === "conjunto" || bolha.referencia || bolha.id === focoEfetivo))}
@@ -516,14 +519,17 @@ type CamadaProps = {
   bolhas: BolhaDesenho[]; dentro: Set<string>; cometa: boolean; distancia: boolean; paleta: PaletaDoGrafico;
   /** Com o destaque da análise, a camada inteira esmaece; as bolhas do destaque são redesenhadas inteiras por cima. */
   esmaecida?: boolean;
+  /** A cor vem de grupos ou de faixas: as bolhas a 88%, e não a 62% (AJ-16, 18/11/2026). */
+  gruposOuFaixas?: boolean;
   onAtivar: (id: string | null) => void; onAcionar: (id: string) => void;
 };
 
 /** Modo leve: um círculo simples por bolha (e uma linha fina por rastro), com os mesmos atributos de dados e um único conjunto de
  * eventos no grupo. Não depende do mouse, do foco nem da seleção: passar o mouse não redesenha os milhares de círculos, e marcar
  * não esmaece a camada (25/10/2026); o destaque da análise (a comparação ou as bases escolhidas, 26/10/2026), sim. Fora da
- * régua, o círculo só fica oculto. */
-const CamadaLeve = memo(function CamadaLeve({ bolhas, dentro, cometa, distancia, paleta, esmaecida, onAtivar, onAcionar }: CamadaProps) {
+ * régua, o círculo só fica oculto. As bolhas são semitransparentes (62%), salvo com a cor dos grupos ou das faixas, a 88% como no
+ * modo normal (AJ-16, opacidadeNoLeve). */
+const CamadaLeve = memo(function CamadaLeve({ bolhas, dentro, cometa, distancia, paleta, esmaecida, gruposOuFaixas, onAtivar, onAcionar }: CamadaProps) {
   const alvo = (event: EventoPonteiro<SVGGElement> | EventoMouse<SVGGElement>) =>
     (event.target as Element).closest?.("[data-id]")?.getAttribute("data-id") ?? null;
   return <g data-testid="analise-camada-leve" className="analise-camada-leve" opacity={esmaecida ? 0.3 : undefined}
@@ -541,7 +547,7 @@ const CamadaLeve = memo(function CamadaLeve({ bolhas, dentro, cometa, distancia,
         data-classe={bolha.item.tendencia ? bolha.item.tendencia.classe ?? "NAO_AVALIAVEL" : undefined}
         data-grupo={bolha.item.grupo ? String(bolha.item.grupo.indice) : undefined}
         data-condicao={bolha.item.condicoes?.situacao} data-visivel={visivel ? "true" : "false"}
-        cx={bolha.x} cy={bolha.y} r={bolha.r} fill={bolha.cor} fillOpacity={bolha.vazada ? 1 : bolha.apagada ? 0.35 : 0.62}
+        cx={bolha.x} cy={bolha.y} r={bolha.r} fill={bolha.cor} fillOpacity={opacidadeNoLeve(bolha, !!gruposOuFaixas)}
         stroke={bolha.vazada ? paleta.naoAvaliavel : paleta.superficie} strokeWidth={bolha.vazada ? 1 : 0.75} strokeDasharray={bolha.vazada ? "2 1.5" : undefined}
         display={visivel ? undefined : "none"} aria-hidden="true"/>;
     })}
