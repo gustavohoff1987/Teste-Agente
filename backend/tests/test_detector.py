@@ -13,13 +13,15 @@ Três grupos de testes:
 - **base versionada** (job dados-reais, ADT_REAL_DATA_DIR, somente leitura): os critérios de aceitação do comando V23 — as taxas
   de alerta da régua, o crítico sem comparações de 3.000 médicos para cima, a régua dos estados — e os casos do anexo (Rio
   Rufino, o Distrito Federal antes de 2018, uma queda grande que persiste e a desaceleração igual à da Análise de Tendência) e
-  os sinais 8 a 12 com a população comparável da base (a janela de dois anos, os níveis, o contexto geográfico e "Juntos").
+  os sinais 8 a 12 com a população comparável da base (a janela de dois anos, os níveis, o contexto geográfico e "Juntos"); desde
+  o AJ-20 (18/11/2026), o monitoramento e as três tabelas da régua de jun/2024 com os números da Ficha A.
 Nenhum valor sintético representa quantitativos reais.
 """
 import hashlib
 import json
 import os
 import random
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 import numpy as np
@@ -1308,6 +1310,47 @@ def test_real_regua_dos_estados_moderado_desde_2015_elevado_desde_2019_critico_n
     assert "calibracao_dos_estados" in body and all(linha["tipo"] == "estado" for linha in body["linhas"])
 
 
+# AJ-20 (18/11/2026): as três tabelas da régua de jun/2024, com os números da Ficha A (seção 13, "A régua da data e o
+# monitoramento") e de Docs/DETECTOR_DE_SINAIS.md ("Calibração"), como saem de python scripts/calibrar_detector.py --regua-da-data
+# 202406. Por porte: as comparações do porte e, em cada nível, o corte em uma casa (como a ficha o escreve), "nenhuma" (100% ou
+# mais: nenhuma queda chega ao nível) ou "qualquer" (zero ou menos: qualquer queda é rara); com as faixas vizinhas, o par (corte,
+# comparações juntadas), com None no corte quando nem com elas há comparações suficientes.
+REGUA_DE_JUN_2024 = {
+    "queda dos municípios": [
+        ("1 a 3", 6572, 33.3, 50.0, "nenhuma"), ("4 a 9", 16650, 25.0, 42.9, 75.0), ("10 a 19", 12035, 21.4, 36.8, 58.8),
+        ("20 a 49", 9958, 17.1, 31.3, 56.4), ("50 a 99", 3969, 13.6, 29.4, 64.8), ("100 a 299", 3708, 10.0, 26.3, 52.4),
+        ("300 a 999", 1901, 5.9, 17.3, 45.4), ("1.000 a 2.999", 616, 2.5, 11.3, (44.4, 2720)),
+        ("3.000 a 9.999", 203, 2.2, 7.6, (None, 864)), ("10.000 ou mais", 45, 1.3, (7.6, 248), (None, 248))],
+    "patamar dos municípios": [
+        ("20 a 49", 13942, 39.5, 62.2), ("50 a 99", 5321, 37.8, 68.2), ("100 a 299", 5109, 31.3, 76.1), ("300 a 999", 2552, 20.9, 34.9),
+        ("1.000 a 2.999", 806, 3.8, (31.3, 3614)), ("3.000 a 9.999", 256, 17.5, (19.6, 1116)), ("10.000 ou mais", 54, (9.9, 310), (None, 310))],
+    "queda dos estados": [
+        ("300 a 999", 25, 9.6, (None, 47), (None, 47)), ("1.000 a 2.999", 22, "qualquer", (9.6, 169), (None, 169)),
+        ("3.000 a 9.999", 122, "qualquer", 7.4, (None, 245)), ("10.000 ou mais", 101, "qualquer", 1.5, (None, 223))],
+}
+
+
+def _confere_a_regua_da_ficha(faixas, esperadas, niveis, campo):
+    """Cada célula da régua da resposta, como a ficha a escreve (AJ-20): o porte e as comparações dele; em cada nível, de onde
+    vieram as comparações, quantas são, se o nível foi avaliado e o corte, em uma casa, com o empate arredondado para longe do zero
+    (como a ficha e o script)."""
+    assert [(celula["porte"], celula["comparacoes"]) for celula in faixas] == [linha[:2] for linha in esperadas]
+    for celula, linha in zip(faixas, esperadas):
+        for nivel, esperado in zip(niveis, linha[2:]):
+            corte, vizinhas = celula[nivel], isinstance(esperado, tuple)
+            valor, quantas = esperado if vizinhas else (esperado, celula["comparacoes"])
+            onde = (celula["porte"], nivel, corte)
+            assert (corte["origem"], corte["comparacoes"], corte["avaliado"]) == ("vizinhas" if vizinhas else "porte", quantas, valor is not None), onde
+            if valor is None:
+                assert corte[campo] is None and corte["pede"] == {"moderado": 19, "elevado": 99, "critico": 999}[nivel], onde
+            elif valor == "nenhuma":
+                assert corte[campo] >= 100, onde
+            elif valor == "qualquer":
+                assert corte[campo] <= 0, onde
+            else:
+                assert Decimal(corte[campo]).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP) == Decimal(str(valor)), onde
+
+
 def test_real_lista_inteira_um_nivel_por_territorio(real):
     body = corpo(pedir({"base": {"municipios": {"todos": True}}}))
     assert body["resumo"]["territorios"] == 5570 and body["fonte"]["categoria"] == "MEDICINA"
@@ -1349,6 +1392,18 @@ def test_real_lista_inteira_um_nivel_por_territorio(real):
     feitas = _confere_a_regua_da_data(real, detector.calibrar(real), len(PERIODOS) - 1)
     assert feitas["porte"] > 15000 and feitas["vizinhas"] > 0 and feitas["sem"] > 0, feitas
     assert body["calibracao"]["monitoramento"]["taxa_pct"] == pytest.approx(2.89, abs=0.01) and body["aviso_da_base"] is None
+    # AJ-20 (18/11/2026): os números da Ficha A (seção 13) e de Docs/DETECTOR_DE_SINAIS.md, do motor: o monitoramento (161 quedas
+    # raras entre 5.570 municípios avaliados, 2,9% para um esperado de 5%, sem aviso da base) e as três tabelas da régua, célula por
+    # célula — a queda recente e o afastamento do patamar dos municípios e a queda recente dos estados como unidade, com a régua
+    # própria (que a resposta traz quando a seleção tem estados).
+    monitoramento = body["calibracao"]["monitoramento"]
+    assert (monitoramento["raras"], monitoramento["avaliadas"], monitoramento["esperado_pct"], monitoramento["aviso_da_base"]) == (161, 5570, 5.0, False)
+    _confere_a_regua_da_ficha(body["calibracao"]["perda"], REGUA_DE_JUN_2024["queda dos municípios"], ("moderado", "elevado", "critico"), "queda_pct")
+    _confere_a_regua_da_ficha(body["calibracao"]["patamar"], REGUA_DE_JUN_2024["patamar dos municípios"], ("elevado", "critico"), "afastamento_pct")
+    dos_estados = corpo(pedir({"estados_unidade": sorted(real.estados)}))["calibracao_dos_estados"]
+    assert dos_estados["competencia"] == "202406"
+    _confere_a_regua_da_ficha([celula for celula in dos_estados["perda"] if celula["comparacoes"] > 0], REGUA_DE_JUN_2024["queda dos estados"],
+                              ("moderado", "elevado", "critico"), "queda_pct")
     # Muda de propósito na revisão final do V23 (15/11/2026, opção (a) do item 4 da Pausa 2): os 6 municípios em que a base traz a
     # latitude ou a longitude fora do intervalo válido ficam com a sede municipal da camada oficial do IBGE, como nas análises. O
     # mapa tem os 5.570 pontos, e ninguém fica de fora (antes: 5.564 coordenadas e esses 6 em `sem_coordenada`).

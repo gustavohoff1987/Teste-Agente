@@ -590,6 +590,58 @@ Cada nível mostra a régua usada de fato: o porte ou, quando ele não tem compa
 
 Com todos os portes juntos, os cortes ficam perto dos que a Proposta V3 estimou com a população anterior (23%, 38% e 60%).
 
+**A régua de jun/2024 e o monitoramento da data** (os números da seção 13 da Ficha A, "A régua da data e o monitoramento"),
+como saem de:
+
+    python scripts/calibrar_detector.py --regua-da-data 202406
+
+Base versionada `faa54169c5b6`, método `DETECTOR-SINAIS/V3/1`, critérios padrão. Cada nível mostra a régua usada de fato: quando
+o porte não tem comparações bastantes, ela junta as faixas vizinhas (uma de cada lado) e, só no moderado, todas as faixas — a
+célula diz de onde vieram as comparações e quantas são.
+
+Queda recente (sinal 6), municípios, com as mudanças anteriores de 5 meses entre registros: a partir de que queda ela é rara, por
+porte (o número de médicos antes).
+
+| Porte (médicos) | Comparações do porte | Moderado (1 em cada 20) | Elevado (1 em cada 100) | Crítico (1 em cada 1.000) |
+| --- | --- | --- | --- | --- |
+| 1 a 3 | 6.572 | queda maior que 33,3% | queda maior que 50,0% | nenhuma queda chega a esse nível |
+| 4 a 9 | 16.650 | queda maior que 25,0% | queda maior que 42,9% | queda maior que 75,0% |
+| 10 a 19 | 12.035 | queda maior que 21,4% | queda maior que 36,8% | queda maior que 58,8% |
+| 20 a 49 | 9.958 | queda maior que 17,1% | queda maior que 31,3% | queda maior que 56,4% |
+| 50 a 99 | 3.969 | queda maior que 13,6% | queda maior que 29,4% | queda maior que 64,8% |
+| 100 a 299 | 3.708 | queda maior que 10,0% | queda maior que 26,3% | queda maior que 52,4% |
+| 300 a 999 | 1.901 | queda maior que 5,9% | queda maior que 17,3% | queda maior que 45,4% |
+| 1.000 a 2.999 | 616 | queda maior que 2,5% | queda maior que 11,3% | queda maior que 44,4% (com as faixas vizinhas: 2.720 comparações) |
+| 3.000 a 9.999 | 203 | queda maior que 2,2% | queda maior que 7,6% | sem comparações suficientes (864 de 999, com as faixas vizinhas) |
+| 10.000 ou mais | 45 | queda maior que 1,3% | queda maior que 7,6% (com as faixas vizinhas: 248 comparações) | sem comparações suficientes (248 de 999, com as faixas vizinhas) |
+
+Abaixo do que já teve (sinal 7), municípios: a partir de que afastamento do patamar ele é raro, por porte do patamar (os
+afastamentos anteriores de todas as datas).
+
+| Porte (médicos) | Comparações do porte | Elevado (1 em cada 100) | Crítico (1 em cada 1.000) |
+| --- | --- | --- | --- |
+| 20 a 49 | 13.942 | afastamento maior que 39,5% | afastamento maior que 62,2% |
+| 50 a 99 | 5.321 | afastamento maior que 37,8% | afastamento maior que 68,2% |
+| 100 a 299 | 5.109 | afastamento maior que 31,3% | afastamento maior que 76,1% |
+| 300 a 999 | 2.552 | afastamento maior que 20,9% | afastamento maior que 34,9% |
+| 1.000 a 2.999 | 806 | afastamento maior que 3,8% | afastamento maior que 31,3% (com as faixas vizinhas: 3.614 comparações) |
+| 3.000 a 9.999 | 256 | afastamento maior que 17,5% | afastamento maior que 19,6% (com as faixas vizinhas: 1.116 comparações) |
+| 10.000 ou mais | 54 | afastamento maior que 9,9% (com as faixas vizinhas: 310 comparações) | sem comparações suficientes (310 de 999, com as faixas vizinhas) |
+
+Queda recente (sinal 6), estados como unidade: a régua própria, com a base dos estados (só as faixas com comparações).
+
+| Porte (médicos) | Comparações do porte | Moderado (1 em cada 20) | Elevado (1 em cada 100) | Crítico (1 em cada 1.000) |
+| --- | --- | --- | --- | --- |
+| 300 a 999 | 25 | queda maior que 9,6% | sem comparações suficientes (47 de 99, com as faixas vizinhas) | sem comparações suficientes (47 de 999, com as faixas vizinhas) |
+| 1.000 a 2.999 | 22 | qualquer queda | queda maior que 9,6% (com as faixas vizinhas: 169 comparações) | sem comparações suficientes (169 de 999, com as faixas vizinhas) |
+| 3.000 a 9.999 | 122 | qualquer queda | queda maior que 7,4% | sem comparações suficientes (245 de 999, com as faixas vizinhas) |
+| 10.000 ou mais | 101 | qualquer queda | queda maior que 1,5% | sem comparações suficientes (223 de 999, com as faixas vizinhas) |
+
+Monitoramento: nesta data, 161 de 5.570 municípios tiveram uma mudança rara (1 em cada 20) no último registro: 2,9%, para um esperado de cerca de 5%; sem aviso da base (ele vale acima do triplo do esperado, com 100 avaliações ou mais).
+
+O teste com dados reais de jun/2024 (`backend/tests/test_detector.py`) confere estes números com o motor: as três tabelas, célula
+por célula, e as 161 raras entre 5.570 avaliadas.
+
 **Sinal 11, o contexto em cada registro anual** (critério: a taxa do Brasil na data): em jun/2024, a taxa é de 2,36 por 1.000;
 2.002 municípios ficam acima do critério e 3.568 têm distância a mostrar (mediana de 27,1 km; percentil 90, 112,1 km; maior,
 838,6 km). Em jun/2014, eram 1,60 por 1.000, 1.565 municípios acima e mediana de 32,5 km. Com as coordenadas da camada oficial
@@ -672,7 +724,9 @@ o arquivo sem alterar os bytes do IBGE, regrave `fonte.json` e registre a mudan�
   os 5.570 pontos, as 22 datas dos seis municípios, a distância de Ananás e de Balneário Rincão refeita por fora e os vizinhos que
   passam a ter um deles como o mais próximo —, o motivo na frase dos sinais não avaliados (e, em
   `backend/tests/test_geo_complement.py`, a base das ferramentas com a camada ausente, válida e de outra versão da fonte), as
-  taxas da régua por nível e por porte, a régua dos estados, a lista inteira com um nível por território, Rio Rufino/SC, o
+  taxas da régua por nível e por porte, a régua dos estados, a lista inteira com um nível por território (desde o AJ-20, de
+  18/11/2026, também o monitoramento de jun/2024 — 161 quedas raras entre 5.570 municípios avaliados — e as três tabelas da régua
+  de jun/2024 da Ficha A e da seção "Calibração", célula por célula), Rio Rufino/SC, o
   Distrito Federal antes de 2018, uma queda grande que persiste, a desaceleração igual à da Análise de Tendência e os sinais 8
   a 12 com a população comparável);
   `backend/tests/test_ferramentas_qualquer_base.py` — o calendário lido da base (o mês da série anual, os meses de registro e os
