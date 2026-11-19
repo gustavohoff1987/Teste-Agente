@@ -23,7 +23,8 @@ referências de comparação, as comparações, o planejamento inverso e o Brasi
 hipotética e o resultado. Nas capturas dos fenômenos (27 a 31), desde o AJ-14, o script fecha a explicação que abriu antes e
 abre só a do sinal da captura, e a imagem vai até o fim dela, mesmo abaixo do corte do alto da página: cada captura mostra o
 próprio sinal (antes, a 30 saía igual à 29, com a explicação do sinal 11 abaixo do corte). Depois, o Histórico, o diálogo de Nova sessão, o painel "Colunas" de uma planilha de distritos e províncias
-(criada numa pasta temporária) e a Seleção no celular. Nada vai para o provedor de IA, nenhum dado é alterado e o servidor é
+(criada numa pasta temporária) e a Seleção no celular (desde o AJ-21, com a página de volta ao topo antes da captura, como nas
+outras telas: a barra fixa fica no alto). Nada vai para o provedor de IA, nenhum dado é alterado e o servidor é
 encerrado no fim. Uma tela que falhar é informada no fim, sem impedir as seguintes. Saída: 0 se todas as capturas foram feitas.
 """
 import argparse
@@ -515,6 +516,9 @@ def capturar(url, saida, canal, esquema="claro"):
             linha = selecao.locator('[data-testid="analise-grupo"][data-id="' + PA + '"]')
             with celular_page.expect_response(lambda r: is_post(r, "/api/painel"), timeout=180000):
                 linha.get_by_test_id("analise-grupo-so-estado").click()
+            # AJ-21 (18/11/2026): antes da página inteira, de volta ao topo, como em tela(): a barra fixa (Desfazer e Limpar seleção)
+            # fica no lugar dela, e não no meio da imagem (para clicar em "Só o estado", o navegador rola a página até o botão).
+            celular_page.evaluate("window.scrollTo(0, 0)")
             celular_page.wait_for_timeout(900)
             celular_page.screenshot(path=str(saida / "15-celular-selecao.png"), full_page=True)
             pequeno.close()
