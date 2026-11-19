@@ -634,8 +634,15 @@ serviço por HTTPS noutro endereço.
   ou detalhes da infraestrutura. A. Serviço inacessível: depois de uma tentativa curta (as respostas da plataforma sem CORS
   chegam como falha de rede), o título "Serviço temporariamente indisponível" e o texto institucional, no diálogo de abertura
   ou no alto da página; a interface continua abrindo pelo Pages. B. Partida a frio: a verificação que demora mais de 3 s, ou a
-  primeira que falha, mostra que o serviço está iniciando. C. Ocupado: a resposta do próprio serviço no limite mostra o aviso
-  de ocupado, que sai quando uma rota que espera vaga ou conta nos pedidos da sessão volta a responder (as operações pesadas e
+  primeira que falha, mostra que o serviço está iniciando. Desde 19/11/2026 (PA-02), os pedidos da página esperam o serviço
+  responder antes de sair, com esse aviso, até o prazo da verificação: um clique em "Dados do Brasil" durante a partida conclui
+  sem erro e sem segundo clique; se o serviço ficar indisponível, eles falham como antes, com o aviso A. O pedido que só lê ou
+  calcula (as leituras, o exame da base do Brasil, o painel, o Detector, o Simulador, a análise, a descrição da base e a criação
+  da sessão) e falha por rede espera o serviço responder de novo e se repete sozinho, até 2 vezes; depois, o erro aparece como
+  antes. Nunca se repetem sozinhos a conversa (cada repetição gastaria cota do Gemini e poderia duplicar a mensagem), os eventos
+  da sessão, o pré-exame de planilha, qualquer envio de arquivo, o pedido que a própria página cancela e as respostas legíveis do
+  serviço, inclusive o ocupado; a consulta e os eventos da sessão saem na hora, como antes. C. Ocupado: a resposta do próprio
+  serviço no limite mostra o aviso de ocupado, que sai quando uma rota que espera vaga ou conta nos pedidos da sessão volta a responder (as operações pesadas e
   a conversa) ou 20 s depois do último ocupado; a verificação de saúde e a consulta da sessão respondem mesmo no limite e não o
   tiram. O gráfico e o mapa tentam de novo sozinhos (até 2 vezes, no tempo indicado), e a conversa mostra o aviso na própria
   conversa. D. A conversa sem o Gemini continua como antes. E. A sessão expirada ou perdida (inclusive num reinício do

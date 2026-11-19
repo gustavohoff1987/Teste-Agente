@@ -192,10 +192,16 @@ test('ocupado (C): o aviso com o texto do serviço, sem a indisponibilidade; sai
   assert.ok(!m.fases().includes('indisponivel'));
 });
 
+/** Desde o PA-02, o observador consulta a fase e espera o serviço: um monitor online cujo serviço não responde de novo (a espera
+ * depois de uma falha termina como indisponível, e a falha aparece como antes). */
+function monitorOnlineSemNovaResposta() {
+  return {estado: () => ({fase: 'online'}), marco: () => 0, aguardar: () => Promise.resolve('indisponivel')};
+}
+
 test('a observação dos pedidos: falha de rede, abortado, ocupado e resposta comum, sem mudar o resultado do pedido', async () => {
   const chamadas = [];
   const monitor = {falhaDeRede: () => chamadas.push('falha'), ocupado: texto => chamadas.push('ocupado:' + texto),
-    respondeu: comLimite => chamadas.push('respondeu:' + comLimite)};
+    respondeu: comLimite => chamadas.push('respondeu:' + comLimite), ...monitorOnlineSemNovaResposta()};
   const respostas = {
     'https://api.exemplo/api/rede': () => Promise.reject(new TypeError('Failed to fetch')),
     'https://api.exemplo/api/abortado': () => Promise.reject(Object.assign(new Error('aborted'), {name: 'AbortError'})),
@@ -229,7 +235,7 @@ test('a observação dos pedidos: falha de rede, abortado, ocupado e resposta co
 test('a observação no mesmo endereço da página (sem apiBase): o caminho relativo da rota com limite', async () => {
   const chamadas = [];
   const monitor = {falhaDeRede: () => chamadas.push('falha'), ocupado: () => chamadas.push('ocupado'),
-    respondeu: comLimite => chamadas.push(comLimite)};
+    respondeu: comLimite => chamadas.push(comLimite), ...monitorOnlineSemNovaResposta()};
   const alvo = {fetch: () => Promise.resolve(new Response('{}', {status: 200}))};
   C.observarRespostas(monitor, '', alvo);
   await alvo.fetch('/api/inspect');
@@ -237,4 +243,193 @@ test('a observação no mesmo endereço da página (sem apiBase): o caminho rela
   await alvo.fetch(new URL('http://127.0.0.1:5173/api/llm/interpret-context'));
   assert.deepEqual(chamadas, [true, false, true]);
   assert.ok(C.ROTAS_COM_LIMITE.has('/api/painel') && !C.ROTAS_COM_LIMITE.has('/api/health'));
+});
+
+// ------------------------------------------------------------------------------------------- PA-02: a página que espera
+const ok = () => Promise.resolve(new Response('{}', {status: 200}));
+const rede = () => Promise.reject(new TypeError('Failed to fetch'));
+
+/** A página com o monitor de verdade (relógio simulado) e o fetch roteirizado: cada chamada registra a URL e o método. */
+function pagina(verificacoes, roteiro) {
+  const m = montar(verificacoes), feitos = [];
+  const alvo = {fetch: (url, init) => {
+    feitos.push(String(url) + ' ' + ((init && init.method) || 'GET'));
+    return roteiro(String(url), init, feitos.length);
+  }};
+  C.observarRespostas(m.monitor, 'https://api.exemplo', alvo);
+  return {...m, alvo, feitos};
+}
+const API = 'https://api.exemplo/api/';
+
+test('PA-02: na partida, o pedido espera o serviço responder antes de sair, com o aviso de partida, e sai uma vez só', async () => {
+  const p = pagina(['pendente'], ok);
+  p.monitor.iniciar();
+  await p.relogio.avancar(C.AVISO_DE_PARTIDA_MS);
+  assert.equal(p.ultimo().fase, 'iniciando');
+  let resposta = null;
+  const pedido = p.alvo.fetch(API + 'inspect', {method: 'POST', body: new FormData()}).then(r => { resposta = r; });
+  await p.relogio.avancar(20000);
+  assert.deepEqual(p.feitos, [], 'o pedido espera, sem erro na tela');
+  assert.equal(resposta, null);
+  p.s.responder(true);   // o serviço abriu a porta
+  await p.relogio.avancar(0);
+  await pedido;
+  assert.equal(p.ultimo().fase, 'online');
+  assert.deepEqual(p.feitos, [API + 'inspect POST']);
+  assert.equal(resposta.status, 200);
+});
+
+test('PA-02: se o monitor for para indisponível durante a espera, o pedido sai e falha como antes, sem se repetir', async () => {
+  const p = pagina(['erro', 'erro'], rede);
+  p.monitor.iniciar();
+  await p.relogio.avancar(0);
+  assert.equal(p.ultimo().fase, 'iniciando', 'a primeira verificação falhou: a tentativa curta');
+  const falha = assert.rejects(p.alvo.fetch(API + 'painel', {method: 'POST', body: '{}'}), TypeError);
+  await p.relogio.avancar(C.TENTATIVA_CURTA_MS);
+  await falha;
+  assert.equal(p.ultimo().fase, 'indisponivel');
+  assert.deepEqual(p.feitos, [API + 'painel POST'], 'saiu uma vez, depois da indisponibilidade');
+});
+
+test('PA-02: a falha de rede de um pedido que só lê ou calcula espera o serviço responder e se repete, até 2 vezes', async () => {
+  const p = pagina([true, true, true], (url, init, n) => n <= 2 ? rede() : ok());
+  p.monitor.iniciar();
+  await p.relogio.avancar(0);
+  const resposta = await p.alvo.fetch(API + 'detector', {method: 'POST', body: '{}'});
+  assert.equal(resposta.status, 200, 'sem erro e sem segundo clique');
+  assert.equal(p.feitos.length, 3, 'o pedido e as duas repetições');
+  assert.equal(p.s.chamadas(), 3, 'cada repetição só sai depois de uma verificação com resposta');
+  assert.equal(p.ultimo().fase, 'online');
+  // Depois de 2 repetições, o erro aparece como antes.
+  const sempre = pagina([true, true, true, true], rede);
+  sempre.monitor.iniciar();
+  await sempre.relogio.avancar(0);
+  await assert.rejects(sempre.alvo.fetch(API + 'simulador', {method: 'POST', body: '{}'}), TypeError);
+  assert.equal(sempre.feitos.length, 1 + C.REPETICOES_DEPOIS_DA_FALHA);
+  // As leituras também se repetem; a criação da sessão, o exame da base e o mapa, também.
+  for (const [rota, metodo] of [['brazil/description', 'GET'], ['session', 'POST'], ['inspect', 'POST'], ['painel/mapa', 'POST']]) {
+    const uma = pagina([true, true], (url, init, n) => n === 1 ? rede() : ok());
+    uma.monitor.iniciar();
+    await uma.relogio.avancar(0);
+    assert.equal((await uma.alvo.fetch(API + rota, {method: metodo})).status, 200, rota);
+    assert.equal(uma.feitos.length, 2, rota);
+  }
+});
+
+test('PA-02: a repetição desiste quando o serviço fica indisponível e quando a página cancela', async () => {
+  const p = pagina([true, 'erro', 'erro'], rede);
+  p.monitor.iniciar();
+  await p.relogio.avancar(0);
+  const falha = assert.rejects(p.alvo.fetch(API + 'painel', {method: 'POST', body: '{}'}), TypeError);
+  await p.relogio.avancar(0);   // a falha dispara a verificação, que falha e agenda a tentativa curta
+  await p.relogio.avancar(C.TENTATIVA_CURTA_MS);
+  await falha;
+  assert.equal(p.ultimo().fase, 'indisponivel');
+  assert.equal(p.feitos.length, 1, 'sem repetição com o serviço indisponível');
+  const q = pagina([true, 'pendente'], rede);
+  q.monitor.iniciar();
+  await q.relogio.avancar(0);
+  const controle = new AbortController();
+  const cancelado = assert.rejects(q.alvo.fetch(API + 'detector', {method: 'POST', body: '{}', signal: controle.signal}),
+    {name: 'AbortError'});
+  await q.relogio.avancar(0);
+  controle.abort();
+  await cancelado;
+  assert.equal(q.feitos.length, 1, 'cancelado durante a espera: não sai de novo');
+});
+
+test('PA-02: nunca se repetem sozinhos a conversa, os eventos da sessão, o pré-exame, o envio de arquivo, o cancelado e o ocupado', async () => {
+  const arquivo = new FormData();
+  arquivo.append('file', new Blob(['a;b\n1;2\n']), 'planilha.csv');
+  const casos = [['llm/interpret', {method: 'POST', body: '{}'}], ['llm/interpret-context', {method: 'POST', body: '{}'}],
+    ['exploration/interpret', {method: 'POST', body: '{}'}], ['session/interact', {method: 'POST', body: '{}'}],
+    ['session/revision', {method: 'POST', body: '{}'}], ['session/close', {method: 'POST'}], ['preflight', {method: 'POST', body: '{}'}],
+    ['painel', {method: 'POST', body: arquivo}], ['inspect', {method: 'POST', body: arquivo}], ['session', {method: 'GET'}]];
+  for (const [rota, init] of casos) {
+    const p = pagina([true, true, true], rede);
+    p.monitor.iniciar();
+    await p.relogio.avancar(0);
+    await assert.rejects(p.alvo.fetch(API + rota, init), TypeError, rota);
+    assert.equal(p.feitos.length, 1, rota + ': uma vez só');
+  }
+  const abortado = pagina([true, true], () => Promise.reject(Object.assign(new Error('aborted'), {name: 'AbortError'})));
+  abortado.monitor.iniciar();
+  await abortado.relogio.avancar(0);
+  await assert.rejects(abortado.alvo.fetch(API + 'painel', {method: 'POST', body: '{}'}), {name: 'AbortError'});
+  assert.equal(abortado.feitos.length, 1);
+  for (const corpo of [JSON.stringify({detail: 'Ocupado agora.', ocupado: true}), '<html>']) {
+    const p = pagina([true, true], () => Promise.resolve(new Response(corpo, {status: 503})));
+    p.monitor.iniciar();
+    await p.relogio.avancar(0);
+    assert.equal((await p.alvo.fetch(API + 'painel', {method: 'POST', body: '{}'})).status, 503, 'a resposta legível, como antes');
+    assert.equal(p.feitos.length, 1);
+  }
+});
+
+test('PA-02: na partida, a consulta e os eventos da sessão saem na hora, como antes; a criação da sessão e a conversa esperam', async () => {
+  const daSessao = (url, init) => (url === API + 'session' && !(init && init.method)) || url === API + 'session/interact';
+  const p = pagina(['pendente'], (url, init) => daSessao(url, init) ? rede() : ok());   // o serviço ainda não abriu a porta
+  p.monitor.iniciar();
+  await p.relogio.avancar(C.AVISO_DE_PARTIDA_MS);
+  await assert.rejects(p.alvo.fetch(API + 'session', {headers: {'X-ADT-Session': 't'}}), TypeError);
+  await assert.rejects(p.alvo.fetch(API + 'session/interact', {method: 'POST', body: '{}'}), TypeError);
+  assert.deepEqual(p.feitos, [API + 'session GET', API + 'session/interact POST'], 'saíram na hora e falharam como antes');
+  assert.equal(p.ultimo().fase, 'iniciando');
+  const criacao = p.alvo.fetch(API + 'session', {method: 'POST'});
+  const conversa = p.alvo.fetch(API + 'llm/interpret', {method: 'POST', body: '{}'});
+  await p.relogio.avancar(5000);
+  assert.equal(p.feitos.length, 2, 'a criação da sessão e a mensagem esperam o serviço');
+  p.s.responder(true);
+  await p.relogio.avancar(0);
+  await Promise.all([criacao, conversa]);
+  assert.deepEqual(p.feitos.slice(2).sort(), [API + 'llm/interpret POST', API + 'session POST'], 'a mensagem sai uma vez só');
+});
+
+test('PA-02: o cancelamento durante a espera da partida cancela, sem o pedido sair', async () => {
+  const p = pagina(['pendente'], ok);
+  p.monitor.iniciar();
+  await p.relogio.avancar(C.AVISO_DE_PARTIDA_MS);
+  const controle = new AbortController();
+  const pedido = assert.rejects(p.alvo.fetch(API + 'painel', {method: 'POST', body: '{}', signal: controle.signal}),
+    {name: 'AbortError'});
+  controle.abort();
+  await pedido;
+  p.s.responder(true);
+  await p.relogio.avancar(0);
+  assert.deepEqual(p.feitos, []);
+});
+
+test('PA-02: a espera do monitor: online, indisponível, prazo, cancelada e uma resposta nova depois de um marco', async () => {
+  const m = montar(['pendente']);
+  m.monitor.iniciar();
+  const online = m.monitor.aguardar();
+  const curta = m.monitor.aguardar({prazoMs: 1000});
+  const controle = new AbortController();
+  const cancelada = m.monitor.aguardar({sinal: controle.signal});
+  controle.abort();
+  assert.equal(await cancelada, 'abortado');
+  await m.relogio.avancar(1000);
+  assert.equal(await curta, 'prazo');
+  m.s.responder(true);
+  await m.relogio.avancar(0);
+  assert.equal(await online, 'online');
+  const marco = m.monitor.marco();
+  let nova = null;
+  m.monitor.aguardar({depoisDe: marco}).then(d => { nova = d; });
+  await m.relogio.avancar(0);
+  assert.equal(nova, null, 'online, mas sem resposta nova depois do marco');
+  m.monitor.respondeu(false);
+  await m.relogio.avancar(0);
+  assert.equal(nova, 'online');
+  const fora = montar(['erro', 'erro']);
+  fora.monitor.iniciar();
+  const indisponivel = fora.monitor.aguardar();
+  await fora.relogio.avancar(0);   // a abertura falhou: a tentativa curta fica agendada
+  await fora.relogio.avancar(C.TENTATIVA_CURTA_MS);
+  assert.equal(await indisponivel, 'indisponivel');
+  const encerrado = montar(['pendente']);
+  encerrado.monitor.iniciar();
+  const espera = encerrado.monitor.aguardar();
+  encerrado.monitor.encerrar();
+  assert.equal(await espera, 'prazo', 'com o monitor encerrado, os pedidos saem como antes');
 });

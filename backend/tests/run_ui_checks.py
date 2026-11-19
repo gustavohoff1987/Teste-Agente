@@ -93,10 +93,12 @@ SUITES = {
     "conteiner": {
         "descricao": "A imagem do contêiner nas condições do Cloud Run (1 CPU, 2 GiB) e a interface como no GitHub Pages "
                      "(/Teste-Agente/, noutro endereço, com CORS): recursos estáticos, envio e downloads, estados da conexão "
-                     "com o serviço parado e restabelecido, reinício com a sessão aberta e a página única com a base versionada",
+                     "com o serviço parado e restabelecido, a página que espera o serviço ligar (PA-02), reinício com a sessão "
+                     "aberta e a página única com a base versionada",
         "catalogo": "imagem", "servidor": "conteiner", "pronto": "/Teste-Agente/", "caminho": "Teste-Agente/",
         "partida_s": 300, "api": "http://127.0.0.1:18080/",
-        "roteiros": [("ui_hospedagem.py", {}), ("ui_conexao.py", {}), ("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}),
+        "roteiros": [("ui_hospedagem.py", {}), ("ui_conexao.py", {}), ("ui_partida.py", {}),
+                     ("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}),
                      ("ui_area_de_analise.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_mapa.py", {"ADT_BLOCK1_REAL": "1"})],
     },
     # Segunda publicação (04/11/2026; Docs/implantacao/ROTEIRO_FASE2.md, M-0 a M-5): a mesma interface na raiz, como em
