@@ -248,7 +248,8 @@ def test_os_textos_novos_do_detector_e_o_titulo_da_avaliacao_do_simulador():
 def test_a_letra_estatica_das_fichas_e_a_do_site_intocada():
     """AJ-06: a folha das fichas carrega só os arquivos estáticos de Docs/fichas/fontes/ (com a licença OFL), nos pesos que
     existem em arquivo e sem itálico; os arquivos de fonte do site ficam idênticos."""
-    estilo = ESTILO.read_text(encoding="utf-8")
+    # As regras, sem os comentários (o comentário do alto cita a pasta da fonte do site, para dizer que ela não muda).
+    estilo = re.sub(r"/\*.*?\*/", "", ESTILO.read_text(encoding="utf-8"), flags=re.S)
     fontes = re.findall(r'url\("([^"]+)"\)', estilo)
     assert fontes and all(fonte.startswith("fontes/") and (FONTES / fonte).is_file() for fonte in fontes), fontes
     assert (FONTES / "fontes" / "LICENCA-OFL.txt").read_text(encoding="utf-8").count("SIL OPEN FONT LICENSE Version 1.1") == 1

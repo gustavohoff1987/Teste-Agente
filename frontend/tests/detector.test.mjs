@@ -436,8 +436,13 @@ test('AJ-08: os detalhes guardados por pedido (só os que chegaram certos, com a
     '.ferramenta-lista thead tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 6px 0; }',
     '.analise-tabela.ferramenta-lista thead th { padding: 0; border: 0; }'])
     assert.ok(css.includes(trecho), trecho);
-  assert.equal(css.split('container-type').length - 1, 1, 'a contenção só na área da lista do Detector');
-  assert.equal(css.split('@container').length - 1, 1);
+  // A contenção do cabeçalho fica só na área da lista do Detector; a outra consulta de contêiner do arquivo, a das setas do quadro, é
+  // de antes e não muda, e nenhuma regra compartilhada das tabelas ganha contenção.
+  assert.equal(css.split('.detector-rolagem { container-type: inline-size; }').length - 1, 1);
+  assert.equal(css.split('@container (min-width: 1100px)').length - 1, 1);
+  assert.ok(css.includes('.analise-setas { container-type: inline-size;'), 'a contenção das setas, de antes');
+  assert.equal(css.split('container-type').length - 1, 2, 'as duas contenções do arquivo: a das setas e a da lista do Detector');
+  assert.ok(!/\.ferramenta-(?:rolagem|tabela|lista)[^{}]*\{[^}]*container-type/.test(css), 'as regras compartilhadas, sem contenção');
   const daLista = tela.indexOf('<table data-testid="detector-tabela"');
   const cabecalho = tela.slice(tela.indexOf('<thead><tr>', daLista), tela.indexOf('</tr></thead>', daLista));
   assert.equal(tela.split('ferramenta-th-com-entenda').length - 1, cabecalho.split('ferramenta-th-com-entenda').length - 1, 'a classe só no cabeçalho da lista');
