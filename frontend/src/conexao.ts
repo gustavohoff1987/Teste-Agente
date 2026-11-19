@@ -15,8 +15,8 @@
 // Desde 19/11/2026 (PA-02), a página espera o serviço ligar, no observador dos pedidos (observarRespostas):
 // - com o monitor em "verificando" ou "iniciando", os pedidos esperam o serviço responder antes de sair (com o aviso de partida
 //   de sempre), até o prazo da verificação; se o monitor for para "indisponivel", eles saem e falham como antes;
-// - o pedido que só lê ou calcula e falha por rede espera o serviço responder de novo e se repete, até 2 vezes (REPETIVEIS e as
-//   leituras); depois, o erro aparece como antes;
+// - o pedido que só lê ou calcula e falha por rede espera o serviço responder de novo e se repete uma vez (REPETIVEIS e as
+//   leituras), como na DA-26 (a espera pelo serviço já cobre a partida); depois, o erro aparece como antes;
 // - nunca se repetem sozinhos a conversa, os eventos da sessão, o pré-exame de planilha e qualquer envio de arquivo
 //   (NUNCA_SE_REPETEM), nem os pedidos cancelados pela própria página e as respostas legíveis do serviço, inclusive o ocupado;
 // - a consulta da sessão e os eventos dela saem na hora, como antes (nem esperam nem se repetem).
@@ -64,8 +64,10 @@ export const ROTAS_COM_LIMITE: ReadonlySet<string> = new Set(["/api/inspect", "/
   "/api/detector", "/api/simulador", "/api/llm/interpret",
   "/api/llm/interpret-context", "/api/exploration/interpret"]);
 
-/** No máximo, quantas vezes um pedido que só lê ou calcula se repete sozinho depois de uma falha de rede (PA-02). */
-export const REPETICOES_DEPOIS_DA_FALHA = 2;
+/** No máximo, quantas vezes um pedido que só lê ou calcula se repete sozinho depois de uma falha de rede (PA-02): uma, como na
+ * DA-26 da SPEC (até 1 nova tentativa por etapa idempotente), por decisão do responsável de 19/11/2026; a espera pelo serviço
+ * na partida já cobre a partida a frio. */
+export const REPETICOES_DEPOIS_DA_FALHA = 1;
 /** Os pedidos (POST) que só leem ou calculam e se repetem sozinhos depois de uma falha de rede, sem arquivo: a criação da sessão, o
  * exame da base do Brasil, a análise, o painel, o Detector e o Simulador. As leituras (GET) também, menos a consulta da sessão. */
 export const REPETIVEIS: ReadonlySet<string> = new Set(["/api/session", "/api/inspect", "/api/analyze", "/api/painel",
@@ -321,7 +323,7 @@ function erroDeCancelamento(sinal: AbortSignal | null): unknown {
 }
 
 /** Observa as respostas dos pedidos da tela ao serviço (`/api/` em `apiBase`): falha de rede, ocupado e resposta, sem mudar o
- * resultado de nenhum pedido. Desde 19/11/2026 (PA-02), também a espera do serviço na partida e a repetição, até 2 vezes, dos
+ * resultado de nenhum pedido. Desde 19/11/2026 (PA-02), também a espera do serviço na partida e a repetição, uma vez, dos
  * pedidos que só leem ou calculam e falham por rede (ver o cabeçalho). Devolve a função que desfaz a observação. O pedido
  * abortado pela própria tela não é falha. */
 export function observarRespostas(monitor: Monitor, apiBase: string,

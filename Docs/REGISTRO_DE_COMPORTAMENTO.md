@@ -38,11 +38,13 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 ### 2026-11-19 · PA-02: a página que espera o servidor ligar — os pedidos esperam a partida, e os que só leem ou calculam se repetem depois de uma falha de rede
 - **Classificação (regra 1):** PA-02 do comando de partida do responsável (19/11/2026). Decorre do pedido (escopo).
   Compatibilidade: a SPEC não trata da indisponibilidade do serviço inteiro nem da partida da plataforma, leitura já registrada
-  em 01/11/2026, na hospedagem, quando o gráfico e o mapa passaram a repetir o pedido sozinhos até 2 vezes no ocupado. O limite
-  de até 1 nova tentativa por etapa determinística idempotente (DA-26, RQ-DEG-10, CFG-OPR) trata das etapas que o motor executa;
-  aqui só se repete o pedido que não chegou ao serviço (falha de rede), nunca o que o motor executou e respondeu. A sessão não
-  muda: a consulta e os eventos saem como antes e nunca se repetem, e nenhuma repetição cria um evento de interação sem a ação da
-  pessoa (AT-175): o pedido repetido leva a mesma ação, que não tinha chegado ao serviço. **Mudança prevista.**
+  em 01/11/2026, na hospedagem. A repetição segue a DA-26 (até 1 nova tentativa por etapa determinística idempotente; também
+  RQ-DEG-10 e CFG-OPR): **uma repetição só**, por decisão da pessoa responsável de 19/11/2026, porque a espera pelo serviço já
+  cobre a partida. A primeira versão (`324389e1`, não publicada) repetia até 2 vezes, com a leitura de que a DA-26 trataria só das
+  etapas que o motor executa; foi ajustada no commit seguinte, da mesma rodada. Só se repete o pedido que não chegou ao serviço
+  (falha de rede), nunca o que o motor executou e respondeu. A sessão não muda: a consulta e os eventos saem como antes e nunca se
+  repetem, e nenhuma repetição cria um evento de interação sem a ação da pessoa (AT-175): o pedido repetido leva a mesma ação,
+  que não tinha chegado ao serviço. **Mudança prevista.**
 - **Antes:** o observador dos pedidos da página (`observarRespostas`, em `frontend/src/conexao.ts`) só avisava o monitor da
   conexão. Com o serviço iniciando, os pedidos saíam na hora, e as respostas da plataforma sem CORS (como "The request was
   aborted after waiting too long for an available instance") chegavam como falha de rede: a tela mostrava o erro, e um clique em
@@ -52,7 +54,7 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
     da verificação (`PRAZO_DA_VERIFICACAO_MS`), com o aviso de partida de sempre ("O serviço está iniciando…"). Se o monitor for
     para "indisponível", ou o prazo passar, eles saem e falham (ou respondem) como antes, com o aviso e o "Tentar novamente";
   - **repetição:** o pedido que só lê ou calcula e falha por rede espera o serviço responder de novo (a verificação que a falha
-    dispara) e se repete, até 2 vezes (`REPETICOES_DEPOIS_DA_FALHA`); depois, o erro aparece como antes. Vale para as leituras
+    dispara) e se repete uma vez (`REPETICOES_DEPOIS_DA_FALHA`); depois, o erro aparece como antes. Vale para as leituras
     (GET, menos a consulta da sessão), a criação da sessão, o exame da base do Brasil, o painel (gráfico, referências,
     territórios, critérios, lugar e mapa), o Detector, o Simulador, a análise e a descrição da base (`REPETIVEIS`);
   - **nunca se repetem sozinhos:** a conversa (`/api/llm/interpret`, `/api/llm/interpret-context` e `/api/exploration/interpret`),
@@ -69,7 +71,7 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 - **Motivo:** PA-02 do comando; os erros nas partidas a frio (19 desde 08/11).
 - **Documentação e testes:** `README.md` (estados da conexão, B). Testes no mesmo commit: `frontend/tests/conexao.test.mjs`
   (novos, com o relógio simulado: a espera até o online, com o pedido saindo uma vez; a desistência quando o monitor vai para
-  indisponível; a repetição até 2 vezes, também das leituras, da criação da sessão, do exame e do mapa; a desistência e o
+  indisponível; a repetição uma vez só, também das leituras, da criação da sessão, do exame e do mapa; a desistência e o
   cancelamento durante a repetição; nenhuma repetição na conversa, nos eventos da sessão, no pré-exame, no envio de arquivo, no
   cancelado e no ocupado; a consulta e os eventos da sessão na hora, com a criação da sessão e a conversa esperando; o
   cancelamento durante a espera; a espera do monitor. Mudam de propósito: o monitor falso dos dois testes da observação ganha os

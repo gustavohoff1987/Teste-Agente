@@ -291,21 +291,22 @@ test('PA-02: se o monitor for para indisponível durante a espera, o pedido sai 
   assert.deepEqual(p.feitos, [API + 'painel POST'], 'saiu uma vez, depois da indisponibilidade');
 });
 
-test('PA-02: a falha de rede de um pedido que só lê ou calcula espera o serviço responder e se repete, até 2 vezes', async () => {
-  const p = pagina([true, true, true], (url, init, n) => n <= 2 ? rede() : ok());
+test('PA-02: a falha de rede de um pedido que só lê ou calcula espera o serviço responder e se repete uma vez (DA-26)', async () => {
+  assert.equal(C.REPETICOES_DEPOIS_DA_FALHA, 1, 'uma repetição, como na DA-26 (decisão do responsável de 19/11/2026)');
+  const p = pagina([true, true], (url, init, n) => n === 1 ? rede() : ok());
   p.monitor.iniciar();
   await p.relogio.avancar(0);
   const resposta = await p.alvo.fetch(API + 'detector', {method: 'POST', body: '{}'});
   assert.equal(resposta.status, 200, 'sem erro e sem segundo clique');
-  assert.equal(p.feitos.length, 3, 'o pedido e as duas repetições');
-  assert.equal(p.s.chamadas(), 3, 'cada repetição só sai depois de uma verificação com resposta');
+  assert.equal(p.feitos.length, 2, 'o pedido e a repetição');
+  assert.equal(p.s.chamadas(), 2, 'a repetição só sai depois de uma verificação com resposta');
   assert.equal(p.ultimo().fase, 'online');
-  // Depois de 2 repetições, o erro aparece como antes.
-  const sempre = pagina([true, true, true, true], rede);
+  // A repetição que também falha: o erro aparece como antes, sem uma segunda repetição.
+  const sempre = pagina([true, true, true], rede);
   sempre.monitor.iniciar();
   await sempre.relogio.avancar(0);
   await assert.rejects(sempre.alvo.fetch(API + 'simulador', {method: 'POST', body: '{}'}), TypeError);
-  assert.equal(sempre.feitos.length, 1 + C.REPETICOES_DEPOIS_DA_FALHA);
+  assert.equal(sempre.feitos.length, 2, 'o pedido e uma repetição só');
   // As leituras também se repetem; a criação da sessão, o exame da base e o mapa, também.
   for (const [rota, metodo] of [['brazil/description', 'GET'], ['session', 'POST'], ['inspect', 'POST'], ['painel/mapa', 'POST']]) {
     const uma = pagina([true, true], (url, init, n) => n === 1 ? rede() : ok());

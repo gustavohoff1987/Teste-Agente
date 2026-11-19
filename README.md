@@ -638,7 +638,7 @@ serviço por HTTPS noutro endereço.
   responder antes de sair, com esse aviso, até o prazo da verificação: um clique em "Dados do Brasil" durante a partida conclui
   sem erro e sem segundo clique; se o serviço ficar indisponível, eles falham como antes, com o aviso A. O pedido que só lê ou
   calcula (as leituras, o exame da base do Brasil, o painel, o Detector, o Simulador, a análise, a descrição da base e a criação
-  da sessão) e falha por rede espera o serviço responder de novo e se repete sozinho, até 2 vezes; depois, o erro aparece como
+  da sessão) e falha por rede espera o serviço responder de novo e se repete sozinho uma vez (DA-26); depois, o erro aparece como
   antes. Nunca se repetem sozinhos a conversa (cada repetição gastaria cota do Gemini e poderia duplicar a mensagem), os eventos
   da sessão, o pré-exame de planilha, qualquer envio de arquivo, o pedido que a própria página cancela e as respostas legíveis do
   serviço, inclusive o ocupado; a consulta e os eventos da sessão saem na hora, como antes. C. Ocupado: a resposta do próprio
