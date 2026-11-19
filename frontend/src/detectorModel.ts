@@ -5,8 +5,8 @@
 // página, com os nomes da base, enquanto o método vai para a ficha metodológica em PDF (AJ-03).
 // Nada é calculado aqui: a contagem, a mudança, a comparação com territórios do mesmo porte, o nível de cada sinal e o alerta do
 // território (um nível só, o maior entre os sinais) vêm do motor (backend/detector.py). Os níveis são moderado, elevado e
-// crítico, sempre com o tipo de critério: na tela, "comparado com a base" ou "limite fixo" (desde 18/11/2026; no campo `criterio`
-// da resposta e nas exportações, o limite fixo continua escrito "por convenção"); quando a base não tem comparações bastantes,
+// crítico, sempre com o tipo de critério: na tela e nas exportações, "comparado com a base" ou "limite fixo" (desde 18/11/2026; no
+// campo `criterio` da resposta, o limite fixo continua escrito "por convenção"); quando a base não tem comparações bastantes,
 // a tela diz "sem comparações suficientes", com os números. Os nomes ("médicos", "estado") vêm da base (`fonte.rotulos`). Sem
 // importações em tempo de execução, para os testes Node lerem só este arquivo.
 import type { PainelDominio, PainelItem, PainelMunicipios } from "./painelApi";
@@ -381,10 +381,15 @@ export const textoDaContagem = (estado: EstadoDoAlerta, n: number): string => in
 export const nomeDoEstado = (estado: EstadoDoAlerta): string => estado === "sem_nivel" ? "Sem nível (conjunto)" : maiuscula(NOMES_DOS_ESTADOS[estado][0]);
 
 /** O tipo de critério na tela (AJ-05, decisão do responsável de 18/11/2026): "limite fixo" (um limite igual para todos os
- * territórios) ou "comparado com a base" (raro entre territórios do mesmo porte na própria base). O campo `criterio` da resposta e
- * as exportações continuam com o valor do motor ("por convenção" para o limite fixo); só a tela muda o nome. */
+ * territórios) ou "comparado com a base" (raro entre territórios do mesmo porte na própria base). Desde o AJ-07, as exportações
+ * também usam o nome da tela (a coluna "Tipo de critério" do CSV e as notas do método); o campo `criterio` da resposta e a nota
+ * do motor continuam com o valor do motor ("por convenção" para o limite fixo). */
 export const ROTULOS_DOS_CRITERIOS: Record<string, string> = { "por convenção": "limite fixo", "comparado com a base": "comparado com a base" };
 export const rotuloDoCriterio = (criterio: string | null | undefined): string | null => !criterio ? null : ROTULOS_DOS_CRITERIOS[criterio] ?? criterio;
+/** Um texto do motor com os tipos de critério pelos nomes da tela, pela mesma tabela da lista (AJ-07): vale para as notas exportadas,
+ * que, na resposta, descrevem os valores do campo `criterio`. */
+export const comOsNomesDaTela = (texto: string): string =>
+  Object.entries(ROTULOS_DOS_CRITERIOS).reduce((atual, [doMotor, daTela]) => atual.split(doMotor).join(daTela), texto);
 /** A coluna "Alerta": o nível (sempre escrito) e o tipo de critério, pelo nome da tela; sem nível, o que a base diz no lugar. */
 export function textoDoAlerta(linha: LinhaDoDetector): { estado: EstadoDoAlerta; nivel: NivelDoAlerta | null; texto: string; criterio: string | null } {
   const estado = estadoDoAlerta(linha);
@@ -822,7 +827,7 @@ export function csvDoDetector(resposta: RespostaDoDetector, linhas: LinhaDoDetec
   const colunas: [string, (linha: LinhaDoDetector) => unknown][] = [
     ["Identificador", l => l.id], ["Território", l => l.rotulo], ["Tipo", l => tipos[l.tipo] ?? l.tipo], ["Grupo", l => l.uf],
     ["Janela: início", () => resposta.janela.inicio], ["Janela: fim", () => resposta.janela.fim],
-    ["Alerta", l => nomeDoEstado(estadoDoAlerta(l))], ["Tipo de critério", l => l.alerta.criterio],
+    ["Alerta", l => nomeDoEstado(estadoDoAlerta(l))], ["Tipo de critério", l => rotuloDoCriterio(l.alerta.criterio)],
     ["Por quê", l => textoDoPorQue(l, r)], ["Sinais com nível", l => l.alerta.sinais.map(s => nomeDoSinal(s.sinal, r) + ": " + NOMES_DOS_NIVEIS[s.nivel]).join(" | ")],
     ["Sinais da mesma queda (um evento)", l => l.alerta.mesmaQueda.map(s => nomeDoSinal(s, r)).join(" | ")],
     ["Sinais sem comparações suficientes", l => l.alerta.semComparacoes.map(s => nomeDoSinal(s, r)).join(" | ")],
@@ -860,12 +865,13 @@ export function csvDoDetector(resposta: RespostaDoDetector, linhas: LinhaDoDetec
   return "﻿" + corpo.join("\r\n") + "\r\n";
 }
 
-/** O método em JSON: a fonte, a janela, os critérios (padrão e em uso), os níveis, a régua da data (a dos estados, quando há) e as notas. */
+/** O método em JSON: a fonte, a janela, os critérios (padrão e em uso), os níveis, a régua da data (a dos estados, quando há) e as
+ * notas, com os tipos de critério pelos nomes da tela (AJ-07); a referência é a ficha metodológica A. */
 export function metodoDoDetector(resposta: RespostaDoDetector): string {
   return JSON.stringify({ ferramenta: "Detector de Sinais Territoriais", versao_do_metodo: resposta.versao, fonte: resposta.fonte,
     janela: resposta.janela, configuracao: resposta.exploratorio ? "exploratória (critérios diferentes do padrão)" : "padrão",
     parametros: resposta.parametros, niveis: resposta.niveis, regua_na_data: resposta.calibracao,
     ...(resposta.calibracaoDosEstados ? { regua_dos_estados_na_data: resposta.calibracaoDosEstados } : {}),
-    aviso_da_base: resposta.avisoDaBase, comparacao_em_2_anos: resposta.comparacao, notas: resposta.notas,
-    limitacoes: resposta.limitacoes, referencia: "Docs/DETECTOR_E_SIMULADOR_V3.md, Partes A e B" }, null, 2);
+    aviso_da_base: resposta.avisoDaBase, comparacao_em_2_anos: resposta.comparacao, notas: resposta.notas.map(comOsNomesDaTela),
+    limitacoes: resposta.limitacoes, referencia: "Ficha metodológica A — Detector de Sinais Territoriais (fichas/ficha-detector.pdf)" }, null, 2);
 }

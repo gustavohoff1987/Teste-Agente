@@ -523,7 +523,7 @@ test('exportações: o CSV da lista e o método em JSON levam o alerta, a janela
   const metodo = JSON.parse(D.metodoDoDetector(lida));
   assert.equal(metodo.ferramenta, 'Detector de Sinais Territoriais');
   assert.deepEqual([metodo.versao_do_metodo, metodo.janela.fim, metodo.parametros.personalizados, metodo.fonte.categoria, metodo.configuracao, metodo.referencia],
-    ['DETECTOR-SINAIS/V3/1', '202406', false, 'MEDICINA', 'exploratória (critérios diferentes do padrão)', 'Docs/DETECTOR_E_SIMULADOR_V3.md, Partes A e B']);
+    ['DETECTOR-SINAIS/V3/1', '202406', false, 'MEDICINA', 'exploratória (critérios diferentes do padrão)', 'Ficha metodológica A — Detector de Sinais Territoriais (fichas/ficha-detector.pdf)']);
   assert.deepEqual([metodo.regua_na_data.perda[0].comparacoes, metodo.niveis.length, 'regua_dos_estados_na_data' in metodo], [6572, 3, false]);
 });
 
@@ -846,6 +846,30 @@ test('revisão das capturas de 15/11/2026: a série do território na largura da
   assert.ok(series.startsWith('export default function PainelSeries({ itens, competencias, indicador, rotulos, referencias = [], rotuloDaData = exibirCompetencia }: Props) {'));
   assert.equal(series.split('rotuloDaData(').length - 1, 4, 'o eixo, a dica e a descrição usam a mesma função');
   assert.equal(series.split('exibirCompetencia(').length - 1, 0, 'nenhuma data do gráfico escrita fora dela');
+});
+
+test('AJ-07: as exportações com os nomes da tela — "limite fixo" no CSV e nas notas do método —, com a referência da ficha', () => {
+  // O CSV: a coluna "Tipo de critério" pela mesma tabela da lista; os outros números não mudam.
+  const NOTA = 'O Detector compara cada território com o que é comum na própria base: territórios de tamanho parecido e só o que veio ' +
+    'antes de cada data. Os níveis são moderado, elevado e crítico; cada alerta diz o tipo de critério: "comparado com a base" ou "por convenção".';
+  const lida = D.normalizarDetector(resposta([
+    linha({id: 'code:1', alerta: alerta('critico', 'estrutural', 'por convenção', 'Só 1 médico')}),
+    linha({id: 'code:2', alerta: alerta('elevado', 'perda', 'comparado com a base', 'Caiu de 12 para 7 (−41,5%)')}),
+    linha({id: 'code:3'})], {notas: [NOTA, 'Um nível por território.']}));
+  const [cabecalho, ...dados] = D.csvDoDetector(lida, lida.linhas).slice(1).trim().split('\r\n');
+  const coluna = cabecalho.split(';').indexOf('Tipo de critério');
+  assert.deepEqual(dados.map(linhaDoCsv => linhaDoCsv.split(';')[coluna]), ['limite fixo', 'comparado com a base', '']);
+  assert.equal(lida.linhas[0].alerta.criterio, 'por convenção', 'o campo da resposta continua o do motor');
+  assert.ok(!D.csvDoDetector(lida, lida.linhas).includes('convenção'));
+  // O método em JSON: nas notas exportadas, "limite fixo", pela mesma tabela; a nota da resposta continua com o valor do campo.
+  const metodo = JSON.parse(D.metodoDoDetector(lida));
+  assert.deepEqual(metodo.notas, [NOTA.replace('"por convenção"', '"limite fixo"'), 'Um nível por território.']);
+  assert.deepEqual(lida.notas, [NOTA, 'Um nível por território.'], 'a nota do motor não muda');
+  assert.ok(!JSON.stringify(metodo.notas).includes('convenção'));
+  assert.equal(D.comOsNomesDaTela('A, "por convenção" e "comparado com a base".'), 'A, "limite fixo" e "comparado com a base".');
+  // A referência: a ficha metodológica A, como o Simulador já faz com a B.
+  assert.equal(metodo.referencia, 'Ficha metodológica A — Detector de Sinais Territoriais (fichas/ficha-detector.pdf)');
+  assert.ok(ler('detectorModel.ts').includes('notas: resposta.notas.map(comOsNomesDaTela)'));
 });
 
 test('AJ-09 e AJ-10: o sinal 10 é "Perda em relação à referência"; a mesma queda, "vista de ângulos diferentes"', () => {

@@ -840,7 +840,7 @@ export function avaliacaoDosMetodos(resposta: RespostaDoSimulador, quando: strin
       "candidata frente a manter o último valor e as faixas por porte e prazo; não é uma análise do território escolhido",
     versao_do_metodo: resposta.versao, fonte: resposta.fonte, ultimo_registro: resposta.ultimoRegistro, janela: resposta.janela,
     retroprojecao: resposta.retroprojecao.bruta, notas: resposta.notas, limitacoes: resposta.limitacoes, exportado_em: quando,
-    referencia: "Ficha metodológica B — Simulador de Cenários Territoriais (fichas/ficha-simulador.pdf), seção 6" }, null, 2);
+    referencia: "Ficha metodológica B — Simulador de Cenários Territoriais (fichas/ficha-simulador.pdf), seção “A avaliação dos métodos no histórico da base”" }, null, 2);
 }
 /** A janela do cálculo, no modo avançado (antes, na linha das versões, que saiu da tela no AJ-03): "Janela deste cálculo: de
  * jun/2021 a jun/2024 (a janela padrão). Cada cenário parte do último registro usável do território nessa janela." */

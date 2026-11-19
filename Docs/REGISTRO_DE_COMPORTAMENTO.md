@@ -35,6 +35,37 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-18 · AJ-07: as exportações com os nomes da tela — "limite fixo" no CSV e nas notas do método — e as referências às fichas
+- **Classificação (regra 1):** AJ-07 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorre do pedido e
+  não contraria a SPEC nem uma divergência aprovada: a D-A, como o responsável a estendeu, pede o tipo de critério sempre à vista,
+  e ele continua nas exportações, com o nome que o responsável escolheu para a tela em 18/11/2026 ("limite fixo"). O campo
+  `criterio` da API não muda. **Mudança prevista.** O backend não mudou.
+- **Antes:** a coluna "Tipo de critério" de "Exportar a lista (CSV)" e as notas de "Exportar o método (JSON)" traziam o valor do
+  motor, "por convenção" (AJ-05: "só a tela muda o nome"); a referência do JSON do Detector era "Docs/DETECTOR_E_SIMULADOR_V3.md,
+  Partes A e B"; a do JSON da avaliação dos métodos do Simulador citava a Ficha B pela "seção 6".
+- **Agora:**
+  - **CSV da lista do Detector:** "Tipo de critério" com o nome da tela, "limite fixo" ou "comparado com a base", pela mesma
+    tabela da lista (`ROTULOS_DOS_CRITERIOS`);
+  - **"Exportar o método (JSON)":** nas notas exportadas, "por convenção" vira "limite fixo", na exportação e pela mesma tabela
+    (`comOsNomesDaTela`); a nota da resposta da API continua com o termo, porque descreve os valores do campo `criterio`;
+  - **referência do JSON do Detector:** "Ficha metodológica A — Detector de Sinais Territoriais (fichas/ficha-detector.pdf)", como
+    o Simulador já fazia com a Ficha B;
+  - **referência do JSON da avaliação dos métodos:** a Ficha B, com a seção pelo título, "A avaliação dos métodos no histórico da
+    base", que não depende da numeração.
+- **Permanece:** o campo `criterio` da resposta ("por convenção" ou "comparado com a base") e a nota do motor; os números, os
+  campos e as colunas das exportações; os nomes internos (como `entenda.jeito`).
+- **Motivo:** AJ-07 do comando: os arquivos baixados com os nomes da tela.
+- **Documentação e testes:** a nota de 18/11/2026 em `Docs/DETECTOR_E_SIMULADOR_V3.md` (que dizia que as exportações continuavam
+  com "por convenção"), `Docs/DETECTOR_DE_SINAIS.md` (os níveis e as exportações), `Docs/SIMULADOR_DE_CENARIOS.md` (a avaliação
+  exportada) e `README.md`. Testes no mesmo commit: `frontend/tests/detector.test.mjs` (teste novo do AJ-07: a coluna do CSV com
+  "limite fixo" e "comparado com a base", o campo da resposta igual, as notas exportadas sem "por convenção" e a nota da resposta
+  com o termo, a referência da Ficha A); `frontend/tests/simulador.test.mjs` (a referência pelo título, o mesmo da seção da fonte da
+  Ficha B); `backend/tests/ui_detector.py` (o CSV e o JSON baixados da tela, território a território, com o campo do motor; as
+  notas sem "por convenção" e a referência); `backend/tests/ui_simulador.py` (a referência da avaliação exportada). Mudam de
+  propósito, pela decisão nova: a referência esperada do JSON do Detector, no teste das exportações de `detector.test.mjs`; o
+  comentário de `NA_TELA` em `ui_detector.py` e a docstring de `backend/tests/test_ajustes_pre_publicacao.py`, que diziam que as
+  exportações e as notas continuavam com "por convenção" (decisão do AJ-05).
+
 ### 2026-11-18 · AJ-06: as fichas metodológicas reescritas para quem usa o Agente, com a Inter estática e sem o bastidor do desenvolvimento
 - **Classificação (regra 1):** AJ-06 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorre do pedido e
   não contraria a SPEC nem uma divergência aprovada: as fichas continuam documentos de leitura, servidos com a interface (AJ-03),

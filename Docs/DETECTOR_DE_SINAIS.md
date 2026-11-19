@@ -18,7 +18,8 @@ histórico de sinais. Três coisas nunca se confundem:
 3. **nível do alerta:** **moderado**, **elevado** ou **crítico**, sempre escrito (nunca só pela cor) e sempre com o **tipo de
    critério**: "comparado com a base" ou "limite fixo" (um limite igual para todos os territórios). Até
    18/11/2026, a tela dizia "por convenção" no lugar de "limite fixo" (AJ-05, decisão do responsável): esse continua sendo o valor
-   do campo `criterio` da resposta e das exportações, e o estudo de calibração abaixo usa os dois nomes.
+   do campo `criterio` da resposta e o da nota do motor, e o estudo de calibração abaixo usa os dois nomes. Desde o AJ-07 (do mesmo
+   dia), as exportações também dizem "limite fixo": a coluna "Tipo de critério" do CSV e as notas de "Exportar o método (JSON)".
 
 Além dos três níveis, um território pode ficar **sem alerta**, **sem comparações suficientes** (a base ainda não tem história para
 comparar, e a tela diz quantas comparações há e quantas o nível pede) ou **sem nível** (um conjunto, que não tem outros iguais para
@@ -342,7 +343,12 @@ continua à vista. A resposta da rota traz os trechos em `comparacao.trechos` e 
 - **Exportações:** a lista em CSV (uma linha por território: o alerta, o tipo de critério, o porquê, os sinais com nível, os da
   mesma queda, os sem comparações suficientes, o nível e os valores de cada sinal, a janela, a versão da base e do método e a
   configuração) e o método em JSON (a fonte, a janela, os critérios padrão e em uso, os níveis, a régua da data, a dos estados
-  quando há, o aviso da base e as notas).
+  quando há, o aviso da base, as notas e a referência). Desde 18/11/2026 (AJ-07), com os nomes da tela: no CSV, o tipo de
+  critério é "limite fixo" ou "comparado com a base" (`rotuloDoCriterio`, a mesma tabela da lista; antes, o valor do campo,
+  "por convenção"); nas notas do JSON, "por convenção" vira "limite fixo" (`comOsNomesDaTela`, pela mesma tabela; a nota da
+  resposta não muda, porque descreve os valores do campo `criterio`); e a referência do JSON é a "Ficha metodológica A — Detector
+  de Sinais Territoriais (fichas/ficha-detector.pdf)" (antes, "Docs/DETECTOR_E_SIMULADOR_V3.md, Partes A e B"). Os números são
+  os mesmos.
 
 **Nomes da base.** Os textos usam os nomes que a base dá (`fonte.rotulos`): na base do Brasil, "médicos", "município", "estado"
 e "Brasil". **Linguagem:** sem termos técnicos na primeira tela; "porte", "patamar", "percentil" e "1 em cada N" têm "Entenda".

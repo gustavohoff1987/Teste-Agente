@@ -433,6 +433,9 @@ def main():
         assert (avaliacao["versao_do_metodo"], avaliacao["fonte"]["versao"], avaliacao["ultimo_registro"]) == (
             corpo["versao"], corpo["fonte"]["versao"], "202406"), (avaliacao["versao_do_metodo"], avaliacao["fonte"])
         assert avaliacao["limitacoes"] == corpo["limitacoes"] and "não é uma análise do território escolhido" in avaliacao["conteudo"], avaliacao["conteudo"]
+        # AJ-07: a referência cita a seção da Ficha B pelo título, que não depende da numeração.
+        assert avaliacao["referencia"] == ("Ficha metodológica B — Simulador de Cenários Territoriais (fichas/ficha-simulador.pdf), seção "
+                                           "“A avaliação dos métodos no histórico da base”"), avaliacao["referencia"]
         texto_da_avaliacao = json.dumps(avaliacao, ensure_ascii=False)
         assert escolhas["municipios"]["escolha"]["texto"] in texto_da_avaliacao and escolhas["estados"]["escolha"]["texto"] in texto_da_avaliacao
 

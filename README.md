@@ -940,7 +940,7 @@ o mapa num estado (desde 15/11/2026). As duas ferramentas leem as coordenadas co
 municípios em que a fonte traz o ponto fora do intervalo válido, vale a sede municipal da camada oficial do IBGE, e o mapa tem
 os 5.570 pontos. Sempre que um sinal não é avaliado, não é calculável ou está indisponível, a frase dele diz o motivo. Cada território tem **um nível só** — **moderado, elevado ou
 crítico**, o maior entre os seus 12 sinais, sem soma nem índice —, sempre escrito e com o tipo de critério: "comparado com a
-base" (raro entre as mudanças anteriores de territórios do mesmo porte: 1 em cada 20, 100 ou 1.000) ou "limite fixo" (um limite igual para todos; até 18/11/2026, "por convenção", que continua sendo o valor do campo `criterio` e das exportações). Quando a
+base" (raro entre as mudanças anteriores de territórios do mesmo porte: 1 em cada 20, 100 ou 1.000) ou "limite fixo" (um limite igual para todos; até 18/11/2026, "por convenção", que continua sendo o valor do campo `criterio`; as exportações também dizem "limite fixo"). Quando a
 base não tem comparações bastantes, a tela diz **"sem comparações suficientes"**, com os números; um conjunto não tem nível; os
 estados como unidade têm régua própria. O fato observado sempre aparece. "Raro" quer dizer incomum nesta base, não
 comprovadamente pior: o nível não é juízo de desassistência nem de prioridade (divergência aprovada da SPEC, só nesta

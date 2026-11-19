@@ -1452,6 +1452,12 @@ test('AJ-03: a avaliação dos métodos sai numa exportação, com os números d
     avaliacao.exportado_em], [BRUTO.versao, BRUTO.fonte.versao, BRUTO.ultimo_registro, lida.janela, lida.notas, lida.limitacoes, '2026-11-18T12:00:00.000Z']);
   assert.ok(avaliacao.conteudo.includes('não é uma análise do território escolhido'));
   assert.ok(!/jeito|convenç/i.test(JSON.stringify({conteudo: avaliacao.conteudo, referencia: avaliacao.referencia})));
+  // AJ-07 (18/11/2026): a referência cita a seção da Ficha B pelo título, que não depende da numeração (antes, "seção 6"); o
+  // título é o da seção da fonte da ficha.
+  assert.equal(avaliacao.referencia, 'Ficha metodológica B — Simulador de Cenários Territoriais (fichas/ficha-simulador.pdf), seção “A avaliação dos métodos no histórico da base”');
+  const ficha = readFileSync(new URL('../../Docs/fichas/ficha_simulador.html', import.meta.url), 'utf8');
+  const titulo = /<h2 id="avaliacao-titulo">([^<]*)<\/h2>/.exec(ficha)?.[1].replace(/^\d+\.\s*/, '');
+  assert.equal(titulo, 'A avaliação dos métodos no histórico da base');
   // A janela do cálculo, no modo avançado (antes, na linha das versões): a do motor, com "(a janela padrão)" quando é ela.
   assert.equal(S.textoDaJanelaDoCalculo({janela: {inicio: '202106', fim: '202406', registros: 7, anos: 3, padrao: true}}),
     'Janela deste cálculo: de jun/2021 a jun/2024 (a janela padrão). Cada cenário parte do último registro usável do território nessa janela.');

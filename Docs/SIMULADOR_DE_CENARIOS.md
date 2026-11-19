@@ -952,7 +952,8 @@ O que o estudo sustenta e o que não sustenta:
   base em uso como o motor a mandou (`retroprojecao`: `origens`, `em_10`, as `faixas` por porte e prazo, a `tabela` dos erros de
   cada método frente à persistência e, por nível, a `escolha` com os `candidatos`), com `ferramenta`, `conteudo` (o que o arquivo
   é: a avaliação dos métodos no histórico da base, e não uma análise do território escolhido), `versao_do_metodo`, `fonte` (a base
-  e a versão), `ultimo_registro`, `janela`, `notas`, `limitacoes`, `exportado_em` e `referencia` (a seção 6 da Ficha B). São os
+  e a versão), `ultimo_registro`, `janela`, `notas`, `limitacoes`, `exportado_em` e `referencia` (a Ficha B, com a seção pelo título, "A avaliação dos métodos no histórico da base", que não depende
+  da numeração; desde o AJ-07, de 18/11/2026; antes, "seção 6"). São os
   números que a tela mostrava em "Como os métodos se saíram no passado".
 - **Comparações (CSV, quando há referências):** uma linha por território, cenário, referência e data, com o valor do território,
   o da referência, a diferença, a razão e o índice, o alcance no horizonte simulado, os avisos e a hipótese de população (a do

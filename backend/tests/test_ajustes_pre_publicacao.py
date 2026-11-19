@@ -4,7 +4,8 @@ AJ-05 — os termos na tela, sem "por convenção" e com "forma" no lugar de "je
 tipo de critério se chama "limite fixo" ou "comparado com a base"):
 - o Detector escreve "limite fixo" nos textos que a tela mostra (os sete campos da explicação completa, o "Entenda" de cada sinal e
   o da primeira tela) e nunca "convenção"; o campo `criterio` (no alerta, em cada sinal com nível e em `criterio_do_nivel`) continua
-  com o valor do motor, "por convenção", e as notas, que vão em "Exportar o método (JSON)", continuam iguais;
+  com o valor do motor, "por convenção", e as notas da resposta também (desde o AJ-07 do comando de correção das fichas, a página
+  troca o termo por "limite fixo" ao exportar as notas em "Exportar o método (JSON)", pela mesma tabela da tela);
 - o Simulador e o perfil da base escrevem "forma de projetar", no feminino ("a forma escolhida pela base"), e nunca "jeito"; o
   campo `entenda.jeito` da resposta continua com esse nome.
 Numa base sintética (o calendário real, de janeiro e junho de 2014 a 2024), com os quatro sinais de limite fixo com nível: poucos

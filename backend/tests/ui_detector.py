@@ -49,8 +49,8 @@ OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 SC, PR, RIO_RUFINO, ABELARDO_LUZ = "42", "41", "code:421505", "code:420010"
 ESTADOS = ("critico", "elevado", "moderado", "sem_alerta", "sem_comparacoes", "sem_nivel")
 NOMES = {"critico": "Crítico", "elevado": "Elevado", "moderado": "Moderado"}
-# AJ-05 (18/11/2026): o tipo de critério na tela. O campo `criterio` do motor e as exportações continuam "por convenção" para o
-# limite fixo; a tela diz "limite fixo".
+# AJ-05 (18/11/2026): o tipo de critério na tela, que diz "limite fixo". Desde o AJ-07, as exportações também (a coluna "Tipo de
+# critério" do CSV e as notas do método); só o campo `criterio` do motor e a nota da resposta continuam "por convenção".
 NA_TELA = {"por convenção": "limite fixo", "comparado com a base": "comparado com a base"}
 # AJ-04: na lista, a frase do sinal principal vem sem a contagem dos outros sinais, que têm as linhas deles.
 OUTROS = re.compile(r" \(\+\d+ sina(?:l|is)\)$")
@@ -629,11 +629,24 @@ def main():
         assert [(item["chave"], item["um_em"], item["pede"]) for item in corpo["niveis"]] == [
             ("moderado", 20, 19), ("elevado", 100, 99), ("critico", 1000, 999)], corpo["niveis"]
         assert any(nota.startswith("Um nível por território: o maior entre os seus sinais, sem soma nem índice.") for nota in metodo["notas"]), metodo["notas"]
+        # AJ-07: nas notas exportadas, os tipos de critério pelos nomes da tela; a nota da resposta continua com o valor do campo. A
+        # referência é a ficha metodológica A.
+        assert any('"por convenção"' in nota for nota in corpo["notas"]), corpo["notas"]
+        assert not any("convenção" in nota for nota in metodo["notas"]) and any('"limite fixo"' in nota for nota in metodo["notas"]), metodo["notas"]
+        assert len(metodo["notas"]) == len(corpo["notas"]), metodo["notas"]
+        assert metodo["referencia"] == "Ficha metodológica A — Detector de Sinais Territoriais (fichas/ficha-detector.pdf)", metodo["referencia"]
         # A lista exportada (CSV): o nível do sinal 10 com o nome novo (AJ-09) e nenhum texto com o nome antigo.
         csv_da_lista = baixado(detector.get_by_test_id("detector-exportar-csv")).lstrip("\ufeff").splitlines()
         cabecalho_do_csv = csv_da_lista[0].split(";")
         assert "Perda em relação à referência: nível" in cabecalho_do_csv and "Índice ante a referência" in cabecalho_do_csv, cabecalho_do_csv
         assert not any("longe da referência" in linha_do_csv.lower() for linha_do_csv in csv_da_lista)
+        # AJ-07: a coluna "Tipo de critério" pelo nome da tela, território a território, como o motor mandou o campo.
+        tipo_de_criterio = cabecalho_do_csv.index("Tipo de critério")
+        do_motor = {item["id"]: item["alerta"]["criterio"] for item in corpo["linhas"]}
+        lidas = [linha_do_csv.split(";") for linha_do_csv in csv_da_lista[1:]]
+        assert len(lidas) == len(corpo["linhas"]) and all(
+            colunas[tipo_de_criterio] == (NA_TELA[do_motor[colunas[0]]] if do_motor[colunas[0]] else "") for colunas in lidas), lidas[:2]
+        assert not any("convenção" in linha_do_csv for linha_do_csv in csv_da_lista)
         do_monitoramento = corpo["calibracao"]["monitoramento"]
         assert do_monitoramento["avaliadas"] > 0 and metodo["regua_na_data"]["monitoramento"]["raras"] == do_monitoramento["raras"], do_monitoramento
         portes = [item["porte"] for item in metodo["regua_na_data"]["perda"]]
