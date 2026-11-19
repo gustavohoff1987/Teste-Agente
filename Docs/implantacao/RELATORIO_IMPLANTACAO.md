@@ -1694,3 +1694,117 @@ Os scripts da conferência e da medição ficam fora do repositório, numa pasta
 
 Ponto de retomada: a publicação do `7b8bedc2` está concluída. A conferência V da interface pela pessoa responsável será
 registrada quando for informada.
+
+## U. Publicação controlada do `66e324fb` (19/11/2026)
+
+**"Autorizo publicar"** (19/11/2026), depois do relato final do comando de partida (PA-01 e PA-02), que deixava a publicação para
+depois, com as medições na nuvem. A publicação seguiu o plano da seção T. Junto com a P-2, a pessoa responsável pediu:
+- nenhuma leitura de memória no Console;
+- uma 2ª instância relatada, sem parar;
+- o tamanho real da imagem no Artifact Registry, depois do envio;
+- a linha de base dos erros "The request was aborted after waiting too long for an available instance" registrada aqui.
+
+- **O commit:** o `66e324fb` traz o PA-01 (`ee8e39e0`: os produtos prontos da base gerados na construção da imagem e carregados
+  pelo aquecimento) e a PA-02 (`324389e1` e `66e324fb`: a página espera o serviço ligar e repete uma vez, como na DA-26, os pedidos
+  que só leem ou calculam e falham por rede). O CI dele passou nos 7 jobs e no `resumo` (execução 44586128616). Desde o
+  `7b8bedc2`:
+  - na imagem, mudaram só o aquecimento (`backend/main.py`), o módulo novo `backend/produtos_prontos.py` e o passo novo do
+    `Dockerfile`; não mudaram as dependências, o `.dockerignore`, os dados, a SPEC, os workflows, o modelo do destino, o
+    `scripts/implantacao` nem o CORS;
+  - o cálculo não mudou: o gabarito feito a partir do commit exportado (`git archive`) tem as 24 respostas idênticas, campo a
+    campo, às do gabarito do `7b8bedc2`.
+- **Antes da imagem:**
+  - a F2-0 deu 0 falhas e os 2 itens MANUAL, e a P-2 foi confirmada no Console pela pessoa responsável: a trava de R$ 11 do Cloud
+    Run e o orçamento de alertas de R$ 11, como antes;
+  - a conferência do serviço, como linha de base contra a produção do `7b8bedc2`, deu 57 OK e 1 falha prevista: no script da
+    página, a marca da PA-02 (o texto "The operation was aborted.", só no `frontend/src/conexao.ts` do `66e324fb`). O primeiro
+    pedido pegou uma partida a frio da produção, sem os produtos (18:55 UTC): 24,3 s do início da instância à porta aberta, com
+    15,0 s de aquecimento (base do Brasil 13,5 s; biblioteca conversacional 1,6 s), e 30,0 s do lado de quem pede.
+- **Linha de base dos erros de partida:** 19 pedidos recusados pela plataforma com "The request was aborted after waiting too long
+  for an available instance", de 08/11 a 19/11/2026: o primeiro em 09/11, às 13:59 UTC, e o último em 17/11, às 23:16 UTC. Por dia:
+  3 em 09/11, 1 em 10/11, 2 em 12/11, 1 em 13/11, 6 em 14/11, 1 em 16/11 e 5 em 17/11. Por revisão: 13 na `00006-q6c` (`dbc7fe3`),
+  6 na `00007-coj` (`d44b7d4f`) e nenhum na `00009-deq` (`7b8bedc2`, no ar das 11:57 às 20:43 UTC de 19/11). Todos em partidas a
+  frio. É a referência para acompanhar o efeito do PA-01 e da PA-02.
+- **Imagem:** a etiqueta `imagem-20261119-2` no `66e324fb` acionou a execução 44601770170 do `imagem.yml`, aprovada no ambiente
+  `producao` por `gustavohoff1987`. Na construção, o passo dos produtos gerou 62,2 MB; o job passou no teste rápido do contêiner e
+  enviou `sha256:c81c3ff82b32618214e6b4f6857c5fc0bfb940ba9cb6fb6756186b4fa9ae822f`, o mesmo digest da imagem com o nome do commit.
+  **Tamanho real no Artifact Registry: 125,9 MiB** (a do `7b8bedc2` e a do `d44b7d4f`, 113,7 MiB cada; a estimativa do job
+  `conteiner` era 124,1 MiB). Duas cópias, cerca de 252 MiB, cabem no 0,5 GB gratuito.
+- **Cloud Run, primeiro sem tráfego:**
+  - a F2-0 de novo, logo antes do update, sem falhas, com os mesmos 2 itens MANUAL;
+  - o comando, mostrado com o digest e executado depois do OK da pessoa responsável, `gcloud run services update
+    agente-diagnostico-territorial --project=agente-diagnostico-territorial --region=us-central1 --image=...@sha256:c81c3ff8…
+    --no-traffic --tag=pa-nova` (19/11/2026, 20:24 UTC), criou a revisão `agente-diagnostico-territorial-00011-nor`, sem tráfego,
+    no endereço `https://pa-nova---agente-diagnostico-territorial-woz4embaja-uc.a.run.app` (o número 10 ficou com a troca do
+    tráfego da seção T, às 11:57 UTC). No modelo da revisão, só mudaram a imagem e o nome da revisão;
+  - a primeira partida na nuvem com os produtos foi a da instância da conferência do update (20:24:35 UTC): o processo do
+    servidor no ar 6,2 s depois do início da instância, "Produtos prontos da imagem carregados em 1,7 s", aquecimento de 3,4 s
+    (base do Brasil 2,2 s; biblioteca conversacional 1,2 s) e a porta confirmada pela sonda de partida, na 1ª tentativa, 9,6 s
+    depois do início.
+- **Medições no endereço `pa-nova`** (19/11/2026, das 20:40 às 20:41 UTC), depois de a instância da conferência do update se
+  desligar (às 20:39:53), para o primeiro pedido pegar uma partida a frio de verdade. "No serviço" é o tempo registrado pelo
+  Cloud Run:
+
+| Pedido | Do lado de quem pede | No serviço |
+|---|---|---|
+| Detector, todos os municípios, o 1º depois da partida a frio | 26,2 s | 24,8 s |
+| Detector, todos os municípios, o 2º | 5,6 s | 4,5 s |
+| Simulador, Agrolândia, 2 anos (o 1º do Simulador) | 0,4 s | 0,07 s |
+| Simulador, Pará como unidade | 0,4 s | 0,07 s |
+| Detector, planilha de teste (20 distritos) | 1,0 s | 0,6 s |
+| Detector, todos os municípios, logo depois da planilha | 6,2 s | 5,2 s |
+
+  - **Partida a frio:** a instância começou às 20:40:14 UTC. O processo do servidor ficou no ar 11,3 s depois (a subida do
+    contêiner e a importação do app); os produtos foram carregados em 2,1 s, e o aquecimento levou 4,1 s (base do Brasil 2,6 s;
+    biblioteca conversacional 1,5 s). A porta abriu 15,5 s depois do início, e a sonda de partida do Cloud Run a confirmou na 2ª
+    tentativa, 20,2 s depois. Do primeiro pedido, cerca de 20 s foram a partida e cerca de 4,6 s, o pedido, o mesmo tempo do
+    segundo: o custo de primeiro uso do Detector saiu.
+  - **Instâncias e reinícios:** uma instância só, a da medição. Nenhuma instância a mais, nenhum reinício, nenhum aviso de falta
+    de memória e nenhum erro nos registros. Nenhuma 2ª instância abriu até o fim desta publicação.
+  - **Limites respeitados:** o maior tempo foi de 26,2 s. A memória não foi lida no Console, como pedido.
+
+| Partida a frio na nuvem | Aquecimento | Porta confirmada | 1º Detector (quem pede) | 1º Simulador (quem pede) |
+|---|---|---|---|---|
+| Seção S, `d44b7d4f` (16/11) | 13,3 s | 20,1 s | 27,5 s | 7,5 s |
+| Seção T, `7b8bedc2` (19/11, 11:53) | 15,3 s | 23,2 s | 31,9 s | 3,6 s |
+| Produção do `7b8bedc2` (19/11, 18:55) | 15,0 s | 24,3 s | — | — |
+| Esta seção, `66e324fb`: conferência do update | 3,4 s | 9,6 s | — | — |
+| Esta seção, `66e324fb`: medição | 4,1 s | 20,2 s | 26,2 s | 0,4 s |
+
+  O aquecimento caiu de cerca de 15 s para 3 a 4 s. A porta confirmada depende também da subida do contêiner (6,2 s e 11,3 s nas
+  duas partidas desta seção) e de em qual tentativa a sonda de partida a encontra (na 2ª, 4,7 s depois de a porta abrir); as duas
+  coisas são da plataforma, e a configuração do serviço não mudou.
+- **Conferência no endereço `pa-nova`:** 50 OK e 0 falhas, as mesmas verificações da seção T: as 24 respostas iguais às deste
+  commit, os valores da seção S, os textos do AJ-09 e do AJ-10 e nenhuma chamada ao Gemini.
+- **Tráfego:** `gcloud run services update-traffic agente-diagnostico-territorial --project=agente-diagnostico-territorial
+  --region=us-central1 --to-latest --remove-tags=pa-nova` (19/11/2026, 20:43 UTC) deixou 100% na `00011-nor`, seguindo a revisão
+  mais recente, como antes da publicação, e sem etiqueta.
+- **Etiquetas da imagem:** `em-uso` no `c81c3ff8…` e `anterior` no `29f4a743…` (`7b8bedc2`, revisão `00009-deq`). O `cb15d7df…`
+  (`d44b7d4f`) ficou só com a etiqueta do commit, para a limpeza automática; depois dela, a `00007-coj` não volta mais ao ar. O
+  `a5a34815…` (`dbc7fe3`) já foi apagado pela limpeza, como previsto na seção T.
+- **Conferência na produção**, no endereço principal, depois da troca: as mesmas verificações, 50 OK e 0 falhas.
+- **Interface:**
+  - o commit `d5553ff` do destino passou o `origem.txt` para `66e324fb`. O `publicar.yml`, o `conferir_origem.py` e o
+    `verificar_chave_google.py` de lá são iguais aos desse commit; o `conferir_protecao.py` ficou como no `dbc7fe3`;
+  - a etiqueta `publicacao-pages-20261119-2` acionou a execução 44611939151. Os jobs `conferir`, `build` e `publicar` passaram,
+    com a aprovação de `gustavohoff1987` no ambiente `github-pages` do destino, e a publicação terminou às 20:48 UTC;
+  - pela web: a página responde 200 com o título oficial. O script `index-D-YoTi7C.js` traz o endereço do serviço, os textos de
+    antes e a marca da PA-02. As duas fichas respondem 200, como `application/pdf`, com os mesmos bytes do commit (SHA-256
+    `767b5b9bb066…` e `4c2127a44cee…`), a malha das divisas segue a mesma e o endereço antigo segue em 404.
+- **Preservados:**
+  - não houve merge no `main` do Teste-Agente nem mudança na SPEC;
+  - a API de orçamentos segue desligada, e a F2-0 conta 32 APIs ligadas, como antes;
+  - o faturamento não foi alterado: o orçamento e a trava só se conferem no Console (P-2);
+  - os limites do serviço (1 vCPU, 2 GiB, mínimo 0 e máximo 1 instância, concorrência 40, timeout 150 s, sem o reforço de CPU na
+    partida), o CORS, a documentação desligada e o segredo não mudaram.
+- **Reversão** (o serviço e a interface juntos):
+  - serviço: `gcloud run services update-traffic agente-diagnostico-territorial --project=agente-diagnostico-territorial
+    --region=us-central1 --to-revisions=agente-diagnostico-territorial-00009-deq=100`, com a etiqueta `em-uso` de volta ao
+    `29f4a743…` e `anterior` no `c81c3ff8…` (F2-6). A `00009-deq` tem a mesma configuração, com a imagem do `7b8bedc2`;
+  - interface: o `origem.txt` do destino de volta a `7b8bedc25272de8aaa9b185e05232594fd3ee79a` e uma etiqueta nova.
+
+Os scripts da conferência e da medição ficam fora do repositório, numa pasta local ignorada pelo Git.
+
+Ponto de retomada: a publicação do `66e324fb` está concluída. Ficam para acompanhar: os erros "waiting too long for an available
+instance" frente à linha de base (19 de 08/11 a 19/11) e a conferência V da interface pela pessoa responsável, que será
+registrada quando for informada.
