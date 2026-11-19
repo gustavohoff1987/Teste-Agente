@@ -1334,7 +1334,9 @@ nos valores, nos pedidos ao motor nem nos textos, e os seletores de teste contin
   (`#f6d28a` sobre `#2a2312`, 10,8:1) e erros em rosa (`#fda4af` sobre `#2e1719`, 8,9:1).
 - **O item selecionado** (desde 18/11/2026, AJ-11): no escuro, **fundo verde-azulado escuro `#1a3d3c`, texto `#e6e5df` e borda
   verde-água `#4fbdc6`** — o texto a 9,4:1 (o apoio das abas, desenhado a 78%, a 6,4:1), a borda a 5,3:1 do fundo dele e a 8:1
-  do painel. Vale para as abas das análises e a da Seleção, com o traço de cima do painel da aba; os controles segmentados; as
+  do painel. Vale para as abas das análises e a da Seleção, com o traço de cima do painel da aba e, desde o AJ-15 (18/11/2026),
+  o do painel das ferramentas, o mesmo no Detector e no Simulador (antes, da tinta: no escuro, um traço creme logo abaixo do
+  botão já verde-azulado da ferramenta; o verde-água fica a 8:1 do painel); os controles segmentados; as
   abas e os botões pressionados da escolha dos territórios e as etiquetas dos marcados; as funções e o botão das ferramentas
   abertos; e os botões pressionados (Lista, Mapa e Gráfico e os outros secundários, as letras, "Só o estado", as ferramentas,
   os contadores de nível, os modos e os atalhos de data). O que distingue o selecionado do "passar o mouse" (`#142d2e`, perto
@@ -1343,7 +1345,10 @@ nos valores, nos pedidos ao motor nem nos textos, e os seletores de teste contin
   o elemento mais claro da tela (15:1 com a página), que competia com o verde-água dos botões principais. **No claro, nada
   muda.** As variáveis são `--cor-selecionado`, `--cor-sobre-selecionado`, `--cor-borda-selecionado` e `--contorno-selecionado`
   (no claro, a tinta, o branco, a tinta e nenhum contorno). Ficam como estavam o número das etapas do Simulador, o "Começar a
-  análise" e todo uso da tinta como cor de texto ou de borda (inclusive o traço de cima do painel das ferramentas).
+  análise" e os outros usos da tinta como cor de texto ou de borda: o passar do mouse dos controles do alto, as etiquetas, os
+  cursores das réguas e os marcados da legenda da Série temporal e da contagem por classe de tendência — estes dois ficam junto
+  das cores dos dados, onde o verde-água se confundiria com a cor única das bolhas no escuro (`#1ba3b5`), e o contorno neutro é
+  o certo.
 
 **Cores do desenho no escuro**, conferidas no validador da skill (`validate_palette.js --mode dark --surface "#1a1a19"`):
 

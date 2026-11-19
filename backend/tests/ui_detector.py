@@ -1,7 +1,8 @@
 """Detector de Sinais Territoriais na página única (comando V23, Proposta V3, Parte B), com a base versionada (somente leitura).
 
 Confere, contra as respostas de POST /api/detector:
-- a ferramenta na navegação principal ("Detector de Sinais"), que não pede nada ao motor sem territórios selecionados;
+- a ferramenta na navegação principal ("Detector de Sinais"), que não pede nada ao motor sem territórios selecionados; o traço
+  de cima do painel dela: a tinta no claro e, com o aparelho no escuro, o verde-água do selecionado (AJ-15, 18/11/2026);
 - a primeira tela para os municípios de Santa Catarina: a lista de cinco colunas (Território · Sinal · Alerta · Por quê · Último
   registro; desde o AJ-04, de 18/11/2026, cada sinal com nível numa linha), 50 territórios por página, com a data do registro mais
   recente à vista; o resumo dos níveis, clicável como filtro; os filtros numa linha (Até, Nível, Sinal e Buscar); a ordem pelos
@@ -178,6 +179,15 @@ def main():
         expect(detector).to_have_attribute("data-estado", "sem-selecao")
         expect(detector.get_by_test_id("detector-titulo")).to_have_text("Detector de Sinais Territoriais")
         expect(detector.get_by_test_id("detector-sem-selecao")).to_contain_text("Nenhum território selecionado")
+        # AJ-15 (18/11/2026): o traço de cima do painel da ferramenta é o do painel da aba — no claro, a tinta, como antes; com o
+        # aparelho no escuro, o verde-água do selecionado (#4fbdc6), e não mais o traço creme logo abaixo do botão da ferramenta.
+        painel = area.get_by_test_id("analise-ferramenta-painel")
+        expect(painel).to_have_attribute("data-ferramenta", "detector")
+        expect(painel).to_have_css("border-top-color", "rgb(14, 40, 64)")
+        page.emulate_media(color_scheme="dark")
+        expect(painel).to_have_css("border-top-color", "rgb(79, 189, 198)")
+        page.emulate_media(color_scheme="light")
+        expect(painel).to_have_css("border-top-color", "rgb(14, 40, 64)")
         page.wait_for_timeout(500)
         assert not pedidos, "sem territórios, nada é pedido ao motor"
         botao.click()

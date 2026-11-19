@@ -882,7 +882,8 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 
 /* ------------------------------------------------------------------------------------------- ferramentas do comando V22 */
 /* O Detector de Sinais Territoriais (e, depois, o Simulador de Cenários): os botões na navegação principal, acima das abas, e o painel
-   da ferramenta no lugar do painel da aba. A intensidade do sinal sempre vem com o nome por extenso, nunca só pela cor. */
+   da ferramenta no lugar do painel da aba. A intensidade do sinal sempre vem com o nome por extenso, nunca só pela cor. O traço de
+   cima do painel é o mesmo do painel da aba (AJ-15, 18/11/2026): no claro, a tinta; no escuro, o verde-água do selecionado. */
 .analise-ferramentas-novas { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
 .analise-ferramentas-novas-rotulo { color: var(--cor-texto-3); font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
 .analise-ferramentas-novas-motivo { color: var(--cor-texto-2); font-size: 12px; }
@@ -892,7 +893,7 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-ferramenta-nova:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--cor-realce-destaque); }
 .analise-ferramenta-nova[aria-pressed="true"] { border-color: var(--cor-borda-selecionado); background: var(--cor-selecionado); color: var(--cor-sobre-selecionado); }
 .analise-ferramenta-nova:disabled { opacity: .5; }
-.analise-ferramenta-painel { min-width: 0; padding: 16px; border: 1px solid var(--cor-borda-campo); border-top: 3px solid var(--cor-tinta);
+.analise-ferramenta-painel { min-width: 0; padding: 16px; border: 1px solid var(--cor-borda-campo); border-top: 3px solid var(--cor-borda-selecionado);
   border-radius: 16px; background: var(--cor-superficie); }
 .ferramenta { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 /* Perfil da base (comando V23, seção A.3): antes da ferramenta, o que o Agente leu da base e o "dá para / não dá para". */

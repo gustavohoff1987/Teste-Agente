@@ -35,6 +35,25 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-18 · AJ-15: no escuro, o traço de cima do painel das ferramentas na cor do selecionado
+- **Classificação (regra 1):** AJ-15 do comando da rodada final da correção das fichas do responsável (18/11/2026). Decorre do
+  pedido e não contraria a SPEC nem uma divergência aprovada: estende ao painel das ferramentas a variável do selecionado do
+  AJ-11, que tinha deixado esse traço na tinta. **Mudança prevista.**
+- **Antes:** o traço de cima do painel do Detector e do Simulador (`.analise-ferramenta-painel`) era da tinta: no escuro, um traço
+  creme (14,2:1 com o painel) logo abaixo do botão da ferramenta, já verde-azulado desde o AJ-11, enquanto o traço do painel da
+  aba já era verde-água.
+- **Agora:** o traço usa `--cor-borda-selecionado`, como o do painel da aba: no escuro, o verde-água `#4fbdc6`, a 8,05:1 com o
+  painel (`#171716`), da mesma família do botão da ferramenta; no claro, a variável é a própria tinta, e nada muda.
+- **Permanece:** o painel é o mesmo nas duas ferramentas, e a regra do celular só mexe no espaçamento. Continuam na tinta os outros
+  usos dela como borda: o passar do mouse dos controles do alto, as etiquetas, os cursores das réguas e os marcados da legenda da
+  Série temporal e da contagem por classe de tendência — estes dois ficam junto das cores dos dados, e o verde-água se confundiria
+  com a cor única das bolhas no escuro (`#1ba3b5`). O número das etapas do Simulador (o único fundo da tinta) também continua.
+- **Motivo:** lacuna 1 do relato final da rodada anterior; AJ-15 do comando.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (seção "Modo escuro", o item selecionado). Testes no mesmo commit:
+  `frontend/tests/modoEscuro.test.mjs` (o teste do AJ-11, que fixava o traço do painel das ferramentas na tinta, passa a fixar a
+  variável nova e os usos da tinta que continuam), `backend/tests/ui_detector.py` e `backend/tests/ui_simulador.py` (a cor calculada
+  do traço, no claro e com o aparelho no escuro).
+
 ### 2026-11-18 · AJ-07: as exportações com os nomes da tela — "limite fixo" no CSV e nas notas do método — e as referências às fichas
 - **Classificação (regra 1):** AJ-07 do comando de correção das fichas do responsável (18/11/2026, versão 3). Decorre do pedido e
   não contraria a SPEC nem uma divergência aprovada: a D-A, como o responsável a estendeu, pede o tipo de critério sempre à vista,

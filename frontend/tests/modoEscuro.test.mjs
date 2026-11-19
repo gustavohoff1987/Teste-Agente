@@ -383,7 +383,7 @@ test('AJ-12 e AJ-13: a ponta dos grupos e faixas como desenhada (a 88%) a 2:1 ou
   assert.match(semComentarios(ler('src/styles.css')), /\.painel-rotulo \{[^}]*stroke:var\(--grafico-superficie\); stroke-width:3px;/);
 });
 
-test('AJ-11: o item selecionado no escuro — fundo verde-azulado escuro, texto claro e borda verde-água; no claro, o de antes', () => {
+test('AJ-11 e AJ-15: o item selecionado no escuro — fundo verde-azulado escuro, texto claro e borda verde-água, também no traço dos painéis; no claro, o de antes', () => {
   // As variáveis novas nos dois blocos. No claro, os mesmos valores da tinta e nenhum contorno: o estilo calculado não muda.
   const novas = ['--cor-selecionado', '--cor-sobre-selecionado', '--cor-borda-selecionado', '--contorno-selecionado'];
   assert.deepEqual(novas.map(nome => CLARO[nome]), [CLARO['--cor-tinta'], CLARO['--cor-sobre-tinta'], CLARO['--cor-tinta'], 'none']);
@@ -421,11 +421,28 @@ test('AJ-11: o item selecionado no escuro — fundo verde-azulado escuro, texto 
     '  box-shadow: var(--contorno-selecionado); }'), 'o botão das ferramentas, com o contorno por dentro (a borda dele é a do campo)');
   assert.match(ANALISE, /\.territorios-marcado \{[^}]*border: 1px solid var\(--cor-borda-selecionado\);[^}]*background: var\(--cor-selecionado\); color: var\(--cor-sobre-selecionado\);/);
   assert.match(ANALISE, /\.analise-aba-painel \{[^}]*border-top: 3px solid var\(--cor-borda-selecionado\);/, 'o traço de cima do painel da aba');
+  // AJ-15 (18/11/2026): o traço de cima do painel das ferramentas (o mesmo no Detector e no Simulador) passa a ser o do painel da
+  // aba; antes, a tinta, que no escuro é um traço creme logo abaixo do botão verde-azulado da ferramenta. No escuro, o verde-água
+  // fica a 8:1 do painel (a borda sobre --cor-superficie, acima); no claro, a variável é a própria tinta, e nada muda.
+  assert.match(ANALISE, /\.analise-ferramenta-painel \{[^}]*border-top: 3px solid var\(--cor-borda-selecionado\);/, 'o traço de cima do painel das ferramentas');
+  assert.ok(!ANALISE.includes('border-top: 3px solid var(--cor-tinta)'), 'nenhum traço de painel na tinta');
   // Ficam como estão: o número das etapas do Simulador (o único fundo da tinta que sobra) e o uso da tinta como cor de texto e de
-  // borda; "Começar a análise" é uma classe do Tailwind (bg-ink), fora de analise.css.
+  // borda — o passar do mouse dos controles do alto, as etiquetas, os cursores da régua e os marcados das fichas e dos contadores,
+  // que ficam junto das cores dos dados: ali, o verde-água se confundiria com a cor única das bolhas no escuro (#1ba3b5), e o
+  // contorno neutro é o certo. "Começar a análise" é uma classe do Tailwind (bg-ink), fora de analise.css.
   assert.deepEqual(ANALISE.match(/background: var\(--cor-tinta\)/g), ['background: var(--cor-tinta)']);
   assert.match(ANALISE, /\.ferramenta-etapa-numero \{[^}]*background: var\(--cor-tinta\); color: var\(--cor-sobre-tinta\);/);
-  assert.match(ANALISE, /\.analise-ferramenta-painel \{[^}]*border-top: 3px solid var\(--cor-tinta\);/);
+  const regraDe = (css, seletor) => {
+    const inicio = css.indexOf(seletor + ' {');
+    assert.ok(inicio >= 0, seletor);
+    return css.slice(inicio, css.indexOf('}', inicio));
+  };
+  for (const [seletor, declaracao] of [['.analise-controle-global:hover:not(:disabled)', 'border-color: var(--cor-tinta);'],
+    ['.analise-chip[aria-pressed="true"]', 'border-color: var(--cor-tinta);'], ['.analise-etiqueta', 'border: 1px solid var(--cor-tinta);'],
+    ['.analise-contagem[aria-pressed="true"]', 'border-color: var(--cor-tinta); box-shadow: inset 0 0 0 1px var(--cor-tinta);'],
+    ['.analise-cursor::after', 'border: 2px solid var(--cor-tinta);']])
+    assert.ok(regraDe(ANALISE, seletor).includes(declaracao), seletor + ': ' + declaracao);
+  assert.ok(regraDe(semComentarios(ler('src/styles.css')), '.painel-cursor::after').includes('border:2px solid var(--cor-tinta);'), 'o cursor da régua do painel');
 });
 
 test('Tailwind: cada tom das classes lê uma variável com os dois esquemas; as classes mudam sozinhas no escuro', () => {

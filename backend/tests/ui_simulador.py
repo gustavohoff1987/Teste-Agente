@@ -3,7 +3,8 @@ versionada (somente leitura).
 
 Confere, contra as respostas de POST /api/simulador:
 - a ferramenta na navegação principal ("Simulador de Cenários"), que abre no modo simples e, sem territórios, não pede nada ao
-  motor em nenhum dos dois modos;
+  motor em nenhum dos dois modos; o traço de cima do painel dela: a tinta no claro e, com o aparelho no escuro, o verde-água do
+  selecionado (AJ-15, 18/11/2026);
 - o modo simples numa tela só (Proposta V3): o território (um dos da seleção local), até quando (com os atalhos de 1, 2 e 4 anos)
   e o que testar (só continuar como vinha, acrescentar, retirar ou chegar a uma meta); o pedido leva um território só; o
   resultado traz a frase fixa do motor, os três números, o jeito de projetar escolhido pela base, os dois "Entenda" (com os
@@ -173,6 +174,15 @@ def main():
         expect(simulador).to_have_attribute("data-estado", "configurando")
         expect(simulador).to_have_attribute("data-modo", "simples")
         expect(simples).to_be_visible()
+        # AJ-15 (18/11/2026): o painel é o mesmo do Detector, com o traço de cima do painel da aba — no claro, a tinta; com o aparelho
+        # no escuro, o verde-água do selecionado (#4fbdc6), e não mais o traço creme.
+        painel = area.get_by_test_id("analise-ferramenta-painel")
+        expect(painel).to_have_attribute("data-ferramenta", "simulador")
+        expect(painel).to_have_css("border-top-color", "rgb(14, 40, 64)")
+        page.emulate_media(color_scheme="dark")
+        expect(painel).to_have_css("border-top-color", "rgb(79, 189, 198)")
+        page.emulate_media(color_scheme="light")
+        expect(painel).to_have_css("border-top-color", "rgb(14, 40, 64)")
         # O "(Entenda)" geral fica no título, como no Detector de Sinais, e abre pelo clique (etapa 7 do comando V23): três frases
         # simples e um exemplo. Um "Voltar ao padrão" só, sempre à vista, fica desligado enquanto as premissas são as do padrão.
         entenda("ferramenta", "Simulador de Cenários", {
