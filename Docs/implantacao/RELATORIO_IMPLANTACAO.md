@@ -1570,3 +1570,127 @@ Os scripts da conferência e da medição ficam fora do repositório, numa pasta
 
 Ponto de retomada: a publicação do `d44b7d4f` está concluída. A conferência V da interface pela pessoa responsável será
 registrada quando for informada.
+
+## T. Publicação controlada do `7b8bedc2` (19/11/2026)
+
+**"AUTORIZO a publicação controlada do commit 7b8bedc25272de8aaa9b185e05232594fd3ee79a, como a do d44b7d4f (seção S de
+Docs/implantacao/RELATORIO_IMPLANTACAO.md), com as diferenças da Parte 2 do comando"** (19/11/2026). As diferenças, na Parte 2
+do comando final do AJ-22:
+1. conferir de novo, com o AJ-22, que o backend só mudou em textos e comentários (sem as cadeias de texto, o código de
+   `detector.py`, `comparativos.py`, `perfil_da_base.py` e `simulador.py` é o mesmo do `d44b7d4f`) e que não mudaram o
+   Dockerfile, o `.dockerignore`, as dependências da imagem, os dados, a SPEC, o `.github`, o modelo do destino, o
+   `scripts/implantacao` nem o CORS;
+2. a revisão nova primeiro sem tráfego, com uma etiqueta. No endereço dela, a conferência com o gabarito feito a partir deste
+   commit (`git archive`), com os valores da seção S, os textos novos e nenhuma chamada ao Gemini, e os tempos do lado de quem
+   pede, com os limites da seção S: nenhum pedido chega a 100 s, nem o primeiro depois da partida a frio; nos registros, nenhum
+   reinício e nenhum aviso de falta de memória. A memória não é lida no Console, porque o cálculo é o mesmo do `d44b7d4f`.
+   Dentro dos limites, 100% do tráfego com `--to-latest`, sem a etiqueta, e a mesma conferência na produção;
+3. o `origem.txt` do destino para este commit, com uma etiqueta nova, e a conferência pela web: a página, o script com o serviço
+   e os textos novos, as duas fichas em PDF com os bytes do commit e o endereço antigo em 404;
+4. a reversão como na seção S: o serviço de volta à revisão `00007-coj` e o `origem.txt` de volta ao `d44b7d4f`.
+
+Junto com a P-2, a pessoa responsável decidiu que, na medição, uma 2ª instância aberta com a 1ª ainda atendendo conta como
+"instância a mais": é relatada e não para a publicação.
+
+- **O commit:** o `7b8bedc2` traz os ajustes pré-publicação e a correção das fichas (AJ-01 a AJ-22), 19 commits desde o
+  `d44b7d4f`, com as duas fichas metodológicas em PDF (`frontend/public/fichas/`). O CI dele passou nos 7 jobs e no `resumo`
+  (execução 44455184828). Desde o `d44b7d4f`:
+  - no backend, mudaram só `detector.py`, `comparativos.py`, `perfil_da_base.py` e `simulador.py`. Sem as cadeias de texto (as
+    docstrings, os textos e as partes literais das f-strings) e sem os comentários, a árvore sintática dos quatro é a mesma do
+    `d44b7d4f`. A mesma comparação acusa a diferença no `main.py` entre o `dbc7fe3` e o `d44b7d4f`, como deve;
+  - não mudaram o Dockerfile, o `.dockerignore`, as dependências da imagem, os dados, a SPEC, o `.github`, o modelo do destino, o
+    `scripts/implantacao` nem o CORS (o `main.py` é o mesmo). Na imagem, só esses quatro arquivos são novos.
+- **O gabarito**, feito a partir do commit exportado (`git archive`), tem os 23 pedidos da seção S e mais um: o detalhe de
+  Catarina (CE), crítico, com o declínio e o abaixo do que já teve na mesma queda. Comparado com o gabarito do `d44b7d4f`, nenhum
+  número e nenhuma estrutura mudaram, só 87 textos: "limite fixo" no lugar de "por convenção" nas frases, "forma de projetar" no
+  lugar de "jeito de projetar", o nome e as frases do sinal 10 e a frase da mesma queda.
+- **Antes da imagem:**
+  - a F2-0 deu 0 falhas e os 2 itens MANUAL. Na primeira rodada, a leitura da conta de faturamento falhou uma vez; repetida,
+    respondeu (faturamento ativo), e a F2-0 inteira, rodada de novo, passou. A P-2 foi confirmada no Console pela pessoa
+    responsável: a trava de R$ 11 do Cloud Run e o orçamento de alertas de R$ 11, como antes;
+  - a conferência nova do serviço (só leitura, sem credencial), rodada às 10:32 UTC como linha de base contra a produção do
+    `d44b7d4f`, deu 37 OK e 21 falhas previstas, todas no que o `7b8bedc2` traz: 16 respostas diferentes só nos textos, os dois
+    textos novos do Detector e, na página, o script sem os textos novos e as duas fichas em 404. Os valores da seção S se
+    repetiram. O primeiro pedido pegou uma partida a frio: 24,9 s.
+- **Imagem:** a etiqueta `imagem-20261119-1` no `7b8bedc2` acionou a execução 44508608944 do `imagem.yml`, aprovada no ambiente
+  `producao` por `gustavohoff1987`. O job passou no teste rápido do contêiner e enviou
+  `sha256:29f4a743d1ce68b04559873d87be4200d946548ef2b7b0f0e256c6d1dae71388`, o mesmo digest da imagem com o nome do commit no
+  Artifact Registry.
+- **Cloud Run, primeiro sem tráfego:**
+  - a F2-0 de novo, logo antes do update, sem falhas, com os mesmos 2 itens MANUAL;
+  - o comando, mostrado com o digest e executado depois do OK da pessoa responsável, `gcloud run services update
+    agente-diagnostico-territorial --project=agente-diagnostico-territorial --region=us-central1 --image=...@sha256:29f4a743…
+    --no-traffic --tag=aj22-nova` (19/11/2026, 11:37 UTC), criou a revisão `agente-diagnostico-territorial-00009-deq`, sem
+    tráfego, no endereço `https://aj22-nova---agente-diagnostico-territorial-woz4embaja-uc.a.run.app`. O número 8 ficou com a
+    troca do tráfego de 16/11, que conta como geração do serviço sem criar revisão;
+  - no modelo da revisão, só mudaram a imagem e o nome da revisão. Durante as medições, os 100% ficaram fixados na `00007-coj`.
+- **Medições no endereço `aj22-nova`** (19/11/2026, das 11:53 às 11:54 UTC), depois de a instância da conferência do update se
+  desligar (às 11:53:12), para o primeiro pedido pegar uma partida a frio de verdade. "No serviço" é o tempo registrado pelo
+  Cloud Run:
+
+| Pedido | Do lado de quem pede | No serviço |
+|---|---|---|
+| Detector, todos os municípios, o 1º depois da partida a frio (com a calibração) | 31,9 s | 30,4 s |
+| Detector, todos os municípios, o 2º | 5,1 s | 4,1 s |
+| Simulador, Agrolândia, 2 anos (o 1º do Simulador) | 3,6 s | 3,4 s |
+| Simulador, Pará como unidade | 0,3 s | 0,03 s |
+| Detector, planilha de teste (20 distritos) | 0,6 s | 0,3 s |
+| Detector, todos os municípios, logo depois da planilha | 6,5 s | 5,4 s |
+
+  - **Partida a frio:** 23,2 s do início da instância à porta aberta, com 15,3 s de aquecimento (base do Brasil 13,5 s;
+    biblioteca conversacional 1,8 s). Do primeiro pedido, cerca de 23 s foram a partida e cerca de 8,6 s, o pedido.
+  - **Instâncias e reinícios:** uma instância só, a da medição. Nenhuma instância a mais, nenhum reinício, nenhum aviso de falta
+    de memória e nenhum erro nos registros.
+  - **Limites respeitados:** o maior tempo foi de 31,9 s. A memória não foi lida no Console, como pedido: o cálculo é o mesmo do
+    `d44b7d4f`, que teve pico de 22% dos 2 GiB (seção S).
+- **Conferência no endereço `aj22-nova`:** 50 OK e 0 falhas. São as 47 verificações da seção S, com o pedido de Catarina a mais
+  no gabarito e duas verificações novas: 24 respostas iguais às deste commit (tudo exato, menos os números decimais, até 1e-9
+  relativo, a régua do CI), a saúde, a documentação desligada, o CORS e a base `faa54169c5b6`. Ela confere também:
+  - os valores da seção S: no Detector com todos os municípios, 40 críticos, 436 elevados, 978 moderados, 4.116 sem alerta e 0
+    sem comparações suficientes, com 5.570 pontos no mapa; Brochier (RS) sem alerta, com os sinais 8 a 10 em "descontinuidade de
+    registro"; no Simulador, Agrolândia (SC), 2 anos, de 23 para 28 médicos (27,8), com a faixa de 21,3 a 37,2, conferida;
+    Abelardo Luz (SC), vindo de "Simular recuperação", com a meta de 79 e o acréscimo de 14 em jun/2025; o Pará como unidade, com
+    a faixa indisponível (189 casos para 200);
+  - os textos novos: o sinal 10 como "Perda em relação à referência" nos cinco detalhes, sem o nome antigo em nenhuma resposta;
+    e, em Catarina (CE), "2 desses sinais são a mesma queda vista de ângulos diferentes e contam como um evento só.";
+  - nenhuma chamada ao Gemini (o contador igual antes e depois).
+
+  Nos registros da conferência, a mesma instância atendeu tudo, sem partida nova e sem erros.
+- **Tráfego:** `gcloud run services update-traffic agente-diagnostico-territorial --project=agente-diagnostico-territorial
+  --region=us-central1 --to-latest --remove-tags=aj22-nova` (19/11/2026, 11:57 UTC) deixou 100% na `00009-deq`, seguindo a
+  revisão mais recente, como antes da publicação, e sem etiqueta.
+- **Etiquetas da imagem:** `em-uso` no `29f4a743…` e `anterior` no `cb15d7df…` (`d44b7d4f`, revisão `00007-coj`). O
+  `a5a34815…` (`dbc7fe3`) ficou só com a etiqueta do commit, para a limpeza automática; depois dela, a `00006-q6c` não volta
+  mais ao ar.
+- **Conferência na produção**, no endereço principal, depois da troca: as mesmas verificações, 50 OK e 0 falhas.
+- **Interface:**
+  - o commit `85788d9` do destino passou o `origem.txt` para `7b8bedc2`. O `publicar.yml`, o `conferir_origem.py` e o
+    `verificar_chave_google.py` de lá são iguais aos desse commit; o `conferir_protecao.py` ficou como no `dbc7fe3`;
+  - a etiqueta `publicacao-pages-20261119-1` acionou a execução 44519664675. Os jobs `conferir`, `build` e `publicar` passaram,
+    com a aprovação de `gustavohoff1987` no ambiente `github-pages` do destino, e a publicação terminou às 12:28 UTC de 19/11;
+  - pela web: a página responde 200 com o título oficial. O script `index-pZ_U-k0Q.js` traz o endereço do serviço e os textos
+    novos ("Perda em relação à referência", "Ficha metodológica (PDF)", "limite fixo"), além dos de antes. As duas fichas,
+    `/fichas/ficha-detector.pdf` (832.589 bytes, SHA-256 `767b5b9bb066…`) e `/fichas/ficha-simulador.pdf` (799.356 bytes, SHA-256
+    `4c2127a44cee…`), respondem 200, como `application/pdf`, com os mesmos bytes do commit. A malha das divisas segue a mesma, e
+    o endereço antigo segue em 404.
+- **Observação, anterior a esta publicação:** na linha de base, a produção do `d44b7d4f` abriu uma 2ª instância (motivo
+  "AUTOSCALING") no 4º pedido seguido do Detector, que esperou a partida dela: 31,8 s no serviço. A 1ª instância seguiu
+  atendendo, sem erro nem aviso de memória. O mesmo já tinha acontecido em 17/11, às 23:16 UTC. Desde a seção S, mais 6 pedidos
+  receberam 500 ("The request was aborted after waiting too long for an available instance"), todos em partidas a frio, 1 em
+  16/11 e 5 em 17/11. Nada foi mudado; fica para decisão da pessoa responsável, como na seção S.
+- **Preservados:**
+  - não houve merge no `main` do Teste-Agente nem mudança na SPEC;
+  - a API de orçamentos segue desligada, e a F2-0 conta 32 APIs ligadas, como antes;
+  - o faturamento não foi alterado: o orçamento e a trava só se conferem no Console (P-2);
+  - os limites do serviço (1 vCPU, 2 GiB, mínimo 0 e máximo 1 instância, concorrência 40, timeout 150 s), o CORS, a
+    documentação desligada e o segredo não mudaram.
+- **Reversão** (o serviço e a interface juntos):
+  - serviço: `gcloud run services update-traffic agente-diagnostico-territorial --project=agente-diagnostico-territorial
+    --region=us-central1 --to-revisions=agente-diagnostico-territorial-00007-coj=100`, com a etiqueta `em-uso` de volta ao
+    `cb15d7df…` e `anterior` no `29f4a743…` (F2-6). A `00007-coj` tem a mesma configuração, com a imagem do `d44b7d4f`;
+  - interface: o `origem.txt` do destino de volta a `d44b7d4f9dc574547ea70f0c521c577b2b421452` e uma etiqueta nova.
+
+Os scripts da conferência e da medição ficam fora do repositório, numa pasta local ignorada pelo Git.
+
+Ponto de retomada: a publicação do `7b8bedc2` está concluída. A conferência V da interface pela pessoa responsável será
+registrada quando for informada.
