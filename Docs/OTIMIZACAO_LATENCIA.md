@@ -96,6 +96,7 @@ equivalência, comparação antes/depois na mesma sessão e casos válidos, inv�
 | U9 — condição das coordenadas vetorizada | 21/10/2026 | `spatial_data` resume VALIDA/AUSENTE/INVALIDA por território com operações vetorizadas, sem uma função Python por território (~1 s por pré-exame na base municipal) | mesma regra: VALIDA só com todas as linhas válidas, AUSENTE só com todas ausentes; equivalência conferida em 300 casos sintéticos, inclusive território ausente |
 | U10 — nomes do catálogo na conversa | 21/10/2026 | `exploration.normalize` memorizada; antes de cada expressão regular de nome, o trecho é procurado no texto | o trecho é condição necessária da expressão, que continua decidindo; com 5.570 nomes, o cache de expressões do Python (512) se esgotava e cada mensagem recompilava milhares delas |
 | U11 — aquecimento na partida | 21/10/2026 (antes da porta desde 01/11/2026) | O servidor faz a mesma inspeção da base Brasil que a interface pede primeiro (pelo próprio app) e carrega a biblioteca conversacional; desde 01/11/2026 (hospedagem no Cloud Run, com CPU garantida só na partida e nas requisições), isso termina antes de a porta abrir, e a duração vai para o log; até então, em segundo plano, com a primeira requisição à base esperando o aquecimento em curso, em vez de repetir o cálculo em paralelo | só com a partida do servidor (o `TestClient` sem contexto não aquece); falha equivale a não aquecer; espera de no máximo 60 s; `ADT_AQUECIMENTO=0` desliga |
+| U12 — produtos prontos da imagem | 19/11/2026 (PA-01) | O que depende só da base versionada e do código, e se calculava na partida ou no primeiro uso, é preparado uma vez na construção da imagem (`backend/produtos_prontos.py`, num passo do `Dockerfile` logo depois do `COPY backend/`) e carregado no aquecimento nos mesmos guardados de memória que o código já usa: os quadros das fontes interpretados, as derivações da versão (`request_memo`), o índice da fonte municipal, a base das séries das ferramentas, as calibrações do Detector, as retroprojeções do Simulador e os quadros comparativos da data padrão. O exame do aquecimento e o primeiro Detector e o primeiro Simulador com a base do Brasil e os valores padrão deixam de calculá-los | só com a mesma chave (a versão da base verificada pelo manifesto, a camada de coordenadas, o código do backend, o Python e as bibliotecas) e com o arquivo íntegro (tamanho e SHA-256 conferidos antes da leitura); sem o arquivo, com outra chave ou com `ADT_BRASIL_CACHE_MAX_MB=0`, o cálculo de sempre, e o limite dos quadros continua valendo; nada é gravado em execução; a pasta (`/app/prontos`) é do root e o usuário do serviço só a lê; formato pickle, o mesmo da memória entre requisições, porque os produtos são quadros do pandas e matrizes do numpy (um formato que não executa código pediria um conversor por produto, ou o pyarrow, que a imagem não tem); as marcas de somente leitura das matrizes vão na chave e são reaplicadas; a conferência pelo manifesto continua no aquecimento e a cada requisição; as planilhas enviadas continuam calculadas como antes |
 
 Ferramentas versionadas: `backend/tests/bench_latency.py` (`21e4f94`, `25ae44c`),
 `backend/tests/bench_ui_journey.py` (`c21d903`) e os testes `test_brazil_cache.py`,
@@ -337,6 +338,48 @@ Tempo de espera do provedor (`llm_bridge.ORCAMENTO_DE_REGENERACAO`): passados 20
 prazo de 100 s e avisos de andamento aos 12 s e aos 45 s. O script da medição ficou fora do repositório (scratchpad da
 sessão), como os demais benchmarks fora do CI.
 
+### 4.11 Produtos prontos da imagem (19/11/2026, PA-01; dados reais)
+
+Perfil local da partida e dos primeiros usos, num processo novo, num computador comum e com a base versionada (só lida). Cada
+etapa guardada por versão foi medida sozinha, na ordem em que a página a pede:
+
+| Etapa | Tempo |
+|---|---|
+| Importação do app | 2,4 s |
+| Conferência das fontes (leitura e SHA-256) | 0,03 s |
+| Leitura da fonte municipal (9,5 MiB) | 1,6 s |
+| Exame da base (o do aquecimento), 1ª vez | 11,2 s (0,4 s na 2ª) |
+| Biblioteca conversacional | 0,9 s |
+| Catálogo documental | 1,5 s |
+| Base das séries das ferramentas | 0,9 s |
+| Calibração municipal do Detector | 0,7 s |
+| Base e calibração dos estados | 0,03 s |
+| Quadro comparativo da última data | 0,3 s |
+| Retroprojeção dos municípios (Simulador) | 6,7 s |
+| Retroprojeção dos estados | 0,05 s |
+| Detector com todos os municípios, com tudo já guardado | 3,2 s |
+
+No exame da base, com o perfilador ligado, as partes que mais pesam são o pré-exame (6,3 s), o índice da fonte municipal
+(4,1 s, com 2,2 s das populações dos estados), a leitura das três fontes (4,0 s) e os perfis das colunas (3,1 s); as medidas se
+sobrepõem. Tudo isso depende só da versão da base e do código: foi o que passou a vir pronto. A avaliação de cada território no
+Detector (3,2 s com todos os municípios) depende do pedido e continua calculada a cada vez; nas planilhas enviadas, nada muda.
+
+Com e sem os produtos, cada um num processo novo, os mesmos pedidos na mesma ordem:
+
+| Pedido | Sem os produtos (como antes) | Com os produtos |
+|---|---|---|
+| Carga dos produtos (62 MB) | — | 0,9 s |
+| Exame da base | 11,2 s | 0,3 s |
+| Detector, perfil da base (1º uso, com a retroprojeção) | 9,4 s | 0,06 s |
+| Detector, todos os municípios, jun/2024 | 3,6 s | 3,2 s |
+| Detector, todos os municípios, jun/2021 | 3,4 s | 3,4 s |
+| Simulador: Agrolândia, Abelardo Luz e o Pará como unidade | 0,08 s cada | 0,06 s cada |
+| Painel: os estados e todos os municípios | 0,4 s cada | 0,4 s cada |
+
+As 9 respostas são idênticas, bit a bit. No job `conteiner` do CI, a mesma comparação roda na imagem, com a partida, a memória
+e os primeiros usos, noutro contêiner com a pasta dos produtos vazia (artefato `medicoes-do-conteiner`); a partida na imagem
+tem de carregar os produtos, e as 21 respostas continuam idênticas à referência calculada na própria imagem.
+
 ## 5. Equivalência de resultados
 
 Antes de cada unidade, um capturador fora do Git gravou as respostas completas da API do código
@@ -371,6 +414,7 @@ desligado), reproduzidos igualmente.
 | `test_brazil_cache.py` (+3, 21/10/2026) | resultados derivados reaproveitados só para a mesma versão verificada, e recalculados com `ADT_BRASIL_CACHE_MAX_MB=0`; uploads nunca entram na memória da versão; o aquecimento prepara a primeira inspeção sem mudar a resposta, e `ADT_AQUECIMENTO=0` não aquece | — |
 | `test_request_memo.py` (+4, 21/10/2026) | fonte marcada reaproveita entre requisições com cópia própria por chamada; quadros não marcados ou derivados nunca reaproveitam; resultados compartilhados seguem o contrato da requisição; orçamento de bytes limitado | — |
 | `test_territorial_selection.py` (+2) | códigos 130260 e 130260.0 continuam textos distintos no catálogo e no motor; `text_values()` igual, valor a valor e com o mesmo tipo, à normalização linha a linha | o primeiro falha no código anterior a `edf3c27`; o segundo, sem a condição "somente textos" |
+| `test_produtos_prontos.py` (14, 19/11/2026, PA-01) | catálogo sintético: gerados e carregados, as mesmas respostas pelo caminho pronto (sem interpretar as fontes, sem os perfis das colunas, sem montar a base das séries e sem a retroprojeção; a calibração e as retroprojeções carregadas continuam os mesmos objetos); sem a pasta, com outra chave (base, camada, código ou bibliotecas), com o arquivo alterado ou cortado e com `ADT_BRASIL_CACHE_MAX_MB=0`, nada carregado e o cálculo de sempre, sem ler o arquivo; o limite dos quadros; a carga não grava nada; o aquecimento carrega os produtos antes da inspeção, com a linha de sempre no log. Base versionada (job `dados-reais`): com e sem os produtos, os mesmos resultados com a régua de decimais do CI no exame, no Detector em jun/2024 e jun/2021, nos casos do Simulador da seção S e em dois gráficos do painel | o arquivo com um byte trocado ou a chave com outro código caem no cálculo de sempre |
 
 Nenhum teste existente foi alterado, enfraquecido ou removido nesta tarefa.
 

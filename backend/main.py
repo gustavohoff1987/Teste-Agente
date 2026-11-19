@@ -60,6 +60,7 @@ import conversa_grafico
 import dialogo
 import painel
 import detector
+import produtos_prontos
 import simulador
 import series_brasil
 import series_da_planilha
@@ -78,18 +79,31 @@ _WARMING = contextvars.ContextVar("adt_aquecimento", default=False)
 PARTIDA: dict = {}  # tempos do último aquecimento (segundos), para o diagnóstico da partida
 
 
+def _examinar_a_base() -> int:
+    """A mesma inspeção da base Brasil que a interface pede primeiro (POST /api/inspect), pelo próprio app: as mesmas regras e
+    a memória da versão. O aquecimento e a geração dos produtos prontos da imagem (produtos_prontos.gerar) usam esta mesma
+    função. Devolve o status da resposta."""
+    async def inspect_brazil():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://aquecimento") as client:
+            resposta = await client.post("/api/inspect", data={"dataset": "brazil", "scope": "auto", "operation": "", "sheet": ""})
+            return resposta.status_code
+    return asyncio.run(inspect_brazil())
+
+
 def _warm_up():
     """Aquecimento na partida, antes de a porta abrir (desde 01/11/2026; antes, em segundo plano): a biblioteca
     conversacional e a mesma inspeção da base Brasil que a interface pede primeiro, pelo próprio app (mesmas regras e
-    memória da versão). Nada é exibido nem registrado na sessão; uma falha equivale a não aquecer, e a primeira requisição
-    calcula como antes. A duração vai para o log do servidor, sem nenhum conteúdo."""
+    memória da versão). Desde 19/11/2026 (PA-01), antes da inspeção, os produtos prontos da imagem (produtos_prontos.py):
+    com a mesma chave, os guardados de memória da versão chegam prontos, e a inspeção e o primeiro uso das ferramentas
+    deixam de calculá-los; sem eles, tudo é calculado como antes. Nada é exibido nem registrado na sessão; uma falha
+    equivale a não aquecer, e a primeira requisição calcula como antes. A duração vai para o log do servidor, sem nenhum
+    conteúdo."""
     inicio = time.monotonic()
     token = _WARMING.set(True)
+    produtos = {"estado": "erro", "segundos": 0.0}
     try:
-        async def inspect_brazil():
-            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://aquecimento") as client:
-                await client.post("/api/inspect", data={"dataset": "brazil", "scope": "auto", "operation": "", "sheet": ""})
-        asyncio.run(inspect_brazil())
+        produtos = produtos_prontos.carregar(limite_dos_quadros=_brazil_cache_limit_bytes())
+        _examinar_a_base()
     except Exception:  # noqa: BLE001 - aquecimento opcional; o pedido real relata qualquer erro
         pass
     finally:
@@ -102,9 +116,15 @@ def _warm_up():
     except (OSError, ValueError, KeyError, TypeError):
         pass  # o pedido ao provedor segue sem exemplos, como em _library_examples
     fim = time.monotonic()
-    PARTIDA.update(base_s=round(base - inicio, 3), biblioteca_s=round(fim - base, 3), total_s=round(fim - inicio, 3))
-    logging.getLogger("uvicorn.error").info("Aquecimento concluído em %.1f s (base do Brasil %.1f s; biblioteca "
-                                            "conversacional %.1f s).", fim - inicio, base - inicio, fim - base)
+    PARTIDA.update(base_s=round(base - inicio, 3), biblioteca_s=round(fim - base, 3), total_s=round(fim - inicio, 3),
+                   produtos=produtos["estado"], produtos_s=produtos["segundos"])
+    registro = logging.getLogger("uvicorn.error")
+    if produtos["estado"] == "carregados":
+        registro.info("Produtos prontos da imagem carregados em %.1f s.", produtos["segundos"])
+    else:
+        registro.info("Produtos prontos da imagem não usados (%s): a base é calculada como antes.", produtos["estado"])
+    registro.info("Aquecimento concluído em %.1f s (base do Brasil %.1f s; biblioteca conversacional %.1f s).", fim - inicio,
+                  base - inicio, fim - base)
 
 
 @asynccontextmanager

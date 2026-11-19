@@ -6,7 +6,10 @@ rede do runner, com o Gemini simulado por HTTP (backend/tests/serve_gemini_http.
 
 Mede e confere:
 - partida: limites lidos no cgroup (cpu.max, memory.max, swap), /tmp em memória, tempo até a porta abrir e até /api/health,
-  o aquecimento (base do Brasil e biblioteca conversacional, pelo log), a carga de cada componente e a memória;
+  o aquecimento (base do Brasil e biblioteca conversacional, pelo log), a carga de cada componente e a memória; desde
+  19/11/2026 (PA-01), os produtos prontos da imagem carregados na partida (pelo log), o primeiro Detector e o primeiro
+  Simulador depois dela e, noutro contêiner da mesma imagem com a pasta dos produtos vazia, a mesma partida e os mesmos
+  primeiros usos sem eles, como antes;
 - análises: cada família pelo HTTP do contêiner, idêntica (bit a bit) à referência em processo calculada na própria imagem,
   com o código e os dados do commit, e equivalente à referência em processo no runner, o ambiente dos testes com dados reais:
   exata fora dos números decimais e, nestes, com diferença relativa de até 1e-9 (comparar_respostas.py, desde 07/11/2026).
@@ -101,8 +104,8 @@ def percentis(valores: list[float]) -> dict:
 
 
 class Conteiner:
-    def __init__(self, imagem: str, nome: str, **ambiente):
-        self.imagem, self.nome = imagem, nome
+    def __init__(self, imagem: str, nome: str, montagens: tuple = (), **ambiente):
+        self.imagem, self.nome, self.montagens = imagem, nome, tuple(montagens)
         self.ambiente = {"PORT": str(PORTA), "ADT_ALLOWED_ORIGINS": ORIGEM, "GEMINI_API_KEY": "chave-de-teste",
                          "ADT_GEMINI_ENDERECO_DE_TESTE": f"http://127.0.0.1:{PORTA_GEMINI}",
                          **{chave: str(valor) for chave, valor in ambiente.items()}}
@@ -111,7 +114,7 @@ class Conteiner:
     def subir(self, prazo: float = 300) -> dict:
         docker("rm", "-f", self.nome, check=False)
         argumentos = ["run", "-d", "--name", self.nome, "--network", "host", "--cpus=1", "--memory=2g", "--memory-swap=2g",
-                      "--tmpfs", "/tmp:rw,size=1g,mode=1777"]
+                      "--tmpfs", "/tmp:rw,size=1g,mode=1777", *self.montagens]
         for chave, valor in self.ambiente.items():
             argumentos += ["-e", f"{chave}={valor}"]
         inicio = time.monotonic()
@@ -235,8 +238,77 @@ inicio = time.monotonic(); conversation_library.library(); t["biblioteca_s"] = t
 import document_catalog
 inicio = time.monotonic(); document_catalog.registry(); t["catalogo_documental_s"] = time.monotonic() - inicio
 t["integridade"] = integridade.get("integridade")
+# PA-01 (19/11/2026): a carga dos produtos prontos da imagem e, de guardados vazios, o cálculo de cada etapa que eles evitam.
+import produtos_prontos
+carga = produtos_prontos.carregar(); t["produtos_prontos"] = carga["estado"]; t["produtos_prontos_s"] = carga["segundos"]
+produtos_prontos.limpar()
+inicio = time.monotonic(); main._examinar_a_base(); t["exame_da_base_calculado_s"] = time.monotonic() - inicio
+import detector, series_brasil, simulador
+fontes = main._brazil_sources("")
+inicio = time.monotonic(); base = series_brasil.base_de(fontes); t["base_das_series_s"] = time.monotonic() - inicio
+inicio = time.monotonic(); detector.calibrar(base); t["calibracao_do_detector_s"] = time.monotonic() - inicio
+inicio = time.monotonic(); detector.calibrar_estados(base); t["calibracao_dos_estados_s"] = time.monotonic() - inicio
+inicio = time.monotonic(); simulador.retroprojetar(base, "municipios"); simulador.retroprojetar(base, "estados")
+t["retroprojecao_do_simulador_s"] = time.monotonic() - inicio
 print(json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in t.items()}))
 """
+# O primeiro uso das ferramentas depois da partida, como a página: o exame da base, a lista do Detector com todos os municípios
+# e o Simulador no modo simples (Agrolândia, o cenário e a persistência, 2 anos à frente).
+PRIMEIROS_USOS = (("primeiro Detector (todos os municípios)", "/api/detector", {"base": {"municipios": {"todos": True}}}),
+                  ("primeiro Simulador (Agrolândia, 2 anos)", "/api/simulador",
+                   {"base": {"municipios": {"todos": False, "estados": [], "ids": ["code:420020"]}}, "horizonte": "202606",
+                    "cenarios": [{"id": "c1", "nome": "Cenário 1", "metodo": "padrao"},
+                                 {"id": "m0", "nome": "Persistência (referência)", "metodo": "M0"}]}))
+# Sem os produtos prontos (como antes do PA-01): a mesma imagem com a pasta deles vazia (uma montagem só de leitura por cima).
+SEM_PRODUTOS = ("--tmpfs", "/app/prontos:ro,size=1m")
+
+
+def produtos_do_log(registro: str) -> dict | None:
+    """O desfecho dos produtos prontos na partida, pela linha do log do aquecimento."""
+    achado = re.search(r"Produtos prontos da imagem (?:carregados em ([\d.]+) s|não usados \((\w+)\))", registro)
+    if not achado:
+        return None
+    return {"estado": "carregados", "segundos": float(achado.group(1))} if achado.group(1) else {"estado": achado.group(2)}
+
+
+def medir_primeiros_usos(c: Conteiner, problemas: list) -> dict:
+    """Logo depois da partida, como a página: o exame da base, o primeiro Detector e o primeiro Simulador, com o tempo, a
+    memória e o pico de cada pedido."""
+    medidas = {}
+    with cliente() as http:
+        resposta, medidas["exame da base"] = medir_pedido(c, http, "POST", "/api/inspect", data={"dataset": "brazil",
+                                                                                                    "scope": "auto"})
+        versao = (corpo_json(resposta) or {}).get("source", {}).get("version", "") if resposta.status_code == 200 else ""
+        for nome, rota, opcoes in PRIMEIROS_USOS:
+            resposta, medidas[nome] = medir_pedido(c, http, "POST", rota, data={
+                "dataset": "brazil", "scope": "municipal", "dataset_version": versao, "context_revision": "0", "sheet": "",
+                "mapping": "{}", "options": json.dumps(opcoes)})
+            if resposta.status_code != 200:
+                problemas.append(f"{nome} sem resultado no contêiner: {resposta.status_code} {resposta.text[:300]}")
+    return medidas
+
+
+def medir_partida_sem_produtos(imagem: str, problemas: list) -> dict:
+    """A mesma partida e os mesmos primeiros usos sem os produtos prontos (a pasta vazia): a comparação do PA-01, na mesma
+    máquina e com a mesma imagem. O log tem de dizer que os produtos não foram usados."""
+    c = Conteiner(imagem, "adt-medicao-sem-produtos", montagens=SEM_PRODUTOS)
+    try:
+        tempos = c.subir()
+        memoria = c.memoria()
+        registro = c.logs()
+        achado = re.search(r"Aquecimento concluído em ([\d.]+) s \(base do Brasil ([\d.]+) s; biblioteca conversacional "
+                           r"([\d.]+) s\)", registro)
+        produtos = produtos_do_log(registro)
+        if (produtos or {}).get("estado") != "ausentes":
+            problemas.append("sem a pasta dos produtos prontos, o log não diz que eles estão ausentes: " + str(produtos))
+        return {**tempos, "produtos": produtos,
+                "aquecimento": ({"total_s": float(achado.group(1)), "base_s": float(achado.group(2)),
+                                 "biblioteca_s": float(achado.group(3))} if achado else None),
+                "memoria_depois_da_partida_mb": mb(memoria["atual"]), "pico_na_partida_mb": mb(memoria["pico"]),
+                "primeiros_usos": medir_primeiros_usos(c, problemas),
+                "memoria_depois_dos_primeiros_usos_mb": mb(c.memoria()["atual"]), "pico_mb": mb(c.memoria()["pico"])}
+    finally:
+        c.remover()
 
 
 def tamanho_da_imagem(imagem: str) -> dict:
@@ -270,6 +342,11 @@ def medir_partida(c: Conteiner, problemas: list) -> dict:
         problemas.append("o processo roda como root")
     if aquecimento is None:
         problemas.append("o log não traz a linha do aquecimento")
+    produtos = produtos_do_log(registro)
+    if (produtos or {}).get("estado") != "carregados":
+        problemas.append("a imagem não carregou os produtos prontos na partida (PA-01): " + str(produtos))
+    primeiros_usos = medir_primeiros_usos(c, problemas)
+    depois_dos_usos = c.memoria()
     componentes = {}
     feito = subprocess.run(["docker", "exec", "-w", "/app/backend", c.nome, "python", "-c", COMPONENTES],
                            capture_output=True, text=True, timeout=600)
@@ -277,9 +354,10 @@ def medir_partida(c: Conteiner, problemas: list) -> dict:
         componentes = json.loads(feito.stdout.strip().splitlines()[-1])
     else:
         problemas.append("componentes da partida: " + feito.stderr[-800:])
-    return {**tempos, "imagem": tamanho, "limites": limites, "aquecimento": aquecimento,
+    return {**tempos, "imagem": tamanho, "limites": limites, "aquecimento": aquecimento, "produtos": produtos,
             "memoria_depois_da_partida_mb": mb(memoria["atual"]), "pico_na_partida_mb": mb(memoria["pico"]),
-            "componentes_em_outro_processo": componentes}
+            "primeiros_usos": primeiros_usos, "memoria_depois_dos_primeiros_usos_mb": mb(depois_dos_usos["atual"]),
+            "pico_mb": mb(depois_dos_usos["pico"]), "componentes_em_outro_processo": componentes}
 
 
 # ------------------------------------------------------------------------------------------------ análises
@@ -985,9 +1063,37 @@ def resumo_markdown(relatorio: dict) -> str:
                    f"| Imagem | {partida['imagem']} |",
                    f"| Porta aberta | {partida['porta_aberta_s']} s |", f"| /api/health respondendo | {partida['saude_s']} s |",
                    f"| Aquecimento (log) | {partida['aquecimento']} |",
+                   f"| Produtos prontos (log) | {partida.get('produtos')} |",
                    f"| Memória depois da partida | {partida['memoria_depois_da_partida_mb']} MB (pico "
                    f"{partida['pico_na_partida_mb']} MB) |",
                    f"| Componentes (outro processo) | {partida['componentes_em_outro_processo']} |", ""]
+        sem = relatorio.get("partida_sem_produtos") or {}
+
+        def usos(medida, nome, campo):
+            return ((medida.get("primeiros_usos") or {}).get(nome) or {}).get(campo, "—")
+
+        def aquecimento(medida, campo):
+            return (medida.get("aquecimento") or {}).get(campo, "—")
+        linhas += ["## Produtos prontos da imagem (PA-01): com e sem, na mesma máquina e com a mesma imagem", "",
+                   "Sem os produtos: a pasta deles vazia, como antes do PA-01. Tempos em segundos; memória em MB "
+                   "(memory.current e memory.peak do cgroup).", "",
+                   "| Medida | Com os produtos prontos | Sem os produtos (como antes) |", "|---|---|---|",
+                   f"| Produtos prontos (log) | {partida.get('produtos')} | {sem.get('produtos', '—')} |",
+                   f"| Porta aberta | {partida.get('porta_aberta_s')} | {sem.get('porta_aberta_s', '—')} |",
+                   f"| Aquecimento: base do Brasil | {aquecimento(partida, 'base_s')} | {aquecimento(sem, 'base_s')} |",
+                   f"| Aquecimento: biblioteca conversacional | {aquecimento(partida, 'biblioteca_s')} | "
+                   f"{aquecimento(sem, 'biblioteca_s')} |",
+                   f"| Memória em repouso, depois da partida (pico) | {partida.get('memoria_depois_da_partida_mb')} "
+                   f"({partida.get('pico_na_partida_mb')}) | {sem.get('memoria_depois_da_partida_mb', '—')} "
+                   f"({sem.get('pico_na_partida_mb', '—')}) |"]
+        for nome in ["exame da base", *(item[0] for item in PRIMEIROS_USOS)]:
+            linhas.append(f"| {nome[:1].upper() + nome[1:]}: tempo (memória máx.) | {usos(partida, nome, 'tempo_s')} "
+                          f"({usos(partida, nome, 'memoria_max_mb')}) | {usos(sem, nome, 'tempo_s')} "
+                          f"({usos(sem, nome, 'memoria_max_mb')}) |")
+        linhas += [f"| Memória depois dos primeiros usos (pico) | {partida.get('memoria_depois_dos_primeiros_usos_mb')} "
+                   f"({partida.get('pico_mb')}) | {sem.get('memoria_depois_dos_primeiros_usos_mb', '—')} "
+                   f"({sem.get('pico_mb', '—')}) |",
+                   f"| Imagem | {partida['imagem']} | a mesma |", ""]
     if relatorio.get("analises"):
         linhas += ["## Análises (contêiner × referências)", "",
                    "Idêntica: bit a bit, à referência calculada na própria imagem com o código e os dados do commit. Runner: "
@@ -1066,6 +1172,7 @@ def main():
               ("gravacoes_fora_de_tmp", lambda: principal.diff()),
               ("sessoes_api", lambda: medir_sessoes_api(principal, problemas)),
               ("encerramento", lambda: principal.parar()),
+              ("partida_sem_produtos", lambda: medir_partida_sem_produtos(argumentos.imagem, problemas)),
               ("memoria_das_sessoes", lambda: medir_memoria_das_sessoes(argumentos.imagem, problemas)),
               ("gemini", lambda: medir_gemini(argumentos.imagem, problemas)),
               ("concorrencia", lambda: medir_concorrencia(argumentos.imagem, problemas, argumentos.duracao_da_carga)))

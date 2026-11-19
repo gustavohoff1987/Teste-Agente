@@ -4,7 +4,8 @@
 # imagem.yml, na Fase 2 (Docs/implantacao/ROTEIRO_FASE2.md). Python 3.11 slim fixado por digest e dependências com versões
 # exatas (backend/requirements-conteiner.txt): a imagem é reprodutível. Leva o backend, a base do Brasil versionada com o
 # manifesto (integridade conferida no aquecimento e a cada requisição), a camada de coordenadas, a biblioteca conversacional e
-# o catálogo documental com a SPEC, que o backend lê em execução. Nenhum segredo: em produção, a chave do Gemini chega pelo
+# o catálogo documental com a SPEC, que o backend lê em execução, e, desde 19/11/2026 (PA-01), os produtos prontos da base
+# (/app/prontos), gerados aqui mesmo a partir dela e do código. Nenhum segredo: em produção, a chave do Gemini chega pelo
 # Secret Manager como variável de ambiente; backend/.env e qualquer .env ficam fora (.dockerignore).
 FROM python:3.11.18-slim-trixie@sha256:ffe4b0c76963e64f05484d74dbb3f67fad1effcf3c5c22c2235f0fafc8a9c98f
 
@@ -25,6 +26,13 @@ COPY Dados_Brasil.xlsx Dados_Estados_Brasil.csv Dados_Municipios_Brasil.csv IMPL
 COPY dados/brasil/ dados/brasil/
 COPY Docs/CFG_DOC_CATALOG.yaml Docs/CFG_DOC_CATALOG.yaml
 COPY backend/ backend/
+# Os produtos prontos (PA-01, 19/11/2026; backend/produtos_prontos.py): o exame da base que o aquecimento fazia e o primeiro uso
+# do Detector e do Simulador com a base do Brasil, calculados uma vez aqui, com o código, os dados e as bibliotecas desta
+# imagem, sem o provedor de IA. Ficam em /app/prontos, do root, que o usuário do serviço só lê. Na partida, o aquecimento os
+# carrega com a chave conferida (a versão da base, a camada de coordenadas, o código e as bibliotecas); sem eles, ou com outra
+# chave, tudo é calculado como antes.
+RUN cd /app/backend && GEMINI_API_KEY= ADT_AQUECIMENTO=0 python -m produtos_prontos gerar /app/prontos \
+    && chmod 0444 /app/prontos/* && chmod 0555 /app/prontos
 # Os .pyc vêm prontos (o usuário do serviço não grava na pasta do app) e o serviço roda sem privilégios.
 RUN python -m compileall -q backend \
     && useradd --system --uid 10001 --gid nogroup --no-create-home --home-dir /tmp --shell /usr/sbin/nologin adt

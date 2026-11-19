@@ -219,7 +219,14 @@ Cada requisição recebe a sua cópia. Uma versão nova nunca reaproveita a ante
 biblioteca conversacional; desde 01/11/2026, esse aquecimento termina antes de a porta abrir (no Cloud Run, com cobrança por
 requisição, só há CPU garantida na partida e durante as requisições), e a duração vai para o log do servidor. Até então, ele
 corria em segundo plano, com a primeira requisição à base esperando o aquecimento em curso. `ADT_AQUECIMENTO=0` desliga o
-aquecimento. Medições e salvaguardas: [otimização de latência](Docs/OTIMIZACAO_LATENCIA.md).
+aquecimento. Desde 19/11/2026 (PA-01), a imagem do contêiner leva prontos, para a base e o código dela, os resultados que o
+aquecimento e o primeiro uso das ferramentas calculavam: os quadros das fontes, os resultados da versão, a base das séries, as
+calibrações do Detector, as retroprojeções do Simulador e os quadros comparativos da data padrão (`backend/produtos_prontos.py`,
+gerados num passo do `Dockerfile`, em `/app/prontos`, que o serviço só lê). O aquecimento os carrega antes da inspeção, só com a
+mesma chave (a versão da base verificada pelo manifesto, a camada de coordenadas, o código e as bibliotecas) e com o SHA-256 do
+arquivo conferido; sem eles, com outra chave ou com `ADT_BRASIL_CACHE_MAX_MB=0`, tudo é calculado como antes, com os mesmos
+resultados. Nada é gravado em execução, e o log diz se os produtos foram usados. Medições e salvaguardas:
+[otimização de latência](Docs/OTIMIZACAO_LATENCIA.md).
 
 Uma instalação externa continua possível para outra infraestrutura: `ADT_BRASIL_DATA_DIR`
 aponta para uma pasta preparada por `python backend/install_brazil_data.py --source .
@@ -610,6 +617,9 @@ serviço por HTTPS noutro endereço.
   documentação da API. `GEMINI_API_KEY` vem do Secret Manager. Na interface, `VITE_API_BASE_URL` (o endereço do serviço) e,
   no build do Pages do destino, `ADT_BASE_DA_PAGINA=/`; o CI também confere o build em `/Teste-Agente/`.
 - **Partida:** o aquecimento (a inspeção da base do Brasil e a biblioteca conversacional) termina antes de a porta abrir.
+  Desde 19/11/2026 (PA-01), ele começa pelos produtos prontos da imagem, gerados na construção: a inspeção e o primeiro uso do
+  Detector e do Simulador deixam de calcular o que depende só da base e do código. No job `conteiner`, a partida e os primeiros
+  usos são medidos com e sem os produtos, na mesma imagem.
 - **Proteção de carga** (`backend/carga.py`): o pedido acima de 15 MB mais a margem do formulário é recusado com 413 antes de
   qualquer leitura. As operações pesadas (exame, pré-exame, análise, gráfico, mapa, contagens da escolha dos territórios e a
   descrição da base) correm em vagas, fora do laço de eventos: 2 ao mesmo tempo, até 8 na fila, até 20 s de espera

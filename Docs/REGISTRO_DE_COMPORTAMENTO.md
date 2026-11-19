@@ -35,6 +35,54 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-19 · PA-01: o servidor que liga mais rápido — os produtos prontos da base vêm na imagem e o aquecimento os carrega
+- **Classificação (regra 1):** PA-01 do comando de partida do responsável (19/11/2026), contra os erros nas partidas a frio ("The
+  request was aborted after waiting too long for an available instance", 19 desde 08/11). Na dúvida, tratada como mudança: os
+  resultados não mudam, mas a partida, o primeiro uso das ferramentas e o log do servidor mudam. Decorre do pedido e não contraria
+  a SPEC nem uma divergência aprovada: a SPEC não trata do aquecimento (como já registrado em 01/11/2026), e o reaproveitamento por
+  versão verificada existe desde 21/10/2026 (`Docs/OTIMIZACAO_LATENCIA.md`, U8). **Mudança prevista.**
+- **Antes:** antes de abrir a porta, o aquecimento fazia a mesma inspeção da base do Brasil que a interface pede primeiro,
+  interpretando as fontes e calculando os resultados da versão (no CI, 7,3 s de 9,7 s até a porta abrir; no Cloud Run, 13,5 s
+  de 23,2 s em 19/11/2026). O primeiro Detector montava a base das séries e a calibração, e o primeiro Simulador, a retroprojeção
+  (no computador de referência, 6,7 s), refeitos a cada partida.
+- **Agora:**
+  - a imagem leva os **produtos prontos** da base e do código dela (`backend/produtos_prontos.py`), gerados num passo novo do
+    `Dockerfile`, logo depois do `COPY backend/`, pelo próprio app e sem o provedor de IA: o exame do aquecimento e o primeiro
+    Detector e o primeiro Simulador com a base do Brasil e os valores padrão. Ficam em `/app/prontos`, do root, que o usuário do
+    serviço (10001) só lê. São o conteúdo dos guardados de memória que esses pedidos preenchem: os quadros das fontes, os
+    resultados da versão (`request_memo`), o índice da fonte municipal, as conferências do perfil da fonte, a base das séries,
+    as calibrações do Detector (municípios e estados), as retroprojeções do Simulador e os quadros comparativos da data padrão;
+  - na partida, o aquecimento os carrega nesses mesmos guardados **antes da inspeção**, que então não calcula nada disso; o
+    primeiro Detector e o primeiro Simulador também usam o que já está pronto. A carga só acontece com a mesma chave (a versão da
+    base verificada pelo manifesto, a camada de coordenadas, o código do backend, o Python e as bibliotecas) e com o arquivo
+    íntegro (tamanho e SHA-256 conferidos antes da leitura). Sem o arquivo, com outra chave, com o arquivo alterado ou com
+    `ADT_BRASIL_CACHE_MAX_MB=0`, nada é carregado e tudo é calculado como antes;
+  - o log do servidor ganha uma linha antes da do aquecimento: "Produtos prontos da imagem carregados em N s." ou "Produtos
+    prontos da imagem não usados (motivo): a base é calculada como antes."; o diagnóstico da partida (`PARTIDA`) guarda o
+    desfecho e a duração;
+  - formato: pickle, o mesmo da memória entre requisições, porque os produtos são quadros do pandas e matrizes do numpy (um
+    formato que não executa código pediria um conversor por produto, ou o pyarrow, que a imagem não tem). Por isso o arquivo é
+    gerado na mesma construção, fica numa pasta que o serviço não grava e só é lido com a chave certa e o SHA-256 conferido. As
+    marcas de somente leitura das matrizes vão na chave e são reaplicadas na carga.
+- **Permanece:** todos os números, níveis, textos dos resultados e rotas (com e sem os produtos, as respostas são idênticas);
+  a configuração do Cloud Run (CPU, memória, instâncias, concorrência, timeout, sem o reforço de CPU na partida); a sessão; o
+  aquecimento antes de a porta abrir, com `ADT_AQUECIMENTO=0` desligando-o; a conferência da base pelo manifesto no aquecimento
+  e a cada requisição; o limite dos quadros guardados (`ADT_BRASIL_CACHE_MAX_MB`); a espera do primeiro pedido pelo aquecimento;
+  a linha "Aquecimento concluído em … (base do Brasil …; biblioteca conversacional …)", que a medição do contêiner lê, agora
+  com a carga dos produtos dentro da parte da base; as planilhas enviadas, calculadas como antes; nada é gravado em execução.
+- **Motivo:** PA-01 do comando; o perfil da partida, por etapa (`Docs/OTIMIZACAO_LATENCIA.md`, seção 4.11), mostrou que o exame
+  da base, a retroprojeção e a base das séries com a calibração dependem só da versão da base e do código.
+- **Documentação e testes:** `README.md` (a memória da versão e a partida da hospedagem), `Docs/OTIMIZACAO_LATENCIA.md` (U12, a
+  seção 4.11 e os testes) e o cabeçalho do `Dockerfile`. Testes no mesmo commit: `backend/tests/test_produtos_prontos.py` (novo:
+  na base sintética, as mesmas respostas pelo caminho pronto, sem nenhum dos cálculos que os produtos evitam; sem a pasta, com
+  outra chave, com o arquivo alterado ou cortado e com `ADT_BRASIL_CACHE_MAX_MB=0`, o cálculo de sempre, sem ler o arquivo; o
+  limite dos quadros; a carga sem gravar nada; o aquecimento com e sem os produtos e a linha do log. Na base versionada, no job
+  `dados-reais`: com e sem os produtos, os mesmos resultados com a régua de decimais do CI no exame, no Detector em jun/2024 e
+  jun/2021, nos casos do Simulador da seção S do relatório de implantação e em dois gráficos do painel) e
+  `.github/scripts/medir_conteiner.py` (a partida tem de carregar os produtos; o primeiro Detector e o primeiro Simulador depois
+  dela; a mesma partida e os mesmos usos noutro contêiner com a pasta dos produtos vazia, que tem de dizer "ausentes"; o tempo de
+  cada etapa num processo à parte; as 21 respostas continuam idênticas à referência na própria imagem, agora pelo caminho pronto).
+
 ### 2026-11-19 · AJ-22: no modo leve, 88% só nos tons da rampa em uso; os decis, as faixas com mais de 5 rótulos e o cinza de fora voltam a 62%
 - **Classificação (regra 1):** AJ-22, Parte 1 do comando final do responsável (19/11/2026), lacuna 1 do relato da rodada final.
   Decorre do pedido e não contraria a SPEC nem uma divergência aprovada: corrige o alcance do AJ-16, da mesma rodada.
